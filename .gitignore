@@ -1,0 +1,10 @@
+# The pre-extracted biped motion library is NOT distributed here (see README).
+# Guarded so it can never be committed by accident from a local dev copy.
+glb-stitcher/library/
+
+# junk
+node_modules/
+*.log
+.DS_Store
+Thumbs.db
+scratchpad/

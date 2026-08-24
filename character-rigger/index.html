@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-store, max-age=0">
+<meta http-equiv="Pragma" content="no-cache">
+<title>Character Rigger</title>
+<style>
+  :root{--bg:#0b0f14;--panel:#0f151d;--panel2:#141c26;--line:#26303c;--text:#e6edf3;--muted:#8b97a6;--accent:#5b9dff;--accent2:#38d39f;--danger:#ff6b6b}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:13px/1.4 system-ui,Segoe UI,Roboto,sans-serif}
+  #app{display:flex;height:100vh}
+  .side{width:290px;flex:0 0 290px;background:var(--panel);border-right:1px solid var(--line);overflow-y:auto;padding:14px}
+  .side h1{font-size:15px;margin:0 0 2px}
+  .side .tag{color:var(--muted);font-size:11px;margin-bottom:12px}
+  .card{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:11px;margin-bottom:11px}
+  .card h2{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:0 0 9px}
+  .drop{border:1.5px dashed var(--line);border-radius:9px;padding:16px 10px;text-align:center;color:var(--muted);font-size:12px;cursor:pointer}
+  .drop:hover{border-color:var(--accent);color:var(--text)}
+  .drop.over{border-color:var(--accent2);background:rgba(56,211,159,.08)}
+  button.btn{width:100%;background:var(--accent);color:#00142e;border:none;border-radius:8px;padding:9px;font-weight:600;font-size:13px;cursor:pointer;margin-top:4px}
+  button.btn:hover{filter:brightness(1.08)}
+  button.btn.ghost{background:transparent;color:var(--text);border:1px solid var(--line);font-weight:500}
+  button.btn.ghost:hover{border-color:var(--accent)}
+  button.btn:disabled{opacity:.45;cursor:default;filter:none}
+  .seg{display:flex;gap:6px}
+  .seg button{flex:1;background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:9px 6px;font-size:13px;cursor:pointer}
+  .seg button:hover{border-color:var(--accent)}
+  .seg button.on{background:var(--accent);color:#00142e;border-color:var(--accent);font-weight:600}
+  .row{display:flex;align-items:center;gap:8px;margin:7px 0;font-size:12px}
+  .row label{flex:1;color:var(--muted)}
+  input[type=range]{flex:1;accent-color:var(--accent)}
+  .val{min-width:36px;text-align:right;color:var(--muted);font-size:11px}
+  .hint{color:var(--muted);font-size:11px;line-height:1.5}
+  .step{display:flex;gap:7px;align-items:flex-start;margin-bottom:7px}
+  .step .n{flex:0 0 18px;height:18px;border-radius:50%;background:var(--accent);color:#00142e;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:1px}
+  .step .t{font-size:11.5px;color:var(--muted)}
+  main{flex:1;position:relative;background:#05080c;overflow:hidden}
+  canvas{display:block}
+  .viewbar{position:absolute;top:12px;left:50%;transform:translateX(-50%);display:flex;gap:6px;background:rgba(15,21,29,.9);border:1px solid var(--line);border-radius:10px;padding:5px;z-index:5}
+  .viewbar button{background:transparent;border:1px solid transparent;color:var(--text);border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;min-width:56px}
+  .viewbar button:hover{border-color:var(--line)}
+  .viewbar button.on{background:var(--accent);color:#00142e;font-weight:600}
+  .tools{position:absolute;top:12px;right:12px;display:flex;flex-direction:column;gap:6px;z-index:5}
+  .tools button{background:rgba(15,21,29,.9);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:7px 10px;font-size:12px;cursor:pointer;text-align:left}
+  .tools button:hover{border-color:var(--accent)}
+  .tools button.on{background:var(--accent);color:#00142e;border-color:var(--accent);font-weight:600}
+  .statusbar{position:absolute;left:12px;bottom:12px;background:rgba(0,0,0,.55);border-radius:8px;padding:6px 11px;font-size:12px;color:var(--muted);max-width:70%;z-index:5}
+  .selinfo{position:absolute;right:12px;bottom:12px;background:rgba(0,0,0,.55);border-radius:8px;padding:6px 11px;font-size:11px;color:var(--text);z-index:5;display:none}
+  .kbd{background:#1b2530;border:1px solid var(--line);border-radius:4px;padding:0 5px;font-size:10px;color:var(--text)}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="side">
+    <h1>Character Rigger</h1>
+    <div class="tag">Rig your own textured characters onto a standard, retargetable skeleton for the GLB Stitcher.</div>
+
+    <div class="card">
+      <h2>1 · Character mesh</h2>
+      <div class="drop" id="meshDrop">Drop a textured <b>.glb / .gltf</b><br>or click to browse</div>
+      <input type="file" id="meshInput" accept=".glb,.gltf,model/gltf-binary" hidden>
+      <div class="hint" id="meshInfo" style="margin-top:8px"></div>
+    </div>
+
+    <div class="card">
+      <h2>Skeleton type</h2>
+      <div class="seg" id="rigSeg">
+        <button data-rig="biped" class="on">🧍 Biped</button>
+        <button data-rig="quad">🐕 Quad</button>
+        <button data-rig="bird">🐦 Bird</button>
+      </div>
+      <div class="seg" id="birdPose" style="margin-top:6px;display:none">
+        <button data-pose="ground" class="on">🦶 Perched / on ground</button>
+        <button data-pose="flight">🕊 In-flight</button>
+      </div>
+      <div class="hint" style="margin-top:7px">Match your character — biped (24-bone), quadruped (27-bone), or bird (35-bone). All three are extracted from real character rigs, so exports are recognised by the Stitcher and GLB animations retarget onto them.</div>
+    </div>
+
+    <div class="card">
+      <h2>2 · Fit the skeleton</h2>
+      <div class="step"><span class="n">A</span><span class="t">Pick a view below (Front / Side / Top), then <b>drag the joints</b> onto your character. Joints only move in the plane you’re looking at.</span></div>
+      <div class="step"><span class="n">B</span><span class="t">Use <b>Iso</b> to check depth. Turn on <b>Mirror L/R</b> to rig one side and mirror it.</span></div>
+      <button class="btn ghost" id="autoFit">↻ Re-fit skeleton to mesh</button>
+      <div class="row"><label>Skeleton opacity</label><input type="range" id="skOpacity" min="0.2" max="1" step="0.05" value="1"><span class="val" id="skOpacityV">1.0</span></div>
+      <label class="row"><input type="checkbox" id="mirror" checked> <span style="flex:1;color:var(--text)">Mirror left ↔ right edits</span></label>
+      <label class="row"><input type="checkbox" id="xray"> <span style="flex:1;color:var(--text)">See-through mesh (x-ray)</span></label>
+    </div>
+
+    <div class="card">
+      <h2>3 · Skin &amp; export</h2>
+      <div class="row"><label>Skin falloff</label><input type="range" id="falloff" min="1.5" max="6" step="0.25" value="3"><span class="val" id="falloffV">3.0</span></div>
+      <button class="btn ghost" id="bindPreview">⚙ Bind &amp; preview weights</button>
+      <button class="btn" id="exportBtn" disabled>⬇ Export rigged GLB</button>
+      <div class="hint" id="exportInfo" style="margin-top:8px"></div>
+    </div>
+
+    <div class="card">
+      <h2 id="skelHeading">Skeleton = standard biped (24 bones)</h2>
+      <div class="hint">Bone names/hierarchy match the standard exactly, so the exported character is recognised by the Stitcher. <span id="skelNote">Biped rigs can use the 579-motion library. </span></div>
+    </div>
+  </div>
+
+  <main>
+    <div class="viewbar" id="viewbar">
+      <button data-view="front" class="on">Front</button>
+      <button data-view="side">Side</button>
+      <button data-view="top">Top</button>
+      <button data-view="iso">Iso</button>
+    </div>
+    <div class="tools">
+      <button id="moveTool" class="on" title="Drag joints in the current view plane">✥ Move joints</button>
+      <button id="resetView" title="Reset zoom/pan for this view">⟲ Reset view</button>
+    </div>
+    <div class="statusbar" id="status">Drop a character mesh to begin.</div>
+    <div class="selinfo" id="selinfo"></div>
+  </main>
+</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+}}
+</script>
+<script src="../studio/studio-lib.js"></script>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+
+const $=s=>document.querySelector(s);
+const setStatus=t=>{ $('#status').textContent=t; };
+
+// ---------- Skeleton templates (extracted from real Character_output rigs) ----------
+const BIPED_TEMPLATE=[{"name":"Hips","parent":null,"t":[0.3514323830604553,93.1820068359375,2.4681317806243896],"q":[0.09671296924352646,-0.002452216111123562,-0.002452216111123562,0.9953063130378723]},{"name":"LeftUpLeg","parent":"Hips","t":[13.032580375671387,-8.191000938415527,1.481066346168518],"q":[0.9853003621101379,0.08781034499406815,-0.10616007447242737,0.10100791603326797]},{"name":"LeftLeg","parent":"LeftUpLeg","t":[0.0000033974647521972656,34.189334869384766,2.384185791015625e-7],"q":[0.10850117355585098,-0.055730871856212616,-0.0772327184677124,0.9895234704017639]},{"name":"LeftFoot","parent":"LeftLeg","t":[0.0000019073486328125,39.69127655029297,-0.0000022649765014648438],"q":[-0.4542984664440155,-0.000946009939070791,0.13468791544437408,0.8806084394454956]},{"name":"LeftToeBase","parent":"LeftFoot","t":[-0.0000027418136596679688,14.574542045593262,0],"q":[-0.3855721950531006,-0.0604911632835865,-0.02534286119043827,0.9203437566757202]},{"name":"RightUpLeg","parent":"Hips","t":[-12.908900260925293,-8.159860610961914,1.6237926483154297],"q":[0.9856469631195068,-0.08462988585233688,0.10340943187475204,0.10317128896713257]},{"name":"RightLeg","parent":"RightUpLeg","t":[-0.0000039637088775634766,33.6377067565918,0.000003814697265625],"q":[0.11121493577957153,0.0567297525703907,0.07950877398252487,0.988985002040863]},{"name":"RightFoot","parent":"RightLeg","t":[0.0000030994415283203125,40.1825065612793,0.0000019073486328125],"q":[-0.4417993128299713,0.011907439678907394,-0.12506763637065887,0.8882734179496765]},{"name":"RightToeBase","parent":"RightFoot","t":[0.0000019371509552001953,14.98222541809082,-0.000004410743713378906],"q":[-0.3944631814956665,0.07434003800153732,0.03203657642006874,0.9153392910957336]},{"name":"Spine02","parent":"Hips","t":[-0.12368007749319077,10.999615669250488,-3.104846477508545],"q":[-0.13711602985858917,-0.00005171179509488866,0.005469110328704119,0.9905399084091187]},{"name":"Spine01","parent":"Spine02","t":[-4.563480615615845e-8,11.43010139465332,-0.0000012806849554181099],"q":[5.5847531044150855e-9,-3.6525311664092897e-9,3.4488043532121537e-9,1]},{"name":"Spine","parent":"Spine01","t":[-1.7730053514242172e-7,11.430103302001953,-0.0000019598519429564476],"q":[-0.0017833394231274724,-0.0015407655155286193,0.0014293546555563807,0.9999961853027344]},{"name":"LeftShoulder","parent":"Spine","t":[3.552244186401367,6.29480504989624,-0.050733860582113266],"q":[0.5103314518928528,0.5310128927230835,-0.49178457260131836,0.4644729495048523]},{"name":"LeftArm","parent":"LeftShoulder","t":[3.8089638110250235e-9,14.020439147949219,0.000015147325939324219],"q":[0.039191342890262604,0.040778711438179016,0.02576484903693199,0.998066782951355]},{"name":"LeftForeArm","parent":"LeftArm","t":[0.000005304813385009766,22.009174346923828,-0.000017665326595306396],"q":[-0.10903087258338928,-0.09245651960372925,0.19189831614494324,0.9709475636482239]},{"name":"LeftHand","parent":"LeftForeArm","t":[0.00000476837158203125,24.38747787475586,-0.000011682510375976562],"q":[0.10080726444721222,0.07579464465379715,-0.0853658989071846,0.9883348941802979]},{"name":"RightShoulder","parent":"Spine","t":[-3.5200490951538086,6.706518173217773,0.021349482238292694],"q":[0.5101808309555054,-0.5311576724052429,0.4837670624256134,0.47281768918037415]},{"name":"RightArm","parent":"RightShoulder","t":[-1.2110831448808312e-8,14.305038452148438,-4.6763091177126626e-8],"q":[0.059587739408016205,-0.062037091702222824,-0.02625039778649807,0.9959475994110107]},{"name":"RightForeArm","parent":"RightArm","t":[-0.000002205371856689453,20.321115493774414,3.427267074584961e-7],"q":[-0.14492803812026978,0.12108682841062546,-0.1817191243171692,0.9650450944900513]},{"name":"RightHand","parent":"RightForeArm","t":[0.0000017583370208740234,24.665122985839844,-9.5367431640625e-7],"q":[0.10721207410097122,-0.08431710302829742,0.09296943992376328,0.9862823486328125]},{"name":"neck","parent":"Spine","t":[-0.03219477832317352,8.114310264587402,0.029383856803178787],"q":[0.001814943621866405,-0.002171437256038189,0.001979868160560727,0.9999940395355225]},{"name":"Head","parent":"neck","t":[-3.073213861171098e-7,6.582283973693848,0.0000010741398455138551],"q":[0.3823748528957367,0.0001742809545248747,-0.004747908562421799,0.9239950776100159]},{"name":"head_end","parent":"Head","t":[-0.11819514632225037,20.897512435913086,-10.338361740112305],"q":[-0.2276899218559265,-7.532030110724008e-9,0.002603105967864394,0.9737302660942078]},{"name":"headfront","parent":"Head","t":[0.11819534748792648,8.768507957458496,10.338418006896973],"q":[0.4202080965042114,-4.3748038081048435e-8,-0.0048041134141385555,0.9074150323867798]}];
+const QUAD_TEMPLATE=[{"name":"Hips","parent":null,"t":[-0.0032502757385373116,-0.08773189038038254,-0.18744230270385742],"q":[-2.980232949312267e-8,0,0,1]},{"name":"tail","parent":"Hips","t":[2.3283064365386963e-10,-7.565326143321727e-10,-6.623575465880549e-9],"q":[-0.9685685634613037,-2.2115541398193272e-8,-0.20584028959274292,0.13965941965579987]},{"name":"tailstart","parent":"tail","t":[3.259629011154175e-9,0.03591039404273033,-1.4260876923799515e-8],"q":[-0.4606105387210846,-0.45922988653182983,-0.03167165443301201,0.7589089274406433]},{"name":"tail1","parent":"tailstart","t":[1.909211277961731e-8,0.03253764286637306,1.83936208486557e-8],"q":[-0.25424689054489136,0.12656858563423157,0.12990403175354004,0.9499810338020325]},{"name":"tail2","parent":"tail1","t":[-3.725290298461914e-9,0.02765263430774212,1.7345882952213287e-8],"q":[0.009777394123375416,-0.27695128321647644,-0.2076045721769333,0.9381378889083862]},{"name":"tail3","parent":"tail2","t":[-1.862645149230957e-9,0.027204226702451706,6.51925802230835e-9],"q":[-0.07397282868623734,-0.36943531036376953,-0.22288422286510468,0.899092972278595]},{"name":"backleg","parent":"Hips","t":[0.027547094970941544,0.02053331956267357,0.017599964514374733],"q":[0.8445946574211121,3.969669037928725e-8,-0.169101282954216,0.5080006122589111]},{"name":"backleg0","parent":"backleg","t":[-5.587935447692871e-9,0.049449414014816284,-9.313225746154785e-10],"q":[0.07455594092607498,0.26658082008361816,0.14541390538215637,0.9498583078384399]},{"name":"backleg1","parent":"backleg0","t":[-2.7939677238464355e-9,0.08873124420642853,2.0954757928848267e-8],"q":[-0.3790876567363739,-0.1318041831254959,-0.12540127336978912,0.9073008298873901]},{"name":"backleg2","parent":"backleg1","t":[-2.561137080192566e-9,0.03741346299648285,-1.5366822481155396e-8],"q":[-0.4220430850982666,0.012767721898853779,0.04502325505018234,0.9053670763969421]},{"name":"R_backleg","parent":"Hips","t":[-0.022436795756220818,0.02053331956267357,0.017599964514374733],"q":[0.8338199853897095,-6.701608867842879e-8,0.21111229062080383,0.5100743770599365]},{"name":"R_backleg0","parent":"R_backleg","t":[5.587935447692871e-9,0.04988473653793335,1.0244548320770264e-8],"q":[0.07162100076675415,-0.352180153131485,-0.1973063349723816,0.9120908975601196]},{"name":"R_backleg1","parent":"R_backleg0","t":[1.862645149230957e-9,0.08952740579843521,1.862645149230957e-9],"q":[-0.3662242293357849,0.15070201456546783,0.1621197909116745,0.9038174152374268]},{"name":"R_backleg2","parent":"R_backleg1","t":[-1.1641532182693481e-9,0.037339385598897934,-1.82189978659153e-8],"q":[-0.42318621277809143,-0.0058603063225746155,-0.020663931965827942,0.9057881236076355]},{"name":"chest","parent":"Hips","t":[-0.0073125967755913734,0.17381246387958527,0.0033942079171538353],"q":[-0.1562374234199524,-2.830722989344281e-9,-0.037283919751644135,0.9870156049728394]},{"name":"head","parent":"chest","t":[0.004656327422708273,0.04649202898144722,-0.0394153818488121],"q":[-0.268645703792572,-0.0022073802538216114,-0.0501636266708374,0.961929440498352]},{"name":"headend","parent":"head","t":[-0.004745583049952984,0.01254857238382101,0.038835570216178894],"q":[0.5833843946456909,0.016502778977155685,0.08341511338949203,0.8077327609062195]},{"name":"earend","parent":"head","t":[0.022141484543681145,0.04435080662369728,-0.026341848075389862],"q":[-0.2285403460264206,0.08390799164772034,-0.22963495552539825,0.9423356652259827]},{"name":"R_earend","parent":"head","t":[-0.017395906150341034,0.052924130111932755,-0.01249370165169239],"q":[-0.09768880903720856,-0.08452809602022171,0.16422833502292633,0.9779268503189087]},{"name":"frontleg","parent":"chest","t":[0.021591512486338615,0.030357876792550087,0.019987108185887337],"q":[0.9420432448387146,0.035163868218660355,0.0026610579807311296,0.3336329460144043]},{"name":"frontleg0","parent":"frontleg","t":[6.984919309616089e-10,0.07986066490411758,3.754394128918648e-9],"q":[-0.28382283449172974,0.09851101785898209,0.058355897665023804,0.9520161747932434]},{"name":"frontleg1","parent":"frontleg0","t":[-9.313225746154785e-10,0.05745067819952965,-5.180481821298599e-9],"q":[-0.11904646456241608,-0.05475759133696556,-0.0717434510588646,0.988778293132782]},{"name":"frontleg2","parent":"frontleg1","t":[1.7462298274040222e-10,0.02956072986125946,5.384208634495735e-10],"q":[-0.37872734665870667,-0.002645482076331973,-0.009330322965979576,0.9254574775695801]},{"name":"R_frontleg","parent":"chest","t":[-0.026247836649417877,0.026827098801732063,0.019428227096796036],"q":[0.9419724941253662,0.02984592691063881,0.03623991459608078,0.3323909342288971]},{"name":"R_frontleg0","parent":"R_frontleg","t":[-3.259629011154175e-9,0.07986489683389664,-1.979060471057892e-9],"q":[-0.28186431527137756,-0.07169497013092041,-0.04488096386194229,0.9557186365127563]},{"name":"R_frontleg1","parent":"R_frontleg0","t":[5.122274160385132e-9,0.0571313351392746,-1.8553691916167736e-9],"q":[-0.12223468720912933,0.02951880358159542,0.0408996045589447,0.9912187457084656]},{"name":"R_frontleg2","parent":"R_frontleg1","t":[-2.444721758365631e-9,0.029566964134573936,9.313225746154785e-10],"q":[-0.3786187767982483,0.0044371443800628185,0.01565205492079258,0.925409734249115]}];
+// primary child used to orient each bone (+Y aims at it); missing = leaf (inherits parent orientation)
+const BIPED_PRIMARY_CHILD={ Hips:'Spine02', Spine02:'Spine01', Spine01:'Spine', Spine:'neck', neck:'Head', Head:'head_end',
+  LeftUpLeg:'LeftLeg', LeftLeg:'LeftFoot', LeftFoot:'LeftToeBase', RightUpLeg:'RightLeg', RightLeg:'RightFoot', RightFoot:'RightToeBase',
+  LeftShoulder:'LeftArm', LeftArm:'LeftForeArm', LeftForeArm:'LeftHand', RightShoulder:'RightArm', RightArm:'RightForeArm', RightForeArm:'RightHand' };
+const QUAD_PRIMARY_CHILD={ Hips:'chest', chest:'head', head:'headend', tail:'tailstart', tailstart:'tail1', tail1:'tail2', tail2:'tail3',
+  backleg:'backleg0', backleg0:'backleg1', backleg1:'backleg2', R_backleg:'R_backleg0', R_backleg0:'R_backleg1', R_backleg1:'R_backleg2',
+  frontleg:'frontleg0', frontleg0:'frontleg1', frontleg1:'frontleg2', R_frontleg:'R_frontleg0', R_frontleg0:'R_frontleg1', R_frontleg1:'R_frontleg2' };
+// Bird rig — EXTRACTED from a real bird Character_output. These rigs use a "UniRig" system:
+// 35 generic bones Bone_000..034 under a "UniRigArmature" (NOT the anatomical Hips/Spine/wing names of the biped/
+// quad rigs). This flight template is the exact bind pose (wings spread). Child/mirror maps are derived below.
+const BIRD_TEMPLATE=[{"name":"Bone_000","parent":null,"t":[0.004967880435287952,0.6934616565704346,-0.01910165697336197],"q":[0.3826833963394165,0,0,0.9238795638084412]},{"name":"Bone_001","parent":"Bone_000","t":[4.656612873077393e-10,0.30534982681274414,0],"q":[0.369060218334198,0,0,0.9294055104255676]},{"name":"Bone_003","parent":"Bone_001","t":[-4.656612873077393e-10,0.3672141134738922,-1.862645149230957e-9],"q":[0.2810724079608917,0,0,0.9596865773200989]},{"name":"Bone_002","parent":"Bone_003","t":[0,0.06294944882392883,-5.960464477539063e-8],"q":[-2.1606685152164573e-7,0,0,1]},{"name":"Bone_006","parent":"Bone_001","t":[0.11875321716070175,-0.1513923704624176,0.3735619783401489],"q":[-0.1890871226787567,-0.9818503260612488,-0.014435759745538235,0.0027800335083156824]},{"name":"Bone_005","parent":"Bone_006","t":[1.5452696899842522e-8,0.11627371609210968,-3.898945521996211e-8],"q":[-0.11875336617231369,-0.6166316866874695,0.33265388011932373,0.7035655379295349]},{"name":"Bone_004","parent":"Bone_005","t":[6.705522537231445e-8,0.01869877427816391,-7.450580596923828e-9],"q":[0.5801616907119751,0.24031077325344086,0.40424293279647827,0.6650193929672241]},{"name":"Bone_021","parent":"Bone_004","t":[1.7113393369072583e-8,0.015267476439476013,2.6930990770779317e-8],"q":[-0.5435625910758972,-0.22515185177326202,-0.09177826344966888,0.8033822774887085]},{"name":"Bone_020","parent":"Bone_021","t":[3.725290298461914e-8,0.038924653083086014,-1.4901161193847656e-8],"q":[-2.57732580166703e-7,0,4.217411913032265e-7,1]},{"name":"Bone_023","parent":"Bone_004","t":[0.030535008758306503,-0.015267498791217804,-0.01079567614942789],"q":[-0.7677292823791504,-0.318004846572876,-0.07129273563623428,0.5517083406448364]},{"name":"Bone_022","parent":"Bone_023","t":[-1.1175870895385742e-8,0.040393929928541183,1.4901161193847656e-8],"q":[-2.6077033865590238e-8,3.725290742551124e-9,3.166496753692627e-7,1]},{"name":"Bone_026","parent":"Bone_004","t":[0.007633793633431196,-0.038168735802173615,-0.01079572830349207],"q":[-0.8145613074302673,-0.33740296959877014,0.18057170510292053,0.4359391927719116]},{"name":"Bone_025","parent":"Bone_026","t":[-1.1316274139971938e-8,0.03892456740140915,-1.5273762699052895e-8],"q":[4.0031352455116576e-7,-0.8816746473312378,0.47185784578323364,3.8187596373973065e-7]},{"name":"Bone_024","parent":"Bone_025","t":[-1.7074079927681396e-9,0.010795744135975838,-3.584354146823898e-8],"q":[-1.4901161193847656e-8,-9.491253116777898e-9,6.8080357838859115e-15,1]},{"name":"Bone_009","parent":"Bone_001","t":[-0.11875322461128235,-0.1513923704624176,0.3735619783401489],"q":[-0.18908707797527313,0.981850266456604,0.01443576067686081,0.0027800335083156824]},{"name":"Bone_008","parent":"Bone_009","t":[-1.545270578162672e-8,0.11627373844385147,1.9898841685517255e-8],"q":[-0.07096629589796066,0.36849480867385864,-0.3921988308429718,0.8398544192314148]},{"name":"Bone_007","parent":"Bone_008","t":[3.5390257835388184e-8,0.026444071903824806,1.4901161193847656e-8],"q":[0.346700519323349,-0.1436081975698471,-0.4852433204650879,0.7897558808326721]},{"name":"Bone_029","parent":"Bone_007","t":[-2.9182047001086175e-8,0.015267487615346909,1.0113780035680975e-8],"q":[-0.5435627102851868,0.2251516729593277,0.09177827090024948,0.8033822774887085]},{"name":"Bone_028","parent":"Bone_029","t":[-1.4901161193847656e-8,0.03892457112669945,0],"q":[0.22515124082565308,-0.5435627698898315,0.5031804442405701,0.6329739093780518]},{"name":"Bone_027","parent":"Bone_028","t":[1.4427712358155986e-9,0.015267477370798588,-2.2219843742732337e-9],"q":[-7.450580596923828e-9,-1.580506250320468e-7,-3.72529100900465e-8,1]},{"name":"Bone_031","parent":"Bone_007","t":[-0.022901279851794243,-0.02290121279656887,-0.010795723646879196],"q":[-0.6624047160148621,0.2743777632713318,0.2474268227815628,0.6517030596733093]},{"name":"Bone_030","parent":"Bone_031","t":[1.4901161193847656e-8,0.04451199620962143,-2.3283064365386963e-8],"q":[6.472691893577576e-8,-1.3224780559539795e-7,3.725290653733282e-8,1]},{"name":"Bone_034","parent":"Bone_007","t":[-4.1979319576057605e-8,-0.045802462846040726,-0.010795763693749905],"q":[-0.8145613074302673,0.3374028205871582,-0.1805717647075653,0.43593931198120117]},{"name":"Bone_033","parent":"Bone_034","t":[-1.1728388926712796e-8,0.03892458230257034,-2.502427776107652e-8],"q":[0.3875094950199127,-0.4408379793167114,0.2359296679496765,0.774490475654602]},{"name":"Bone_032","parent":"Bone_033","t":[-7.450580596923828e-9,0.015267468057572842,7.450580596923828e-9],"q":[-8.860615707817487e-7,7.972120670274307e-7,-8.797258033155231e-7,1]},{"name":"Bone_011","parent":"Bone_001","t":[-4.656612873077393e-10,-0.37483128905296326,0.2589862048625946],"q":[0.9294054508209229,0,0,0.36906033754348755]},{"name":"Bone_010","parent":"Bone_011","t":[0,0.48855966329574585,2.9802322387695312e-8],"q":[1.4156104555240745e-7,0,0,1]},{"name":"Bone_015","parent":"Bone_001","t":[-0.14034472405910492,0.05712921544909477,-0.10632394999265671],"q":[-0.7550824880599976,0.574705958366394,0.008449751883745193,0.3154236972332001]},{"name":"Bone_014","parent":"Bone_015","t":[-2.2351741790771484e-8,0.210170716047287,8.940696716308594e-8],"q":[0.1923164576292038,-0.07133704423904419,0.18517617881298065,0.9610594511032104]},{"name":"Bone_013","parent":"Bone_014","t":[1.043081283569336e-7,0.2987905442714691,-2.9802322387695312e-8],"q":[-0.37739643454551697,0.0843212902545929,-0.42898663878440857,0.8163530826568604]},{"name":"Bone_012","parent":"Bone_013","t":[5.21540641784668e-8,0.6203560829162598,-4.842877388000488e-8],"q":[8.735806318327377e-7,-9.499490971620617e-8,-6.984920020158825e-8,1]},{"name":"Bone_019","parent":"Bone_001","t":[0.14034470915794373,0.05712921544909477,-0.10632394999265671],"q":[-0.7550825476646423,-0.5747058987617493,-0.008449593558907509,0.3154236376285553]},{"name":"Bone_018","parent":"Bone_019","t":[-2.9802322387695312e-8,0.21017080545425415,6.705522537231445e-8],"q":[0.19231635332107544,0.07133709639310837,-0.18517613410949707,0.9610594511032104]},{"name":"Bone_017","parent":"Bone_018","t":[1.1175870895385742e-8,0.29879069328308105,2.9802322387695312e-8],"q":[-0.3789888620376587,-0.08673231303691864,0.4283749759197235,0.8156836628913879]},{"name":"Bone_016","parent":"Bone_017","t":[1.4901161193847656e-8,0.6352084279060364,-7.450580596923828e-8],"q":[5.317851901054382e-7,1.30385160446167e-7,-3.669410659767891e-7,1]}];
+const BIRD_PRIMARY_CHILD={"Bone_000":"Bone_001","Bone_001":"Bone_006","Bone_003":"Bone_002","Bone_006":"Bone_005","Bone_005":"Bone_004","Bone_004":"Bone_026","Bone_021":"Bone_020","Bone_023":"Bone_022","Bone_026":"Bone_025","Bone_025":"Bone_024","Bone_009":"Bone_008","Bone_008":"Bone_007","Bone_007":"Bone_029","Bone_029":"Bone_028","Bone_028":"Bone_027","Bone_031":"Bone_030","Bone_034":"Bone_033","Bone_033":"Bone_032","Bone_011":"Bone_010","Bone_015":"Bone_014","Bone_014":"Bone_013","Bone_013":"Bone_012","Bone_019":"Bone_018","Bone_018":"Bone_017","Bone_017":"Bone_016"};
+const BIRD_MIRROR={"Bone_006":"Bone_009","Bone_005":"Bone_008","Bone_004":"Bone_007","Bone_021":"Bone_029","Bone_020":"Bone_028","Bone_023":"Bone_031","Bone_022":"Bone_030","Bone_026":"Bone_034","Bone_025":"Bone_033","Bone_024":"Bone_033","Bone_009":"Bone_006","Bone_008":"Bone_005","Bone_007":"Bone_004","Bone_029":"Bone_021","Bone_028":"Bone_020","Bone_027":"Bone_020","Bone_031":"Bone_023","Bone_030":"Bone_022","Bone_034":"Bone_026","Bone_033":"Bone_025","Bone_032":"Bone_025","Bone_015":"Bone_019","Bone_014":"Bone_018","Bone_013":"Bone_017","Bone_012":"Bone_016","Bone_019":"Bone_015","Bone_018":"Bone_014","Bone_017":"Bone_013","Bone_016":"Bone_012"};
+// GROUNDED / perched bird — SAME 35 bones/names, but the two wing chains folded back along the body
+// (the bird is rigged wings-spread; this variant is a better default for a perched/standing bird mesh).
+const BIRD_GROUND_TEMPLATE=[{"name":"Bone_000","parent":null,"t":[0.004967880435287952,0.6934616565704346,-0.01910165697336197],"q":[0,0,0,1]},{"name":"Bone_001","parent":"Bone_000","t":[4.656612873077393e-10,0.21591495001216243,0.2159149201615688],"q":[0,0,0,1]},{"name":"Bone_003","parent":"Bone_001","t":[-4.656612873077393e-10,0.01079561088140002,0.36705539882242133],"q":[0,0,0,1]},{"name":"Bone_002","parent":"Bone_003","t":[0,-0.03238719336330731,0.05397872745606547],"q":[0,0,0,1]},{"name":"Bone_006","parent":"Bone_001","t":[0.11875321716070175,-0.377851255477177,-0.1403447089131968],"q":[0,0,0,1]},{"name":"Bone_005","parent":"Bone_006","t":[0.0431829705915564,-6.098224436534849e-8,0.1079574400010832],"q":[0,0,0,1]},{"name":"Bone_004","parent":"Bone_005","t":[0.010795741872573233,-0.010795717764219614,0.01079577287912506],"q":[0,0,0,1]},{"name":"Bone_021","parent":"Bone_004","t":[0.010795754064704538,2.8050879952168373e-8,-0.010795723111644367],"q":[0,0,0,1]},{"name":"Bone_020","parent":"Bone_021","t":[0.02159156232576731,-0.03238724982119301,1.965624130129129e-8],"q":[0,0,0,1]},{"name":"Bone_023","parent":"Bone_004","t":[0.01079573877414658,-0.01079574881684664,0.03238724838745599],"q":[0,0,0,1]},{"name":"Bone_022","parent":"Bone_023","t":[0.010795751161243539,-0.03238721592022381,0.021591445994594616],"q":[0,0,0,1]},{"name":"Bone_026","parent":"Bone_004","t":[-0.021591495529785176,-0.010795751571417767,0.03238725968678219],"q":[0,0,0,1]},{"name":"Bone_025","parent":"Bone_026","t":[-1.912442990081864e-8,-0.032387194399079,0.021591485798268334],"q":[0,0,0,1]},{"name":"Bone_024","parent":"Bone_025","t":[-3.4337060694777932e-9,-3.495522699070719e-8,0.010795744787984118],"q":[0,0,0,1]},{"name":"Bone_009","parent":"Bone_001","t":[-0.11875322461128235,-0.377851255477177,-0.1403447089131968],"q":[0,0,0,1]},{"name":"Bone_008","parent":"Bone_009","t":[-0.04318296606546612,-2.0199834027678776e-9,0.10795746467881387],"q":[0,0,0,1]},{"name":"Bone_007","parent":"Bone_008","t":[-0.021591500305714162,-0.010795783452170804,0.010795698415630578],"q":[0,0,0,1]},{"name":"Bone_029","parent":"Bone_007","t":[-0.010795765066407031,1.1944502831262582e-8,-0.01079572289837874],"q":[0,0,0,1]},{"name":"Bone_028","parent":"Bone_029","t":[-0.02159149976174332,-0.0323871796870987,5.408323233702106e-9],"q":[0,0,0,1]},{"name":"Bone_027","parent":"Bone_028","t":[-0.01079573861597144,-3.1628935581728967e-9,0.010795736375801446],"q":[0,0,0,1]},{"name":"Bone_031","parent":"Bone_007","t":[-3.2021888418665156e-8,-0.010795769613853867,0.03238723842071273],"q":[0,0,0,1]},{"name":"Bone_030","parent":"Bone_031","t":[-0.021591469352176845,-0.032387241508231024,0.021591506168596536],"q":[0,0,0,1]},{"name":"Bone_034","parent":"Bone_007","t":[0.03238721714305917,-0.010795769185514392,0.03238724489419742],"q":[0,0,0,1]},{"name":"Bone_033","parent":"Bone_034","t":[-6.554360332255982e-9,-0.032387193564851924,0.021591501784203188],"q":[0,0,0,1]},{"name":"Bone_032","parent":"Bone_033","t":[-0.010795756227192227,-0.010795704691277719,-2.258615156014443e-9],"q":[0,0,0,1]},{"name":"Bone_011","parent":"Bone_001","t":[-4.656612873077393e-10,-0.26989381164263626,-0.36705543049725403],"q":[0,0,0,1]},{"name":"Bone_010","parent":"Bone_011","t":[0,-0.3454639506625107,-0.34546379583300535],"q":[0,0,0,1]},{"name":"Bone_015","parent":"Bone_001","t":[-0.14034472405910492,0.10795751877100224,0.05397874004121353],"q":[0,0,0,1]},{"name":"Bone_014","parent":"Bone_015","t":[-0.03303497282706355,0.06963265067726243,-0.170032864758127],"q":[0,0,0,1]},{"name":"Bone_013","parent":"Bone_014","t":[-0.0408079023113104,0.1279295393681137,-0.062075510162899195],"q":[0,0,0,1]},{"name":"Bone_012","parent":"Bone_013","t":[-0.0718996432139985,0.08042806650088918,-0.7530031527410064],"q":[0,0,0,1]},{"name":"Bone_019","parent":"Bone_001","t":[0.14034470915794373,0.10795751877100224,0.05397874004121353],"q":[0,0,0,1]},{"name":"Bone_018","parent":"Bone_019","t":[0.033034980472359976,0.06963271202162424,-0.17003300376928496],"q":[0,0,0,1]},{"name":"Bone_017","parent":"Bone_018","t":[0.04080792052476512,0.12792961042116557,-0.06207553009775754],"q":[0,0,0,1]},{"name":"Bone_016","parent":"Bone_017","t":[0.0738428939484903,0.0788089214054295,-0.7718959847658842],"q":[0,0,0,1]}];
+// left<->right mirror pairs — handles biped (Left/Right) AND quadruped (base / R_base) naming
+function computeMirror(names){ const set=new Set(names), m={};
+  for(const n of names){
+    if(n.startsWith('Left')){ const r='Right'+n.slice(4); if(set.has(r)) m[n]=r; }
+    else if(n.startsWith('Right')){ const l='Left'+n.slice(5); if(set.has(l)) m[n]=l; }
+    else if(n.startsWith('R_')){ const l=n.slice(2); if(set.has(l)) m[n]=l; }
+    else { const r='R_'+n; if(set.has(r)) m[n]=r; }
+  } return m; }
+function boneSide(n){ if(n.startsWith('R_')||n.startsWith('Right')) return 'R';
+  if(n.startsWith('Left')||MIRROR[n]) return 'L'; return 'C'; }
+
+// active rig type — all of these are re-pointed by setRig()
+let rigType='biped', birdPose='ground', TEMPLATE, BONE_NAMES, IDX, PRIMARY_CHILD, MIRROR;
+const RIGS={ biped:{tpl:BIPED_TEMPLATE, pc:BIPED_PRIMARY_CHILD, label:'biped', bones:24},
+             quad :{tpl:QUAD_TEMPLATE,  pc:QUAD_PRIMARY_CHILD,  label:'quadruped', bones:27},
+             bird :{tpl:BIRD_TEMPLATE,  pc:BIRD_PRIMARY_CHILD,  label:'bird', bones:35} };
+function setRig(type){
+  rigType = RIGS[type] ? type : 'biped';
+  const r=RIGS[rigType];
+  TEMPLATE = (rigType==='bird') ? (birdPose==='flight' ? BIRD_TEMPLATE : BIRD_GROUND_TEMPLATE) : r.tpl;
+  BONE_NAMES = TEMPLATE.map(b=>b.name);
+  IDX = Object.fromEntries(BONE_NAMES.map((n,i)=>[n,i]));
+  PRIMARY_CHILD = r.pc;
+  MIRROR = (rigType==='bird') ? BIRD_MIRROR : computeMirror(BONE_NAMES);   // bird uses the generic Bone_NNN names → geometric mirror map
+}
+setRig('biped');
+
+// template world rest positions (cm) via FK
+function templateWorldPositions(){
+  const mats={}, pos=[];
+  for(const b of TEMPLATE){
+    const local=new THREE.Matrix4().compose(new THREE.Vector3(...b.t), new THREE.Quaternion(...b.q), new THREE.Vector3(1,1,1));
+    const m = b.parent ? mats[b.parent].clone().multiply(local) : local;
+    mats[b.name]=m; pos.push(new THREE.Vector3().setFromMatrixPosition(m));
+  }
+  return pos;   // array aligned with TEMPLATE/BONE_NAMES order
+}
+
+// ---------- three.js scene ----------
+const main=document.querySelector('main');
+const renderer=new THREE.WebGLRenderer({antialias:true, preserveDrawingBuffer:true});
+renderer.setPixelRatio(Math.min(2,devicePixelRatio)); renderer.outputColorSpace=THREE.SRGBColorSpace;
+main.appendChild(renderer.domElement);
+const scene=new THREE.Scene(); scene.background=new THREE.Color(0x05080c);
+const camera=new THREE.OrthographicCamera(-1,1,1,-1,-1000,3000);
+scene.add(new THREE.HemisphereLight(0xffffff,0x2a3038,1.2));
+const dir=new THREE.DirectionalLight(0xffffff,1.1); dir.position.set(3,6,5); scene.add(dir);
+const grid=new THREE.GridHelper(4,16,0x2a3644,0x18222c); scene.add(grid);
+
+let meshObj=null, meshGeo=null, meshMat=null;   // the loaded character mesh (normalized to ~2u tall, feet at y=0)
+let modelHeight=2, modelCenterY=1;
+let jointPos=[];                                 // world positions of the 24 joints (editable)
+let jointGroup=new THREE.Group(); scene.add(jointGroup);
+let boneLines=null, jointMeshes=[];
+let selJoint=-1;
+const JOINT_R=0.028;
+
+function resize(){
+  const w=main.clientWidth, h=main.clientHeight;
+  renderer.setSize(w,h);
+  applyView(curView, true);   // recompute ortho frustum for aspect
+}
+addEventListener('resize', resize);
+
+// ---------- views ----------
+let curView='front', viewState={zoom:1, panX:0, panY:0};
+const VIEWS={
+  front:{dir:new THREE.Vector3(0,0,-1), up:new THREE.Vector3(0,1,0)},
+  back :{dir:new THREE.Vector3(0,0, 1), up:new THREE.Vector3(0,1,0)},
+  side :{dir:new THREE.Vector3(-1,0,0), up:new THREE.Vector3(0,1,0)},
+  top  :{dir:new THREE.Vector3(0,-1,0), up:new THREE.Vector3(0,0,-1)},
+  iso  :{dir:new THREE.Vector3(-1,-0.8,-1).normalize(), up:new THREE.Vector3(0,1,0)},
+};
+function applyView(v, keepZoom){
+  curView=v; $('#viewbar').querySelectorAll('button').forEach(b=>b.classList.toggle('on', b.dataset.view===v));
+  const cfg=VIEWS[v]; const center=new THREE.Vector3(0, modelCenterY, 0);
+  const dist=1000;
+  camera.position.copy(center).addScaledVector(cfg.dir, -dist);
+  camera.up.copy(cfg.up); camera.lookAt(center);
+  if(!keepZoom){ viewState={zoom:1, panX:0, panY:0}; }
+  const w=main.clientWidth||1, h=main.clientHeight||1, aspect=w/h;
+  const half=(modelHeight*0.75)/viewState.zoom;      // vertical half-extent
+  camera.left=-half*aspect+viewState.panX; camera.right=half*aspect+viewState.panX;
+  camera.top=half+viewState.panY; camera.bottom=-half+viewState.panY;
+  camera.near=-2000; camera.far=2000;
+  camera.updateProjectionMatrix();
+  grid.visible = (v!=='top');   // grid is the floor; hide when looking straight down it
+}
+$('#viewbar').addEventListener('click', e=>{ const b=e.target.closest('button'); if(b) applyView(b.dataset.view); });
+$('#resetView').addEventListener('click', ()=>applyView(curView));
+
+// ---------- mesh loading ----------
+const loader=new GLTFLoader();
+function loadMeshFromFile(file){
+  const url=URL.createObjectURL(file);
+  loader.load(url, gltf=>{
+    URL.revokeObjectURL(url);
+    // find the first mesh with geometry (prefer a non-skinned plain mesh)
+    let src=null; gltf.scene.traverse(o=>{ if(!src && o.isMesh && o.geometry) src=o; });
+    if(!src){ setStatus('No mesh found in that file.'); return; }
+    if(meshObj){ scene.remove(meshObj); }
+    // bake world transform into geometry, then normalize to ~2u tall with feet on the ground
+    src.updateWorldMatrix(true,true);
+    const geo=src.geometry.clone(); geo.applyMatrix4(src.matrixWorld);
+    geo.computeBoundingBox(); const bb=geo.boundingBox, size=new THREE.Vector3(), ctr=new THREE.Vector3();
+    bb.getSize(size); bb.getCenter(ctr);
+    const s=2/(size.y||1);
+    const norm=new THREE.Matrix4().makeTranslation(-ctr.x, -bb.min.y, -ctr.z).premultiply(new THREE.Matrix4().makeScale(1,1,1));
+    geo.applyMatrix4(new THREE.Matrix4().makeTranslation(-ctr.x,-bb.min.y,-ctr.z));
+    geo.applyMatrix4(new THREE.Matrix4().makeScale(s,s,s));
+    geo.computeBoundingBox(); geo.computeVertexNormals?.();
+    meshGeo=geo;
+    meshMat=(src.material&&src.material.clone)?src.material.clone():new THREE.MeshStandardMaterial({color:0x9aa4b0});
+    meshMat.side=THREE.DoubleSide;
+    meshObj=new THREE.Mesh(geo, meshMat); scene.add(meshObj);
+    const nb=geo.boundingBox; modelHeight=(nb.max.y-nb.min.y)||2; modelCenterY=(nb.max.y+nb.min.y)/2;
+    $('#meshInfo').innerHTML=`Loaded <b>${file.name}</b><br>${geo.attributes.position.count.toLocaleString()} verts · normalized to ${modelHeight.toFixed(2)}u tall`;
+    autoFit();
+    applyView('front');
+    $('#exportBtn').disabled=false;
+    setStatus('Mesh loaded. Pick a view and drag the joints onto the character.');
+  }, undefined, err=>{ console.error(err); setStatus('Could not load that file.'); });
+}
+const meshDrop=$('#meshDrop'), meshInput=$('#meshInput');
+meshDrop.onclick=()=>meshInput.click();
+meshInput.onchange=e=>{ if(e.target.files[0]) loadMeshFromFile(e.target.files[0]); };
+;['dragover','dragenter'].forEach(ev=>meshDrop.addEventListener(ev,e=>{e.preventDefault();meshDrop.classList.add('over');}));
+;['dragleave','drop'].forEach(ev=>meshDrop.addEventListener(ev,e=>{e.preventDefault();meshDrop.classList.remove('over');}));
+meshDrop.addEventListener('drop',e=>{ const f=e.dataTransfer.files[0]; if(f) loadMeshFromFile(f); });
+
+// ---------- skeleton fit + rendering ----------
+function autoFit(){
+  const raw=templateWorldPositions();             // cm
+  let mn=Infinity,mx=-Infinity; for(const p of raw){ mn=Math.min(mn,p.y); mx=Math.max(mx,p.y); }
+  const skH=(mx-mn)||1;
+  const s=(modelHeight*0.98)/skH;
+  jointPos = raw.map(p=>new THREE.Vector3((p.x)*s, (p.y-mn)*s, (p.z)*s));   // feet ~ y=0
+  // center on the mesh horizontally, anchored on the root joint (Hips / Bone_000 / whatever the template root is)
+  if(meshGeo){ const bb=meshGeo.boundingBox; const cx=(bb.max.x+bb.min.x)/2, cz=(bb.max.z+bb.min.z)/2;
+    const hx=jointPos[0].x, hz=jointPos[0].z; for(const p of jointPos){ p.x+=cx-hx; p.z+=cz-hz; } }
+  selJoint=-1; buildSkeletonView();
+}
+function buildSkeletonView(){
+  // clear
+  jointGroup.clear(); jointMeshes=[];
+  // bones
+  const pts=[];
+  TEMPLATE.forEach((b,i)=>{ if(b.parent){ pts.push(jointPos[i], jointPos[IDX[b.parent]]); } });
+  const bg=new THREE.BufferGeometry().setFromPoints(pts);
+  boneLines=new THREE.LineSegments(bg, new THREE.LineBasicMaterial({color:0x5b9dff, transparent:true, opacity:0.9, depthTest:false}));
+  boneLines.renderOrder=10; jointGroup.add(boneLines);
+  // joints
+  const jgeo=new THREE.SphereGeometry(JOINT_R,14,10);
+  TEMPLATE.forEach((b,i)=>{
+    let side=boneSide(b.name);
+    if(side==='C'){ const dx=jointPos[i].x - jointPos[0].x; side = dx>0.02?'L' : dx<-0.02?'R' : 'C'; }   // name has no L/R (bird) → color by X side
+    const col = side==='L'?0x38d39f : side==='R'?0xff8a5b : 0xffd15b;
+    const m=new THREE.Mesh(jgeo, new THREE.MeshBasicMaterial({color:col, depthTest:false}));
+    m.position.copy(jointPos[i]); m.renderOrder=11; m.userData.joint=i; jointGroup.add(m); jointMeshes.push(m);
+  });
+  refreshSkeleton();
+}
+function refreshSkeleton(){
+  // update bone line positions + joint spheres
+  if(boneLines){ const arr=boneLines.geometry.attributes.position.array; let k=0;
+    TEMPLATE.forEach((b,i)=>{ if(b.parent){ const a=jointPos[i], p=jointPos[IDX[b.parent]];
+      arr[k++]=a.x;arr[k++]=a.y;arr[k++]=a.z; arr[k++]=p.x;arr[k++]=p.y;arr[k++]=p.z; } });
+    boneLines.geometry.attributes.position.needsUpdate=true; boneLines.geometry.computeBoundingSphere(); }
+  jointMeshes.forEach((m,i)=>{ m.position.copy(jointPos[i]); m.scale.setScalar(i===selJoint?1.6:1); });
+}
+// biped / quadruped skeleton toggle
+$('#rigSeg').addEventListener('click', e=>{
+  const b=e.target.closest('button'); if(!b || b.dataset.rig===rigType) return;
+  setRig(b.dataset.rig);
+  $('#rigSeg').querySelectorAll('button').forEach(x=>x.classList.toggle('on', x.dataset.rig===rigType));
+  $('#birdPose').style.display = (rigType==='bird') ? 'flex' : 'none';   // pose sub-toggle only for birds
+  const r=RIGS[rigType];
+  $('#skelHeading').textContent = (rigType==='bird')
+    ? `Skeleton = standard bird · UniRig (${r.bones} bones)` : `Skeleton = standard ${r.label} (${r.bones} bones)`;
+  $('#skelNote').textContent = (rigType==='biped') ? 'Biped rigs can use the 579-motion library. '
+    : (rigType==='bird') ? 'Matches the standard UniRig bird (Bone_000–034) — bird animations retarget onto it. '
+    : 'Quadruped rigs play their own animation clips (the library is biped-only). ';
+  autoFit();   // re-fit the newly chosen skeleton (works with or without a mesh loaded)
+  setStatus(r.label[0].toUpperCase()+r.label.slice(1)+' skeleton selected'+(meshGeo?' — drag joints to fit.':' — load a mesh.'));
+});
+// bird wing-pose sub-toggle (perched vs in-flight) — same 22 bones, different default rest pose
+$('#birdPose').addEventListener('click', e=>{
+  const b=e.target.closest('button'); if(!b || b.dataset.pose===birdPose) return;
+  birdPose=b.dataset.pose;
+  $('#birdPose').querySelectorAll('button').forEach(x=>x.classList.toggle('on', x.dataset.pose===birdPose));
+  setRig('bird'); autoFit();
+  setStatus('Bird — '+(birdPose==='flight'?'wings spread (in-flight)':'wings folded (perched)')+' pose selected');
+});
+$('#autoFit').onclick=()=>{ if(meshGeo){ autoFit(); setStatus('Skeleton re-fitted. Drag joints to refine.'); } };
+$('#skOpacity').oninput=e=>{ const v=parseFloat(e.target.value); $('#skOpacityV').textContent=v.toFixed(1);
+  if(boneLines) boneLines.material.opacity=v; jointGroup.visible=v>0.05; };
+$('#xray').onchange=e=>{ if(meshMat){ meshMat.transparent=e.target.checked; meshMat.opacity=e.target.checked?0.35:1; meshMat.depthWrite=!e.target.checked; } };
+
+// ---------- interaction: view-plane-constrained joint drag + zoom/pan ----------
+const ray=new THREE.Raycaster(); ray.params.Points={threshold:0.05};
+let moveMode=true;
+$('#moveTool').onclick=()=>{ moveMode=!moveMode; $('#moveTool').classList.toggle('on',moveMode); };
+function ndc(e){ const r=renderer.domElement.getBoundingClientRect(); return {x:((e.clientX-r.left)/r.width)*2-1, y:-((e.clientY-r.top)/r.height)*2+1}; }
+let drag=null;   // {joint, mirror, plane}
+renderer.domElement.addEventListener('pointerdown', e=>{
+  if(e.button!==0) return;
+  const p=ndc(e); ray.setFromCamera(p, camera);
+  if(moveMode && jointMeshes.length){
+    const hit=ray.intersectObjects(jointMeshes, false)[0];
+    if(hit){ selJoint=hit.object.userData.joint; refreshSkeleton(); showSel();
+      const n=THREE.Vector3.prototype; const fwd=new THREE.Vector3(); camera.getWorldDirection(fwd);
+      const plane=new THREE.Plane().setFromNormalAndCoplanarPoint(fwd, jointPos[selJoint].clone());
+      const mName=MIRROR[BONE_NAMES[selJoint]]; const mj=($('#mirror').checked && mName!=null)?IDX[mName]:-1;
+      drag={joint:selJoint, mirror:mj, plane, start:jointPos[selJoint].clone(), mstart:mj>=0?jointPos[mj].clone():null};
+      renderer.domElement.setPointerCapture(e.pointerId); return; }
+  }
+  // otherwise start a pan
+  drag={pan:true, sx:e.clientX, sy:e.clientY, px:viewState.panX, py:viewState.panY};
+  renderer.domElement.setPointerCapture(e.pointerId);
+});
+renderer.domElement.addEventListener('pointermove', e=>{
+  if(!drag) return;
+  if(drag.pan){
+    const r=renderer.domElement.getBoundingClientRect();
+    const worldPerPx=(camera.top-camera.bottom)/r.height;
+    viewState.panX = drag.px - (e.clientX-drag.sx)*worldPerPx;
+    viewState.panY = drag.py + (e.clientY-drag.sy)*worldPerPx;
+    applyView(curView, true); return;
+  }
+  const p=ndc(e); ray.setFromCamera(p, camera);
+  const hitPt=new THREE.Vector3();
+  if(ray.ray.intersectPlane(drag.plane, hitPt)){
+    const delta=hitPt.clone().sub(drag.start);     // movement within the view plane only
+    jointPos[drag.joint].copy(drag.start).add(delta);
+    if(drag.mirror>=0 && drag.mstart){             // mirror the edit onto the opposite-side joint (flip the X of the movement)
+      const md=delta.clone(); md.x=-md.x;          // mirror the X component
+      jointPos[drag.mirror].copy(drag.mstart).add(md);
+    }
+    refreshSkeleton(); showSel();
+  }
+});
+renderer.domElement.addEventListener('pointerup', ()=>{ drag=null; });
+renderer.domElement.addEventListener('wheel', e=>{ e.preventDefault();
+  viewState.zoom = Math.max(0.2, Math.min(6, viewState.zoom*(e.deltaY<0?1.1:1/1.1)));
+  applyView(curView, true);
+}, {passive:false});
+function showSel(){ if(selJoint<0){ $('#selinfo').style.display='none'; return; }
+  const el=$('#selinfo'); el.style.display='block'; const p=jointPos[selJoint];
+  el.innerHTML=`<b>${BONE_NAMES[selJoint]}</b> · x ${p.x.toFixed(2)} y ${p.y.toFixed(2)} z ${p.z.toFixed(2)}`; }
+
+// ---------- skinning ----------
+function distToSegment(px,py,pz, a, b){
+  const abx=b.x-a.x, aby=b.y-a.y, abz=b.z-a.z;
+  const apx=px-a.x, apy=py-a.y, apz=pz-a.z;
+  const len2=abx*abx+aby*aby+abz*abz || 1e-9;
+  let t=(apx*abx+apy*aby+apz*abz)/len2; t=Math.max(0,Math.min(1,t));
+  const cx=a.x+abx*t, cy=a.y+aby*t, cz=a.z+abz*t;
+  const dx=px-cx, dy=py-cy, dz=pz-cz; return Math.sqrt(dx*dx+dy*dy+dz*dz);
+}
+// each bone's "segment" for weighting = from its joint to its primary child (leaf → small sphere around joint)
+function boneSegments(){
+  return TEMPLATE.map((b,i)=>{ const c=PRIMARY_CHILD[b.name];
+    const a=jointPos[i], bb=(c!=null)?jointPos[IDX[c]]:jointPos[i].clone().add(new THREE.Vector3(0,0.04,0));
+    return {a, b:bb}; });
+}
+function computeSkin(){
+  const pos=meshGeo.attributes.position, n=pos.count;
+  const segs=boneSegments(); const NB=segs.length;
+  const skinIndex=new Uint16Array(n*4), skinWeight=new Float32Array(n*4);
+  const falloff=parseFloat($('#falloff').value)||3;
+  const d=new Float32Array(NB);
+  for(let v=0; v<n; v++){
+    const px=pos.getX(v), py=pos.getY(v), pz=pos.getZ(v);
+    for(let b=0;b<NB;b++){ d[b]=distToSegment(px,py,pz, segs[b].a, segs[b].b); }
+    // top 4 nearest
+    const order=[...Array(NB).keys()].sort((i,j)=>d[i]-d[j]).slice(0,4);
+    let wsum=0; const w=order.map(b=>{ const ww=1/Math.pow(d[b]+1e-4, falloff); wsum+=ww; return ww; });
+    for(let k=0;k<4;k++){ skinIndex[v*4+k]=order[k]||0; skinWeight[v*4+k]=(w[k]||0)/(wsum||1); }
+  }
+  return {skinIndex, skinWeight};
+}
+
+// ---------- build a THREE.Skeleton from the fitted joints (standard names/hierarchy) ----------
+const _up=new THREE.Vector3(0,1,0);
+function buildBones(){
+  // world orientation: +Y aims at primary child; leaf inherits parent
+  const worldQuat={}, bones={};
+  for(const b of TEMPLATE){
+    const c=PRIMARY_CHILD[b.name];
+    let q;
+    if(c!=null){ const d=jointPos[IDX[c]].clone().sub(jointPos[IDX[b.name]]); if(d.lengthSq()<1e-9) d.set(0,1,0); d.normalize();
+      q=new THREE.Quaternion().setFromUnitVectors(_up, d); }
+    else { q=(b.parent!=null?worldQuat[b.parent]:new THREE.Quaternion()).clone(); }
+    worldQuat[b.name]=q;
+  }
+  // create bones with local transforms
+  for(const b of TEMPLATE){
+    const bone=new THREE.Bone(); bone.name=b.name; bones[b.name]=bone;
+    const wq=worldQuat[b.name];
+    if(b.parent==null){
+      bone.position.copy(jointPos[IDX[b.name]]);
+      bone.quaternion.copy(wq);
+    } else {
+      const pq=worldQuat[b.parent], pqi=pq.clone().invert();
+      const off=jointPos[IDX[b.name]].clone().sub(jointPos[IDX[b.parent]]).applyQuaternion(pqi);
+      bone.position.copy(off);
+      bone.quaternion.copy(pqi.clone().multiply(wq));
+    }
+  }
+  const roots=[];
+  for(const b of TEMPLATE){ if(b.parent==null) roots.push(bones[b.name]); else bones[b.parent].add(bones[b.name]); }
+  const ordered=BONE_NAMES.map(n=>bones[n]);
+  return {roots, ordered};
+}
+
+// ---------- bind & preview ----------
+let previewSkinned=null;
+function buildSkinnedMesh(){
+  const {skinIndex, skinWeight}=computeSkin();
+  const geo=meshGeo.clone();
+  geo.setAttribute('skinIndex', new THREE.BufferAttribute(skinIndex,4));
+  geo.setAttribute('skinWeight', new THREE.BufferAttribute(skinWeight,4));
+  const {roots, ordered}=buildBones();
+  const holder=new THREE.Group(); roots.forEach(r=>holder.add(r));
+  const skinned=new THREE.SkinnedMesh(geo, meshMat);
+  skinned.add(roots[0]);
+  const skeleton=new THREE.Skeleton(ordered);
+  skinned.bind(skeleton);
+  skinned.normalizeSkinWeights();
+  return {skinned, holder, skeleton, ordered, roots};
+}
+$('#bindPreview').onclick=()=>{
+  if(!meshGeo){ setStatus('Load a mesh first.'); return; }
+  setStatus('Binding skin…');
+  setTimeout(()=>{
+    if(previewSkinned){ scene.remove(previewSkinned); previewSkinned=null; }
+    const {skinned}=buildSkinnedMesh();
+    if(meshObj) meshObj.visible=false;
+    scene.add(skinned); previewSkinned=skinned;
+    // quick wiggle to show the skin deforms: nudge the arms, then restore
+    setStatus('Skin bound. Exported rig will deform like this. (mesh hidden; showing skinned copy)');
+  },10);
+};
+
+// ---------- export ----------
+$('#exportBtn').onclick=()=>{
+  if(!meshGeo){ setStatus('Load a mesh first.'); return; }
+  setStatus('Building rigged GLB…');
+  setTimeout(()=>{
+    const {skinned, roots}=buildSkinnedMesh();
+    const holder=new THREE.Group(); holder.name='Armature'; holder.add(skinned);
+    const exporter=new GLTFExporter();
+    exporter.parse(holder, result=>{
+      const blob=new Blob([result], {type:'model/gltf-binary'});
+      const nm=(($('#meshInfo').textContent.match(/Loaded (.+?)\n/)||[])[1]||'character').replace(/\.[^.]+$/,'')+'_rigged';
+      const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+      a.download=nm+'.glb';
+      a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 4000);
+      // ALSO save into the shared Studio Library → shows up as a base character in the Stitcher automatically
+      let libNote='';
+      if(window.StudioLib){ StudioLib.addModel({ name:nm, skeleton:rigType, glb:result })
+        .then(()=>{ $('#exportInfo').innerHTML=`Exported <b>${a.download}</b> · ${rigType} rig — <b style="color:var(--accent2,#37d0a0)">added to the Studio Library</b>, ready in 🎬 Stitch.`; })
+        .catch(e=>console.warn('StudioLib.addModel failed',e));
+        libNote=' + Studio Library'; }
+      $('#exportInfo').innerHTML=`Exported <b>${a.download}</b> · ${rigType} standard skeleton${libNote?' — added to the Studio Library':''}. ${libNote?'':'Drop it into the GLB Stitcher.'}`;
+      setStatus('Exported '+a.download+libNote);
+    }, err=>{ console.error(err); setStatus('Export failed: '+(err.message||err)); }, {binary:true, onlyVisible:false, animations:[]});
+  },10);
+};
+
+// ---------- render loop ----------
+resize(); applyView('front');
+(function loop(){ requestAnimationFrame(loop); renderer.render(scene,camera); })();
+window.__rig={THREE, get jointPos(){return jointPos;}, get BONE_NAMES(){return BONE_NAMES;}, get rigType(){return rigType;}, applyView, buildBones, buildSkinnedMesh, get camera(){return camera;}, get scene(){return scene;}};
+setStatus('Drop a character mesh (.glb) to begin.');
+</script>
+</body>
+</html>

@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSOL Designs GLB Studio</title>
+<style>
+  :root{ --bg:#0b0e13; --bar:#11151d; --line:#232b38; --text:#e7ecf3; --muted:#8b97a8; --accent:#5b8cff; --accent2:#37d0a0; }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:14px/1.4 system-ui,Segoe UI,Roboto,sans-serif;overflow:hidden}
+  #app{display:flex;flex-direction:column;height:100%;position:relative}
+  header{display:flex;align-items:center;gap:14px;padding:8px 14px;background:var(--bar);border-bottom:1px solid var(--line);flex:0 0 auto}
+  .brand{display:flex;align-items:center;gap:9px;font-weight:700;letter-spacing:.2px;white-space:nowrap}
+  .brand .logo{width:22px;height:22px;border-radius:6px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:inline-block}
+  nav{display:flex;gap:6px}
+  .tab{display:flex;align-items:center;gap:7px;padding:7px 13px;border:1px solid var(--line);border-radius:9px;background:#151b25;color:var(--muted);cursor:pointer;font-weight:600;white-space:nowrap}
+  .tab:hover{color:var(--text);border-color:#33405a}
+  .tab.on{color:#fff;background:linear-gradient(135deg,rgba(91,140,255,.22),rgba(55,208,160,.16));border-color:var(--accent)}
+  .tab .n{font-size:11px;color:var(--muted);font-weight:600}
+  .tab.on .n{color:#cfe0ff}
+  .spacer{flex:1}
+  .lib{display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--muted);border:1px solid var(--line);border-radius:9px;padding:6px 11px;background:#151b25;cursor:pointer;user-select:none}
+  .lib:hover{border-color:#33405a}
+  .lib b{color:var(--text)} .lib .dot{color:var(--accent2)}
+  .flow{font-size:11.5px;color:var(--muted);white-space:nowrap}
+  .flow b{color:#9fb4d4}
+  main{flex:1;position:relative;min-height:0}
+  iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:var(--bg)}
+  /* library drawer */
+  #drawer{position:absolute;top:0;right:0;height:100%;width:min(380px,86vw);background:var(--bar);border-left:1px solid var(--line);box-shadow:-16px 0 40px rgba(0,0,0,.4);transform:translateX(100%);transition:transform .18s ease;z-index:20;display:flex;flex-direction:column}
+  #drawer.open{transform:none}
+  .dhead{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--line)}
+  .dhead b{font-size:14px}
+  .x{cursor:pointer;color:var(--muted);border:1px solid var(--line);border-radius:7px;padding:2px 9px}
+  .x:hover{color:var(--text)}
+  .dbody{overflow:auto;padding:10px 12px}
+  .sect{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin:12px 2px 6px;font-weight:700}
+  .row{display:flex;align-items:center;gap:10px;padding:8px 9px;border:1px solid var(--line);border-radius:8px;margin-bottom:6px;background:#151b25}
+  .row .ic{width:26px;height:26px;border-radius:6px;display:grid;place-items:center;font-size:15px;background:#1c2432;flex:0 0 auto}
+  .row .meta{flex:1;min-width:0}
+  .row .nm{font-size:12.5px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .row .sub{font-size:11px;color:var(--muted)}
+  .row .del{cursor:pointer;color:#c96;border:1px solid var(--line);border-radius:6px;padding:2px 7px;font-size:11px}
+  .row .del:hover{color:#f88;border-color:#5a3a3a}
+  .empty{color:var(--muted);font-size:12.5px;padding:8px 4px}
+  .tag{font-size:10px;padding:1px 6px;border-radius:20px;background:#22304a;color:#a9c2ee;margin-left:6px}
+  @media (max-width:720px){ .flow,.tab .n{display:none} }
+  /* About / instructions */
+  #about{position:absolute;inset:0;z-index:40;background:rgba(4,6,10,.72);display:none;align-items:flex-start;justify-content:center;overflow:auto;padding:34px 18px}
+  #about.open{display:flex}
+  .sheet{width:min(880px,100%);background:var(--bar);border:1px solid var(--line);border-radius:16px;box-shadow:0 24px 70px rgba(0,0,0,.5);overflow:hidden}
+  .sheet-hd{position:sticky;top:0;display:flex;align-items:center;justify-content:space-between;padding:16px 22px;background:linear-gradient(135deg,rgba(91,140,255,.16),rgba(55,208,160,.12));border-bottom:1px solid var(--line);z-index:2}
+  .sheet-hd h1{margin:0;font-size:19px;letter-spacing:.2px}
+  .sheet-hd .sub{color:var(--muted);font-size:12.5px;margin-top:2px}
+  .sheet-body{padding:22px 26px 30px}
+  .sheet-body h2{font-size:14px;margin:26px 0 8px;color:#dfe8f5;display:flex;align-items:center;gap:9px}
+  .sheet-body h2 .step{width:23px;height:23px;flex:none;border-radius:7px;display:grid;place-items:center;font-size:12px;font-weight:800;color:#06121f;background:linear-gradient(135deg,var(--accent),var(--accent2))}
+  .sheet-body p{color:#c3ccd9;font-size:13.5px;line-height:1.6;margin:7px 0}
+  .sheet-body p.lead{color:#d7e0ee;font-size:14.5px}
+  .sheet-body b{color:#fff}
+  .pill2{display:inline-block;font-size:11px;color:#a9c2ee;background:#22304a;border-radius:20px;padding:1px 8px;margin:0 1px}
+  figure.shot{margin:12px 0 4px;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#0d1119}
+  figure.shot img{display:block;width:100%}
+  figure.shot figcaption{font-size:11.5px;color:var(--muted);padding:7px 12px;border-top:1px solid var(--line)}
+  .callout{border-left:3px solid var(--accent2);background:rgba(55,208,160,.08);border-radius:0 8px 8px 0;padding:10px 14px;margin:14px 0;font-size:13px;color:#cfe0d6}
+  .cmd{font-family:ui-monospace,Consolas,monospace;font-size:12.5px;background:#0d1119;border:1px solid var(--line);border-radius:7px;padding:8px 11px;color:#bfe0ce;overflow:auto}
+  .sheet-body ul{margin:6px 0;padding-left:20px;color:#c3ccd9;font-size:13.5px;line-height:1.6}
+  .sheet-body ul li{margin:4px 0}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="brand"><span class="logo"></span><span style="display:flex;flex-direction:column;line-height:1.05"><span style="font-size:9px;letter-spacing:1.4px;color:var(--muted);font-weight:700">KSOL DESIGNS</span><span>GLB&nbsp;Studio</span></span></div>
+    <nav>
+      <div class="tab" data-tool="rig"><span>🧍</span> Rig <span class="n">1</span></div>
+      <div class="tab" data-tool="animate"><span>🐾</span> Animate <span class="n">2</span></div>
+      <div class="tab" data-tool="stitch"><span>🎬</span> Stitch <span class="n">3</span></div>
+    </nav>
+    <span class="flow">Rig a model → <b>Library</b> → Animate &amp; Stitch</span>
+    <div class="spacer"></div>
+    <div class="lib" id="libBtn" title="Studio Library — shared between all tools">
+      <span class="dot">◆</span> Library:&nbsp;<b id="cModels">0</b>&nbsp;models&nbsp;·&nbsp;<b id="cMotions">0</b>&nbsp;motions
+    </div>
+    <div class="lib" id="aboutBtn" title="How KSOL Designs GLB Studio works" style="gap:6px">❔&nbsp;About</div>
+  </header>
+  <main>
+    <iframe id="frame" title="tool"></iframe>
+    <aside id="drawer">
+      <div class="dhead"><b>◆ Studio Library</b><span class="x" id="drawerX">✕</span></div>
+      <div class="dbody">
+        <div class="sect">Rigged models <span class="tag">base characters</span></div>
+        <div id="modelList"><div class="empty">No models yet — rig one in <b>🧍 Rig</b>.</div></div>
+        <div class="sect">Baked motions <span class="tag">retarget clips</span></div>
+        <div id="motionList"><div class="empty">No motions yet — make one in <b>🐾 Animate</b>.</div></div>
+        <div class="empty" style="margin-top:14px;line-height:1.5">Anything here is available to the <b>🎬 Stitch</b> tool automatically — rigged models load as base characters, motions join its retarget library.</div>
+      </div>
+    </aside>
+  </main>
+
+  <div id="about">
+    <div class="sheet">
+      <div class="sheet-hd">
+        <div><h1>◆ KSOL Designs GLB Studio — how it works</h1><div class="sub">Rig → Animate → Stitch, with one shared library</div></div>
+        <span class="x" id="aboutX">✕ Close</span>
+      </div>
+      <div class="sheet-body">
+        <p class="lead">KSOL Designs GLB Studio bundles three tools into one pipeline. Whatever one tool makes lands in a shared <b>Studio Library</b>, so the next tool can use it instantly — no exporting files or running scripts between steps.</p>
+        <figure class="shot"><img src="help/menu.png" alt="Menu bar"><figcaption>Top menu — switch tools with <b>Rig · Animate · Stitch</b>. The <b>◆ Library</b> pill (right) shows what's shared and opens the library drawer.</figcaption></figure>
+
+        <h2><span class="step">1</span> 🧍 Rig — turn a model into a base character</h2>
+        <p>Open <b>Rig</b> and drop a textured <span class="pill2">.glb</span> character. Pick its skeleton type — <b>Biped</b>, <b>Quad</b>, or <b>Bird</b> — then fit the joints onto the model (choose a view, drag the joints; turn on <b>Mirror L/R</b> to rig one side and mirror it). Click <b>Bind &amp; preview weights</b> to check the skinning, then <b>⬇ Export rigged GLB</b>.</p>
+        <p>The export downloads the GLB <b>and</b> adds the character to the Studio Library automatically.</p>
+        <figure class="shot"><img src="help/rig.png" alt="Character Rigger"><figcaption>Rig: 1 drop a mesh · pick the skeleton · 2 fit the joints · 3 skin &amp; <b>Export rigged GLB</b>.</figcaption></figure>
+
+        <h2><span class="step">2</span> 🐾 Animate — build motions for quadrupeds &amp; birds</h2>
+        <p>Open <b>Animate</b>, choose the <b>rig type</b>, pick an animation (Walk, Trot, Gallop, Wing flap…), and tune its <b>speed</b>, <b>amplitude</b> and <b>loop length</b>. When it looks right, click <b>➕ Add current animation → Studio Library</b>. The motion joins the Stitcher's retarget list, tagged to its skeleton.</p>
+        <figure class="shot"><img src="help/animate.png" alt="Rig Animator"><figcaption>Animate: pick a rig, choose a motion, tune it, then <b>➕ Add</b> to send it to the library.</figcaption></figure>
+
+        <h2><span class="step">3</span> 🎬 Stitch — assemble the video</h2>
+        <p>Open <b>Stitch</b>. The <b>◆ Studio Library</b> card lists your rigged characters — click <b>Load</b> to drop one in as a base character. Its skeleton's motions (the built-in 579 for bipeds, plus anything you made in Animate) appear in the <b>Motion library (retarget)</b> panel below — click a motion to add it as a clip. Then set the scene, camera, audio and cross-fades, and <b>Render</b> the MP4.</p>
+        <figure class="shot"><img src="help/stitch.png" alt="GLB Stitcher"><figcaption>Stitch: <b>Load</b> a character from the Studio Library, add retargeted motions, build &amp; render.</figcaption></figure>
+
+        <h2>◆ The shared library</h2>
+        <p>Click the <b>◆ Library</b> pill any time to see everything the tools have shared — rigged <b>models</b> (base characters) and baked <b>motions</b> (retarget clips) — and delete anything you don't need.</p>
+        <figure class="shot"><img src="help/library.png" alt="Studio Library drawer"><figcaption>The library drawer: rigged models load as base characters; motions join the retarget list — automatically.</figcaption></figure>
+
+        <div class="callout"><b>Tip:</b> everything runs locally in your browser. Each tool also opens on its own, but the shared library only works inside GLB Studio (it's tied to this one address). Run it locally with <code style="background:#0d1119;border:1px solid var(--line);border-radius:5px;padding:1px 6px">run-local.bat</code> (or any static server), or open your hosted link.</div>
+
+        <div style="margin-top:30px;padding-top:20px;border-top:1px solid var(--line);display:flex;gap:18px;align-items:center;flex-wrap:wrap">
+          <svg viewBox="0 0 240 280" style="width:46px;height:auto;color:var(--muted);flex:none" role="img" aria-label="Potassium Solutions logo">
+            <g fill="currentColor" font-family="Arial, Helvetica, sans-serif">
+              <text x="120" y="36" text-anchor="middle" font-size="40" font-weight="800" textLength="212" lengthAdjust="spacingAndGlyphs">Potassium</text>
+              <rect x="47" y="54" width="146" height="146" fill="none" stroke="currentColor" stroke-width="5"/>
+              <text x="120" y="76" text-anchor="middle" font-size="11">19</text>
+              <text x="104" y="170" text-anchor="middle" font-size="118" font-weight="800">K</text>
+              <text x="151" y="170" font-size="18" font-weight="800">S&#174;l</text>
+              <text x="120" y="192" text-anchor="middle" font-size="11">39.0983</text>
+              <text x="120" y="256" text-anchor="middle" font-size="40" font-weight="800" textLength="206" lengthAdjust="spacingAndGlyphs">Solutions</text>
+            </g>
+          </svg>
+          <div style="font-size:12.5px;color:var(--muted);line-height:1.7">
+            <div>Made by <b style="color:var(--text)">KSOL Designs</b> — Paul A.T. Ramey · CAD Artist / Designer / Maker</div>
+            <div>🌐 <a href="https://www.ksoldesigns.com" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none">ksoldesigns.com</a>
+              &nbsp;·&nbsp; ✉️ <a href="mailto:Paul@ksoldesigns.com" style="color:var(--accent);text-decoration:none">Paul@ksoldesigns.com</a>
+              &nbsp;·&nbsp; ♥ <a href="https://www.patreon.com/KsolDesigns" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none">Patreon</a></div>
+            <div style="margin-top:5px;opacity:.85">Free &amp; open source · <a href="https://opensource.org/license/mit" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none">MIT License</a> · © 2026 KSOL Designs</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="studio-lib.js"></script>
+<script>
+  const TOOLS = {
+    rig:     '../character-rigger/index.html',
+    animate: '../rig-animator/index.html',
+    stitch:  '../glb-stitcher/index.html',
+  };
+  const frame = document.getElementById('frame');
+  const tabs = [...document.querySelectorAll('.tab')];
+  function show(tool){
+    if(!TOOLS[tool]) tool='stitch';
+    tabs.forEach(t=>t.classList.toggle('on', t.dataset.tool===tool));
+    frame.src = TOOLS[tool];
+    location.hash = tool;
+  }
+  tabs.forEach(t=>t.addEventListener('click', ()=>show(t.dataset.tool)));
+  show((location.hash||'#stitch').slice(1));
+
+  // ---- library indicator + drawer ----
+  const drawer = document.getElementById('drawer');
+  document.getElementById('libBtn').addEventListener('click', ()=>drawer.classList.toggle('open'));
+  document.getElementById('drawerX').addEventListener('click', ()=>drawer.classList.remove('open'));
+  // ---- About / instructions ----
+  const about = document.getElementById('about');
+  document.getElementById('aboutBtn').addEventListener('click', ()=>about.classList.add('open'));
+  document.getElementById('aboutX').addEventListener('click', ()=>about.classList.remove('open'));
+  about.addEventListener('click', e=>{ if(e.target===about) about.classList.remove('open'); });
+  document.addEventListener('keydown', e=>{ if(e.key==='Escape'){ about.classList.remove('open'); drawer.classList.remove('open'); } });
+  const fmtDate = t => new Date(t).toLocaleDateString(undefined,{month:'short',day:'numeric'});
+  const kb = n => n>=1e6 ? (n/1e6).toFixed(1)+' MB' : Math.max(1,Math.round(n/1024))+' KB';
+  const SK_ICON = {biped:'🧍', quadruped:'🐾', quad:'🐾', bird:'🐦'};
+  async function refresh(){
+    const [models, motions] = await Promise.all([StudioLib.listModels(), StudioLib.listMotions()]);
+    document.getElementById('cModels').textContent = models.length;
+    document.getElementById('cMotions').textContent = motions.length;
+    const ml = document.getElementById('modelList');
+    ml.innerHTML = models.length ? '' : '<div class="empty">No models yet — rig one in <b>🧍 Rig</b>.</div>';
+    for(const m of models){
+      const row=document.createElement('div'); row.className='row';
+      row.innerHTML = `<div class="ic">${SK_ICON[m.skeleton]||'🧍'}</div>
+        <div class="meta"><div class="nm">${m.name}</div><div class="sub">${m.skeleton} · ${kb(m.size||0)} · ${fmtDate(m.createdAt)}</div></div>
+        <span class="del" data-id="${m.id}">Delete</span>`;
+      row.querySelector('.del').onclick=async()=>{ await StudioLib.deleteModel(m.id); };
+      ml.appendChild(row);
+    }
+    const tl = document.getElementById('motionList');
+    tl.innerHTML = motions.length ? '' : '<div class="empty">No motions yet — make one in <b>🐾 Animate</b>.</div>';
+    for(const m of motions){
+      const row=document.createElement('div'); row.className='row';
+      row.innerHTML = `<div class="ic">🎞️</div>
+        <div class="meta"><div class="nm">${m.name}</div><div class="sub">${fmtDate(m.createdAt)}</div></div>
+        <span class="del" data-id="${m.id}">Delete</span>`;
+      row.querySelector('.del').onclick=async()=>{ await StudioLib.deleteMotion(m.id); };
+      tl.appendChild(row);
+    }
+  }
+  StudioLib.onChange(refresh);
+  StudioLib.ready.then(refresh);
+</script>
+</body>
+</html>
