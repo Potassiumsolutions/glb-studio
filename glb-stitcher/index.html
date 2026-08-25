@@ -516,7 +516,8 @@
         <label class="ck"><input type="checkbox" id="wallGridOn"> <b>▥ Wall grid</b> <span class="hint" style="text-transform:none;letter-spacing:0">(active back wall)</span></label>
         <div class="range-row" style="margin-top:4px"><span style="font-size:10px;color:var(--muted);width:56px">Wall size</span><input type="range" id="wallGridSize" min="0.25" max="5" step="0.25" value="1"><span class="val" id="wallGridSizeV" style="font-size:10px;width:30px">1.0</span></div>
         <hr style="border:0;border-top:1px solid var(--line);margin:8px 0">
-        <label class="ck"><input type="checkbox" id="standObs" checked> 🧍 <b>Stand on obstacles</b> <span class="hint" style="text-transform:none;letter-spacing:0">— characters rest on tops (rings, platforms, crates…)</span></label>
+        <label class="ck"><input type="checkbox" id="standObs" checked> 🧍 <b>Stand on obstacles</b> <span class="hint" style="text-transform:none;letter-spacing:0">— characters rest on tops (rings, platforms, crates…) + props stack</span></label>
+        <label class="ck" style="margin-top:4px"><input type="checkbox" id="collide"> 🧱 <b>Solid collision</b> <span class="hint" style="text-transform:none;letter-spacing:0">— characters can't walk through props or the back wall</span></label>
       </div>
       <label class="block" style="margin-top:10px">One-click scenes <span class="hint" style="text-transform:none;letter-spacing:0">(sets the wall backdrop + drops matching props)</span></label>
       <div id="sceneThemeGrid" class="obs-grid obs-sets"></div>
@@ -652,8 +653,11 @@
         <option value="0.6">Slow (0.6s)</option>
         <option value="0.8">Very slow (0.8s)</option>
       </select>
+      <label class="ck" style="margin-top:10px"><input type="checkbox" id="transBg"> 🩧 <b>Transparent background</b> <span class="hint" style="text-transform:none;letter-spacing:0">— drop the backdrop</span></label>
+      <div class="hint" id="transHint" style="margin-top:2px;display:none">Great for the <b>PNG</b> export below. MP4 video can't store transparency (its background renders black) — use the PNG, or composite the MP4 in your editor.</div>
       <button class="btn primary" id="render" style="margin-top:14px" disabled>Render video</button>
       <button class="btn ghost" id="preview" style="margin-top:8px">Preview playback</button>
+      <button class="btn ghost" id="savePng" style="margin-top:8px">⬇ Save current frame as PNG</button>
       <button class="btn ghost" id="exportGlb" style="margin-top:8px" disabled>⬇ Export sequence as GLB</button>
       <div class="hint" style="margin-top:4px">Bakes the whole timeline into one GLB (character + a merged “Sequence” animation, plus each clip as its own named animation) for Blender / Unity / other tools.</div>
       <button class="btn ghost" id="exportScene" style="margin-top:8px">⬇ Export scene as GLB</button>
@@ -661,6 +665,7 @@
         <div class="hint" style="margin:0 0 5px;text-transform:none;letter-spacing:0">Export the arranged scene (obstacles, props, and optionally your characters &amp; environment) as one GLB.</div>
         <label class="ck"><input type="checkbox" id="expProps" checked> Obstacles &amp; props</label>
         <label class="ck" style="margin-top:4px"><input type="checkbox" id="expChars"> Characters <span class="hint" style="text-transform:none;letter-spacing:0">(current pose)</span></label>
+        <label class="ck" style="margin-top:4px;margin-left:18px"><input type="checkbox" id="expAnim"> …with animation <span class="hint" style="text-transform:none;letter-spacing:0">(active character's timeline)</span></label>
         <label class="ck" style="margin-top:4px"><input type="checkbox" id="expEnv"> Environment <span class="hint" style="text-transform:none;letter-spacing:0">(floor / walls / terrain)</span></label>
       </div>
       <a class="dl" id="dl"></a>
@@ -775,7 +780,7 @@
         <li><b>2D Scenery</b> — a flat image or a rolling procedural backdrop (castle, mountains, grass…). Set a scroll speed to fake forward motion.</li>
         <li><b>3D Scenery</b> — pick from <b>3D Room</b> (floor + 4 walls + optional ceiling), <b>Open expanse</b> (ground + horizon + sky), <b>🏃 Runner</b> (a close wall + floor that scroll endlessly — run in place forever), or <b>🛤 Long room</b> (one big fixed floor + back wall to drop obstacles/props along and run the length past them). Each surface has its own <b>🖼 Texture library</b>, tiling, <b>Bump</b> and <b>Shine</b>, or drop your own image; <b>✨ Room sets</b> / <b>✨ Scene sets</b> give one-click matched environments.</li>
         <li><b>Props &amp; obstacles</b> (panel 2c) — drop your own <b>.glb</b> models, or click a <b>built-in obstacle</b> (crates, barrels, cones, hurdles, ramps, street signs, traffic lights, benches, a newsstand, dumpsters, and lots more) to drop it in, then drag it into place. <b>Theme packs</b> (Obstacle course, Desert, Dungeon, Street, Alley, Plaza, …) drop a matched group at once.</li>
-        <li><b>Grid &amp; snapping</b> (panel 2c) — turn on the <b>▦ Floor grid</b> (and a <b>▥ Wall grid</b> on the back wall), each with its own size. <b>⊞ Snap to grid</b> makes dragged items jump to grid lines; <b>🧲 Snap to obstacles</b> butts their edges together (drop several sidewalk slabs and they line up end-to-end); with either on, an item dragged near the back wall snaps flush against it. Select an item and use <b>Ctrl+C/V/X</b>, <b>Ctrl+D</b>, <b>Del</b>, and <b>PgUp/PgDn</b> to raise/lower it. Grids show only in the preview, never in the render. Turn on <b>🧍 Stand on obstacles</b> and your characters rest on the tops of flat props (rings, platforms, crates, sidewalks…) as they travel across them — tick <b>Characters can stand on this</b> on any prop's row to make custom models walkable too.</li>
+        <li><b>Grid &amp; snapping</b> (panel 2c) — turn on the <b>▦ Floor grid</b> (and a <b>▥ Wall grid</b> on the back wall), each with its own size. <b>⊞ Snap to grid</b> makes dragged items jump to grid lines; <b>🧲 Snap to obstacles</b> butts their edges together (drop several sidewalk slabs and they line up end-to-end); with either on, an item dragged near the back wall snaps flush against it. Select an item and use <b>Ctrl+C/V/X</b>, <b>Ctrl+D</b>, <b>Del</b>, and <b>PgUp/PgDn</b> to raise/lower it. Grids show only in the preview, never in the render. Turn on <b>🧍 Stand on obstacles</b> and your characters rest on the tops of flat props (rings, platforms, crates, sidewalks…) as they travel across them — tick <b>Characters can stand on this</b> on any prop's row to make custom models walkable too, and use <b>🧍 Put character on top</b> to drop them straight onto it. With Stand-on, props also <b>stack</b> (drop a crate on a platform). <b>🧱 Solid collision</b> stops characters walking through props or the back wall. Scene edits (add / delete / move / clear / paste) are undoable with <b>Ctrl+Z</b> / <b>Ctrl+Y</b>.</li>
         <li><b>Wall backdrops</b> — on a 3D-scenery wall, open its <b>🖼 Texture library</b> and pick a <b>Wall backdrops</b> scene (Forest, Shopfronts, Western town, City skyline, Brick row houses, Warehouse). It fills the wall behind your characters; in the Runner scene it scrolls past as they move.</li>
         <li><b>One-click scenes</b> (panel 2c) — <b>Western street, City block, Forest trail, Downtown, Old town, Industrial</b> each set the matching wall backdrop <i>and</i> drop a matching set of props in one click (switching to the Long-room scene if needed). Then drag the pieces to arrange.</li>
       </ul>
@@ -797,7 +802,8 @@
       <ul>
         <li><b>Render video</b> writes an MP4 (H.264+AAC in Chrome/Edge). Set resolution, FPS, loops-per-clip, hold and cross-fade first.</li>
         <li><b>⬇ Export sequence as GLB</b> bakes the whole timeline (one character + its animations) into one GLB for Blender/Unity.</li>
-        <li><b>⬇ Export scene as GLB</b> saves the arranged layout — obstacles &amp; props, and optionally your characters (current pose) and the environment (floor/walls/terrain) — as a single GLB you can open elsewhere.</li>
+        <li><b>⬇ Export scene as GLB</b> saves the arranged layout — obstacles &amp; props, and optionally your characters (current pose, or <b>…with animation</b> for the active character's baked timeline) and the environment (floor/walls/terrain) — as a single GLB you can open elsewhere.</li>
+        <li><b>🩧 Transparent background</b> drops the backdrop. Use <b>⬇ Save current frame as PNG</b> for a cut-out image with alpha (MP4 video can't store transparency — its background renders black, so composite it in your editor or use the PNG).</li>
         <li><b>☰ Menu → Save / Save as…</b> stores all your settings and per-clip options in a <code>.json</code> project. Loading restores everything; re-drop the same GLBs (and audio) and their settings reattach by name.</li>
       </ul>
 
@@ -879,7 +885,7 @@ const APP_NAME='GLB Stitcher', APP_VERSION='1.0.0', APP_BUILD='2026-08-24';   //
 const wrap = $('#canvasWrap');
 
 // ---------- Three.js core ----------
-const renderer = new THREE.WebGLRenderer({ antialias:true, preserveDrawingBuffer:true, alpha:false });
+const renderer = new THREE.WebGLRenderer({ antialias:true, preserveDrawingBuffer:true, alpha:true });
 renderer.setPixelRatio(1);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.shadowMap.enabled = true;
@@ -1805,6 +1811,44 @@ function surfaceHeightAt(x, z){
   for(const h of hits){ if(h.point.y > gy+0.02) return h.point.y; }   // topmost walkable surface within reach
   return gy;
 }
+// The surface a PROP rests on: terrain, OR the top of another walkable prop under it (so a crate dropped on a
+// platform stacks on top). Excludes the prop itself. Gated by the same "Stand on obstacles" master switch.
+function propBaseHeight(p){
+  const gy=terrainHeightAt(p.x, p.z);
+  if(!standOnObstacles()) return gy;
+  let wraps=null;
+  for(const q of props){ if(q!==p && q.walkable){ q.wrap.updateMatrixWorld(true); (wraps||(wraps=[])).push(q.wrap); } }
+  if(!wraps) return gy;
+  _surfOrigin.set(p.x, gy+STEP_MAX+0.5, p.z); _surfRay.set(_surfOrigin, _surfDown); _surfRay.far=STEP_MAX+1.0;
+  const hits=_surfRay.intersectObjects(wraps, true);
+  for(const h of hits){ if(h.point.y > gy+0.02) return h.point.y; }
+  return gy;
+}
+// Horizontal collision: push a character's (x,z) out of solid props' footprints + behind the active back wall.
+// Skips flat things (sidewalks/puddles) and any prop the character is standing on/above. Opt-in (#collide).
+const COL_R=0.34;
+function collisionOn(){ const e=$('#collide'); return e && e.checked; }
+function collideXZ(x, z, feetY){
+  if(!collisionOn()) return {x, z};
+  for(let iter=0; iter<3; iter++){
+    let moved=false;
+    for(const p of props){ const b=p._box; if(!b) continue;
+      if((b.max.y-b.min.y) < 0.35) continue;                 // flat props don't block
+      if(feetY >= b.max.y - 0.2) continue;                    // standing on/above it → not a wall
+      const cx=Math.max(b.min.x,Math.min(x,b.max.x)), cz=Math.max(b.min.z,Math.min(z,b.max.z));
+      const dx=x-cx, dz=z-cz, d2=dx*dx+dz*dz;
+      if(d2 < COL_R*COL_R){
+        if(d2>1e-8){ const d=Math.sqrt(d2), push=COL_R-d; x+=dx/d*push; z+=dz/d*push; }
+        else { const toL=x-b.min.x,toR=b.max.x-x,toB=z-b.min.z,toT=b.max.z-z, m=Math.min(toL,toR,toB,toT);
+          if(m===toL)x=b.min.x-COL_R; else if(m===toR)x=b.max.x+COL_R; else if(m===toB)z=b.min.z-COL_R; else z=b.max.z+COL_R; }
+        moved=true;
+      }
+    }
+    const w=activeWall(); if(w && z < w.z+COL_R) z=w.z+COL_R;   // don't cross the back wall
+    if(!moved) break;
+  }
+  return {x, z};
+}
 // Displace the ground geometry ON THE CPU from the image's brightness so the mesh really has hills — and
 // characters/props can query the same height field (terrainHeightAt) to stand on the surface.
 function rebuildEnvRelief(){
@@ -2043,6 +2087,7 @@ function loadProp(file){
     const nativeH=size.y||1;
     root.position.set(-ctr.x, -box.min.y, -ctr.z);   // centre X/Z, feet to y=0 (inside its wrap)
     const wrap=new THREE.Group(); wrap.add(root); propGroup.add(wrap);
+    pushUndo();
     const p={ id:'pr'+Date.now().toString(36)+Math.floor(Math.random()*1e4), name:(file.name||'prop').replace(/\.(glb|gltf)$/i,''),
               wrap, scale:Math.max(0.05, 2.5/nativeH), rotY:0, x:0, z:0, lift:0, obId:null, walkable:false };   // default ~2.5u tall so it's visible
     props.push(p); propSel=p.id; updatePropTransform(p); renderPropList(); renderFrame();
@@ -2050,15 +2095,24 @@ function loadProp(file){
   }, undefined, ()=>setStatus('Could not load prop: '+(file.name||'')));
 }
 function updatePropTransform(p){ p.wrap.scale.setScalar(p.scale); p.wrap.rotation.y=p.rotY;
-  const gy=terrainHeightAt(p.x,p.z), lift=p.lift||0; p.wrap.position.set(p.x, gy+lift, p.z);
-  // Stage props (e.g. the boxing ring): stretch the apron down so it always meets the floor — raising the prop grows its height.
+  const base=propBaseHeight(p), lift=p.lift||0; p.wrap.position.set(p.x, base+lift, p.z);   // base = terrain OR the top of a prop beneath (stacking)
+  // Stage props (e.g. the boxing ring): stretch the apron down so it always meets the surface below.
   if(p.skirt){ const hl=Math.max(0.001, lift/Math.max(0.0001,p.scale)); p.skirt.scale.y=hl; p.skirt.position.y=-hl/2; }
+  p.wrap.updateMatrixWorld(true);
+  p._box=(p._box||new THREE.Box3()).setFromObject(p.wrap);   // cached world AABB for collision + stacking
 }
 // The load-a-GLB path (loadProp) creates props without a lift field; treat missing lift as 0 everywhere.
 function reconformProps(){ for(const p of props) updatePropTransform(p); }
-function deleteProp(id){ const i=props.findIndex(p=>p.id===id); if(i<0) return; propGroup.remove(props[i].wrap); props.splice(i,1); if(propSel===id) propSel=null; renderPropList(); renderFrame(); }
+// Drop the current character onto a prop: move its stage anchor to the prop's XZ so grounding lands it on top.
+function putCharacterOn(p){
+  if(!p || !clips.length){ setStatus('Load a character first'); return; }
+  if(isEnsemble()){ const ch=charOf(clips[selIndex]); if(ch){ ch.stagePos=ch.stagePos||{x:0,z:0}; ch.stagePos.x=p.x; ch.stagePos.z=p.z; ch._autoPos=false; } showEnsemble(); }
+  else { startOffset.x=p.x; startOffset.z=p.z; refreshView(); }
+  setStatus('Placed the character on '+p.name+(p.walkable?'':' — tick “Characters can stand on this” so it rests on top'));
+}
+function deleteProp(id){ const i=props.findIndex(p=>p.id===id); if(i<0) return; pushUndo(); propGroup.remove(props[i].wrap); props.splice(i,1); if(propSel===id) propSel=null; renderPropList(); renderFrame(); }
 function clearAllProps(){ if(!props.length) return; if(!confirm('Remove all '+props.length+' props & obstacles from the scene?')) return;
-  for(const p of props) propGroup.remove(p.wrap); props.length=0; propSel=null; renderPropList(); renderFrame(); setStatus('Cleared all props & obstacles'); }
+  pushUndo(); for(const p of props) propGroup.remove(p.wrap); props.length=0; propSel=null; renderPropList(); renderFrame(); setStatus('Cleared all props & obstacles (Ctrl+Z to undo)'); }
 function selectedProp(){ return props.find(p=>p.id===propSel)||null; }
 function newPropId(pref){ return pref+Date.now().toString(36)+Math.floor(Math.random()*1e4); }
 // Clipboard for copy/paste. For built-in obstacles we remember the obId (rebuilt fresh); for loaded GLBs we keep a cloned Object3D.
@@ -2076,12 +2130,27 @@ function spawnFromDesc(c, dx, dz){
   np.scale=c.scale; np.rotY=c.rotY; np.lift=c.lift||0; updatePropTransform(np);
   propSel=np.id; renderPropList(); renderFrame(); return np;
 }
-function pasteProp(){ if(!propClipboard) return; const np=spawnFromDesc(propClipboard, 1.2, 1.2);
+function pasteProp(){ if(!propClipboard) return; pushUndo(); const np=spawnFromDesc(propClipboard, 1.2, 1.2);
   if(np){ propClipboard.x=np.x; propClipboard.z=np.z; setStatus('Pasted '+np.name+' — drag to place'); } }   // cascade repeated pastes
-function duplicateProp(p){ if(!p) return;   // Ctrl+D — clone in place without touching the copy/paste clipboard
+function duplicateProp(p){ if(!p) return; pushUndo();   // Ctrl+D — clone in place without touching the copy/paste clipboard
   const desc={ obId:p.obId||null, name:p.name, scale:p.scale, rotY:p.rotY, lift:p.lift||0, x:p.x, z:p.z, clone:p.obId?null:p.wrap.children[0].clone(true) };
   const np=spawnFromDesc(desc, 1.2, 1.2); if(np) setStatus('Duplicated '+np.name); }
 function nudgePropLift(p, dy){ if(!p) return; p.lift=Math.max(0, +(p.lift||0)+dy); updatePropTransform(p); renderPropList(); renderFrame(); }
+// ----- Undo / redo for scene edits (add / delete / move / clear / paste). Snapshots rebuild props from descriptors. -----
+function clearPropsSilent(){ for(const p of props) propGroup.remove(p.wrap); props.length=0; propSel=null; }
+function snapshotScene(){ return props.map(p=>({ obId:p.obId||null, name:p.name, x:p.x, z:p.z, scale:p.scale, rotY:p.rotY, lift:p.lift||0, walkable:!!p.walkable, clone:p.obId?null:p.wrap.children[0].clone(true) })); }
+function restoreScene(snap){ clearPropsSilent();
+  for(const d of snap){ let np;
+    if(d.obId){ np=spawnObstacle(d.obId, d.x, d.z, d.rotY); }
+    else { const wrap=new THREE.Group(); wrap.add(d.clone.clone(true)); propGroup.add(wrap); np={ id:newPropId('pr'), name:d.name, obId:null, wrap, x:d.x, z:d.z }; props.push(np); }
+    if(np){ np.scale=d.scale; np.rotY=d.rotY; np.lift=d.lift; np.walkable=d.walkable; updatePropTransform(np); }
+  }
+  renderPropList(); renderFrame();
+}
+let undoStack=[], redoStack=[];
+function pushUndo(){ undoStack.push(snapshotScene()); if(undoStack.length>40) undoStack.shift(); redoStack.length=0; }
+function undoScene(){ if(!undoStack.length){ setStatus('Nothing to undo'); return; } redoStack.push(snapshotScene()); restoreScene(undoStack.pop()); setStatus('Undid scene edit'); }
+function redoScene(){ if(!redoStack.length){ setStatus('Nothing to redo'); return; } undoStack.push(snapshotScene()); restoreScene(redoStack.pop()); setStatus('Redid scene edit'); }
 function pickProp(e){
   if(!props.length) return null;
   const rect=canvasEl.getBoundingClientRect();
@@ -2110,9 +2179,11 @@ function renderPropList(){
       <div class="range-row" style="margin-top:5px"><span style="font-size:10px;color:var(--muted);width:34px">Size</span><input type="range" data-sc min="0.05" max="8" step="0.05" value="${p.scale}"></div>
       <div class="range-row"><span style="font-size:10px;color:var(--muted);width:34px">Turn</span><input type="range" data-rot min="-3.15" max="3.15" step="0.05" value="${p.rotY}"></div>
       <div class="range-row"><span style="font-size:10px;color:var(--muted);width:34px">Lift</span><input type="range" data-lift min="0" max="12" step="0.05" value="${p.lift||0}"></div>
-      <label class="ck" style="margin-top:5px;font-size:10px;color:var(--muted)"><input type="checkbox" data-walk ${p.walkable?'checked':''} style="margin:0"> 🧍 Characters can stand on this</label>`;
+      <label class="ck" style="margin-top:5px;font-size:10px;color:var(--muted)"><input type="checkbox" data-walk ${p.walkable?'checked':''} style="margin:0"> 🧍 Characters can stand on this</label>
+      <button data-puton class="btn sm ghost" style="margin-top:5px;padding:3px 8px;font-size:10px;width:100%">🧍 Put character on top</button>`;
     row.onclick=()=>{ propSel=p.id; renderPropList(); };
     row.querySelector('[data-del]').onclick=(e)=>{ e.stopPropagation(); deleteProp(p.id); };
+    row.querySelector('[data-puton]').onclick=(e)=>{ e.stopPropagation(); putCharacterOn(p); };
     row.querySelector('[data-sc]').oninput=(e)=>{ p.scale=parseFloat(e.target.value); updatePropTransform(p); renderFrame(); };
     row.querySelector('[data-rot]').oninput=(e)=>{ p.rotY=parseFloat(e.target.value); updatePropTransform(p); renderFrame(); };
     row.querySelector('[data-lift]').oninput=(e)=>{ p.lift=parseFloat(e.target.value); updatePropTransform(p); renderFrame(); };
@@ -2130,7 +2201,8 @@ $('#snapGrid') && $('#snapGrid').addEventListener('change', ()=>{});
 $('#snapObs') && $('#snapObs').addEventListener('change', ()=>{});
 $('#wallGridOn') && $('#wallGridOn').addEventListener('change', ()=>renderFrame());
 $('#wallGridSize') && $('#wallGridSize').addEventListener('input', ()=>{ $('#wallGridSizeV').textContent=parseFloat($('#wallGridSize').value).toFixed(1); renderFrame(); });
-$('#standObs') && $('#standObs').addEventListener('change', ()=>{ refreshView&&refreshView(); renderFrame(); });
+$('#standObs') && $('#standObs').addEventListener('change', ()=>{ reconformProps&&reconformProps(); refreshView&&refreshView(); renderFrame(); });
+$('#collide') && $('#collide').addEventListener('change', ()=>{ refreshView&&refreshView(); renderFrame(); });
 
 // ---------- Built-in obstacles (procedural — no assets, tiny storage) ----------
 function obMesh(geo,color,flat){ const m=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color,roughness:0.85,metalness:0.05,flatShading:!!flat}));
@@ -2312,6 +2384,7 @@ function spawnObstacle(id,x,z,rotY){ const o=OBSTACLES.find(t=>t.id===id); if(!o
 function wallZ(){ if(corridorOn()) return -corrDepth()/2; if(runnerOn()) return -(parseFloat(($('#runnerWallDist')||{}).value)||3); return null; }
 let obSpawn=0;
 function addObstacle(id){
+  pushUndo();
   const px=(camState&&camState.pivotX)||0; let p, snapped=false;
   if(id==='sidewalk'){ const wz=wallZ(); snapped=wz!=null; p=spawnObstacle(id, px, snapped?wz+0.85:-2.5); }   // back edge flush to the wall
   else { const off=((obSpawn++)%6)*1.6-4; p=spawnObstacle(id, px+off, 1.5); }   // stagger so they don't stack
@@ -2334,6 +2407,7 @@ const OBSTACLE_SETS=[
 ];
 function addObstacleSet(id){
   const set=OBSTACLE_SETS.find(s=>s.id===id); if(!set) return;
+  pushUndo();
   const px=(camState&&camState.pivotX)||0, n=set.items.length, gap=2.6, start=px-(n-1)*gap/2;
   let last=null; set.items.forEach((it,i)=>{ const p=spawnObstacle(it, start+i*gap, (i%2?1:-1)*0.6); if(p) last=p; });
   if(last) propSel=last.id; renderPropList(); renderFrame();
@@ -2379,6 +2453,7 @@ const SCENE_THEMES=[
 ];
 function applySceneTheme(id){
   const th=SCENE_THEMES.find(t=>t.id===id); if(!th) return;
+  pushUndo();
   const want=th.scene||'corridor';
   if(th.scene ? $('#sceneType').value!==th.scene : (!corridorOn() && !runnerOn() && !roomOn())){ $('#sceneType').value=want; setScene(want); }   // themes need a wall
   const wk = corridorOn()?'corrBack' : runnerOn()?'runWall' : roomOn()?'back' : null;
@@ -2754,6 +2829,8 @@ window.addEventListener('keydown', e=>{
   const sp=selectedProp();
   if((e.ctrlKey||e.metaKey) && !nodeOpen){
     const k=e.key.toLowerCase();
+    if(k==='z'){ if(e.shiftKey) redoScene(); else undoScene(); e.preventDefault(); return; }   // Ctrl+Z undo, Ctrl+Shift+Z redo
+    if(k==='y'){ redoScene(); e.preventDefault(); return; }                                      // Ctrl+Y redo
     if(k==='c'){ if(sp){ copyProp(sp); e.preventDefault(); } return; }
     if(k==='x'){ if(sp){ copyProp(sp); deleteProp(sp.id); setStatus('Cut '+sp.name); e.preventDefault(); } return; }
     if(k==='v'){ if(propClipboard){ pasteProp(); e.preventDefault(); } return; }
@@ -2781,7 +2858,7 @@ canvasEl.addEventListener('pointerdown', e=>{
   }
   if(e.button===0 && !camKey && !e.altKey){              // grab a prop (works with or without a character loaded)
     const pr=pickProp(e);
-    if(pr){ propSel=pr.id; renderPropList(); drag.active=true; drag.mode='prop-move'; drag.prop=pr; drag.id=e.pointerId;
+    if(pr){ propSel=pr.id; renderPropList(); drag.preMove=snapshotScene(); drag.active=true; drag.mode='prop-move'; drag.prop=pr; drag.id=e.pointerId;
       drag.startX=e.clientX; drag.startY=e.clientY; drag.moved=false;
       try{ canvasEl.setPointerCapture(e.pointerId); }catch(_){}
       canvasEl.style.cursor='grabbing'; e.preventDefault(); return; }
@@ -2818,6 +2895,7 @@ window.addEventListener('pointermove', e=>{
 });
 window.addEventListener('pointerup', e=>{
   if(!drag.active) return; drag.active=false; gizmoDrag=null;
+  if(drag.mode==='prop-move' && drag.preMove){ if(drag.moved){ undoStack.push(drag.preMove); if(undoStack.length>40) undoStack.shift(); redoStack.length=0; } drag.preMove=null; }
   if((drag.mode==='move'||drag.mode==='select') && !drag.moved){
     if(isEnsemble()){
       selectCharacter(drag.pickChar, drag.additive);    // a click (no drag) selects / shift-adds the character
@@ -3390,13 +3468,21 @@ function placeCharacter(c, D){
   if(!c.hips) return;
   c.root.updateMatrixWorld(true);
   const w=new THREE.Vector3(); c.hips.getWorldPosition(w);
-  c.root.position.x += (D.x - w.x);
-  c.root.position.z += (D.z - w.z);
+  // Horizontal collision: push the desired (x,z) out of solid props / behind the back wall (opt-in).
+  let dx = Number.isFinite(D.x)?D.x:w.x, dz = Number.isFinite(D.z)?D.z:w.z;
+  const col = collideXZ(dx, dz, surfaceHeightAt(dx,dz)); dx=col.x; dz=col.z;
+  c.root.position.x += (dx - w.x);
+  c.root.position.z += (dz - w.z);
   // Rest the feet on the surface under (x,z) — terrain hills AND the tops of walkable obstacles. Missing D.y = 0 lift
   // (ensemble stagePos passes no y), which is identical to the old grounded baseline when the ground is flat & clear.
   const base = Number.isFinite(c.root.userData._baseY) ? c.root.userData._baseY : c.root.position.y;
   const lift = Number.isFinite(D.y) ? D.y : 0;
-  c.root.position.y = base + lift + surfaceHeightAt(D.x, D.z);
+  let surf = surfaceHeightAt(dx, dz);
+  // Smooth the step up/down onto obstacles during continuous playback/render (snap on scrub, and on big jumps).
+  if(previewing || rendering){ const prev=c.root.userData._surfSmooth;
+    if(Number.isFinite(prev) && Math.abs(surf-prev)<1.5) surf = prev + (surf-prev)*0.28; }
+  c.root.userData._surfSmooth = surf;
+  c.root.position.y = base + lift + surf;
   c.root.updateMatrixWorld(true);
 }
 
@@ -3924,12 +4010,15 @@ function updateXray(){
     } else if(h){ h.visible=false; }
   }
 }
+function transparentBg(){ const e=$('#transBg'); return e && e.checked; }
 function renderFrame(){
   updateXray();
   updatePropSelBox();
   updateGrids();
+  const trans=transparentBg();
+  renderer.setClearAlpha(trans?0:1);
   renderer.autoClear=false; renderer.clear();
-  renderer.render(bgScene,bgCam);
+  if(!trans) renderer.render(bgScene,bgCam);   // transparent mode: skip the background so the video/PNG has alpha
   renderer.clearDepth();
   renderer.render(scene,camera);
   positionGizmoChip();
@@ -4479,11 +4568,13 @@ function shownCharRoots(){                          // the character roots curre
   return activeRoot ? [activeRoot] : [];
 }
 async function exportSceneGLB(){
-  const wantP=$('#expProps')?.checked, wantC=$('#expChars')?.checked, wantE=$('#expEnv')?.checked;
-  const holder=new THREE.Scene(); let np=0, nc=0, ne=0;
+  const wantP=$('#expProps')?.checked, wantC=$('#expChars')?.checked, wantE=$('#expEnv')?.checked, wantAnim=$('#expAnim')?.checked;
+  const holder=new THREE.Scene(); let np=0, nc=0, ne=0; let animations;
+  const animate = wantAnim && wantC && !isEnsemble() && clips.length>0;   // baked timeline supported for the single active character
   try{
     if(wantP){ for(const p of props){ const w=p.wrap.clone(true); w.updateMatrixWorld(true); w.traverse(o=>{o.frustumCulled=false;}); holder.add(w); np++; } }
-    if(wantC){ for(const r of shownCharRoots()){ const m=skeletonClone(r); m.updateMatrixWorld(true); m.traverse(o=>{o.frustumCulled=false;}); holder.add(m); nc++; } }
+    if(wantC){ for(const r of shownCharRoots()){ const m=skeletonClone(r); m.updateMatrixWorld(true); m.traverse(o=>{o.frustumCulled=false;}); holder.add(m); nc++; }
+      if(animate){ const merged=buildMergedClip(); merged.name='Sequence'; animations=[merged]; } }
     if(wantE){ const g=activeSceneGroup(); if(g && g.visible){ const c=g.clone(true); c.updateMatrixWorld(true); holder.add(c); ne++; } }
     if(!holder.children.length){ setStatus('Nothing to export — tick Obstacles / Characters / Environment (and add some to the scene).'); return; }
     setStatus('Baking scene GLB …');
@@ -4491,12 +4582,22 @@ async function exportSceneGLB(){
     exporter.parse(holder, (buf)=>{
       const blob=new Blob([buf],{type:'model/gltf-binary'});
       const a=$('#dl'); a.href=URL.createObjectURL(blob); a.download=`scene_${Date.now()}.glb`; a.click();
-      setStatus(`Exported scene GLB (${(blob.size/1048576).toFixed(1)} MB · ${np} prop${np===1?'':'s'}`+(nc?`, ${nc} character${nc>1?'s':''} (pose)`:'')+(ne?', environment':'')+`)`);
+      setStatus(`Exported scene GLB (${(blob.size/1048576).toFixed(1)} MB · ${np} prop${np===1?'':'s'}`+(nc?`, ${nc} character${nc>1?'s':''} (${animate?'animated':'pose'})`:'')+(ne?', environment':'')+`)`);
     }, (err)=>{ console.error(err); setStatus('Scene GLB export failed — see console'); },
-    { binary:true, onlyVisible:false });
+    { binary:true, onlyVisible:false, animations });
   }catch(e){ console.error(e); setStatus('Scene GLB export failed: '+(e.message||e)); }
 }
 $('#exportScene')?.addEventListener('click', exportSceneGLB);
+// Transparent background + PNG frame export
+$('#transBg')?.addEventListener('change', ()=>{ const h=$('#transHint'); if(h) h.style.display=$('#transBg').checked?'block':'none'; renderFrame(); });
+function saveCurrentPNG(){
+  renderFrame();                               // ensure the canvas holds the current frame (honors the transparent toggle)
+  renderer.domElement.toBlob((blob)=>{ if(!blob){ setStatus('PNG capture failed'); return; }
+    const a=$('#dl'); a.href=URL.createObjectURL(blob); a.download=`frame_${Date.now()}.png`; a.click();
+    setStatus('Saved PNG ('+(blob.size/1024).toFixed(0)+' KB'+(transparentBg()?', transparent background':'')+')');
+  }, 'image/png');
+}
+$('#savePng')?.addEventListener('click', saveCurrentPNG);
 
 wireDrop($('#mlRigDrop'), $('#mlRigInput'), async files=>{
   const f=files.find(x=>/\.glb$/i.test(x.name)); if(!f) return;

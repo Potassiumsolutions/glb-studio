@@ -11,6 +11,12 @@
   aside{width:330px;flex:0 0 330px;background:var(--bg);border-right:1px solid var(--line);overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:12px}
   .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px}
   h1{font-size:16px;margin:0 0 2px} h2{font-size:13px;margin:0 0 8px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:600}
+  h1 .appver{font-size:10px;font-weight:700;color:var(--accent2,#38d39f);border:1px solid var(--line,#252c37);border-radius:99px;padding:1px 7px;margin-left:6px;vertical-align:middle}
+  .appfoot{display:flex;gap:11px;align-items:center;margin-top:14px;padding-top:12px;border-top:1px solid var(--line,#252c37);color:var(--muted);font-size:11px;line-height:1.5}
+  .appfoot .ksol-logo{width:40px;height:auto;flex:none;color:var(--text)}
+  .appfoot-sub{opacity:.85;margin-top:2px}
+  .appfoot a{color:var(--accent,#5b9dff);text-decoration:none}
+  .appfoot a:hover{text-decoration:underline}
   .hint{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.4}
   .seg{display:flex;gap:4px;background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:3px}
   .seg button{flex:1;background:transparent;border:none;color:var(--muted);border-radius:6px;padding:7px 4px;font-size:12px;cursor:pointer;font-weight:500}
@@ -52,7 +58,7 @@
 <main>
   <aside>
     <div>
-      <h1>🐾 Rig Animator</h1>
+      <h1>🐾 Rig Animator <span class="appver">v1.0.0</span></h1>
       <div class="hint" style="margin-top:0">Procedurally generate animations for your <b>quadruped</b> and <b>bird</b> rigs, then export them into the GLB Stitcher motion library — used exactly like the biped ones.</div>
     </div>
 
@@ -91,7 +97,23 @@
       <div class="hint">Standalone only: run <code>node merge-into-stitcher.mjs rig-anim-pack.json</code> to merge the pack into <code>GLB Stitcher/library</code>.</div>
     </div>
 
-    <div class="foot">Runs entirely in your browser</div>
+    <div class="appfoot">
+      <svg class="ksol-logo" viewBox="0 0 240 280" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Potassium Solutions logo">
+        <g fill="currentColor" font-family="Arial, Helvetica, sans-serif">
+          <text x="120" y="36" text-anchor="middle" font-size="40" font-weight="800" textLength="212" lengthAdjust="spacingAndGlyphs">Potassium</text>
+          <rect x="47" y="54" width="146" height="146" fill="none" stroke="currentColor" stroke-width="5"/>
+          <text x="120" y="76" text-anchor="middle" font-size="11">19</text>
+          <text x="104" y="170" text-anchor="middle" font-size="118" font-weight="800">K</text>
+          <text x="151" y="170" font-size="18" font-weight="800">S&#174;l</text>
+          <text x="120" y="192" text-anchor="middle" font-size="11">39.0983</text>
+          <text x="120" y="256" text-anchor="middle" font-size="40" font-weight="800" textLength="206" lengthAdjust="spacingAndGlyphs">Solutions</text>
+        </g>
+      </svg>
+      <div>
+        <div><b>Rig Animator</b> v1.0.0 · part of GLB Studio</div>
+        <div class="appfoot-sub">© <span class="cred-year">2026</span> Paul A.T. Ramey · <b>KSOL Designs</b> · <a href="https://www.ksoldesigns.com" target="_blank" rel="noopener">ksoldesigns.com</a></div>
+      </div>
+    </div>
   </aside>
 
   <section class="stage">
@@ -114,10 +136,11 @@
   "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
 } }
 </script>
-<script src="../studio/studio-lib.js"></script>
+<script src="../Studio/studio-lib.js"></script>
 <script type="module">
 import * as THREE from 'three';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+document.querySelectorAll('.cred-year').forEach(e=>e.textContent=String(new Date().getFullYear()));
 
 const $ = s => document.querySelector(s);
 
