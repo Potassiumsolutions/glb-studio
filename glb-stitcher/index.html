@@ -18,6 +18,35 @@
   header{padding:14px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px}
   header h1{font-size:18px;margin:0;font-weight:600;letter-spacing:.2px}
   header .tag{font-size:12px;color:var(--muted);background:var(--panel2);padding:3px 8px;border-radius:99px}
+  .hdr-actions{margin-left:auto;display:flex;gap:8px}
+  .btn.sm{width:auto;padding:6px 12px;font-size:12px}
+  .menu-wrap{position:relative}
+  .app-menu{position:absolute;right:0;top:calc(100% + 6px);min-width:200px;background:var(--panel,#0e1218);border:1px solid var(--line,#252c37);border-radius:9px;padding:5px;z-index:50;box-shadow:0 10px 30px rgba(0,0,0,.45)}
+  .app-menu button{display:block;width:100%;text-align:left;background:transparent;border:none;color:var(--text);border-radius:6px;padding:8px 10px;font-size:13px;cursor:pointer}
+  .app-menu button:hover{background:var(--panel2,#161b23)}
+  .app-menu-sep{height:1px;background:var(--line,#252c37);margin:5px 2px}
+  .modal-ov{position:fixed;inset:0;background:rgba(4,7,11,.72);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px}
+  .modal-ov[hidden]{display:none}
+  .modal-card{background:var(--panel,#0e1218);border:1px solid var(--line,#252c37);border-radius:12px;padding:20px 22px;max-width:440px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+  .about-title{display:flex;align-items:baseline;gap:10px;margin-bottom:8px}
+  .about-ver{font-size:12px;font-weight:600;color:var(--accent2);background:var(--panel2,#161b23);border:1px solid var(--line,#252c37);border-radius:99px;padding:2px 9px;white-space:nowrap}
+  .about-credits{border-top:1px solid var(--line,#252c37);padding-top:12px;font-size:12.5px;color:var(--muted);line-height:1.7}
+  .about-brand{font-weight:700;letter-spacing:.5px;color:var(--text);font-size:13px}
+  .about-links{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:2px}
+  .about-links a{color:var(--accent);text-decoration:none}
+  .about-links a:hover{text-decoration:underline}
+  .about-part{margin-top:10px;font-size:11.5px;opacity:.85}
+  .help-card{max-width:620px;max-height:86vh;display:flex;flex-direction:column}
+  .help-hd{display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid var(--line,#252c37);padding-bottom:12px;margin-bottom:4px}
+  .help-body{overflow-y:auto;padding-right:8px;margin-top:8px}
+  .help-body h3{font-size:13px;text-transform:uppercase;letter-spacing:.5px;color:var(--accent2,#38d39f);margin:16px 0 6px}
+  .help-body p,.help-body li{font-size:13px;line-height:1.6;color:var(--text)}
+  .help-body ul,.help-body ol{margin:4px 0;padding-left:20px}
+  .help-body li{margin:4px 0}
+  .help-body code{background:var(--panel2,#161b23);border:1px solid var(--line,#252c37);border-radius:4px;padding:0 4px;font-size:12px}
+  .help-body b{color:var(--text)}
+  .about-cred-row{display:flex;gap:14px;align-items:center}
+  .ksol-logo{width:52px;height:auto;flex:none;color:var(--text)}
   main{flex:1;display:flex;min-height:0}
   .sidebar{width:370px;min-width:370px;border-right:1px solid var(--line);overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:16px}
   .stage{flex:1;position:relative;display:flex;flex-direction:column;min-width:0}
@@ -53,6 +82,8 @@
   .show-all:hover{border-color:var(--accent)}
   .show-all.on{background:var(--accent);color:#00142e;border-color:var(--accent);font-weight:600}
   .orbit-view{position:absolute;top:120px;left:12px;z-index:4;background:rgba(20,26,34,.85);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer}
+  .center-active{position:absolute;top:156px;left:12px;z-index:4;background:rgba(20,26,34,.85);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer}
+  .center-active:hover{border-color:var(--accent)}
   .orbit-view:hover{border-color:var(--accent)}
   .orbit-view.on{background:var(--accent);color:#00142e;border-color:var(--accent);font-weight:600}
   /* Move/Rotate toggle chip that floats on the gizmo itself */
@@ -126,6 +157,38 @@
   canvas{max-width:100%;max-height:100%;display:block}
   .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px}
   .card h2{font-size:13px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin:0 0 10px}
+  /* collapsible cards */
+  .card h2.card-head{display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;margin:0}
+  .card h2.card-head:hover{color:var(--text)}
+  .card h2.card-head .chev{margin-left:auto;font-size:10px;transition:transform .18s ease;opacity:.7}
+  .card.collapsed h2.card-head{margin:0}
+  .card.collapsed h2.card-head .chev{transform:rotate(-90deg)}
+  .card .card-body{margin-top:10px}
+  .card.collapsed .card-body{display:none}
+  .card-desc{font-size:12px;color:var(--muted);line-height:1.5;margin:0 0 4px}
+  .runner-surf{background:var(--panel2,#161b23);border:1px solid var(--line,#252c37);border-radius:8px;padding:8px}
+  .runner-surf-hd{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600}
+  .runner-surf-hd span{flex:1}
+  .runner-surf .thumb{border-radius:6px;border:1px solid var(--line)}
+  .obs-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-top:5px}
+  .obs-grid button{display:flex;flex-direction:column;align-items:center;gap:2px;background:var(--panel2,#161b23);border:1px solid var(--line,#252c37);color:var(--text);border-radius:7px;padding:6px 3px;font-size:10px;cursor:pointer;line-height:1.15}
+  .obs-grid button:hover{border-color:var(--accent)}
+  .obs-grid button .em{font-size:17px}
+  .obs-grid.obs-sets{grid-template-columns:repeat(2,1fr)}
+  .obs-grid.obs-sets button{flex-direction:row;gap:6px;font-size:11px;font-weight:600}
+  .obs-grid.obs-sets button .em{font-size:15px}
+  .obs-cat{border:1px solid var(--line,#252c37);border-radius:8px;margin-top:6px;overflow:hidden;background:var(--panel2,#161b23)}
+  .obs-cat>summary{list-style:none;cursor:pointer;padding:7px 10px;font-size:11px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:7px;user-select:none}
+  .obs-cat>summary::-webkit-details-marker{display:none}
+  .obs-cat>summary:hover{color:var(--accent)}
+  .obs-cat>summary .em{font-size:15px}
+  .obs-cat>summary .cnt{margin-left:auto;font-size:10px;font-weight:600;color:var(--muted)}
+  .obs-cat>summary .chev{transition:transform .15s;font-size:10px;color:var(--muted)}
+  .obs-cat[open]>summary .chev{transform:rotate(90deg)}
+  .obs-cat .obs-grid{margin:0 8px 8px}
+  .build-helpers label.ck{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text);cursor:pointer;line-height:1.3}
+  .build-helpers label.ck input{margin:0;flex:none}
+  .build-helpers .range-row input[type=range]{flex:1}
   label.block{display:block;font-size:13px;color:var(--muted);margin:10px 0 4px}
   input[type=text],select{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:8px 10px;font-size:13px}
   .drop{border:2px dashed var(--line);border-radius:10px;padding:16px;text-align:center;color:var(--muted);font-size:13px;cursor:pointer;transition:.15s}
@@ -150,6 +213,23 @@
   ul.list li .mv{color:var(--muted);cursor:pointer;font-size:11px;padding:0 3px;user-select:none}
   ul.list li .mv:hover{color:var(--text)}
   ul.list li .mv.on{color:var(--accent2)}
+  ul.list li .mv.spd{font-variant-numeric:tabular-nums;font-weight:600;min-width:30px;text-align:center;border:1px solid var(--line,#252c37);border-radius:5px;padding:1px 4px}
+  ul.list li .mv.spd:hover{border-color:var(--accent)}
+  ul.list li .mv.spd.on{border-color:var(--accent2);color:var(--accent2)}
+  ul.list li .mv.spd.exp{background:var(--accent2);color:#00142e;border-color:var(--accent2)}
+  .spdedit{margin:4px 0 8px;padding:8px;background:var(--panel2,#161b23);border-radius:7px}
+  .spdedit-row{display:flex;align-items:center;gap:8px}
+  .spdedit-lbl{font-size:12px;color:var(--muted);white-space:nowrap}
+  .spdedit-row input[type=range]{flex:1}
+  .spdedit-val{font-size:12px;font-variant-numeric:tabular-nums;min-width:44px;text-align:right;color:var(--text)}
+  .spdedit-presets{display:flex;gap:4px;margin-top:6px;flex-wrap:wrap}
+  .spdedit-presets button{flex:1;min-width:36px;background:var(--panel,#0e1218);border:1px solid var(--line,#252c37);color:var(--muted);border-radius:5px;padding:3px 4px;font-size:11px;cursor:pointer}
+  .spdedit-presets button:hover{color:var(--text);border-color:var(--accent)}
+  .spdedit-presets button.on{background:var(--accent);color:#00142e;border-color:var(--accent);font-weight:600}
+  input.tc-in{width:100%;box-sizing:border-box;margin-top:6px;background:var(--panel2,#161b23);border:1px solid var(--line,#252c37);color:var(--text);border-radius:6px;padding:7px 9px;font-size:13px}
+  input.tc-in::placeholder{color:var(--muted)}
+  .capedit{margin:4px 0 8px;padding:6px 8px;background:var(--panel2,#161b23);border-radius:7px}
+  .capedit input{width:100%;box-sizing:border-box;background:var(--panel,#0e1218);border:1px solid var(--line,#252c37);color:var(--text);border-radius:6px;padding:6px 8px;font-size:12px}
   .camedit{border-top:1px solid var(--line);padding:8px 9px;background:rgba(0,0,0,.15)}
   .camedit .mini{display:flex;align-items:center;gap:8px;margin:5px 0;font-size:11px;color:var(--muted)}
   .camedit .mini span:first-child{width:52px}
@@ -198,6 +278,20 @@
 <header>
   <h1>GLB Stitcher</h1>
   <span class="tag">GLB clips → longer videos</span>
+  <span class="hdr-actions">
+    <div class="menu-wrap">
+      <button id="appMenuBtn" class="btn ghost sm" title="File menu">☰ Menu</button>
+      <div id="appMenu" class="app-menu" hidden>
+        <button data-act="save">💾 Save project</button>
+        <button data-act="saveas">📄 Save project as…</button>
+        <button data-act="load">📂 Load project…</button>
+        <div class="app-menu-sep"></div>
+        <button data-act="help">📖 How to use</button>
+        <button data-act="about">ℹ️ About GLB Stitcher</button>
+      </div>
+    </div>
+    <input type="file" id="projInput" accept="application/json,.json" hidden>
+  </span>
 </header>
 <main>
   <aside class="sidebar">
@@ -253,7 +347,8 @@
     </div>
 
     <div class="card">
-      <h2>2 · Background</h2>
+      <h2>2 · 2D Scenery (Flat Background)</h2>
+      <div class="card-desc">A flat image or rolling pattern behind your characters — like a stage backdrop. Simple &amp; fast; it doesn't move in 3D (the ground can scroll to fake forward motion).</div>
       <label class="block">Rolling scenery</label>
       <select id="scenery">
         <option value="none" selected>None (image / color)</option>
@@ -287,12 +382,15 @@
     </div>
 
     <div class="card">
-      <h2>2b · Scene</h2>
+      <h2>2b · 3D Scenery</h2>
+      <div class="card-desc">A real 3D space the camera moves through — a room with floor &amp; walls, or an open outdoor expanse. Characters stand &amp; travel inside it; replaces the flat backdrop.</div>
       <label class="block" style="margin-top:0">Environment</label>
       <select id="sceneType">
         <option value="off" selected>Off (flat background)</option>
         <option value="room">🧱 3D Room (floor + walls)</option>
         <option value="expanse">🏔 Open expanse (outdoor)</option>
+        <option value="runner">🏃 Runner — endless side-scroll (wall + floor)</option>
+        <option value="corridor">🛤 Long room (floor + back wall, for obstacles)</option>
       </select>
       <div class="hint" style="margin-top:2px">A real 3D environment the camera orbits inside — characters &amp; props stay planted while it holds still. Replaces the flat background &amp; rolling scenery.</div>
 
@@ -322,6 +420,43 @@
         <label class="block">Terrain relief (3D height from the image) <span id="envReliefV" style="color:var(--text)">0</span></label>
         <div class="range-row"><input type="range" id="envRelief" min="0" max="15" step="0.5" value="0"></div>
         <div class="hint" style="margin:2px 0 0">Pushes the ground up/down by the image's brightness — brighter = higher — so a terrain photo gets real hills &amp; valleys. Keep it modest so characters stay on the surface.</div>
+      </div>
+
+      <div id="runnerControls" style="display:none;margin-top:12px">
+        <div class="hint" style="margin:0 0 8px">A close-up <b>wall</b> behind and <b>floor</b> below that scroll continuously — the character runs on forever. Best with <b>Character position → Stay in place</b> (loop a run cycle) and Camera-follow off.</div>
+        <div class="runner-surf">
+          <div class="runner-surf-hd"><span>Wall</span><button class="btn ghost" id="pick_runWall" style="width:auto;padding:4px 10px;font-size:12px">🖼 Texture</button><img class="thumb" id="thumb_runWall" style="width:34px;height:34px;margin:0;display:none"></div>
+          <div class="range-row"><label class="block" style="margin:0;flex:1">Wall tiling</label><input type="range" id="runWallTile" min="1" max="24" step="1" value="6" style="flex:2"><span class="val" id="runWallTileV">6</span></div>
+        </div>
+        <div class="runner-surf" style="margin-top:8px">
+          <div class="runner-surf-hd"><span>Floor</span><button class="btn ghost" id="pick_runFloor" style="width:auto;padding:4px 10px;font-size:12px">🖼 Texture</button><img class="thumb" id="thumb_runFloor" style="width:34px;height:34px;margin:0;display:none"></div>
+          <div class="range-row"><label class="block" style="margin:0;flex:1">Floor tiling</label><input type="range" id="runFloorTile" min="1" max="24" step="1" value="6" style="flex:2"><span class="val" id="runFloorTileV">6</span></div>
+        </div>
+        <label class="block">Scroll speed <span id="runnerSpeedV" style="color:var(--text)">3.0</span></label>
+        <div class="range-row"><input type="range" id="runnerSpeed" min="0" max="12" step="0.5" value="3"></div>
+        <div class="hint" style="margin:2px 0 0">How fast the world rushes past. (Also adds to the character's own travel when it moves.)</div>
+        <label class="block">Wall distance <span id="runnerWallDistV" style="color:var(--text)">3.0</span></label>
+        <div class="range-row"><input type="range" id="runnerWallDist" min="1" max="10" step="0.5" value="3"></div>
+        <label class="block">Wall height <span id="runnerWallHV" style="color:var(--text)">6</span></label>
+        <div class="range-row"><input type="range" id="runnerWallH" min="3" max="16" step="1" value="6"></div>
+      </div>
+
+      <div id="corridorControls" style="display:none;margin-top:12px">
+        <div class="hint" style="margin:0 0 8px">One <b>long, fixed room</b> — a floor and a back wall that run a long way. Drop <b>props</b> (panel 2c) as obstacles along it; they stay put. Turn on <b>Travel &amp; continue</b> + <b>Camera follows</b> and the character runs the length past them.</div>
+        <div class="runner-surf">
+          <div class="runner-surf-hd"><span>Back wall</span><button class="btn ghost" id="pick_corrBack" style="width:auto;padding:4px 10px;font-size:12px">🖼 Texture</button><img class="thumb" id="thumb_corrBack" style="width:34px;height:34px;margin:0;display:none"></div>
+          <div class="range-row"><label class="block" style="margin:0;flex:1">Wall tiling</label><input type="range" id="corrBackTile" min="1" max="30" step="1" value="6" style="flex:2"><span class="val" id="corrBackTileV">6</span></div>
+        </div>
+        <div class="runner-surf" style="margin-top:8px">
+          <div class="runner-surf-hd"><span>Floor</span><button class="btn ghost" id="pick_corrFloor" style="width:auto;padding:4px 10px;font-size:12px">🖼 Texture</button><img class="thumb" id="thumb_corrFloor" style="width:34px;height:34px;margin:0;display:none"></div>
+          <div class="range-row"><label class="block" style="margin:0;flex:1">Floor tiling</label><input type="range" id="corrFloorTile" min="1" max="30" step="1" value="6" style="flex:2"><span class="val" id="corrFloorTileV">6</span></div>
+        </div>
+        <label class="block">Room length <span id="corrLenV" style="color:var(--text)">60</span></label>
+        <div class="range-row"><input type="range" id="corrLen" min="20" max="300" step="10" value="60"></div>
+        <label class="block">Room depth (floor front↔back) <span id="corrDepthV" style="color:var(--text)">20</span></label>
+        <div class="range-row"><input type="range" id="corrDepth" min="6" max="60" step="2" value="20"></div>
+        <label class="block">Wall height <span id="corrWallHV" style="color:var(--text)">6</span></label>
+        <div class="range-row"><input type="range" id="corrWallH" min="3" max="20" step="1" value="6"></div>
       </div>
 
       <div id="roomControls" style="display:none;margin-top:12px">
@@ -372,6 +507,21 @@
       <div class="hint" style="margin-top:0">Drop textured <b>.glb</b> models — trees, a boat, a car, rocks — to place around the scene. They stay put while your characters animate. Drag one in the preview to position it.</div>
       <div class="drop" id="propDrop" style="margin-top:10px">Drop prop <b>.glb / .gltf</b> models<br>or click to browse</div>
       <input type="file" id="propInput" accept=".glb,.gltf" multiple hidden>
+      <div class="build-helpers" style="margin-top:10px;background:var(--panel2,#161b23);border:1px solid var(--line,#252c37);border-radius:8px;padding:9px 10px">
+        <label class="ck"><input type="checkbox" id="gridOn"> <b>▦ Floor grid</b></label>
+        <div class="range-row" style="margin-top:4px"><span style="font-size:10px;color:var(--muted);width:56px">Grid size</span><input type="range" id="gridSize" min="0.25" max="5" step="0.25" value="1"><span class="val" id="gridSizeV" style="font-size:10px;width:30px">1.0</span></div>
+        <label class="ck" style="margin-top:6px"><input type="checkbox" id="snapGrid"> ⊞ <b>Snap to grid</b> <span class="hint" style="text-transform:none;letter-spacing:0">— dragged items jump to grid lines</span></label>
+        <label class="ck" style="margin-top:4px"><input type="checkbox" id="snapObs"> 🧲 <b>Snap to obstacles</b> <span class="hint" style="text-transform:none;letter-spacing:0">— align edges (build sidewalks fast)</span></label>
+        <hr style="border:0;border-top:1px solid var(--line);margin:8px 0">
+        <label class="ck"><input type="checkbox" id="wallGridOn"> <b>▥ Wall grid</b> <span class="hint" style="text-transform:none;letter-spacing:0">(active back wall)</span></label>
+        <div class="range-row" style="margin-top:4px"><span style="font-size:10px;color:var(--muted);width:56px">Wall size</span><input type="range" id="wallGridSize" min="0.25" max="5" step="0.25" value="1"><span class="val" id="wallGridSizeV" style="font-size:10px;width:30px">1.0</span></div>
+      </div>
+      <label class="block" style="margin-top:10px">One-click scenes <span class="hint" style="text-transform:none;letter-spacing:0">(sets the wall backdrop + drops matching props)</span></label>
+      <div id="sceneThemeGrid" class="obs-grid obs-sets"></div>
+      <label class="block" style="margin-top:10px">Theme packs <span class="hint" style="text-transform:none;letter-spacing:0">(drop a matched group at once)</span></label>
+      <div id="obstacleSetGrid" class="obs-grid obs-sets"></div>
+      <label class="block" style="margin-top:10px">Built-in obstacles <span class="hint" style="text-transform:none;letter-spacing:0">(click to add, then drag to place)</span></label>
+      <div id="obstacleGrid"></div>
       <div id="propList" style="margin-top:10px"></div>
     </div>
 
@@ -412,6 +562,16 @@
       <label class="block">Orbit yaw</label>
       <div class="range-row"><input type="range" id="camYaw" min="-180" max="180" step="1" value="0"><span class="val" id="camYawVal">0°</span></div>
       <label class="toggle"><input type="checkbox" id="spin"> Slow auto-spin during render</label>
+      <label class="block">Cinematic camera move</label>
+      <select id="camDrift">
+        <option value="off" selected>Off</option>
+        <option value="pushin">Slow push-in (zoom in)</option>
+        <option value="pullout">Slow pull-out (zoom out)</option>
+        <option value="orbitL">Drift orbit ← left</option>
+        <option value="orbitR">Drift orbit → right</option>
+        <option value="pushOrbit">Push-in + orbit</option>
+      </select>
+      <div class="hint" style="margin-top:2px">Eases the camera across the whole video (in preview &amp; render). Combines with auto-spin and camera-follow.</div>
       <label class="block">Lighting</label>
       <div class="range-row"><input type="range" id="light" min="0.2" max="3" step="0.05" value="1.2"><span class="val" id="lightVal">1.20×</span></div>
       <label class="toggle"><input type="checkbox" id="shadow"> Ground contact shadow</label>
@@ -429,6 +589,29 @@
       <label class="block">If shorter than the video</label>
       <select id="aFit"><option value="loop">Loop to fill</option><option value="once">Play once, then silence</option></select>
       <div class="hint">Audio is trimmed to the video length. Encoded into the MP4 (Chrome / Edge).</div>
+    </div>
+
+    <div class="card">
+      <h2>🎬 Titles &amp; captions</h2>
+      <label class="toggle" style="margin-top:0"><input type="checkbox" id="introOn"> Intro title card</label>
+      <input type="text" id="introTitle" class="tc-in" placeholder="Title (e.g. Dragon's Journey)">
+      <input type="text" id="introSub" class="tc-in" placeholder="Subtitle (optional)">
+      <label class="toggle"><input type="checkbox" id="outroOn"> Outro / end card</label>
+      <input type="text" id="outroText" class="tc-in" placeholder="End text (e.g. The End)">
+      <div class="row" style="margin-top:2px">
+        <div><label class="block">Intro length</label>
+          <select id="introSec"><option value="1.5">1.5s</option><option value="2" selected>2s</option><option value="3">3s</option><option value="4">4s</option></select></div>
+        <div><label class="block">Outro length</label>
+          <select id="outroSec"><option value="1.5">1.5s</option><option value="2" selected>2s</option><option value="3">3s</option><option value="4">4s</option></select></div>
+      </div>
+      <label class="toggle" style="margin-top:8px"><input type="checkbox" id="capOn"> Per-clip captions (lower-third)</label>
+      <div class="hint" style="margin-top:2px">Add caption text to a clip with its <b>💬</b> button in the clip list — it shows while that clip plays.</div>
+      <div class="row" style="margin-top:2px">
+        <div><label class="block">Caption position</label>
+          <select id="capPos"><option value="bottom" selected>Bottom</option><option value="top">Top</option></select></div>
+        <div><label class="block">Caption size</label>
+          <select id="capSize"><option value="0.045">Small</option><option value="0.055" selected>Medium</option><option value="0.07">Large</option></select></div>
+      </div>
     </div>
 
     <div class="card">
@@ -489,6 +672,7 @@
       <button class="move-tool" id="moveTool" title="Move tool (M): drag the X / Y / Z arrows to slide the character">✥ Move</button>
       <button class="show-all" id="showAll" title="Show every character in the preview at once, so you can arrange them">▦ Show all</button>
       <button class="orbit-view" id="orbitView" title="Orbit view: drag to spin the whole scene, wheel to zoom — the characters stay put (also Alt + right-drag / Alt + wheel anytime)">🎥 Orbit view</button>
+      <button class="center-active" id="centerActive" title="Center the camera on the character whose clip is highlighted in the timeline right now (the ● playing / selected node)">◎ Center on active</button>
       <button class="node-toggle" id="nodeToggle" title="Flow node editor">⧉ Nodes</button>
       <div class="gizmo-toggle" id="gizmoToggle">
         <button data-mode="move" title="Move: slide along X / Y / Z (M)">✥</button>
@@ -507,7 +691,7 @@
           <button data-yaw="180"  data-camy="0.15" data-vpos="0" title="Back">B</button>
           <button data-yaw="135"  data-camy="2.4"  data-vpos="0" title="Isometric — back-right">◢</button>
         </div>
-        <button class="vc-top" data-yaw="0" data-camy="3.4" data-vpos="0.1" title="High angle / top-down">Top ↧</button>
+        <button class="vc-top" data-top="1" title="Straight-down top view">Top ↧</button>
       </div>
       <div class="node-editor" id="nodeEditor">
         <button class="node-link" id="linkNodes" title="Connect the selected GLBs in order" disabled>🔗 Link selected</button>
@@ -545,6 +729,126 @@
   </section>
 </main>
 
+<div id="helpModal" class="modal-ov" hidden>
+  <div class="modal-card help-card">
+    <div class="help-hd">
+      <h2 style="margin:0">📖 How to use GLB Stitcher</h2>
+      <button id="helpClose" class="btn ghost sm">✕ Close</button>
+    </div>
+    <div class="help-body">
+      <p class="hint" style="margin:0 0 4px">GLB Stitcher turns several animated <b>GLB</b> clips into one longer video — over a flat backdrop or a real 3D scene, with multiple characters, transitions, audio, titles and captions. Everything runs in your browser; nothing is uploaded.</p>
+
+      <h3>Quick start</h3>
+      <ol>
+        <li><b>Drop your GLB clips</b> into panel 1 (or click to browse). Number the filenames (<code>clip_01</code>, <code>clip_02</code>…) so they order correctly; use ▲▼ to reorder by hand.</li>
+        <li>Pick a <b>background</b>: panel 2 (<b>2D Scenery</b>) for a flat image/rolling backdrop, or panel 2b (<b>3D Scenery</b>) for a room or open expanse.</li>
+        <li>Press <b>Preview playback</b> to check it, then <b>Render video</b> (panel 5) to save an MP4.</li>
+      </ol>
+
+      <h3>Clips &amp; the timeline</h3>
+      <ul>
+        <li>Each clip row has quick controls: <b>1× speed pill</b> (click for a slow-mo/fast-forward slider), <b>💬</b> caption, <b>🎥</b> per-clip camera, <b>🏃</b> world-scroll on/off, <b>⧉</b> duplicate, <b>▲▼</b> reorder, <b>✕</b> delete.</li>
+        <li>The <b>timeline strip</b> under the preview shows each character's clips left→right. <b>Click a block to jump the playhead to that clip's start</b> — works while playing (it keeps playing) or paused.</li>
+        <li><b>Scrub</b> bar = the playhead: drag it to pose the whole stitched scene at any moment; ▶ / 🔁 play &amp; loop.</li>
+      </ul>
+
+      <h3>Characters &amp; “Show all”</h3>
+      <ul>
+        <li>Clips are <b>auto-grouped by skeleton</b> — each character gets its own colour and timeline lane.</li>
+        <li><b>▦ Show all</b> puts every character on stage together (ensemble). It keeps the moment you've scrubbed to — it won't snap back to the start.</li>
+        <li>If a character slips <b>behind a wall or prop</b>, its skeleton glows through in cyan so you can find it (preview only — not in the render).</li>
+        <li><b>◎ Center on active</b> snaps the camera onto the character whose timeline block is highlighted right now.</li>
+        <li>Drag a character on the ground to place it; right-drag (or Shift-drag) to spin it; use <b>✥ Move</b> / rotate tools for precise gizmo control.</li>
+      </ul>
+
+      <h3>Scenery &amp; textures</h3>
+      <ul>
+        <li><b>2D Scenery</b> — a flat image or a rolling procedural backdrop (castle, mountains, grass…). Set a scroll speed to fake forward motion.</li>
+        <li><b>3D Scenery</b> — pick from <b>3D Room</b> (floor + 4 walls + optional ceiling), <b>Open expanse</b> (ground + horizon + sky), <b>🏃 Runner</b> (a close wall + floor that scroll endlessly — run in place forever), or <b>🛤 Long room</b> (one big fixed floor + back wall to drop obstacles/props along and run the length past them). Each surface has its own <b>🖼 Texture library</b>, tiling, <b>Bump</b> and <b>Shine</b>, or drop your own image; <b>✨ Room sets</b> / <b>✨ Scene sets</b> give one-click matched environments.</li>
+        <li><b>Props &amp; obstacles</b> (panel 2c) — drop your own <b>.glb</b> models, or click a <b>built-in obstacle</b> (crates, barrels, cones, hurdles, ramps, street signs, traffic lights, benches, a newsstand, dumpsters, and lots more) to drop it in, then drag it into place. <b>Theme packs</b> (Obstacle course, Desert, Dungeon, Street, Alley, Plaza, …) drop a matched group at once.</li>
+        <li><b>Grid &amp; snapping</b> (panel 2c) — turn on the <b>▦ Floor grid</b> (and a <b>▥ Wall grid</b> on the back wall), each with its own size. <b>⊞ Snap to grid</b> makes dragged items jump to grid lines; <b>🧲 Snap to obstacles</b> butts their edges together (drop several sidewalk slabs and they line up end-to-end); with either on, an item dragged near the back wall snaps flush against it. Select an item and use <b>Ctrl+C/V/X</b>, <b>Ctrl+D</b>, <b>Del</b>, and <b>PgUp/PgDn</b> to raise/lower it. Grids show only in the preview, never in the render.</li>
+        <li><b>Wall backdrops</b> — on a 3D-scenery wall, open its <b>🖼 Texture library</b> and pick a <b>Wall backdrops</b> scene (Forest, Shopfronts, Western town, City skyline, Brick row houses, Warehouse). It fills the wall behind your characters; in the Runner scene it scrolls past as they move.</li>
+        <li><b>One-click scenes</b> (panel 2c) — <b>Western street, City block, Forest trail, Downtown, Old town, Industrial</b> each set the matching wall backdrop <i>and</i> drop a matching set of props in one click (switching to the Long-room scene if needed). Then drag the pieces to arrange.</li>
+      </ul>
+
+      <h3>Camera</h3>
+      <ul>
+        <li><b>Orbit:</b> middle-drag, or hold <b>Alt</b>/<b>Space</b> and drag (or use <b>🎥 Orbit view</b>). Wheel = zoom. Sliders in panel 3 set padding, height, yaw and vertical position.</li>
+        <li><b>View cube</b> (bottom-right) snaps to Front/Side/Iso angles; <b>Top</b> looks straight down (great for laying out obstacles on the grid). The cube works even before you load a character.</li>
+        <li><b>Cinematic camera move</b> (panel 3) eases the camera across the whole video — push-in, pull-out, or drift-orbit.</li>
+      </ul>
+
+      <h3>Titles, captions &amp; audio</h3>
+      <ul>
+        <li><b>🎬 Titles &amp; captions</b>: fading intro/outro title cards, and per-clip lower-third captions (turn captions on here, then add text with a clip's <b>💬</b>).</li>
+        <li><b>Audio</b>: drop an mp3/wav/m4a; it's trimmed to the video length and encoded into the MP4.</li>
+      </ul>
+
+      <h3>Output &amp; saving</h3>
+      <ul>
+        <li><b>Render video</b> writes an MP4 (H.264+AAC in Chrome/Edge). Set resolution, FPS, loops-per-clip, hold and cross-fade first.</li>
+        <li><b>⬇ Export sequence as GLB</b> bakes the whole timeline into one GLB for Blender/Unity.</li>
+        <li><b>☰ Menu → Save / Save as…</b> stores all your settings and per-clip options in a <code>.json</code> project. Loading restores everything; re-drop the same GLBs (and audio) and their settings reattach by name.</li>
+      </ul>
+
+      <h3>Tips</h3>
+      <ul>
+        <li>Every panel header <b>collapses</b> when clicked (▾) — tuck away what you're not using; your layout is remembered.</li>
+        <li>Nothing leaves your computer — it all runs locally.</li>
+      </ul>
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-top:12px"><button id="helpClose2" class="btn ghost sm">Close</button></div>
+  </div>
+</div>
+
+<div id="aboutModal" class="modal-ov" hidden>
+  <div class="modal-card">
+    <div class="about-title">
+      <h2 style="margin:0">GLB Stitcher</h2>
+      <span class="about-ver" id="aboutVer">v—</span>
+    </div>
+    <p class="hint" style="margin:0 0 10px">Stitch multiple animated <b>GLB</b> clips (e.g. from AI 3D generators) into one longer video — over a background or 3D scene, with characters, travel, transitions, audio, titles &amp; captions. Runs entirely in your browser; nothing is uploaded.</p>
+    <p style="font-size:13px;margin:0 0 6px"><b>Quick tips</b></p>
+    <ul style="font-size:12.5px;color:var(--muted);margin:0 0 12px;padding-left:18px;line-height:1.6">
+      <li>Each clip's <b>1×</b> pill sets that clip's <b>speed</b> (slow-mo / fast-forward).</li>
+      <li><b>💬</b> on a clip adds a caption; enable captions in <b>🎬 Titles &amp; captions</b>.</li>
+      <li><b>Cinematic camera move</b> (Scene &amp; camera) drifts the camera across the video.</li>
+      <li>Drag the character on the ground to place it; middle-drag / Alt-drag to orbit.</li>
+      <li><b>☰ Menu → Save</b> keeps all settings + per-clip options in a <code>.json</code> project.</li>
+    </ul>
+    <div class="about-credits">
+      <div class="about-cred-row">
+        <svg class="ksol-logo" viewBox="0 0 240 280" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Potassium Solutions logo">
+          <g fill="currentColor" font-family="Arial, Helvetica, sans-serif">
+            <text x="120" y="36" text-anchor="middle" font-size="40" font-weight="800" textLength="212" lengthAdjust="spacingAndGlyphs">Potassium</text>
+            <rect x="47" y="54" width="146" height="146" fill="none" stroke="currentColor" stroke-width="5"/>
+            <text x="120" y="76" text-anchor="middle" font-size="11">19</text>
+            <text x="104" y="170" text-anchor="middle" font-size="118" font-weight="800">K</text>
+            <text x="151" y="170" font-size="18" font-weight="800">S&#174;l</text>
+            <text x="120" y="192" text-anchor="middle" font-size="11">39.0983</text>
+            <text x="120" y="256" text-anchor="middle" font-size="40" font-weight="800" textLength="206" lengthAdjust="spacingAndGlyphs">Solutions</text>
+          </g>
+        </svg>
+        <div>
+          <div class="about-brand">KSOL&nbsp;Designs</div>
+          <div>Created by <b>Paul&nbsp;A.T.&nbsp;Ramey</b><br>CAD Artist · Designer · Maker</div>
+          <div class="about-links">
+            <a href="https://www.ksoldesigns.com" target="_blank" rel="noopener">www.ksoldesigns.com</a>
+            <span>·</span>
+            <a href="mailto:Paul@ksoldesigns.com">Paul@ksoldesigns.com</a>
+            <span>·</span>
+            <a href="https://www.patreon.com/KsolDesigns" target="_blank" rel="noopener">Patreon</a>
+          </div>
+        </div>
+      </div>
+      <div class="about-part">Part of the <b>KSOL&nbsp;Designs GLB&nbsp;Studio</b> · © <span id="aboutYear">2026</span> Paul&nbsp;A.T.&nbsp;Ramey</div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px">
+      <button id="aboutClose" class="btn ghost sm">Close</button>
+    </div>
+  </div>
+</div>
+
 <script type="importmap">
 {
   "imports": {
@@ -553,7 +857,7 @@
   }
 }
 </script>
-<script src="../studio/studio-lib.js"></script>
+<script src="../Studio/studio-lib.js"></script>
 <script type="module">
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
@@ -561,6 +865,7 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 
 const $ = s => document.querySelector(s);
+const APP_NAME='GLB Stitcher', APP_VERSION='1.0.0', APP_BUILD='2026-08-24';   // version shown in About + footer
 const wrap = $('#canvasWrap');
 
 // ---------- Three.js core ----------
@@ -640,11 +945,105 @@ const envBackdrop = new THREE.Mesh(new THREE.CylinderGeometry(1,1,1,72,1,true),
 envGroup.add(envBackdrop);
 let envGroundTex=null, envBackTex=null, envHW=40, curEnvPreset=null, envGroundCustom=false, envBackCustom=false;
 let envDispTex=null, envNormTex=null, envGroundSrc=null, envGroundAR=1;   // displacement/normal source for terrain relief + image aspect
+
+// ---------- Runner: a scrolling wall + floor for an endless side-scroll ----------
+const RUN_LEN=600, RUN_DEPTH=30;                    // long enough to never run off; the texture scroll conveys distance
+const runnerGroup=new THREE.Group(); runnerGroup.visible=false; scene.add(runnerGroup);
+const runnerFloor=new THREE.Mesh(new THREE.PlaneGeometry(RUN_LEN,RUN_DEPTH), new THREE.MeshStandardMaterial({color:0x9a9a97, roughness:1}));
+runnerFloor.rotation.x=-Math.PI/2; runnerFloor.receiveShadow=true; runnerGroup.add(runnerFloor);
+const runnerWall=new THREE.Mesh(new THREE.PlaneGeometry(RUN_LEN,6), new THREE.MeshStandardMaterial({color:0x7d5a4a, roughness:1}));
+runnerWall.receiveShadow=true; runnerGroup.add(runnerWall);   // vertical, faces +Z (camera); positioned by sizeRunner()
+SURF.runFloor={ mesh:runnerFloor, label:'Runner floor', wall:false, runner:true, tex:null, normalTex:null, roughTex:null, srcCanvas:null, bump:false, shine:false, tile:6 };
+SURF.runWall ={ mesh:runnerWall,  label:'Runner wall',  wall:true,  runner:true, tex:null, normalTex:null, roughTex:null, srcCanvas:null, bump:false, shine:false, tile:6 };
+const runnerOn=()=>runnerGroup.visible;
+
+// ---------- Long corridor: one big FIXED room (floor + back wall) for placing obstacles/props ----------
+const corrGroup=new THREE.Group(); corrGroup.visible=false; scene.add(corrGroup);
+const corrFloor=new THREE.Mesh(new THREE.PlaneGeometry(60,20), new THREE.MeshStandardMaterial({color:0x9a9a97, roughness:1}));
+corrFloor.rotation.x=-Math.PI/2; corrFloor.receiveShadow=true; corrGroup.add(corrFloor);
+const corrBack=new THREE.Mesh(new THREE.PlaneGeometry(60,6), new THREE.MeshStandardMaterial({color:0x7d5a4a, roughness:1}));
+corrBack.receiveShadow=true; corrGroup.add(corrBack);
+SURF.corrFloor={ mesh:corrFloor, label:'Corridor floor', wall:false, long:true, tex:null, normalTex:null, roughTex:null, srcCanvas:null, bump:false, shine:false, tile:6 };
+SURF.corrBack ={ mesh:corrBack,  label:'Corridor wall',  wall:true,  long:true, tex:null, normalTex:null, roughTex:null, srcCanvas:null, bump:false, shine:false, tile:6 };
+const corridorOn=()=>corrGroup.visible;
+let corrLast='';
 let envHeightImg=null, envHeightSize=256, envLastGS=null;   // CPU height field so characters/props conform to the terrain
 
 // ---------- Props: stationary textured models placed around the scene ----------
 const propGroup = new THREE.Group(); scene.add(propGroup);
 let props=[], propSel=null;
+// Preview-only selection outline around the highlighted prop (hidden while rendering/previewing so it never lands in the video).
+const propSelBox = new THREE.BoxHelper(new THREE.Object3D(), 0x5b9dff); propSelBox.visible=false;
+propSelBox.material.depthTest=false; propSelBox.material.transparent=true; propSelBox.renderOrder=999; scene.add(propSelBox);
+function updatePropSelBox(){ const sp=props.find(p=>p.id===propSel);
+  const show = !!sp && !rendering && !previewing;
+  propSelBox.visible=show; if(show){ propSelBox.setFromObject(sp.wrap); } }
+
+// ---------- Build helpers: floor + wall grids and snapping (preview-only aids, never rendered) ----------
+const GRID_EXTENT=80;            // how far the floor grid reaches (world units, covers the default corridor)
+let floorGridObj=null, wallGridObj=null, gridLastKey='', wallGridLastKey='';
+function gridState(){ return {
+  on: !!($('#gridOn')&&$('#gridOn').checked), size: parseFloat(($('#gridSize')||{}).value)||1,
+  snapG: !!($('#snapGrid')&&$('#snapGrid').checked), snapO: !!($('#snapObs')&&$('#snapObs').checked),
+  wallOn: !!($('#wallGridOn')&&$('#wallGridOn').checked), wallSize: parseFloat(($('#wallGridSize')||{}).value)||1 }; }
+function activeWall(){                                       // the back wall of whichever fixed scene is on
+  if(corridorOn()) return {z:-corrDepth()/2, w:corrLen(), h:corrH()};
+  if(runnerOn())   return {z:-(parseFloat(($('#runnerWallDist')||{}).value)||3), w:Math.min(RUN_LEN,80), h:runnerWallH()};
+  if(roomOn())     return {z:-roomHW, w:roomHW*2, h:roomWH};
+  return null; }
+function buildFloorGrid(size){
+  if(floorGridObj){ scene.remove(floorGridObj); floorGridObj.geometry.dispose(); floorGridObj.material.dispose(); }
+  const div=Math.max(1, Math.round(GRID_EXTENT/size));
+  floorGridObj=new THREE.GridHelper(div*size, div, 0x5b9dff, 0x3a4763);
+  floorGridObj.material.transparent=true; floorGridObj.material.opacity=0.45; floorGridObj.position.y=0.015; scene.add(floorGridObj);
+}
+function buildWallGrid(w,h,cell,z){
+  if(wallGridObj){ scene.remove(wallGridObj); wallGridObj.geometry.dispose(); wallGridObj.material.dispose(); }
+  const pts=[], hw=w/2;
+  for(let x=-hw;x<=hw+1e-6;x+=cell){ pts.push(x,0,0, x,h,0); }
+  for(let y=0;y<=h+1e-6;y+=cell){ pts.push(-hw,y,0, hw,y,0); }
+  const g=new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pts,3));
+  wallGridObj=new THREE.LineSegments(g, new THREE.LineBasicMaterial({color:0x7bd0ff, transparent:true, opacity:0.4}));
+  wallGridObj.position.set(0, 0, z+0.02); scene.add(wallGridObj);   // just in front of the wall so it shows
+}
+function updateGrids(){
+  const s=gridState();
+  // Floor grid
+  const showFloor = s.on && !rendering && !previewing;
+  const fkey=s.size.toFixed(2);
+  if(showFloor && fkey!==gridLastKey){ buildFloorGrid(s.size); gridLastKey=fkey; }
+  if(floorGridObj) floorGridObj.visible=showFloor;
+  // Wall grid — follows the active back wall's size/position
+  const w=activeWall();
+  const showWall = s.wallOn && !!w && !rendering && !previewing;
+  const wkey = w ? [w.w,w.h,w.z,s.wallSize].map(n=>(+n).toFixed(2)).join('_') : '';
+  if(showWall && wkey!==wallGridLastKey){ buildWallGrid(w.w,w.h,s.wallSize,w.z); wallGridLastKey=wkey; }
+  if(wallGridObj) wallGridObj.visible=showWall;
+}
+// Snap a dragged prop's ground position. Grid → nearest line; obstacles → butt this prop's footprint edge to a
+// neighbour's; wall → flush the back edge to the wall when close. Returns {x,z}.
+const _snapBox=new THREE.Box3(), _snapSize=new THREE.Vector3();
+function footprint(p){ _snapBox.setFromObject(p.wrap); _snapBox.getSize(_snapSize); return {w:_snapSize.x, d:_snapSize.z}; }
+function snapPropPos(p, x, z){
+  const s=gridState();
+  if(s.snapG){ const g=s.size; x=Math.round(x/g)*g; z=Math.round(z/g)*g; }
+  if(s.snapO){                                              // align to the nearest neighbour edge within one footprint
+    const me=footprint(p); const TH=Math.max(0.4, Math.min(me.w,me.d)*0.6);
+    let bestX=null,bx=1e9, bestZ=null,bz=1e9;
+    for(const q of props){ if(q===p) continue;
+      const qb=new THREE.Box3().setFromObject(q.wrap); const qc=qb.getCenter(new THREE.Vector3()); const qs=qb.getSize(new THREE.Vector3());
+      // candidate X centres that butt me against q along X (left/right) or share its centre-line
+      for(const cand of [qc.x, qc.x+(qs.x+me.w)/2, qc.x-(qs.x+me.w)/2]){ const d=Math.abs(x-cand); if(d<TH&&d<bx){bx=d;bestX=cand;} }
+      for(const cand of [qc.z, qc.z+(qs.z+me.d)/2, qc.z-(qs.z+me.d)/2]){ const d=Math.abs(z-cand); if(d<TH&&d<bz){bz=d;bestZ=cand;} }
+    }
+    if(bestX!=null) x=bestX; if(bestZ!=null) z=bestZ;
+  }
+  if(s.snapG || s.snapO){                                    // flush the back edge to the wall when within a cell
+    const w=activeWall();
+    if(w){ const me=footprint(p); const backEdge=w.z + me.d/2; if(Math.abs(z-backEdge) < (s.wallOn?s.wallSize:s.size)) z=backEdge; }
+  }
+  return {x,z};
+}
 
 // Background: screen-space quad drawn behind everything
 const bgScene = new THREE.Scene();
@@ -662,12 +1061,61 @@ const snapCanvas = document.createElement('canvas');
 const snapCtx = snapCanvas.getContext('2d');
 let snapTex=null;
 
+// ---------- Title cards + captions (drawn into the WebGL canvas, like the cross-fade) ----------
+const ovScene=new THREE.Scene();
+const ovCam=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
+const ovMat=new THREE.MeshBasicMaterial({ transparent:true, depthTest:false, depthWrite:false });
+const ovMesh=new THREE.Mesh(new THREE.PlaneGeometry(2,2), ovMat); ovScene.add(ovMesh);
+const ovCanvas=document.createElement('canvas'); const ovCtx=ovCanvas.getContext('2d');
+let ovTex=null;
+function ovResize(){ const w=renderer.domElement.width, h=renderer.domElement.height;
+  if(ovCanvas.width!==w||ovCanvas.height!==h){ ovCanvas.width=w; ovCanvas.height=h; if(ovTex){ ovTex.dispose(); ovTex=null; } } }
+function ovPaint(){ if(!ovTex){ ovTex=new THREE.CanvasTexture(ovCanvas); ovTex.colorSpace=THREE.SRGBColorSpace; ovMat.map=ovTex; }
+  else ovTex.needsUpdate=true; ovMat.needsUpdate=true; renderer.render(ovScene,ovCam); }
+function ovWrap(g,text,maxW){ const words=String(text||'').split(/\s+/).filter(Boolean); const lines=[]; let line='';
+  for(const w of words){ const t=line?line+' '+w:w; if(g.measureText(t).width>maxW && line){ lines.push(line); line=w; } else line=t; }
+  if(line) lines.push(line); return lines.length?lines:['']; }
+function drawTitleCard(textAlpha, title, subtitle){
+  ovResize(); const g=ovCtx, W=ovCanvas.width, H=ovCanvas.height; g.clearRect(0,0,W,H);
+  const grad=g.createLinearGradient(0,0,0,H); grad.addColorStop(0,'#141a24'); grad.addColorStop(1,'#05070b');
+  g.fillStyle=grad; g.fillRect(0,0,W,H);                       // opaque backdrop hides the 3D scene
+  g.globalAlpha=Math.max(0,Math.min(1,textAlpha)); g.textAlign='center'; g.textBaseline='top';
+  const tS=Math.round(H*0.085), sS=Math.round(H*0.042), lineH=tS*1.18, subH=sS*1.34, gap=subtitle?H*0.035:0;
+  const tFont=`700 ${tS}px "Segoe UI",system-ui,Arial,sans-serif`, sFont=`400 ${sS}px "Segoe UI",system-ui,Arial,sans-serif`;
+  g.font=tFont; const tl=ovWrap(g,title,W*0.82);
+  g.font=sFont; const sl=subtitle?ovWrap(g,subtitle,W*0.72):[];
+  const blockH=tl.length*lineH+(sl.length?gap+sl.length*subH:0);
+  let y=H/2-blockH/2;
+  g.font=tFont; g.fillStyle='#f4f7fb'; for(const ln of tl){ g.fillText(ln,W/2,y); y+=lineH; }
+  if(sl.length){ y+=gap; g.font=sFont; g.fillStyle='#aeb9c9'; for(const ln of sl){ g.fillText(ln,W/2,y); y+=subH; } }
+  g.globalAlpha=1; ovPaint();
+}
+function drawCaption(text, pos, sizePct){
+  ovResize(); const g=ovCtx, W=ovCanvas.width, H=ovCanvas.height; g.clearRect(0,0,W,H);
+  const fs=Math.max(12,Math.round(H*(sizePct||0.055))), lh=fs*1.3;
+  g.font=`600 ${fs}px "Segoe UI",system-ui,Arial,sans-serif`; g.textAlign='center'; g.textBaseline='middle';
+  const lines=ovWrap(g,text,W*0.86), boxH=lines.length*lh+fs*0.7;
+  const cy = pos==='top' ? H*0.09+boxH/2 : H*0.91-boxH/2;
+  g.fillStyle='rgba(6,9,13,0.55)'; g.fillRect(0,cy-boxH/2,W,boxH);
+  g.fillStyle='#f4f7fb'; let y=cy-(lines.length-1)*lh/2; for(const ln of lines){ g.fillText(ln,W/2,y); y+=lh; }
+  ovPaint();
+}
+function drawClipCaption(c){ const cfg=titleCfg(); if(!cfg.capOn) return; const txt=((c&&c.caption)||'').trim(); if(txt) drawCaption(txt, cfg.capPos, cfg.capSize); }
+
 const loader = new GLTFLoader();
 const clock = new THREE.Clock();
 
 // ---------- State ----------
-let clips = [];               // {id,name,order,gltf,root,mixer,action,duration,cam:{custom,yaw,camY,pad,exp}}
+let clips = [];               // {id,name,order,gltf,root,mixer,action,duration,speed,cam:{custom,yaw,camY,pad,exp}}
 let audioBuffer=null, audioName='';
+// ---------- Per-clip playback speed (slow-mo / fast-forward) ----------
+const SPEED_STEPS=[0.25,0.5,0.75,1,1.5,2,3];
+const clipSpeed=c=>{ const s=+(c&&c.speed); return (s>0&&isFinite(s))?s:1; };
+const effDur=c=>Math.max(0.05,(c.duration||1.5)/clipSpeed(c));   // on-screen (stretched/compressed) duration
+const fmtSpeed=s=>s+'×';
+function cycleSpeed(c,down){ const cur=clipSpeed(c); let i=SPEED_STEPS.indexOf(cur);
+  if(i<0){ let best=1e9; SPEED_STEPS.forEach((v,k)=>{ const d=Math.abs(v-cur); if(d<best){best=d;i=k;} }); }
+  i=down?Math.max(0,i-1):Math.min(SPEED_STEPS.length-1,i+1); c.speed=SPEED_STEPS[i]; }
 let outW=1920, outH=1080;
 let previewing=false, rendering=false, cancelRender=false, realPreview=false;
 let activeRoot=null, selIndex=0;
@@ -832,6 +1280,14 @@ function applyScenery(type){
 }
 // manualPhase = distance scrolled by the speed slider; travelX/Z = how far the camera followed the character
 function updateScenery(manualPhase, travelX, travelZ){
+  if(runnerOn()){   // endless side-scroll: keep the strip around the character, scroll the wall+floor textures
+    runnerGroup.position.x = (camState&&camState.pivotX)||0;
+    const off = manualPhase*0.12 + travelX*0.5;
+    for(const s of [SURF.runFloor, SURF.runWall]){ if(!s.tex) continue;
+      s.tex.offset.x=off; if(s.normalTex) s.normalTex.offset.x=off; if(s.roughTex) s.roughTex.offset.x=off; }
+    return;
+  }
+  if(corridorOn()) return;   // fixed long room — surfaces don't scroll (motion comes from travel + camera-follow)
   if(roomOn()){   // real room: optionally scroll the floor texture like a treadmill, walls stay fixed
     if(SURF.floor.tex) SURF.floor.tex.offset.set(0, manualPhase*0.05);
     return;
@@ -922,7 +1378,138 @@ const TEX_LIB=[
     const grd=g.createLinearGradient(0,0,0,S); grd.addColorStop(0,'#0a1030'); grd.addColorStop(1,'#1d2b57');
     g.fillStyle=grd; g.fillRect(0,0,S,S);
     for(let i=0;i<600;i++){ const x=rnd(i)*S,y=rnd(i+4)*S,r=rnd(i+8)*1.6; g.fillStyle=`rgba(255,255,255,${0.4+0.6*rnd(i+2)})`; g.beginPath(); g.arc(x,y,r,0,7); g.fill(); } })},
+  // ----- More floors -----
+  {id:'marble', name:'Marble', kind:'floor', gen:()=>texCanvas((g,S,rnd)=>{
+    g.fillStyle='#e9e7e2'; g.fillRect(0,0,S,S);
+    for(let v=0;v<18;v++){ g.strokeStyle=`rgba(${(88+40*rnd(v))|0},${(92+36*rnd(v+1))|0},${(98+34*rnd(v+2))|0},${0.14+0.2*rnd(v+3)})`; g.lineWidth=0.6+2*rnd(v+4);
+      let x=rnd(v)*S,y=0; g.beginPath(); g.moveTo(x,y);
+      for(let s=0;s<10;s++){ x+=(rnd(v*10+s)-0.5)*S*0.24; y+=S/10; g.lineTo(x,y);} g.stroke(); } })},
+  {id:'checker', name:'Checkerboard', kind:'floor', gen:()=>texCanvas((g,S)=>{
+    const n=4,t=S/n; for(let i=0;i<n;i++)for(let j=0;j<n;j++){ g.fillStyle=((i+j)&1)?'#e8e8ea':'#242428'; g.fillRect(i*t,j*t,t,t);} })},
+  {id:'parquet', name:'Herringbone wood', kind:'floor', gen:()=>texCanvas((g,S,rnd)=>{
+    g.fillStyle='#6b4a2c'; g.fillRect(0,0,S,S); const n=8,t=S/n;
+    for(let i=0;i<n;i++)for(let j=0;j<n;j++){ const b=112+28*rnd(i*n+j); g.save(); g.translate(i*t+t/2,j*t+t/2); g.rotate(((i+j)&1)?Math.PI/4:-Math.PI/4);
+      g.fillStyle=`rgb(${(b+40)|0},${b|0},${(b-40)|0})`; g.fillRect(-t*0.6,-t*0.18,t*1.2,t*0.36); g.strokeStyle='rgba(40,26,14,0.4)'; g.strokeRect(-t*0.6,-t*0.18,t*1.2,t*0.36); g.restore(); } })},
+  {id:'carpet', name:'Carpet', kind:'floor', gen:()=>texCanvas((g,S,rnd)=>{
+    g.fillStyle='#7a3b3b'; g.fillRect(0,0,S,S);
+    for(let i=0;i<16000;i++){ const x=rnd(i)*S,y=rnd(i+7)*S,v=rnd(i+3); g.fillStyle=`rgba(${(150*v)|0},${(58*v)|0},${(58*v)|0},0.5)`; g.fillRect(x,y,2,2);} })},
+  {id:'cobble', name:'Cobblestone', kind:'floor', gen:()=>texCanvas((g,S,rnd)=>{
+    g.fillStyle='#2b2a28'; g.fillRect(0,0,S,S); const n=6,t=S/n;
+    for(let i=0;i<n;i++)for(let j=0;j<n;j++){ const off=(j%2)?t/2:0, cx=i*t+off, cy=j*t+t/2, v=0.7+0.5*rnd(i*n+j), b=(96*v)|0;
+      g.fillStyle=`rgb(${b},${(b*0.98)|0},${(b*0.92)|0})`; g.beginPath(); g.ellipse(cx,cy,t*0.42,t*0.36,0,0,7); g.fill(); } })},
+  {id:'metalplate', name:'Metal plate', kind:'floor', gen:()=>texCanvas((g,S)=>{
+    g.fillStyle='#5a5f66'; g.fillRect(0,0,S,S); const n=8,t=S/n;
+    for(let i=0;i<n;i++)for(let j=0;j<n;j++){ g.save(); g.translate(i*t+t/2,j*t+t/2); g.rotate(((i+j)&1)?0.6:-0.6);
+      g.fillStyle='rgba(255,255,255,0.14)'; g.fillRect(-t*0.28,-t*0.08,t*0.56,t*0.16); g.fillStyle='rgba(0,0,0,0.22)'; g.fillRect(-t*0.28,t*0.08,t*0.56,t*0.05); g.restore(); } })},
+  {id:'sand', name:'Sand', kind:'floor', gen:()=>texCanvas((g,S,rnd)=>{
+    g.fillStyle='#d9c08a'; g.fillRect(0,0,S,S);
+    for(let i=0;i<16000;i++){ const x=rnd(i)*S,y=rnd(i+4)*S,v=rnd(i+8); g.fillStyle=`rgba(${v>0.5?120:255},${v>0.5?90:240},${v>0.5?50:210},0.06)`; g.fillRect(x,y,2,2);} })},
+  // ----- More walls -----
+  {id:'paintblue', name:'Painted (slate)', kind:'wall', gen:()=>texCanvas((g,S,rnd)=>{
+    g.fillStyle='#48607a'; g.fillRect(0,0,S,S);
+    for(let i=0;i<8000;i++){ const x=rnd(i)*S,y=rnd(i+2)*S; g.fillStyle=`rgba(0,0,0,${0.015*rnd(i+6)})`; g.beginPath(); g.arc(x,y,2+2*rnd(i),0,7); g.fill(); } })},
+  {id:'marblewall', name:'Marble wall', kind:'wall', gen:()=>texCanvas((g,S,rnd)=>{
+    g.fillStyle='#dfe2e6'; g.fillRect(0,0,S,S);
+    for(let v=0;v<16;v++){ g.strokeStyle=`rgba(70,74,82,${0.12+0.18*rnd(v)})`; g.lineWidth=0.6+2*rnd(v+4); let x=rnd(v)*S,y=0; g.beginPath(); g.moveTo(x,y);
+      for(let s=0;s<10;s++){ x+=(rnd(v*10+s)-0.5)*S*0.22; y+=S/10; g.lineTo(x,y);} g.stroke(); } })},
+  {id:'concretewall', name:'Concrete wall', kind:'wall', gen:()=>texCanvas((g,S,rnd)=>{
+    g.fillStyle='#8f9194'; g.fillRect(0,0,S,S);
+    for(let i=0;i<12000;i++){ const x=rnd(i)*S,y=rnd(i+3)*S,v=rnd(i+9); g.fillStyle=`rgba(${v>0.5?255:0},${v>0.5?255:0},${v>0.5?255:0},0.03)`; g.fillRect(x,y,2,2);}
+    g.strokeStyle='rgba(0,0,0,0.16)'; g.lineWidth=2; for(let k=1;k<3;k++){ g.beginPath(); g.moveTo(k*S/3,0); g.lineTo(k*S/3,S); g.stroke(); } })},
+  {id:'corrugated', name:'Corrugated metal', kind:'wall', gen:()=>texCanvas((g,S)=>{
+    const cols=20,w=S/cols; for(let c=0;c<cols;c++){ const b=118+64*(0.5+0.5*Math.sin(c*1.9)); g.fillStyle=`rgb(${b|0},${(b+6)|0},${(b+12)|0})`; g.fillRect(c*w,0,w+1,S);
+      g.fillStyle='rgba(0,0,0,0.10)'; g.fillRect(c*w,0,1,S); } })},
+  {id:'logs', name:'Log cabin', kind:'wall', gen:()=>texCanvas((g,S,rnd)=>{
+    const rows=6, rh=S/rows; for(let r=0;r<rows;r++){ const y=r*rh, b=100+26*rnd(r*3);
+      const grd=g.createLinearGradient(0,y,0,y+rh); grd.addColorStop(0,`rgb(${(b+46)|0},${(b+10)|0},${(b-30)|0})`); grd.addColorStop(0.5,`rgb(${(b+66)|0},${(b+26)|0},${(b-14)|0})`); grd.addColorStop(1,`rgb(${(b+30)|0},${b|0},${(b-38)|0})`);
+      g.fillStyle=grd; g.fillRect(0,y,S,rh); g.fillStyle='rgba(30,18,8,0.5)'; g.fillRect(0,y,S,3); } })},
+  {id:'wallpaper', name:'Striped wallpaper', kind:'wall', gen:()=>texCanvas((g,S)=>{
+    const cols=10,w=S/cols; for(let c=0;c<cols;c++){ g.fillStyle=(c&1)?'#c9b79a':'#bda98a'; g.fillRect(c*w,0,w,S);} })},
+  // ----- Ceilings -----
+  {id:'ceilplaster', name:'Plaster ceiling', kind:'ceiling', gen:()=>texCanvas((g,S,rnd)=>{
+    g.fillStyle='#eceae4'; g.fillRect(0,0,S,S);
+    for(let i=0;i<7000;i++){ const x=rnd(i)*S,y=rnd(i+2)*S; g.fillStyle=`rgba(0,0,0,${0.015*rnd(i+6)})`; g.beginPath(); g.arc(x,y,2+2*rnd(i),0,7); g.fill(); } })},
+  {id:'ceilbeams', name:'Wood beams', kind:'ceiling', gen:()=>texCanvas((g,S)=>{
+    g.fillStyle='#d8cdb8'; g.fillRect(0,0,S,S); const n=4, bw=S/n;
+    for(let i=0;i<n;i++){ const x=i*bw+bw*0.34; const grd=g.createLinearGradient(x,0,x+bw*0.32,0); grd.addColorStop(0,'#5a3c22'); grd.addColorStop(0.5,'#7a5230'); grd.addColorStop(1,'#4a301c'); g.fillStyle=grd; g.fillRect(x,0,bw*0.32,S);} })},
+  {id:'ceiltiles', name:'Ceiling tiles', kind:'ceiling', gen:()=>texCanvas((g,S,rnd)=>{
+    g.fillStyle='#b9bcbe'; g.fillRect(0,0,S,S); const n=4,t=S/n;
+    for(let i=0;i<n;i++)for(let j=0;j<n;j++){ g.fillStyle='#e6e8ea'; g.fillRect(i*t+2,j*t+2,t-4,t-4);
+      for(let s=0;s<60;s++){ g.fillStyle=`rgba(0,0,0,${0.05*rnd(i*99+j*13+s)})`; g.fillRect(i*t+2+rnd(s)*(t-4), j*t+2+rnd(s+5)*(t-4),2,2);} } })},
+  {id:'ceilcoffer', name:'Coffered panels', kind:'ceiling', gen:()=>texCanvas((g,S)=>{
+    g.fillStyle='#5a5044'; g.fillRect(0,0,S,S); const n=3,t=S/n,pad=10;
+    for(let i=0;i<n;i++)for(let j=0;j<n;j++){ g.fillStyle='#7a6e58'; g.fillRect(i*t+pad,j*t+pad,t-2*pad,t-2*pad);
+      g.fillStyle='#8c7f66'; g.fillRect(i*t+pad+6,j*t+pad+6,t-2*pad-12,t-2*pad-12);} })},
+  // ----- More sky -----
+  {id:'sunset', name:'Sunset', kind:'sky', gen:()=>texCanvas((g,S,rnd)=>{
+    const grd=g.createLinearGradient(0,0,0,S); grd.addColorStop(0,'#2a3a6b'); grd.addColorStop(0.55,'#e8794a'); grd.addColorStop(1,'#ffd28a'); g.fillStyle=grd; g.fillRect(0,0,S,S);
+    for(let c=0;c<5;c++){ const cy=S*(0.5+0.4*rnd(c)); g.fillStyle=`rgba(80,50,70,${0.22+0.2*rnd(c+2)})`; g.beginPath(); g.ellipse(rnd(c)*S,cy,120*rnd(c+1)+60,14,0,0,7); g.fill(); } })},
+  {id:'overcast', name:'Overcast', kind:'sky', gen:()=>texCanvas((g,S,rnd)=>{
+    const grd=g.createLinearGradient(0,0,0,S); grd.addColorStop(0,'#9aa2ab'); grd.addColorStop(1,'#c4c9cf'); g.fillStyle=grd; g.fillRect(0,0,S,S);
+    for(let c=0;c<10;c++){ g.fillStyle=`rgba(150,155,162,${0.2+0.2*rnd(c)})`; g.beginPath(); g.ellipse(rnd(c)*S,rnd(c+3)*S,90+80*rnd(c+1),30,0,0,7); g.fill(); } })},
+  // ----- Wall backdrops (wide scenes for the back wall; tile horizontally, span the wall height once) -----
+  {id:'bd_forest', name:'Forest', kind:'backdrop', gen:()=>bdCanvas((g,W,H,rnd)=>{ const grd=g.createLinearGradient(0,0,0,H); grd.addColorStop(0,'#bfe0f5'); grd.addColorStop(1,'#e8f2e0'); g.fillStyle=grd; g.fillRect(0,0,W,H);
+    g.fillStyle='#9cc08a'; g.beginPath(); g.moveTo(0,H*0.72); for(let x=0;x<=W;x+=48) g.lineTo(x,H*0.6+26*Math.sin(x*0.012)); g.lineTo(W,H); g.lineTo(0,H); g.fill();
+    const n=10, tw=W/n, gy=H*0.86;
+    for(let i=0;i<n;i++){ const cx=i*tw+tw/2, th=H*(0.5+0.14*rnd(i)); g.fillStyle='#5a3f24'; g.fillRect(cx-9,gy-th*0.3,18,th*0.3);
+      for(let b=0;b<4;b++){ g.fillStyle=`rgb(${(38+18*rnd(i))|0},${(96+40*rnd(i+1))|0},${(40+18*rnd(i+2))|0})`; g.beginPath(); g.arc(cx+(rnd(i*4+b)-0.5)*tw*0.5, gy-th*0.3-b*th*0.17, th*0.3*(1-b*0.13),0,7); g.fill(); } }
+    g.fillStyle='#5f8a3f'; g.fillRect(0,gy,W,H-gy); })},
+  {id:'bd_shops', name:'Shopfronts', kind:'backdrop', gen:()=>bdCanvas((g,W,H,rnd)=>{ g.fillStyle='#cfe0ee'; g.fillRect(0,0,W,H);
+    const n=6, bw=W/n, gy=H*0.9, wc=['#c9b79a','#b98f6a','#a8b0b8','#c98f8f','#9fb0a0','#c7c2b0'], aw=['#c0281f','#1560a8','#2f7a3f','#d8a13a'];
+    for(let i=0;i<n;i++){ const x=i*bw, bh=H*(0.6+0.14*rnd(i)), top=gy-bh; g.fillStyle=wc[i%wc.length]; g.fillRect(x,top,bw,bh); g.fillStyle='rgba(0,0,0,0.12)'; g.fillRect(x,top,bw,6);
+      g.fillStyle='#5b7893'; for(let r=0;r<2;r++)for(let c=0;c<3;c++) g.fillRect(x+bw*0.12+c*bw*0.28, top+bh*0.16+r*bh*0.24, bw*0.18, bh*0.15);
+      g.fillStyle=aw[i%4]; g.fillRect(x+4,gy-bh*0.34,bw-8,bh*0.09); g.fillStyle='#3a4652'; g.fillRect(x+bw*0.1,gy-bh*0.24,bw*0.5,bh*0.22); g.fillStyle='#4a3728'; g.fillRect(x+bw*0.66,gy-bh*0.26,bw*0.22,bh*0.24); }
+    g.fillStyle='#6a6a6a'; g.fillRect(0,gy,W,H-gy); })},
+  {id:'bd_western', name:'Western town', kind:'backdrop', gen:()=>bdCanvas((g,W,H,rnd)=>{ const grd=g.createLinearGradient(0,0,0,H); grd.addColorStop(0,'#e9d6a8'); grd.addColorStop(1,'#d8b98a'); g.fillStyle=grd; g.fillRect(0,0,W,H);
+    const n=5, bw=W/n, gy=H*0.92, names=['SALOON','HOTEL','BANK','GENERAL','SHERIFF'];
+    for(let i=0;i<n;i++){ const x=i*bw, bh=H*0.62, top=gy-bh; g.fillStyle=i%2?'#9c6b3f':'#7a4f2c'; g.fillRect(x,top,bw,bh);
+      g.strokeStyle='rgba(0,0,0,0.18)'; g.lineWidth=1; for(let px=x+6;px<x+bw;px+=14){ g.beginPath(); g.moveTo(px,top); g.lineTo(px,gy); g.stroke(); }
+      g.fillStyle='#6f4522'; g.fillRect(x+4,top-22,bw-8,26); g.fillStyle='#3a2416'; g.fillRect(x+bw*0.14,top+14,bw*0.72,28); g.fillStyle='#e9d6a8'; g.font='bold 19px Georgia'; g.textAlign='center'; g.fillText(names[i%names.length],x+bw/2,top+33);
+      g.fillStyle='#5a3a1e'; g.fillRect(x,gy-bh*0.34,bw,10); g.fillStyle='#2a1a0e'; g.fillRect(x+bw*0.58,gy-bh*0.28,bw*0.22,bh*0.28); g.fillStyle='#6a7b6a'; g.fillRect(x+bw*0.14,gy-bh*0.26,bw*0.3,bh*0.2); }
+    g.fillStyle='#b89a6a'; g.fillRect(0,gy,W,H-gy); })},
+  {id:'bd_skyline', name:'City skyline', kind:'backdrop', gen:()=>bdCanvas((g,W,H,rnd)=>{ const grd=g.createLinearGradient(0,0,0,H); grd.addColorStop(0,'#12203a'); grd.addColorStop(1,'#4a6a8a'); g.fillStyle=grd; g.fillRect(0,0,W,H);
+    const n=14, bw=W/n;
+    for(let i=0;i<n;i++){ const x=i*bw, bh=H*(0.32+0.6*rnd(i)), top=H-bh; g.fillStyle=`rgb(${(26+18*rnd(i))|0},${(32+20*rnd(i+1))|0},${(46+24*rnd(i+2))|0})`; g.fillRect(x,top,bw+1,bh);
+      for(let wy=top+8; wy<H-6; wy+=14) for(let wx=x+5; wx<x+bw-6; wx+=12){ g.fillStyle=rnd(wx*1.3+wy)>0.5?'#ffe08a':'#2a3a4a'; g.fillRect(wx,wy,6,8); } } })},
+  {id:'bd_townhouses', name:'Brick row houses', kind:'backdrop', gen:()=>bdCanvas((g,W,H,rnd)=>{ g.fillStyle='#cdd8e2'; g.fillRect(0,0,W,H);
+    const n=6, bw=W/n, gy=H*0.9, brick=['#8a4a3a','#9c5a44','#7a4436','#a86a54','#8f5040','#94574a'];
+    for(let i=0;i<n;i++){ const x=i*bw, bh=H*0.74, top=gy-bh; g.fillStyle=brick[i%brick.length]; g.fillRect(x,top,bw,bh);
+      g.strokeStyle='rgba(255,255,255,0.06)'; for(let by=top;by<gy;by+=8){ g.beginPath(); g.moveTo(x,by); g.lineTo(x+bw,by); g.stroke(); }
+      g.fillStyle='rgba(255,255,255,0.15)'; g.fillRect(x,top,bw,7);
+      for(let r=0;r<2;r++)for(let c=0;c<2;c++){ const wx=x+bw*0.2+c*bw*0.4, wy=top+bh*0.2+r*bh*0.28; g.fillStyle='#dfe8f0'; g.fillRect(wx,wy,bw*0.22,bh*0.2); g.strokeStyle='#333'; g.strokeRect(wx,wy,bw*0.22,bh*0.2); }
+      g.fillStyle='#3a2a1e'; g.fillRect(x+bw*0.4,gy-bh*0.26,bw*0.2,bh*0.26); }
+    g.fillStyle='#7a7a7a'; g.fillRect(0,gy,W,H-gy); })},
+  {id:'bd_warehouse', name:'Warehouse', kind:'backdrop', gen:()=>bdCanvas((g,W,H,rnd)=>{ g.fillStyle='#b9bcbe'; g.fillRect(0,0,W,H);
+    const n=4, bw=W/n, gy=H*0.92;
+    for(let i=0;i<n;i++){ const x=i*bw; g.fillStyle=i%2?'#8f969c':'#7f868c'; g.fillRect(x,H*0.2,bw,gy-H*0.2);
+      g.strokeStyle='rgba(0,0,0,0.10)'; for(let px=x;px<x+bw;px+=8){ g.beginPath(); g.moveTo(px,H*0.2); g.lineTo(px,gy); g.stroke(); }
+      g.fillStyle='#5a6068'; g.fillRect(x+bw*0.2,gy-H*0.42,bw*0.6,H*0.42); g.strokeStyle='rgba(255,255,255,0.15)'; for(let dy=gy-H*0.42;dy<gy;dy+=10){ g.beginPath(); g.moveTo(x+bw*0.2,dy); g.lineTo(x+bw*0.8,dy); g.stroke(); } }
+    g.fillStyle='#6a6a6a'; g.fillRect(0,gy,W,H-gy); })},
+  {id:'bd_arena', name:'Arena crowd', kind:'backdrop', gen:()=>bdCanvas((g,W,H,rnd)=>{ g.fillStyle='#0a0e16'; g.fillRect(0,0,W,H);
+    const rows=6; for(let r=0;r<rows;r++){ const y=H*0.16+r*(H*0.58/rows), bandH=H*0.58/rows;
+      g.fillStyle=`rgb(${(30-r*3)|0},${(34-r*3)|0},${(46-r*3)|0})`; g.fillRect(0,y,W,bandH);
+      for(let x=4;x<W;x+=10){ g.fillStyle=`hsl(${Math.floor(rnd(r*97+x)*360)},45%,${(46+18*rnd(x))|0}%)`; g.beginPath(); g.arc(x+(r%2?5:0), y+bandH*0.6, 3+2*rnd(x*r+1),0,7); g.fill(); } }
+    g.fillStyle='#0a0e16'; g.fillRect(0,0,W,H*0.16);
+    for(let x=40;x<W;x+=90){ g.fillStyle='rgba(255,247,208,0.22)'; g.beginPath(); g.arc(x,H*0.09,24,0,7); g.fill(); g.fillStyle='#fff7d0'; g.beginPath(); g.arc(x,H*0.09,10,0,7); g.fill(); }
+    g.fillStyle='#1a2030'; g.fillRect(0,H*0.74,W,H*0.26); })},
+  {id:'bd_colosseum', name:'Colosseum', kind:'backdrop', gen:()=>bdCanvas((g,W,H,rnd)=>{ const grd=g.createLinearGradient(0,0,0,H); grd.addColorStop(0,'#8fa9c4'); grd.addColorStop(1,'#d8c8a8'); g.fillStyle=grd; g.fillRect(0,0,W,H);
+    const tiers=[{y:H*0.1,h:H*0.34,crowd:false},{y:H*0.44,h:H*0.34,crowd:true}]; const n=12, aw=W/n;
+    tiers.forEach((t,ti)=>{ g.fillStyle=ti?'#c9b48a':'#d8c8a4'; g.fillRect(0,t.y,W,t.h);
+      for(let i=0;i<n;i++){ const x=i*aw, ax=x+aw*0.2, aw2=aw*0.6, atop=t.y+t.h*0.3;
+        g.fillStyle='#3a3226'; g.beginPath(); g.moveTo(ax,t.y+t.h); g.lineTo(ax,atop); g.arc(ax+aw2/2,atop,aw2/2,Math.PI,0,false); g.lineTo(ax+aw2,t.y+t.h); g.closePath(); g.fill();
+        if(t.crowd){ for(let c=0;c<7;c++){ g.fillStyle=`hsl(${Math.floor(rnd(i*9+c)*40+15)},30%,${(42+18*rnd(i+c))|0}%)`; g.beginPath(); g.arc(ax+aw2*(0.15+0.7*rnd(i*7+c)), atop+aw2*0.25+rnd(c)*t.h*0.15, 3,0,7); g.fill(); } }
+        g.fillStyle='#e8ddc2'; g.fillRect(x,t.y,aw*0.14,t.h); } });
+    g.fillStyle='#d8b98a'; g.fillRect(0,H*0.78,W,H*0.22); })},
+  {id:'bd_trainyard', name:'Train yard', kind:'backdrop', gen:()=>bdCanvas((g,W,H,rnd)=>{ const grd=g.createLinearGradient(0,0,0,H); grd.addColorStop(0,'#aeb6be'); grd.addColorStop(1,'#cfd2d0'); g.fillStyle=grd; g.fillRect(0,0,W,H); const gy=H*0.72;
+    for(let x=0;x<W;x+=140){ const bh=H*(0.2+0.15*rnd(x)); g.fillStyle=`rgb(${(88+20*rnd(x))|0},${(94+20*rnd(x+1))|0},${(104+20*rnd(x+2))|0})`; g.fillRect(x,gy-bh,132,bh);
+      g.fillStyle='#7a8088'; for(let sx=x;sx<x+132;sx+=26){ g.beginPath(); g.moveTo(sx,gy-bh); g.lineTo(sx+13,gy-bh-14); g.lineTo(sx+26,gy-bh); g.fill(); } }
+    g.strokeStyle='#5a6068'; g.lineWidth=6; for(let x=80;x<W;x+=300){ g.beginPath(); g.moveTo(x,gy); g.lineTo(x,gy-H*0.4); g.lineTo(x+120,gy-H*0.4); g.lineTo(x+120,gy); g.stroke(); }
+    const cols=['#8a3a2a','#2f6b8a','#3a5a3a','#7a6a3a']; for(let x=0;x<W;x+=110){ g.fillStyle=cols[(x/110|0)%4]; g.fillRect(x+4,gy-H*0.14,100,H*0.14);
+      g.fillStyle='#1a1a1e'; g.beginPath(); g.arc(x+28,gy,7,0,7); g.arc(x+80,gy,7,0,7); g.fill(); }
+    g.fillStyle='#8a8880'; g.fillRect(0,gy,W,H-gy); g.strokeStyle='#6a6a70'; g.lineWidth=3; for(let ry=gy+16; ry<H; ry+=18){ g.beginPath(); g.moveTo(0,ry); g.lineTo(W,ry); g.stroke(); } })},
 ];
+function bdCanvas(draw){ const W=1024,H=384,c=document.createElement('canvas'); c.width=W;c.height=H; const g=c.getContext('2d'); g.textAlign='center'; g.textBaseline='alphabetic';
+  const rnd=s=>{ const x=Math.sin(s*127.1)*43758.5453; return x-Math.floor(x); }; draw(g,W,H,rnd); return c; }
 
 // ---------- 3D Room logic ----------
 function roomOn(){ return roomGroup.visible; }
@@ -959,7 +1546,7 @@ function rebuildShine(s){
 // Apply a library preset to one surface
 function applyPreset(key,id){
   const s=SURF[key], item=TEX_LIB.find(t=>t.id===id); if(!s||!item) return;
-  const cv=item.gen(); s.srcCanvas=cv;
+  const cv=item.gen(); s.srcCanvas=cv; s.backdrop=(item.kind==='backdrop');
   if(s.tex) s.tex.dispose();
   const tex=new THREE.CanvasTexture(cv); tex.colorSpace=THREE.SRGBColorSpace;
   tex.wrapS=tex.wrapT=THREE.RepeatWrapping; tex.anisotropy=4;
@@ -974,7 +1561,20 @@ function applyRoomTint(){
 function applyRoomTiling(){
   const W=roomHW*2;
   for(const k in SURF){ const s=SURF[k]; if(!s.tex) continue;
-    if(s.wall) s.tex.repeat.set(s.tile, Math.max(1, Math.round(s.tile*roomWH/W))); // keep wall tiles square-ish
+    if(s.backdrop){                                  // a wide scene: span the wall height once, repeat along its length
+      const H = s.runner?runnerWallH() : s.long?corrH() : roomWH;
+      const L = s.runner?RUN_LEN : s.long?corrLen() : roomHW*2;
+      const reps=Math.max(1, Math.round(L/(Math.max(1,H)*4) * ((s.tile||6)/6)));
+      s.tex.wrapT=THREE.ClampToEdgeWrapping; s.tex.repeat.set(reps,1);
+      if(s.normalTex){ s.normalTex.wrapT=THREE.ClampToEdgeWrapping; s.normalTex.repeat.copy(s.tex.repeat); }
+      if(s.roughTex){ s.roughTex.wrapT=THREE.ClampToEdgeWrapping; s.roughTex.repeat.copy(s.tex.repeat); }
+      continue;
+    }
+    if(s.runner || s.long){                          // long scrolling/fixed strips: keep tiles square along the length
+      const L=s.runner?RUN_LEN:corrLen();
+      const along=(s===SURF.runFloor||s===SURF.corrFloor)?(s.runner?RUN_DEPTH:corrDepth()):(s.runner?runnerWallH():corrH());
+      s.tex.repeat.set(Math.max(1,Math.round(s.tile*L/Math.max(1,along))), s.tile); }
+    else if(s.wall) s.tex.repeat.set(s.tile, Math.max(1, Math.round(s.tile*roomWH/W))); // keep wall tiles square-ish
     else       s.tex.repeat.set(s.tile, s.tile);
     if(s.normalTex) s.normalTex.repeat.copy(s.tex.repeat);   // bumps line up with the tiles
     if(s.roughTex)  s.roughTex.repeat.copy(s.tex.repeat);    // gloss lines up too
@@ -989,7 +1589,7 @@ function openTexPicker(key){ pickerTarget=key; $('#texPickerTitle').textContent=
 function closeTexPicker(){ $('#texPicker').style.display='none'; pickerTarget=null; }
 function buildTexPickerGrid(){
   const grid=$('#texPickerGrid'); if(!grid) return; grid.innerHTML='';
-  const groups={floor:'Floors', wall:'Walls', sky:'Sky'};
+  const groups={floor:'Floors', wall:'Walls', backdrop:'Wall backdrops', ceiling:'Ceilings', sky:'Sky'};
   for(const gk in groups){ const items=TEX_LIB.filter(t=>t.kind===gk); if(!items.length) continue;
     const hd=document.createElement('div'); hd.textContent=groups[gk];
     hd.style.cssText='grid-column:1/-1;font-size:12px;color:var(--muted);margin-top:4px;font-weight:600'; grid.appendChild(hd);
@@ -1003,6 +1603,7 @@ function buildTexPickerGrid(){
 function buildRoomUI(){
   const host=$('#roomSurfaces'); if(!host) return; host.innerHTML='';
   for(const key in SURF){ const s=SURF[key];
+    if(s.runner || s.long) continue;               // runner/corridor floor+wall have their own controls, not room rows
     const row=document.createElement('div'); row.id='surfRow_'+key; row.style.margin='2px 0 12px';
     if(s.ceilingOnly) row.style.display='none';
     row.innerHTML=`
@@ -1052,6 +1653,7 @@ function loadRoomTex(file, key){
   img.onload=()=>{
     const tex=new THREE.Texture(img); tex.colorSpace=THREE.SRGBColorSpace;
     tex.wrapS=tex.wrapT=THREE.RepeatWrapping; tex.anisotropy=4; tex.needsUpdate=true;
+    s.backdrop=false;
     if(s.tex) s.tex.dispose(); s.tex=tex;
     s.mesh.material.map=tex; s.mesh.material.needsUpdate=true;
     // build a square source canvas so an uploaded image can also drive the Bump (normal-map) option
@@ -1244,17 +1846,67 @@ function sizeEnv(){
 }
 
 // ---------- Scene selector (Off / Room / Open expanse) ----------
+function runnerWallH(){ return parseFloat(($('#runnerWallH')||{}).value)||6; }
+function sizeRunner(){
+  if(!runnerOn()) return;
+  const h=runnerWallH(), dist=parseFloat(($('#runnerWallDist')||{}).value)||3;
+  runnerWall.scale.set(1, h/6, 1); runnerWall.position.set(0, h/2, -dist);   // 6-tall plane scaled to h, behind the character
+  runnerFloor.position.set(0,0,0);
+  applyRoomTiling();
+  const camDist=(camState&&camState.dist)||5, s=Math.max(8,camDist*2.4);
+  key.shadow.camera.left=-s;key.shadow.camera.right=s;key.shadow.camera.top=s;key.shadow.camera.bottom=-s;
+  key.shadow.camera.near=0.01;key.shadow.camera.far=Math.max(camDist*8,40);key.shadow.camera.updateProjectionMatrix();
+}
+let runnerInit=false;
+function runnerDefaults(){ if(runnerInit) return; runnerInit=true; applyPreset('runFloor','concrete'); applyPreset('runWall','brick'); }
+function manualScrollSpeed(){ let v=parseFloat($('#sceneryScroll').value)||0; if(runnerOn()) v+=parseFloat(($('#runnerSpeed')||{}).value)||0; return v; }
+// ---- Long corridor ----
+function corrLen(){ return parseFloat(($('#corrLen')||{}).value)||60; }
+function corrH(){ return parseFloat(($('#corrWallH')||{}).value)||6; }
+function corrDepth(){ return parseFloat(($('#corrDepth')||{}).value)||20; }
+function sizeCorridor(){
+  if(!corridorOn()) return;
+  const L=corrLen(), D=corrDepth(), H=corrH(), key3=L+'_'+D+'_'+H;
+  if(key3!==corrLast){                              // rebuild geometry only when a dimension changes (not every reframe)
+    corrFloor.geometry.dispose(); corrFloor.geometry=new THREE.PlaneGeometry(L,D); corrFloor.position.set(0,0,0);
+    corrBack.geometry.dispose();  corrBack.geometry=new THREE.PlaneGeometry(L,H);  corrBack.position.set(0,H/2,-D/2);
+    corrLast=key3; applyRoomTiling();
+  }
+  const dist=(camState&&camState.dist)||5, s=Math.max(10,dist*2.4);
+  key.shadow.camera.left=-s;key.shadow.camera.right=s;key.shadow.camera.top=s;key.shadow.camera.bottom=-s;
+  key.shadow.camera.near=0.01;key.shadow.camera.far=Math.max(dist*8,L);key.shadow.camera.updateProjectionMatrix();
+}
+let corrInit=false;
+function corridorDefaults(){ if(corrInit) return; corrInit=true; applyPreset('corrFloor','stonefloor'); applyPreset('corrBack','stonewall'); }
 function setScene(type){
-  roomGroup.visible=(type==='room'); envGroup.visible=(type==='expanse');
+  roomGroup.visible=(type==='room'); envGroup.visible=(type==='expanse'); runnerGroup.visible=(type==='runner'); corrGroup.visible=(type==='corridor');
   $('#roomControls').style.display=type==='room'?'block':'none';
   $('#expanseControls').style.display=type==='expanse'?'block':'none';
+  $('#runnerControls').style.display=type==='runner'?'block':'none';
+  $('#corridorControls').style.display=type==='corridor'?'block':'none';
   if(type!=='off' && scenery!=='none'){ $('#scenery').value='none'; applyScenery('none'); }   // supersedes procedural scenery
   if(type==='room'){ bgMat.map=null; bgMat.color.set($('#bgColor').value); bgMat.needsUpdate=true; applyRoomTint(); frameCurrent(); sizeRoom(); }
   else if(type==='expanse'){ applyEnvPreset(curEnvPreset?curEnvPreset.id:ENV_PRESETS[0].id); frameCurrent(); sizeEnv(); }
+  else if(type==='runner'){ bgMat.map=null; bgMat.color.set($('#bgColor').value); bgMat.needsUpdate=true; runnerDefaults(); frameCurrent(); sizeRunner(); }
+  else if(type==='corridor'){ bgMat.map=null; bgMat.color.set($('#bgColor').value); bgMat.needsUpdate=true; corridorDefaults(); frameCurrent(); sizeCorridor(); }
   else { fitBackground(); }
   syncShadow(); renderFrame();
 }
 $('#sceneType').addEventListener('change', e=>setScene(e.target.value));
+$('#pick_corrBack')?.addEventListener('click', ()=>openTexPicker('corrBack'));
+$('#pick_corrFloor')?.addEventListener('click', ()=>openTexPicker('corrFloor'));
+$('#corrBackTile')?.addEventListener('input', ()=>{ $('#corrBackTileV').textContent=$('#corrBackTile').value; SURF.corrBack.tile=parseInt($('#corrBackTile').value)||6; applyRoomTiling(); renderFrame(); });
+$('#corrFloorTile')?.addEventListener('input', ()=>{ $('#corrFloorTileV').textContent=$('#corrFloorTile').value; SURF.corrFloor.tile=parseInt($('#corrFloorTile').value)||6; applyRoomTiling(); renderFrame(); });
+$('#corrLen')?.addEventListener('input', ()=>{ $('#corrLenV').textContent=$('#corrLen').value; sizeCorridor(); renderFrame(); });
+$('#corrDepth')?.addEventListener('input', ()=>{ $('#corrDepthV').textContent=$('#corrDepth').value; sizeCorridor(); renderFrame(); });
+$('#corrWallH')?.addEventListener('input', ()=>{ $('#corrWallHV').textContent=$('#corrWallH').value; sizeCorridor(); renderFrame(); });
+$('#pick_runWall')?.addEventListener('click', ()=>openTexPicker('runWall'));
+$('#pick_runFloor')?.addEventListener('click', ()=>openTexPicker('runFloor'));
+$('#runWallTile')?.addEventListener('input', ()=>{ $('#runWallTileV').textContent=$('#runWallTile').value; SURF.runWall.tile=parseInt($('#runWallTile').value)||6; applyRoomTiling(); renderFrame(); });
+$('#runFloorTile')?.addEventListener('input', ()=>{ $('#runFloorTileV').textContent=$('#runFloorTile').value; SURF.runFloor.tile=parseInt($('#runFloorTile').value)||6; applyRoomTiling(); renderFrame(); });
+$('#runnerSpeed')?.addEventListener('input', ()=>{ $('#runnerSpeedV').textContent=parseFloat($('#runnerSpeed').value).toFixed(1); });
+$('#runnerWallDist')?.addEventListener('input', ()=>{ $('#runnerWallDistV').textContent=parseFloat($('#runnerWallDist').value).toFixed(1); sizeRunner(); renderFrame(); });
+$('#runnerWallH')?.addEventListener('input', ()=>{ $('#runnerWallHV').textContent=$('#runnerWallH').value; sizeRunner(); renderFrame(); });
 $('#envPreset').addEventListener('change', e=>{ envGroundCustom=false; envBackCustom=false; $('#envGroundThumb').style.display='none'; $('#envBgThumb').style.display='none'; applyEnvPreset(e.target.value); });
 $('#envGroundTile').addEventListener('input', ()=>{ $('#envGroundTileV').textContent=$('#envGroundTile').value; applyEnvTiling(); renderFrame(); });
 const reposeEnv=()=>{ if(clips.length && !rendering && !previewing) refreshView(); else renderFrame(); };  // re-ground characters on the new terrain
@@ -1366,14 +2018,44 @@ function loadProp(file){
     root.position.set(-ctr.x, -box.min.y, -ctr.z);   // centre X/Z, feet to y=0 (inside its wrap)
     const wrap=new THREE.Group(); wrap.add(root); propGroup.add(wrap);
     const p={ id:'pr'+Date.now().toString(36)+Math.floor(Math.random()*1e4), name:(file.name||'prop').replace(/\.(glb|gltf)$/i,''),
-              wrap, scale:Math.max(0.05, 2.5/nativeH), rotY:0, x:0, z:0 };   // default ~2.5u tall so it's visible
+              wrap, scale:Math.max(0.05, 2.5/nativeH), rotY:0, x:0, z:0, lift:0, obId:null };   // default ~2.5u tall so it's visible
     props.push(p); propSel=p.id; updatePropTransform(p); renderPropList(); renderFrame();
     setStatus('Added prop: '+p.name+' — drag it in the preview to place it');
   }, undefined, ()=>setStatus('Could not load prop: '+(file.name||'')));
 }
-function updatePropTransform(p){ p.wrap.scale.setScalar(p.scale); p.wrap.rotation.y=p.rotY; p.wrap.position.set(p.x, terrainHeightAt(p.x,p.z), p.z); }
+function updatePropTransform(p){ p.wrap.scale.setScalar(p.scale); p.wrap.rotation.y=p.rotY;
+  const gy=terrainHeightAt(p.x,p.z), lift=p.lift||0; p.wrap.position.set(p.x, gy+lift, p.z);
+  // Stage props (e.g. the boxing ring): stretch the apron down so it always meets the floor — raising the prop grows its height.
+  if(p.skirt){ const hl=Math.max(0.001, lift/Math.max(0.0001,p.scale)); p.skirt.scale.y=hl; p.skirt.position.y=-hl/2; }
+}
+// The load-a-GLB path (loadProp) creates props without a lift field; treat missing lift as 0 everywhere.
 function reconformProps(){ for(const p of props) updatePropTransform(p); }
 function deleteProp(id){ const i=props.findIndex(p=>p.id===id); if(i<0) return; propGroup.remove(props[i].wrap); props.splice(i,1); if(propSel===id) propSel=null; renderPropList(); renderFrame(); }
+function clearAllProps(){ if(!props.length) return; if(!confirm('Remove all '+props.length+' props & obstacles from the scene?')) return;
+  for(const p of props) propGroup.remove(p.wrap); props.length=0; propSel=null; renderPropList(); renderFrame(); setStatus('Cleared all props & obstacles'); }
+function selectedProp(){ return props.find(p=>p.id===propSel)||null; }
+function newPropId(pref){ return pref+Date.now().toString(36)+Math.floor(Math.random()*1e4); }
+// Clipboard for copy/paste. For built-in obstacles we remember the obId (rebuilt fresh); for loaded GLBs we keep a cloned Object3D.
+let propClipboard=null;
+function copyProp(p){ if(!p) return; propClipboard={ obId:p.obId||null, name:p.name, scale:p.scale, rotY:p.rotY, lift:p.lift||0,
+    x:p.x, z:p.z, clone:p.obId?null:p.wrap.children[0].clone(true) };
+  setStatus('Copied '+p.name); }
+// Rebuild a prop from a clipboard descriptor at an offset; returns the new prop (selected).
+function spawnFromDesc(c, dx, dz){
+  let np;
+  if(c.obId){ np=spawnObstacle(c.obId, c.x+dx, c.z+dz, c.rotY); if(!np) return null; }
+  else { const wrap=new THREE.Group(); wrap.add(c.clone.clone(true)); propGroup.add(wrap);
+         np={ id:newPropId('pr'), name:c.name, obId:null, wrap, scale:c.scale, rotY:c.rotY, x:c.x+dx, z:c.z+dz, lift:c.lift||0 };
+         props.push(np); }
+  np.scale=c.scale; np.rotY=c.rotY; np.lift=c.lift||0; updatePropTransform(np);
+  propSel=np.id; renderPropList(); renderFrame(); return np;
+}
+function pasteProp(){ if(!propClipboard) return; const np=spawnFromDesc(propClipboard, 1.2, 1.2);
+  if(np){ propClipboard.x=np.x; propClipboard.z=np.z; setStatus('Pasted '+np.name+' — drag to place'); } }   // cascade repeated pastes
+function duplicateProp(p){ if(!p) return;   // Ctrl+D — clone in place without touching the copy/paste clipboard
+  const desc={ obId:p.obId||null, name:p.name, scale:p.scale, rotY:p.rotY, lift:p.lift||0, x:p.x, z:p.z, clone:p.obId?null:p.wrap.children[0].clone(true) };
+  const np=spawnFromDesc(desc, 1.2, 1.2); if(np) setStatus('Duplicated '+np.name); }
+function nudgePropLift(p, dy){ if(!p) return; p.lift=Math.max(0, +(p.lift||0)+dy); updatePropTransform(p); renderPropList(); renderFrame(); }
 function pickProp(e){
   if(!props.length) return null;
   const rect=canvasEl.getBoundingClientRect();
@@ -1387,22 +2069,303 @@ function pickProp(e){
 function renderPropList(){
   const host=$('#propList'); if(!host) return; host.innerHTML='';
   if(!props.length){ host.innerHTML='<div class="hint" style="margin:0">No props yet.</div>'; return; }
+  const head=document.createElement('div'); head.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:8px';
+  head.innerHTML=`<b style="flex:1;font-size:12px">${props.length} in scene</b>`;
+  const clr=document.createElement('button'); clr.className='btn sm ghost'; clr.textContent='Clear all'; clr.style.cssText='padding:4px 10px;font-size:12px';
+  clr.onclick=clearAllProps; head.appendChild(clr); host.appendChild(head);
+  const tip=document.createElement('div'); tip.className='hint'; tip.style.cssText='margin:-3px 0 8px;text-transform:none;letter-spacing:0';
+  tip.innerHTML='Select one, then <b>Ctrl+C/V</b> copy·paste · <b>Ctrl+D</b> duplicate · <b>Del</b> remove · <b>PgUp/PgDn</b> raise/lower.';
+  host.appendChild(tip);
   for(const p of props){
     const row=document.createElement('div'); row.style.cssText='background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px;margin-bottom:6px'+(p.id===propSel?';box-shadow:0 0 0 2px rgba(91,157,255,.35) inset':'');
     row.innerHTML=`<div style="display:flex;align-items:center;gap:8px">
         <b style="flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name}</b>
         <span data-del style="cursor:pointer;color:var(--muted);font-size:13px" title="Remove">✕</span></div>
       <div class="range-row" style="margin-top:5px"><span style="font-size:10px;color:var(--muted);width:34px">Size</span><input type="range" data-sc min="0.05" max="8" step="0.05" value="${p.scale}"></div>
-      <div class="range-row"><span style="font-size:10px;color:var(--muted);width:34px">Turn</span><input type="range" data-rot min="-3.15" max="3.15" step="0.05" value="${p.rotY}"></div>`;
+      <div class="range-row"><span style="font-size:10px;color:var(--muted);width:34px">Turn</span><input type="range" data-rot min="-3.15" max="3.15" step="0.05" value="${p.rotY}"></div>
+      <div class="range-row"><span style="font-size:10px;color:var(--muted);width:34px">Lift</span><input type="range" data-lift min="0" max="12" step="0.05" value="${p.lift||0}"></div>`;
     row.onclick=()=>{ propSel=p.id; renderPropList(); };
     row.querySelector('[data-del]').onclick=(e)=>{ e.stopPropagation(); deleteProp(p.id); };
     row.querySelector('[data-sc]').oninput=(e)=>{ p.scale=parseFloat(e.target.value); updatePropTransform(p); renderFrame(); };
     row.querySelector('[data-rot]').oninput=(e)=>{ p.rotY=parseFloat(e.target.value); updatePropTransform(p); renderFrame(); };
+    row.querySelector('[data-lift]').oninput=(e)=>{ p.lift=parseFloat(e.target.value); updatePropTransform(p); renderFrame(); };
     host.appendChild(row);
   }
 }
 wireDrop($('#propDrop'), $('#propInput'), fs=>{ fs.filter(f=>/\.(glb|gltf)$/i.test(f.name)).forEach(loadProp); });
 renderPropList();
+// Grid & snapping controls
+$('#gridOn') && $('#gridOn').addEventListener('change', ()=>renderFrame());
+$('#gridSize') && $('#gridSize').addEventListener('input', ()=>{ $('#gridSizeV').textContent=parseFloat($('#gridSize').value).toFixed(1); renderFrame(); });
+$('#snapGrid') && $('#snapGrid').addEventListener('change', ()=>{});
+$('#snapObs') && $('#snapObs').addEventListener('change', ()=>{});
+$('#wallGridOn') && $('#wallGridOn').addEventListener('change', ()=>renderFrame());
+$('#wallGridSize') && $('#wallGridSize').addEventListener('input', ()=>{ $('#wallGridSizeV').textContent=parseFloat($('#wallGridSize').value).toFixed(1); renderFrame(); });
+
+// ---------- Built-in obstacles (procedural — no assets, tiny storage) ----------
+function obMesh(geo,color,flat){ const m=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color,roughness:0.85,metalness:0.05,flatShading:!!flat}));
+  m.castShadow=true; m.receiveShadow=true; return m; }
+function obBox(w,h,d,color,x,y,z){ const m=obMesh(new THREE.BoxGeometry(w,h,d),color); m.position.set(x||0,y||0,z||0); return m; }
+function obCyl(r,h,color,y,seg){ const m=obMesh(new THREE.CylinderGeometry(r,r,h,seg||20),color); m.position.y=y||0; return m; }
+function obG(...m){ const g=new THREE.Group(); m.forEach(x=>x&&g.add(x)); return g; }
+function obEmis(geo,color,emissive,ei){ const m=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color,emissive:emissive!=null?emissive:color,emissiveIntensity:ei!=null?ei:0.6,roughness:0.5,metalness:0.1})); m.castShadow=true; m.receiveShadow=true; return m; }
+function obStarShape(outer,inner,pts){ const s=new THREE.Shape(); for(let i=0;i<pts*2;i++){ const r=(i%2)?inner:outer, a=Math.PI/pts*i-Math.PI/2, x=Math.cos(a)*r, y=Math.sin(a)*r; i?s.lineTo(x,y):s.moveTo(x,y);} s.closePath(); return s; }
+function obCheckerTex(n,c1,c2){ const S=64,cv=document.createElement('canvas'); cv.width=cv.height=S; const g=cv.getContext('2d'),t=S/n; for(let i=0;i<n;i++)for(let j=0;j<n;j++){ g.fillStyle=((i+j)&1)?c1:c2; g.fillRect(i*t,j*t,t,t);} return new THREE.CanvasTexture(cv); }
+// Street signs: a post + a flat face whose shape/text is drawn on a transparent CanvasTexture (alphaTest hides the outside)
+function obSignTex(draw){ const S=256,cv=document.createElement('canvas'); cv.width=cv.height=S; const g=cv.getContext('2d'); g.textAlign='center'; g.textBaseline='middle'; draw(g,S); const t=new THREE.CanvasTexture(cv); t.anisotropy=4; return t; }
+function obFace(w,h,tex){ const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshStandardMaterial({map:tex,transparent:true,alphaTest:0.35,roughness:0.55,metalness:0.1,side:THREE.DoubleSide})); m.castShadow=true; return m; }
+function obPost(h,color){ return obCyl(0.06,h,color||0x9a9aa0,h/2,10); }
+function obPoly(g,cx,cy,r,n,rot){ g.beginPath(); for(let i=0;i<n;i++){ const a=rot+i*2*Math.PI/n,x=cx+Math.cos(a)*r,y=cy+Math.sin(a)*r; i?g.lineTo(x,y):g.moveTo(x,y);} g.closePath(); }
+const OBSTACLES=[
+  {id:'crate', name:'Crate', em:'📦', build:()=>{ const g=obG(obBox(1.2,1.2,1.2,0x9c6b3f,0,0.6,0), obBox(1.24,0.12,1.24,0x6f4a28,0,1.16,0), obBox(1.24,0.12,1.24,0x6f4a28,0,0.06,0));
+    [[0.56,0.56],[0.56,-0.56],[-0.56,0.56],[-0.56,-0.56]].forEach(([x,z])=>g.add(obBox(0.1,1.2,0.1,0x6f4a28,x,0.6,z))); return g; }},
+  {id:'barrel', name:'Barrel', em:'🛢', build:()=>{ const g=obG(obCyl(0.5,1.2,0x9a5a2b,0.6), obCyl(0.52,0.08,0x5a3418,0.35), obCyl(0.52,0.08,0x5a3418,0.85)); return g; }},
+  {id:'cone', name:'Traffic cone', em:'🚧', build:()=>{ const c=obMesh(new THREE.ConeGeometry(0.32,0.9,20),0xff6a2b); c.position.y=0.49; const b=obMesh(new THREE.ConeGeometry(0.36,0.5,20),0xffffff); b.position.y=0.55; b.scale.set(1.02,0.28,1.02);
+    return obG(obBox(0.7,0.08,0.7,0x2a2a2a,0,0.04,0), c, b); }},
+  {id:'hurdle', name:'Hurdle', em:'🚩', build:()=>obG(obBox(0.08,0.95,0.08,0xdddddd,-0.65,0.475,0), obBox(0.08,0.95,0.08,0xdddddd,0.65,0.475,0), obBox(1.45,0.12,0.12,0xd23b3b,0,0.9,0), obBox(0.5,0.06,0.5,0x555,-0.65,0.03,0), obBox(0.5,0.06,0.5,0x555,0.65,0.03,0))},
+  {id:'boulder', name:'Boulder', em:'🪨', build:()=>{ const m=obMesh(new THREE.IcosahedronGeometry(0.8,0),0x8a8a86,true); m.position.y=0.66; m.scale.set(1,0.85,1.05); return obG(m); }},
+  {id:'ramp', name:'Ramp', em:'📐', build:()=>{ const s=new THREE.Shape(); s.moveTo(0,0); s.lineTo(2,0); s.lineTo(0,1); s.lineTo(0,0);
+    const geo=new THREE.ExtrudeGeometry(s,{depth:1.4,bevelEnabled:false}); geo.translate(-1,0,-0.7); const m=obMesh(geo,0x6b7076); return obG(m); }},
+  {id:'column', name:'Column', em:'🏛', build:()=>obG(obBox(1,0.2,1,0xd8d2c4,0,0.1,0), obCyl(0.36,2.2,0xe4ded0,1.3), obBox(1,0.22,1,0xd8d2c4,0,2.5,0))},
+  {id:'fence', name:'Fence', em:'🚧', build:()=>{ const g=obG(obBox(0.1,1,0.1,0x8a6a44,-1,0.5,0), obBox(0.1,1,0.1,0x8a6a44,1,0.5,0), obBox(0.1,1,0.1,0x8a6a44,0,0.5,0));
+    g.add(obBox(2.1,0.1,0.06,0x9c7a50,0,0.8,0)); g.add(obBox(2.1,0.1,0.06,0x9c7a50,0,0.35,0)); return g; }},
+  {id:'spikes', name:'Spikes', em:'🔺', build:()=>{ const g=obG(obBox(1.3,0.1,1.3,0x3a3a3a,0,0.05,0));
+    [[-0.4,-0.4],[0.4,-0.4],[-0.4,0.4],[0.4,0.4],[0,0]].forEach(([x,z])=>{ const c=obMesh(new THREE.ConeGeometry(0.16,0.7,12),0xb8bcc2); c.position.set(x,0.45,z); g.add(c);}); return g; }},
+  {id:'log', name:'Log', em:'🪵', build:()=>{ const m=obMesh(new THREE.CylinderGeometry(0.35,0.35,2.4,18),0x6b4a2c); m.rotation.z=Math.PI/2; m.position.y=0.35;
+    const e1=obMesh(new THREE.CylinderGeometry(0.36,0.36,0.04,18),0x9c7a50); e1.rotation.z=Math.PI/2; e1.position.set(1.2,0.35,0); return obG(m,e1); }},
+  {id:'stairs', name:'Stairs', em:'🪜', build:()=>{ const g=new THREE.Group(); for(let i=0;i<4;i++){ g.add(obBox(1.4,0.4,1.6-i*0.36,0xb7b2a6,0,0.2+i*0.4,-(i*0.18))); } return g; }},
+  {id:'sign', name:'Sign', em:'🪧', build:()=>obG(obBox(0.1,1.6,0.1,0x7a5230,0,0.8,0), obBox(1,0.6,0.08,0xe8e2d2,0,1.5,0))},
+  {id:'bollard', name:'Bollard', em:'🔵', build:()=>{ const s=obMesh(new THREE.SphereGeometry(0.19,16,12),0x2b3a55); s.position.y=0.92; return obG(obCyl(0.18,0.9,0x33507a,0.45), s); }},
+  {id:'arch', name:'Archway', em:'🚪', build:()=>obG(obBox(0.4,2.4,0.4,0xcfc7b4,-1.1,1.2,0), obBox(0.4,2.4,0.4,0xcfc7b4,1.1,1.2,0), obBox(2.8,0.5,0.5,0xcfc7b4,0,2.55,0))},
+  {id:'tires', name:'Tire stack', em:'🛞', build:()=>{ const g=new THREE.Group(); [0.18,0.44,0.7].forEach((y,i)=>{ const t=obMesh(new THREE.TorusGeometry(0.5,0.2,10,20),0x1c1c1e); t.rotation.x=Math.PI/2; t.position.set((i%2)*0.06,y,0); g.add(t);}); return g; }},
+  {id:'bush', name:'Bush', em:'🌳', build:()=>{ const g=new THREE.Group(); [[0,0.5,0,0.55],[0.4,0.45,0.1,0.42],[-0.35,0.5,-0.1,0.45],[0.05,0.8,0,0.4]].forEach(([x,y,z,r])=>{ const s=obMesh(new THREE.SphereGeometry(r,12,10),0x3f7a2e,true); s.position.set(x,y,z); g.add(s);}); return g; }},
+  {id:'platform', name:'Platform', em:'🟫', build:()=>{ const g=obG(obBox(2,0.2,2,0x8a6a44,0,1.1,0)); [[0.85,0.85],[0.85,-0.85],[-0.85,0.85],[-0.85,-0.85]].forEach(([x,z])=>g.add(obBox(0.14,1,0.14,0x6f5030,x,0.5,z))); return g; }},
+  {id:'barricade', name:'Barricade', em:'⚠️', build:()=>{ const g=obG(obBox(2.2,0.35,0.14,0xf2c200,0,0.85,0), obBox(2.2,0.35,0.14,0xf2c200,0,1.25,0));
+    const l1=obBox(0.1,1.4,0.1,0x333,-0.9,0.7,0); l1.rotation.z=0.28; const r1=obBox(0.1,1.4,0.1,0x333,0.9,0.7,0); r1.rotation.z=-0.28; g.add(l1,r1); return g; }},
+  // ----- 20 more -----
+  {id:'coin', name:'Coin', em:'🪙', build:()=>{ const m=obEmis(new THREE.CylinderGeometry(0.5,0.5,0.1,24),0xffcf3a,0x6a4e00,0.4); m.rotation.x=Math.PI/2; m.position.y=0.7; return obG(m); }},
+  {id:'gem', name:'Gem', em:'💎', build:()=>{ const m=obEmis(new THREE.OctahedronGeometry(0.5,0),0x35d0e0,0x0a6070,0.5); m.position.y=0.75; m.scale.set(0.8,1.2,0.8); return obG(m); }},
+  {id:'star', name:'Star', em:'⭐', build:()=>{ const geo=new THREE.ExtrudeGeometry(obStarShape(0.55,0.24,5),{depth:0.14,bevelEnabled:false}); geo.center(); const m=obEmis(geo,0xffd83a,0x7a5a00,0.5); m.position.y=0.9; return obG(m); }},
+  {id:'chest', name:'Chest', em:'🧰', build:()=>obG(obBox(1.1,0.6,0.75,0x7a4a24,0,0.3,0), obBox(1.14,0.3,0.79,0x8a5a2b,0,0.72,0), obBox(1.16,0.08,0.81,0xd8a13a,0,0.6,0), obBox(0.16,0.18,0.05,0xd8a13a,0,0.5,0.4))},
+  {id:'flag', name:'Finish flag', em:'🏁', build:()=>{ const g=obG(obCyl(0.05,2.4,0xdddddd,1.2)); const f=obMesh(new THREE.BoxGeometry(1.1,0.7,0.03),0xffffff); f.material.map=obCheckerTex(6,'#111','#eee'); f.material.needsUpdate=true; f.position.set(0.58,2.0,0); g.add(f); return g; }},
+  {id:'arrow', name:'Arrow sign', em:'➡️', build:()=>{ const s=new THREE.Shape(); s.moveTo(-0.5,-0.2); s.lineTo(0.2,-0.2); s.lineTo(0.2,-0.45); s.lineTo(0.7,0); s.lineTo(0.2,0.45); s.lineTo(0.2,0.2); s.lineTo(-0.5,0.2); s.closePath();
+    const geo=new THREE.ExtrudeGeometry(s,{depth:0.12,bevelEnabled:false}); geo.center(); const a=obMesh(geo,0x39a845); a.position.y=1.5; return obG(obCyl(0.07,1.5,0x555555,0.75), a); }},
+  {id:'mushroom', name:'Mushroom', em:'🍄', build:()=>{ const cap=obMesh(new THREE.SphereGeometry(0.55,16,12,0,Math.PI*2,0,Math.PI/2),0xd23b3b); cap.position.y=0.7; cap.scale.y=0.8; return obG(obCyl(0.22,0.7,0xeae2cf,0.35,14), cap); }},
+  {id:'pine', name:'Pine tree', em:'🌲', build:()=>{ const g=obG(obCyl(0.18,0.6,0x6b4a2c,0.3,10)); [[0.9,0.6],[0.7,1.15],[0.5,1.6]].forEach(([r,y])=>{ const c=obMesh(new THREE.ConeGeometry(r,0.9,12),0x2f6b32); c.position.y=y; g.add(c);}); return g; }},
+  {id:'stepstones', name:'Stepping stones', em:'🥾', build:()=>{ const g=new THREE.Group(); [-1.2,0,1.2].forEach((x,i)=>{ const s=obMesh(new THREE.CylinderGeometry(0.5,0.55,0.24,12),0x8a8a86,true); s.position.set(x,0.12,(i%2)*0.4-0.2); g.add(s);}); return g; }},
+  {id:'water', name:'Water puddle', em:'💧', build:()=>{ const m=obEmis(new THREE.CylinderGeometry(1.1,1.1,0.06,28),0x2f7fd0,0x0a2f60,0.25); m.position.y=0.03; m.material.transparent=true; m.material.opacity=0.85; return obG(m); }},
+  {id:'lava', name:'Lava pool', em:'🌋', build:()=>{ const m=obEmis(new THREE.CylinderGeometry(1.1,1.1,0.08,28),0xff5a1e,0xff3200,0.9); m.position.y=0.04; return obG(m); }},
+  {id:'ice', name:'Ice block', em:'🧊', build:()=>{ const m=obMesh(new THREE.BoxGeometry(1.1,1.1,1.1),0x9fdfff); m.material.transparent=true; m.material.opacity=0.72; m.material.roughness=0.25; m.position.y=0.55; return obG(m); }},
+  {id:'plank', name:'Bridge plank', em:'🌉', build:()=>obG(obBox(3,0.14,1.2,0x8a5a2b,0,0.07,0), obBox(3,0.06,0.12,0x6f4522,0,0.16,0.5), obBox(3,0.06,0.12,0x6f4522,0,0.16,-0.5))},
+  {id:'ladder', name:'Ladder', em:'🪜', build:()=>{ const g=obG(obBox(0.1,2.4,0.1,0x9c7a50,-0.45,1.2,0), obBox(0.1,2.4,0.1,0x9c7a50,0.45,1.2,0)); for(let i=0;i<6;i++) g.add(obBox(0.9,0.09,0.09,0xb08a5a,0,0.35+i*0.38,0)); return g; }},
+  {id:'torch', name:'Torch', em:'🔥', build:()=>{ const f=obEmis(new THREE.ConeGeometry(0.18,0.5,10),0xff8a1e,0xff5a00,1.0); f.position.y=1.55; return obG(obCyl(0.08,1.4,0x5a3a1a,0.7,10), f); }},
+  {id:'lamppost', name:'Lamp post', em:'💡', build:()=>{ const globe=obEmis(new THREE.SphereGeometry(0.22,16,12),0xfff2b0,0xffe066,0.8); globe.position.y=2.3; return obG(obCyl(0.09,2.3,0x333333,1.15,12), obBox(0.5,0.1,0.5,0x333333,0,2.35,0), globe); }},
+  {id:'bench', name:'Bench', em:'🪑', build:()=>{ const g=obG(obBox(1.8,0.12,0.6,0x9c7a50,0,0.55,0), obBox(1.8,0.5,0.1,0x9c7a50,0,0.85,-0.25)); [[0.8,0.25],[0.8,-0.25],[-0.8,0.25],[-0.8,-0.25]].forEach(([x,z])=>g.add(obBox(0.1,0.55,0.1,0x6f5030,x,0.275,z))); return g; }},
+  {id:'cactus', name:'Cactus', em:'🌵', build:()=>{ const g=obG(obCyl(0.28,1.8,0x3f8a45,0.9,12)); const a1=obCyl(0.14,0.6,0x3f8a45,1.15,10); a1.position.x=0.36; const a2=obCyl(0.14,0.5,0x3f8a45,0.95,10); a2.position.x=-0.33; g.add(a1,a2); return g; }},
+  {id:'portal', name:'Portal hoop', em:'⭕', build:()=>{ const t=obEmis(new THREE.TorusGeometry(1.0,0.14,14,32),0x8a4dff,0x5a1ee0,0.7); t.position.y=1.2; return obG(t); }},
+  {id:'pyramid', name:'Pyramid', em:'🔺', build:()=>{ const m=obMesh(new THREE.ConeGeometry(1.1,1.5,4),0xd8b978,true); m.rotation.y=Math.PI/4; m.position.y=0.75; return obG(m); }},
+  // ----- Street signs & city furniture -----
+  {id:'stopsign', name:'Stop sign', em:'🛑', build:()=>{ const t=obSignTex((g,S)=>{ g.save(); g.translate(S/2,S/2); obPoly(g,0,0,S*0.46,8,Math.PI/8); g.fillStyle='#c0281f'; g.fill(); g.lineWidth=10; g.strokeStyle='#fff'; g.stroke(); g.fillStyle='#fff'; g.font='bold 66px Arial'; g.fillText('STOP',0,4); g.restore(); });
+    const f=obFace(1,1,t); f.position.y=2.2; return obG(obPost(2.2), f); }},
+  {id:'yield', name:'Yield sign', em:'🔻', build:()=>{ const t=obSignTex((g,S)=>{ g.save(); g.translate(S/2,S/2+16); obPoly(g,0,-24,S*0.5,3,Math.PI/2); g.fillStyle='#fff'; g.fill(); g.lineWidth=16; g.strokeStyle='#c0281f'; g.stroke(); g.fillStyle='#c0281f'; g.font='bold 34px Arial'; g.fillText('YIELD',0,-40); g.restore(); });
+    const f=obFace(1.1,1.1,t); f.position.y=2.1; return obG(obPost(2.1), f); }},
+  {id:'speedlimit', name:'Speed limit', em:'🚗', build:()=>{ const t=obSignTex((g,S)=>{ g.beginPath(); g.roundRect(24,18,S-48,S-36,16); g.fillStyle='#fff'; g.fill(); g.lineWidth=9; g.strokeStyle='#111'; g.stroke(); g.fillStyle='#111'; g.font='bold 30px Arial'; g.fillText('SPEED',S/2,64); g.fillText('LIMIT',S/2,98); g.font='bold 96px Arial'; g.fillText('50',S/2,176); });
+    const f=obFace(0.9,0.9,t); f.position.y=2.2; return obG(obPost(2.2), f); }},
+  {id:'streetname', name:'Street sign', em:'🪧', build:()=>{ const t=obSignTex((g,S)=>{ const y=S*0.4,h=S*0.2; g.fillStyle='#1a7a3c'; g.fillRect(0,y,S,h); g.lineWidth=6; g.strokeStyle='#fff'; g.strokeRect(7,y+7,S-14,h-14); g.fillStyle='#fff'; g.font='bold 40px Arial'; g.fillText('MAIN ST',S/2,y+h/2); });
+    const f=obFace(1.5,1.5,t); f.position.y=2.5; return obG(obPost(2.5), f); }},
+  {id:'donotenter', name:'Do not enter', em:'⛔', build:()=>{ const t=obSignTex((g,S)=>{ g.beginPath(); g.arc(S/2,S/2,S*0.44,0,7); g.fillStyle='#c0281f'; g.fill(); g.fillStyle='#fff'; g.fillRect(S*0.24,S*0.44,S*0.52,S*0.12); });
+    const f=obFace(1,1,t); f.position.y=2.2; return obG(obPost(2.2), f); }},
+  {id:'warning', name:'Warning sign', em:'⚠️', build:()=>{ const t=obSignTex((g,S)=>{ g.save(); g.translate(S/2,S/2); g.rotate(Math.PI/4); g.fillStyle='#f2c200'; g.fillRect(-S*0.32,-S*0.32,S*0.64,S*0.64); g.lineWidth=8; g.strokeStyle='#111'; g.strokeRect(-S*0.32,-S*0.32,S*0.64,S*0.64); g.rotate(-Math.PI/4); g.fillStyle='#111'; g.font='bold 130px Arial'; g.fillText('!',0,6); g.restore(); });
+    const f=obFace(1,1,t); f.position.y=2.2; return obG(obPost(2.2), f); }},
+  {id:'parking', name:'Parking sign', em:'🅿️', build:()=>{ const t=obSignTex((g,S)=>{ g.beginPath(); g.roundRect(34,20,S-68,S-40,14); g.fillStyle='#1050b0'; g.fill(); g.fillStyle='#fff'; g.font='bold 150px Arial'; g.fillText('P',S/2,S/2+10); });
+    const f=obFace(0.9,1.1,t); f.position.y=2.2; return obG(obPost(2.2), f); }},
+  {id:'oneway', name:'One-way sign', em:'⬅️', build:()=>{ const t=obSignTex((g,S)=>{ g.fillStyle='#111'; g.fillRect(16,S*0.34,S-32,S*0.32); const y=S*0.52; g.fillStyle='#fff'; g.beginPath(); g.moveTo(36,y); g.lineTo(S-96,y); g.lineTo(S-96,y-30); g.lineTo(S-32,y); g.lineTo(S-96,y+30); g.lineTo(S-96,y); g.closePath(); g.fill(); g.font='bold 26px Arial'; g.fillText('ONE WAY',S/2,S*0.4); });
+    const f=obFace(1.3,0.75,t); f.position.y=2.3; return obG(obPost(2.3), f); }},
+  {id:'trafficlight', name:'Traffic light', em:'🚦', build:()=>{ const g=obG(obPost(2.6,0x333333), obBox(0.5,1.3,0.36,0x161616,0,3.0,0));
+    const mk=(y,c,e,ei)=>{ const m=obEmis(new THREE.CircleGeometry(0.15,18),c,e,ei); m.position.set(0,y,0.2); return m; };
+    g.add(mk(3.35,0xff2a2a,0xff0000,0.9), mk(3.0,0x3a2f00,0x000000,0.04), mk(2.65,0x0a3a12,0x000000,0.04)); return g; }},
+  {id:'hydrant', name:'Fire hydrant', em:'🧯', build:()=>{ const g=obG(obCyl(0.22,0.9,0xd12b2b,0.45,14), obCyl(0.14,0.22,0xd12b2b,0.96,12)); const cap=obMesh(new THREE.SphereGeometry(0.16,14,10),0xd12b2b); cap.position.y=1.1; g.add(cap);
+    const n1=obCyl(0.07,0.2,0xa81f1f,0,10); n1.rotation.z=Math.PI/2; n1.position.set(0.24,0.62,0); const n2=obCyl(0.07,0.2,0xa81f1f,0,10); n2.rotation.z=Math.PI/2; n2.position.set(-0.24,0.62,0); g.add(n1,n2); return g; }},
+  {id:'mailbox', name:'Mailbox', em:'📮', build:()=>{ const g=obG(obBox(0.14,1.0,0.14,0x555555,0,0.5,0), obBox(0.5,0.42,0.7,0x1560a8,0,1.16,0)); const top=obMesh(new THREE.CylinderGeometry(0.25,0.25,0.7,16,1,false,0,Math.PI),0x1560a8); top.rotation.x=Math.PI/2; top.position.set(0,1.37,0); g.add(top); return g; }},
+  {id:'trashcan', name:'Trash can', em:'🗑', build:()=>obG(obCyl(0.34,0.9,0x3a5a3a,0.45,16), obCyl(0.37,0.1,0x2a4a2a,0.95,16))},
+  {id:'busstop', name:'Bus stop', em:'🚏', build:()=>{ const t=obSignTex((g,S)=>{ g.beginPath(); g.roundRect(44,20,S-88,S-40,16); g.fillStyle='#1560a8'; g.fill(); g.fillStyle='#fff'; g.font='bold 46px Arial'; g.fillText('BUS',S/2,96); g.fillText('STOP',S/2,156); });
+    const f=obFace(0.85,1.05,t); f.position.y=2.3; return obG(obPost(2.3), f); }},
+  {id:'signpost', name:'Signpost', em:'🪧', build:()=>{ const g=obG(obPost(2.7,0x6f5030)); const arm=(y,dir,color)=>{ g.add(obBox(1.1,0.28,0.06,color,dir*0.45,y,0)); const tip=obMesh(new THREE.ConeGeometry(0.17,0.32,3),color); tip.rotation.z=dir>0?-Math.PI/2:Math.PI/2; tip.position.set(dir*1.06,y,0); g.add(tip); };
+    arm(2.5,1,0x2f7a3f); arm(2.12,-1,0x1560a8); arm(1.74,1,0xb0602a); return g; }},
+  {id:'sidewalk', name:'Sidewalk', em:'🛣', build:()=>{ const L=8, D=1.7, H=0.26;   // long curbed slab — auto-snaps against the wall
+    const g=obG(obBox(L,H,D,0xb8b5ad,0,H/2,0), obBox(L,0.04,D*0.98,0xcfccc4,0,H,0), obBox(L,0.06,0.06,0x9a978f,0,H,D/2-0.03));
+    for(let x=-L/2+1.6; x<L/2; x+=1.6){ g.add(obBox(0.04,0.02,D*0.96,0x8f8c85,x,H+0.006,0)); }   // expansion joints
+    return g; }},
+  // ----- Alley / street gear -----
+  {id:'dumpster', name:'Dumpster', em:'🚮', build:()=>{ const g=obG(obBox(2.0,1.1,1.1,0x2f6b45,0,0.6,0), obBox(2.06,0.1,1.16,0x244f34,0,1.12,0), obBox(1.0,0.06,1.16,0x3a7a52,-0.5,1.2,0), obBox(1.0,0.06,1.16,0x3a7a52,0.5,1.2,0));
+    [[-0.9,0.5],[0.9,0.5],[-0.9,-0.5],[0.9,-0.5]].forEach(([x,z])=>{ const w=obCyl(0.12,0.1,0x111111,0,10); w.rotation.z=Math.PI/2; w.position.set(x,0.12,z); g.add(w); }); return g; }},
+  {id:'jersey', name:'Jersey barrier', em:'🚧', build:()=>obG(obBox(2.4,0.35,0.6,0xc8c4ba,0,0.175,0), obBox(2.4,0.55,0.35,0xd0ccc2,0,0.55,0), obBox(2.4,0.2,0.22,0xd8d4ca,0,0.9,0))},
+  {id:'manhole', name:'Manhole', em:'⚫', build:()=>{ const m=obMesh(new THREE.CylinderGeometry(0.5,0.5,0.05,24),0x3a3a3e); m.position.y=0.025; const ring=obMesh(new THREE.TorusGeometry(0.5,0.04,8,24),0x2a2a2e); ring.rotation.x=Math.PI/2; ring.position.y=0.04; return obG(m,ring); }},
+  {id:'planter', name:'Planter', em:'🪴', build:()=>{ const g=obG(obBox(1.2,0.5,0.6,0x8a6a44,0,0.25,0), obBox(1.14,0.06,0.56,0x4a3020,0,0.5,0));
+    [[-0.3,0.42],[0.3,0.38],[0,0.5]].forEach(([x,r])=>{ const s=obMesh(new THREE.SphereGeometry(r,10,8),0x3f7a2e,true); s.position.set(x,0.72,0); g.add(s);}); return g; }},
+  {id:'vending', name:'Vending machine', em:'🥤', build:()=>{ const g=obG(obBox(1.0,2.0,0.7,0xc0281f,0,1.0,0)); const hdr=obEmis(new THREE.BoxGeometry(0.9,0.3,0.04),0xffd34d,0xffb000,0.5); hdr.position.set(0,1.8,0.36); g.add(hdr);
+    const win=obBox(0.55,1.1,0.04,0x22303f,0.14,1.2,0.36); win.material.transparent=true; win.material.opacity=0.85; g.add(win); g.add(obBox(0.22,0.5,0.06,0x111111,-0.32,0.95,0.36)); return g; }},
+  {id:'pallet', name:'Pallet', em:'🟫', build:()=>{ const g=new THREE.Group(), c=0xb0895a;
+    [-0.6,0,0.6].forEach(z=>g.add(obBox(1.4,0.05,0.18,c,0,0.03,z))); [-0.6,0,0.6].forEach(x=>g.add(obBox(0.16,0.16,1.3,0x8a6a44,x,0.13,0)));
+    for(let z=-0.6;z<=0.61;z+=0.3) g.add(obBox(1.4,0.05,0.14,c,0,0.24,z)); return g; }},
+  {id:'busshelter', name:'Bus shelter', em:'🚏', build:()=>{ const g=new THREE.Group();
+    [[-1.4,0.5],[1.4,0.5],[-1.4,-0.5],[1.4,-0.5]].forEach(([x,z])=>g.add(obBox(0.1,2.2,0.1,0x556070,x,1.1,z)));
+    g.add(obBox(3.2,0.12,1.4,0x33404d,0,2.25,0)); const back=obBox(3.0,1.7,0.06,0x8fb8d8,0,1.1,-0.5); back.material.transparent=true; back.material.opacity=0.4; g.add(back);
+    g.add(obBox(2.4,0.1,0.4,0x9c7a50,0,0.6,-0.2)); return g; }},
+  {id:'phonebooth', name:'Phone booth', em:'📞', build:()=>{ const g=obG(obBox(1.0,2.4,1.0,0xc0281f,0,1.2,0), obBox(1.06,0.3,1.06,0xd0322a,0,2.35,0)); const glass=obBox(0.8,1.6,0.05,0xaad0e8,0,1.3,0.5); glass.material.transparent=true; glass.material.opacity=0.35; g.add(glass); return g; }},
+  // ----- Park furniture -----
+  {id:'parkbench', name:'Park bench', em:'🪑', build:()=>{ const g=new THREE.Group(), slat=0x2f6b45, metal=0x30343a;
+    for(let z=-0.22; z<=0.221; z+=0.22) g.add(obBox(1.8,0.06,0.16,slat,0,0.55,z));           // seat slats
+    for(let y=0.75; y<=1.051; y+=0.15) g.add(obBox(1.8,0.1,0.05,slat,0,y,-0.28));            // back slats
+    [-0.85,0.85].forEach(x=>{ g.add(obBox(0.08,0.55,0.5,metal,x,0.3,0)); g.add(obBox(0.08,0.06,0.62,metal,x,0.6,0)); g.add(obBox(0.08,0.55,0.06,metal,x,0.85,-0.28)); });   // metal frame
+    return g; }},
+  {id:'trashbin', name:'Park trash bin', em:'🗑', build:()=>{ const g=obG(obCyl(0.32,0.85,0x4a4f57,0.42,16), obCyl(0.34,0.06,0x3a3f47,0.86,16)); const dome=obMesh(new THREE.SphereGeometry(0.32,16,10,0,Math.PI*2,0,Math.PI/2),0x2f343c); dome.position.y=0.86; dome.scale.y=0.5; g.add(dome); g.add(obBox(0.28,0.02,0.11,0x111111,0,0.99,0)); return g; }},
+  // An elevated stage: the '__skirt' box is stretched at runtime (from updatePropTransform) so the platform floats and its
+  // apron always reaches the floor — raising the prop literally grows its height. Starts at S/8 tall (stageH0).
+  {id:'ring', name:'Boxing ring', em:'🥊', stage:true, stageH0:0.75, build:()=>{ const g=new THREE.Group(), S=6, half=S/2, postH=1.5, pr=0.12;
+    const skirt=obBox(S+0.4, 1, S+0.4, 0x14336a); skirt.name='__skirt'; skirt.position.y=-0.5; g.add(skirt);   // unit-tall apron, top at y=0
+    g.add(obBox(S+0.4,0.06,S+0.4,0x1b4f8f,0,0.03,0));                // top trim of the apron
+    g.add(obBox(S,0.06,S,0xbcc4cf,0,0.09,0));                        // canvas mat (platform top ≈ y=0.12)
+    const postCols=[0xc0281f,0x1560a8,0xc0281f,0x1560a8], corners=[[half,half],[-half,half],[-half,-half],[half,-half]];
+    corners.forEach(([x,z],i)=>{ const p=obCyl(pr,postH,postCols[i],0.12+postH/2,10); p.position.x=x; p.position.z=z; g.add(p);
+      const cap=obMesh(new THREE.SphereGeometry(pr*1.3,10,8),0xdddddd); cap.position.set(x,0.12+postH,z); g.add(cap); });
+    const rope=(len,axis,x,y,z)=>{ const m=obCyl(0.04,len,0xe8e8ea,0,6); if(axis==='x') m.rotation.z=Math.PI/2; else m.rotation.x=Math.PI/2; m.position.set(x,0.12+y,z); return m; };
+    [0.45,0.85,1.25].forEach(y=>{ g.add(rope(S,'x',0,y,half), rope(S,'x',0,y,-half), rope(S,'z',half,y,0), rope(S,'z',-half,y,0)); });
+    return g; }},
+  {id:'newsstand', name:'Newsstand', em:'🗞', build:()=>{ const g=new THREE.Group();
+    g.add(obBox(2.2,1.8,1.4,0x6a4a2c,0,0.9,0));                       // booth body
+    g.add(obBox(1.7,1.0,0.06,0x1a2028,0,1.15,0.71));                  // dark front opening
+    g.add(obBox(2.5,0.12,0.55,0x5a3f24,0,1.05,0.95));                 // counter shelf
+    const aw=obBox(2.7,0.08,1.0,0xc0281f,0,1.95,0.55); aw.rotation.x=-0.28; g.add(aw); g.add(obBox(2.7,0.1,0.1,0xffffff,0,1.78,1.02));  // awning + trim
+    const cols=[0xffcf3a,0x3aa0ff,0xff6a2b,0x39a845,0xff5aa0];
+    for(let i=0;i<5;i++){ const m=obBox(0.32,0.42,0.04,cols[i],-0.75+i*0.375,1.42,0.98); m.rotation.x=-0.5; g.add(m); }   // magazine display
+    const t=obSignTex((g2,S)=>{ g2.fillStyle='#14181f'; g2.fillRect(0,S*0.36,S,S*0.28); g2.fillStyle='#fff'; g2.font='bold 50px Arial'; g2.fillText('NEWS',S/2,S*0.5); });
+    const sign=obFace(2.0,0.55,t); sign.position.set(0,2.25,0.2); g.add(sign); return g; }},
+  // ----- Train yard -----
+  {id:'railcar', name:'Boxcar', em:'🚃', build:()=>{ const g=obG(obBox(4.4,0.3,1.5,0x2a2a2e,0,0.55,0), obBox(4.2,1.8,1.5,0x8a3a2a,0,1.5,0), obBox(4.3,0.2,1.6,0x5a2a1e,0,2.5,0), obBox(1.2,1.4,0.06,0x9c4a38,0,1.4,0.78));
+    [[-1.5,0.6],[-1.5,-0.6],[1.5,0.6],[1.5,-0.6]].forEach(([x,z])=>{ const w=obCyl(0.35,0.2,0x1a1a1e,0,14); w.rotation.x=Math.PI/2; w.position.set(x,0.35,z); g.add(w); }); return g; }},
+  {id:'track', name:'Rail track', em:'🛤', build:()=>{ const g=new THREE.Group(), L=6; for(let x=-L/2+0.3; x<L/2; x+=0.6){ g.add(obBox(0.4,0.1,1.6,0x5a3f24,x,0.05,0)); }
+    g.add(obBox(L,0.12,0.1,0x9a9aa0,0,0.14,0.55)); g.add(obBox(L,0.12,0.1,0x9a9aa0,0,0.14,-0.55)); return g; }},
+  {id:'container', name:'Container', em:'🟩', build:()=>{ const cols=[0x2f6b8a,0x8a3a2a,0x2f7a3f,0xb0892a], c=cols[Math.floor(Math.random()*4)], dc=(c&0xfefefe)>>1;
+    const g=obG(obBox(4.0,1.3,1.4,c,0,0.65,0)); for(let x=-1.8;x<=1.81;x+=0.28) g.add(obBox(0.03,1.22,1.42,dc,x,0.65,0)); g.add(obBox(0.06,1.2,1.36,dc,2.0,0.65,0)); return g; }},
+  {id:'railsignal', name:'Rail signal', em:'🚥', build:()=>{ const g=obG(obPost(3.0,0x333333), obBox(0.4,1.4,0.36,0x161616,0,3.2,0));
+    const mk=(y,c,e,ei)=>{ const m=obEmis(new THREE.CircleGeometry(0.13,16),c,e,ei); m.position.set(0,y,0.2); return m; };
+    g.add(mk(3.5,0xff2a2a,0xff0000,0.9), mk(3.2,0x3a2f00,0x000000,0.04), mk(2.9,0x0a3a12,0x000000,0.04), obBox(0.05,3.0,0.05,0x555555,0.18,1.5,-0.1)); return g; }},
+  {id:'watertower', name:'Water tower', em:'💧', build:()=>{ const g=new THREE.Group();
+    [[0.7,0.7],[0.7,-0.7],[-0.7,0.7],[-0.7,-0.7]].forEach(([x,z])=>g.add(obBox(0.14,2.4,0.14,0x5a3f24,x,1.2,z)));
+    g.add(obBox(1.6,0.08,0.08,0x5a3f24,0,1.2,0.7), obBox(1.6,0.08,0.08,0x5a3f24,0,1.2,-0.7), obCyl(1.0,1.6,0x6a4a30,3.2,16));
+    const roof=obMesh(new THREE.ConeGeometry(1.05,0.7,16),0x4a3020); roof.position.y=4.35; g.add(roof);
+    const sp=obCyl(0.1,0.6,0x333333,0,8); sp.rotation.z=0.5; sp.position.set(0.7,2.5,0); g.add(sp); return g; }},
+  {id:'bufferstop', name:'Buffer stop', em:'🛑', build:()=>{ const g=obG(obBox(1.4,0.6,1.4,0x6a3020,0,0.3,0)); const b1=obBox(0.14,1.6,0.14,0x8a4a2a,0,0.9,0.4); b1.rotation.x=0.5; const b2=obBox(0.14,1.6,0.14,0x8a4a2a,0,0.9,-0.4); b2.rotation.x=-0.5; g.add(b1,b2, obBox(1.4,0.3,0.2,0xf2c200,0,1.1,0.55)); return g; }},
+];
+// Sort each category's items alphabetically at render; categories appear in this order. Every obstacle id belongs to exactly one group.
+const OBSTACLE_CATS=[
+  {name:'Obstacle course', em:'🏃', ids:['hurdle','ramp','tires','stairs','ladder','plank','stepstones','platform']},
+  {name:'Blocks & barriers', em:'🧱', ids:['crate','barrel','cone','fence','barricade','jersey','bollard','column','arch','pallet']},
+  {name:'Nature', em:'🌳', ids:['bush','pine','cactus','mushroom','boulder','log']},
+  {name:'Hazards & FX', em:'🔥', ids:['lava','water','ice','torch','spikes','portal']},
+  {name:'Pickups', em:'💎', ids:['coin','gem','star','chest','flag','pyramid']},
+  {name:'Street signs', em:'🚸', ids:['stopsign','yield','speedlimit','streetname','donotenter','warning','parking','oneway','trafficlight','arrow','signpost','busstop','sign']},
+  {name:'City & street', em:'🏙', ids:['hydrant','mailbox','trashcan','lamppost','bench','sidewalk','phonebooth','busshelter','vending','newsstand','planter','dumpster','manhole']},
+  {name:'Park', em:'🪑', ids:['parkbench','trashbin','ring']},
+  {name:'Train yard', em:'🚃', ids:['railcar','track','container','railsignal','watertower','bufferstop']},
+];
+function spawnObstacle(id,x,z,rotY){ const o=OBSTACLES.find(t=>t.id===id); if(!o) return null;
+  const root=o.build(); root.traverse(m=>{ if(m.isMesh){ m.castShadow=true; m.receiveShadow=true; m.frustumCulled=false; } });
+  const wrap=new THREE.Group(); wrap.add(root); propGroup.add(wrap);
+  const p={ id:'ob'+Date.now().toString(36)+Math.floor(Math.random()*1e4), name:o.name, obId:id, wrap, scale:1, rotY:rotY||0, x:x||0, z:z||0, lift:0 };
+  if(o.stage){ p.stage=true; p.skirt=root.getObjectByName('__skirt'); p.lift=o.stageH0||0.75; }   // elevated stage: start raised, skirt fills to floor
+  props.push(p); updatePropTransform(p); return p; }
+function wallZ(){ if(corridorOn()) return -corrDepth()/2; if(runnerOn()) return -(parseFloat(($('#runnerWallDist')||{}).value)||3); return null; }
+let obSpawn=0;
+function addObstacle(id){
+  const px=(camState&&camState.pivotX)||0; let p, snapped=false;
+  if(id==='sidewalk'){ const wz=wallZ(); snapped=wz!=null; p=spawnObstacle(id, px, snapped?wz+0.85:-2.5); }   // back edge flush to the wall
+  else { const off=((obSpawn++)%6)*1.6-4; p=spawnObstacle(id, px+off, 1.5); }   // stagger so they don't stack
+  if(!p) return; propSel=p.id; renderPropList(); renderFrame();
+  setStatus(snapped ? 'Added sidewalk against the wall — drag to fine-tune' : 'Added obstacle: '+p.name+' — drag it in the preview to place it');
+}
+// Theme packs — drop a matched, pre-arranged group in one click
+const OBSTACLE_SETS=[
+  {id:'course', name:'Obstacle course', em:'🏃', items:['hurdle','cone','ramp','tires','hurdle','flag']},
+  {id:'desert', name:'Desert', em:'🏜', items:['cactus','boulder','pyramid','stepstones','sign','cactus']},
+  {id:'dungeon', name:'Dungeon', em:'🏰', items:['column','torch','spikes','barrel','crate','archway']},
+  {id:'platformer', name:'Platformer', em:'🎮', items:['coin','gem','stepstones','portal','star','flag']},
+  {id:'park', name:'Park', em:'🌳', items:['parkbench','pine','lamppost','trashbin','bush','planter']},
+  {id:'construction', name:'Construction', em:'🚧', items:['barricade','cone','fence','crate','cone','sign']},
+  {id:'spooky', name:'Spooky', em:'👻', items:['torch','sign','boulder','pine','torch','bush']},
+  {id:'hazard', name:'Hazard run', em:'⚠️', items:['spikes','lava','water','spikes','lava','flag']},
+  {id:'street', name:'Street', em:'🚦', items:['stopsign','trafficlight','hydrant','streetname','trashcan','busstop']},
+  {id:'alley', name:'Alley', em:'🚮', items:['dumpster','pallet','crate','barrel','trashcan','manhole']},
+  {id:'plaza', name:'Plaza', em:'⛲', items:['newsstand','parkbench','trashbin','planter','lamppost','bush']},
+];
+function addObstacleSet(id){
+  const set=OBSTACLE_SETS.find(s=>s.id===id); if(!set) return;
+  const px=(camState&&camState.pivotX)||0, n=set.items.length, gap=2.6, start=px-(n-1)*gap/2;
+  let last=null; set.items.forEach((it,i)=>{ const p=spawnObstacle(it, start+i*gap, (i%2?1:-1)*0.6); if(p) last=p; });
+  if(last) propSel=last.id; renderPropList(); renderFrame();
+  setStatus('Added "'+set.name+'" pack — drag the pieces to arrange your course');
+}
+function buildObstacleGrid(){ const host=$('#obstacleGrid'); if(!host) return; host.innerHTML='';
+  const byId=Object.fromEntries(OBSTACLES.map(o=>[o.id,o]));
+  const seen=new Set();
+  const mkBtn=o=>{ const b=document.createElement('button'); b.title='Add '+o.name;
+    b.innerHTML=`<span class="em">${o.em}</span>${o.name}`; b.onclick=()=>addObstacle(o.id); return b; };
+  OBSTACLE_CATS.forEach((cat,i)=>{
+    const items=cat.ids.map(id=>byId[id]).filter(Boolean).sort((a,b)=>a.name.localeCompare(b.name));
+    if(!items.length) return;
+    const d=document.createElement('details'); d.className='obs-cat'; if(i===0) d.open=true;
+    d.innerHTML=`<summary><span class="chev">▶</span><span class="em">${cat.em}</span>${cat.name}<span class="cnt">${items.length}</span></summary>`;
+    const grid=document.createElement('div'); grid.className='obs-grid';
+    items.forEach(o=>{ grid.appendChild(mkBtn(o)); seen.add(o.id); });
+    d.appendChild(grid); host.appendChild(d);
+  });
+  // Safety net: any obstacle not placed in a category still shows up under "More".
+  const rest=OBSTACLES.filter(o=>!seen.has(o.id)).sort((a,b)=>a.name.localeCompare(b.name));
+  if(rest.length){ const d=document.createElement('details'); d.className='obs-cat';
+    d.innerHTML=`<summary><span class="chev">▶</span><span class="em">📦</span>More<span class="cnt">${rest.length}</span></summary>`;
+    const grid=document.createElement('div'); grid.className='obs-grid'; rest.forEach(o=>grid.appendChild(mkBtn(o)));
+    d.appendChild(grid); host.appendChild(d); }
+}
+function buildObstacleSetGrid(){ const host=$('#obstacleSetGrid'); if(!host) return; host.innerHTML='';
+  for(const s of OBSTACLE_SETS){ const b=document.createElement('button'); b.title='Drop the '+s.name+' pack';
+    b.innerHTML=`<span class="em">${s.em}</span>${s.name}`; b.onclick=()=>addObstacleSet(s.id); host.appendChild(b); } }
+buildObstacleGrid(); buildObstacleSetGrid();
+
+// ---------- One-click scenes: set the wall backdrop AND drop matching props ----------
+const SCENE_THEMES=[
+  {id:'western', name:'Western street', em:'🤠', backdrop:'bd_western', items:['sidewalk','barrel','crate','barrel','signpost','bench','cactus']},
+  {id:'cityblock', name:'City block', em:'🏙', backdrop:'bd_shops', items:['sidewalk','newsstand','parkbench','hydrant','trashbin','lamppost','trafficlight']},
+  {id:'foresttrail', name:'Forest trail', em:'🌲', backdrop:'bd_forest', items:['pine','bush','boulder','log','stepstones','mushroom','pine']},
+  {id:'downtown', name:'Downtown', em:'🌃', backdrop:'bd_skyline', items:['sidewalk','busstop','hydrant','bench','trashcan','streetname','vending']},
+  {id:'oldtown', name:'Old town', em:'🏘', backdrop:'bd_townhouses', items:['sidewalk','parkbench','trashbin','planter','lamppost','mailbox']},
+  {id:'industrial', name:'Industrial', em:'🏭', backdrop:'bd_warehouse', items:['dumpster','pallet','crate','barrel','jersey','manhole','pallet']},
+  {id:'boxing', name:'Boxing arena', em:'🥊', scene:'room', walls:'all', backdrop:'bd_arena', floor:'concrete', center:['ring']},
+  {id:'roman', name:'Roman arena', em:'🏛', scene:'room', walls:'all', backdrop:'bd_colosseum', floor:'sand', items:['column','arch','column','boulder']},
+  {id:'trainyard', name:'Train yard', em:'🚂', backdrop:'bd_trainyard', floor:'concrete', center:['track','railcar'], items:['container','barrel','railsignal','crate','watertower','container']},
+];
+function applySceneTheme(id){
+  const th=SCENE_THEMES.find(t=>t.id===id); if(!th) return;
+  const want=th.scene||'corridor';
+  if(th.scene ? $('#sceneType').value!==th.scene : (!corridorOn() && !runnerOn() && !roomOn())){ $('#sceneType').value=want; setScene(want); }   // themes need a wall
+  const wk = corridorOn()?'corrBack' : runnerOn()?'runWall' : roomOn()?'back' : null;
+  const fk = corridorOn()?'corrFloor' : runnerOn()?'runFloor' : roomOn()?'floor' : null;
+  if(th.backdrop){ if(th.walls==='all'){ ['back','left','right','front'].forEach(k=>applyPreset(k,th.backdrop)); } else if(wk) applyPreset(wk,th.backdrop); }
+  if(th.floor && fk) applyPreset(fk, th.floor);
+  const px=(camState&&camState.pivotX)||0, wz=wallZ();
+  const items=th.items||[], center=th.center||[]; let last=null;
+  center.forEach(it=>{ const p=spawnObstacle(it, px, 0); if(p) last=p; });                       // centered props (e.g. a boxing ring)
+  const front=items.filter(i=>i!=='sidewalk'), n=front.length, gap=2.8, start=px-(n-1)*gap/2;
+  if(items.includes('sidewalk')){ const p=spawnObstacle('sidewalk', px, wz!=null?wz+0.85:-2.5); if(p) last=p; }
+  front.forEach((it,i)=>{ const z=(wz!=null?wz+2.4:0.6)+(i%2?0.7:0); const p=spawnObstacle(it, start+i*gap, z); if(p) last=p; });
+  if(last) propSel=last.id;
+  renderPropList(); refreshView();
+  setStatus('Built the "'+th.name+'" scene — drag pieces to arrange');
+}
+function buildSceneThemeGrid(){ const host=$('#sceneThemeGrid'); if(!host) return; host.innerHTML='';
+  for(const th of SCENE_THEMES){ const b=document.createElement('button'); b.title='Build a '+th.name+' scene (wall backdrop + props)';
+    b.innerHTML=`<span class="em">${th.em}</span>${th.name}`; b.onclick=()=>applySceneTheme(th.id); host.appendChild(b); } }
+buildSceneThemeGrid();
 
 // ---------- Skeleton wireframe ----------
 let skeletonHelper=null;
@@ -1483,11 +2446,13 @@ function freeView(dx, dy){
 // Free-look dolly (Alt + wheel): move the camera nearer/farther without re-framing the character.
 function freeDolly(step){ viewDolly = clampN(viewDolly*(1+step), 0.2, 5); orbitCamera(0); renderFrame(); }
 let viewFreeMode=false;   // Orbit-view button: plain left-drag tumbles the view (no Alt needed)
+let topView=false;        // straight-down top view (view-cube Top button)
+function applyView(){ if(clips.length) refreshView(); else { orbitCamera(0); renderFrame(); } }   // works with or without a character
 function resetCamera(){                           // back to the default camera view (leaves model heading/placement)
-  resetFreeView();
+  resetFreeView(); topView=false;
   $('#pad').value=1.4; $('#camY').value=0.2; $('#vpos').value=-0.35; $('#camYaw').value=0;
   const c=clips[selIndex]; if(c&&c.cam&&c.cam.custom){ Object.assign(c.cam,{yaw:0,camY:0.2,vpos:-0.35,pad:1.4}); }
-  $('#camYaw').dispatchEvent(new Event('input')); refreshView();
+  $('#camYaw').dispatchEvent(new Event('input')); applyView();
 }
 function resetView(){                             // camera + model heading back to default
   heading=0; resetCamera();
@@ -1495,13 +2460,15 @@ function resetView(){                             // camera + model heading back
 // Snap the camera to a preset angle (view-cube). Drives the same yaw/height/vpos sliders the whole
 // pipeline reads, so the choice persists into preview + render and works in ensemble ("Show all") too.
 function setView(yaw, camY, vpos){
+  topView=false;
   $('#camYaw').value=yaw; $('#camY').value=camY; if(vpos!==undefined) $('#vpos').value=vpos;
   const c=clips[selIndex]; if(c&&c.cam&&c.cam.custom){ c.cam.yaw=yaw; c.cam.camY=camY; if(vpos!==undefined) c.cam.vpos=vpos; }
   $('#camYawVal').textContent=yaw+'°';
   $('#camYVal').textContent=(+camY).toFixed(2);
   if(vpos!==undefined) $('#vposVal').textContent=(+vpos).toFixed(2);
-  refreshView();
+  applyView();
 }
+function setTopView(){ topView=true; applyView(); }   // straight-down (view-cube Top)
 function setCursor(){ canvasEl.style.cursor = !clips.length ? 'default' : ((camKey||viewFreeMode) ? 'move' : 'grab'); }
 
 // ---------- Move gizmo (axis-locked translation handles, slicer-style) ----------
@@ -1749,6 +2716,19 @@ function toggleGizmo(on){
 
 window.addEventListener('keydown', e=>{
   const t=(e.target&&e.target.tagName)||''; if(/^(INPUT|TEXTAREA|SELECT)$/.test(t)) return;
+  // ----- Selected-prop shortcuts (standard Windows keys). Node editor owns Ctrl-combos while it's open. -----
+  const nodeOpen=$('#nodeEditor') && $('#nodeEditor').classList.contains('show');
+  const sp=selectedProp();
+  if((e.ctrlKey||e.metaKey) && !nodeOpen){
+    const k=e.key.toLowerCase();
+    if(k==='c'){ if(sp){ copyProp(sp); e.preventDefault(); } return; }
+    if(k==='x'){ if(sp){ copyProp(sp); deleteProp(sp.id); setStatus('Cut '+sp.name); e.preventDefault(); } return; }
+    if(k==='v'){ if(propClipboard){ pasteProp(); e.preventDefault(); } return; }
+    if(k==='d'){ if(sp){ duplicateProp(sp); e.preventDefault(); } return; }
+  }
+  if(sp && (e.key==='Delete')){ deleteProp(sp.id); setStatus('Deleted prop'); e.preventDefault(); return; }
+  if(sp && (e.key==='PageUp'||e.key==='PageDown')){   // raise/lower a selected prop (stages grow taller)
+    nudgePropLift(sp, (e.key==='PageUp'?1:-1)*(e.shiftKey?0.5:0.15)); e.preventDefault(); return; }
   if(e.key==='m'||e.key==='M'){ if(clips.length) toggleGizmo(); return; }
   if(e.key==='r'||e.key==='R'){ if(clips.length) setGizmoMode((gizmoOn && gizmoMode==='rotate') ? 'move' : 'rotate'); return; }
   if(e.code==='Space'||e.key==='Alt'){ camKey=true; setCursor(); if(e.code==='Space') e.preventDefault(); }
@@ -1793,7 +2773,7 @@ window.addEventListener('pointermove', e=>{
   if(!drag.active) return;
   const dx=e.clientX-drag.x, dy=e.clientY-drag.y;
   if(Math.abs(e.clientX-drag.startX)+Math.abs(e.clientY-drag.startY) > 3) drag.moved=true;
-  if(drag.mode==='prop-move'){ const gp=groundHit(e); if(gp && drag.prop){ drag.prop.x=gp.x; drag.prop.z=gp.z; updatePropTransform(drag.prop); renderFrame(); } }
+  if(drag.mode==='prop-move'){ const gp=groundHit(e); if(gp && drag.prop){ const sn=snapPropPos(drag.prop, gp.x, gp.z); drag.prop.x=sn.x; drag.prop.z=sn.z; updatePropTransform(drag.prop); renderFrame(); } }
   else if(drag.mode==='gizmo'){ axisDragMove(e); }
   else if(drag.mode==='ring'){ ringDragMove(e); }
   else if(drag.mode==='move'){ if(drag.moved){ if(drag.pickChar && isEnsemble()) selectCharacter(drag.pickChar,false), drag.pickChar=null; moveModel(e); } }
@@ -1824,7 +2804,8 @@ canvasEl.addEventListener('wheel', e=>{
 $('#resetView').addEventListener('click', resetView);
 $('#camReset').addEventListener('click', resetCamera);
 $('#viewCube').addEventListener('click', e=>{
-  const b=e.target.closest('button'); if(!b || !clips.length) return;
+  const b=e.target.closest('button'); if(!b) return;               // works even with no character loaded (building props)
+  if(b.dataset.top!==undefined){ setTopView(); return; }
   if(b.dataset.home!==undefined){ resetCamera(); return; }
   if(b.dataset.yaw===undefined) return;
   setView(+b.dataset.yaw, +b.dataset.camy, b.dataset.vpos!==undefined?+b.dataset.vpos:undefined);
@@ -1864,6 +2845,7 @@ $('#cpPin').addEventListener('click', ()=>{ charPopPinned=!charPopPinned; syncCh
 $('#cpX').addEventListener('click', ()=>{ charPopPinned=false; hideCharPopup(); });
 $('#moveTool').addEventListener('click', ()=>{ if(clips.length) toggleGizmo(); });
 $('#showAll').addEventListener('click', ()=>{ const cb=$('#ensemble'); cb.checked=!cb.checked; cb.dispatchEvent(new Event('change',{bubbles:true})); });
+$('#centerActive').addEventListener('click', centerOnHighlighted);
 $('#orbitView').addEventListener('click', ()=>{ viewFreeMode=!viewFreeMode; $('#orbitView').classList.toggle('on', viewFreeMode); setCursor();
   setStatus(viewFreeMode ? 'Orbit view — drag to spin the scene, wheel to zoom (characters stay put)' : (clips.length+' clip'+(clips.length>1?'s':'')+' ready')); });
 $('#gizmoToggle').addEventListener('click', e=>{ const b=e.target.closest('button'); if(b) setGizmoMode(b.dataset.mode); });
@@ -1952,6 +2934,7 @@ async function addGLBs(files){
   recomputeAllNorm();                       // per-character sizing
   computeSharedFrame();
   renderCharacters(); renderList(); showClip(0); updateReady();
+  if(pendingClipMeta) applyClipMeta(pendingClipMeta);   // reattach a loaded project's per-clip settings by name
 }
 function sortClips(){ clips.sort((a,b)=> a.order-b.order || a.name.localeCompare(b.name)); }
 
@@ -2038,11 +3021,11 @@ function autoLayoutStage(){
 }
 function ensembleSchedule(){
   const loops=Math.max(1,parseInt($('#loops').value)||1);
-  return activeChars().map(ch=>{ const cs=charClips(ch); const durs=cs.map(c=>Math.max(0.1,c.duration||1.5));
+  return activeChars().map(ch=>{ const cs=charClips(ch); const durs=cs.map(c=>Math.max(0.1,effDur(c)));
     const sum=durs.reduce((a,b)=>a+b,0); return {ch, clips:cs, durs, sum, cycle:sum*loops}; });
 }
 function pickEnsembleClip(sc,t){ let x=sc.sum>0?(t%sc.sum):0;
-  for(let i=0;i<sc.clips.length;i++){ const d=sc.durs[i]; if(x<d) return {clip:sc.clips[i], lt:Math.min(x, sc.clips[i].duration||d)}; x-=d; }
+  for(let i=0;i<sc.clips.length;i++){ const d=sc.durs[i]; if(x<d) return {clip:sc.clips[i], lt:Math.min(x,d)}; x-=d; }   // lt = on-screen (speed-scaled) time
   return {clip:sc.clips[sc.clips.length-1], lt:0}; }
 function frameEnsemble(){
   const chs=activeChars(); if(!chs.length) return;
@@ -2065,18 +3048,20 @@ function frameEnsemble(){
   const s=Math.max(spanX,maxH)*1.5+Math.abs(cx);
   key.shadow.camera.left=-s; key.shadow.camera.right=s; key.shadow.camera.top=s; key.shadow.camera.bottom=-s;
   key.shadow.camera.near=0.01; key.shadow.camera.far=dist*6; key.shadow.camera.updateProjectionMatrix();
-  sizeRoom(); sizeEnv();
+  sizeRoom(); sizeEnv(); sizeRunner(); sizeCorridor();
 }
 function syncEnsembleRoots(show){
   for(const r of ensembleRoots){ if(!show.has(r) && r.parent) scene.remove(r); }
   for(const r of show){ if(!r.parent) scene.add(r); }
   ensembleRoots=show;
 }
+let lastEnsembleT=0;                              // remember the current playhead so Show-all refreshes don't snap to frame 0
 function poseEnsembleAt(t){
+  lastEnsembleT=t;
   const show=new Set();
   for(const sc of ensembleSchedule()){
     const {clip,lt}=pickEnsembleClip(sc,t);
-    if(clip.action){ clip.action.reset(); clip.action.play(); clip.mixer.setTime(lt); }
+    if(clip.action){ clip.action.reset(); clip.action.play(); clip.mixer.setTime(Math.min(clip.duration||lt, lt*clipSpeed(clip))); }
     groundClip(clip.root, clip);
     if(clip.hips) placeCharacter(clip, sc.ch.stagePos);
     show.add(clip.root);
@@ -2086,16 +3071,37 @@ function poseEnsembleAt(t){
 }
 function showEnsemble(){
   if(activeRoot && activeRoot.parent){ scene.remove(activeRoot); } activeRoot=null;
-  autoLayoutStage(); frameEnsemble(); poseEnsembleAt(0); updateSkeleton();
+  autoLayoutStage(); frameEnsemble(); poseEnsembleAt(lastEnsembleT||0); updateSkeleton();   // keep the current moment, don't snap to the start pose
   if(!rendering&&!previewing){ updateScenery(0,0); renderTimeline(); }
   updateGizmo&&updateGizmo(); updateConnectors&&updateConnectors();
   renderFrame();
+}
+// Center the camera on ONE character (ensemble) — mirrors frameEnsemble's focus-main math.
+function frameOnChar(ch){
+  if(!ch) return;
+  const p=ch.stagePos||{x:0,z:0}, sc=(ch.relativeScale||1);
+  const maxH=REF_H*sc, radius=Math.max(0.1, maxH*0.5);
+  const fov=camera.fov*Math.PI/180, dist=(radius*(parseFloat($('#pad').value)||1.4)*1.12)/Math.sin(fov/2);
+  const visHalf=dist*Math.tan(fov/2), targetY=maxH*0.5 - gVpos()*visHalf*0.8;
+  camState={ radius, dist, baseYaw:gYaw()*Math.PI/180, camElev:gCamY()*radius, targetY, pivotX:p.x, pivotZ:p.z };
+  orbitCamera(0); positionReliefWall(); renderFrame();
+}
+// Center on the character whose timeline node is highlighted right now (playing, else selected).
+function centerOnHighlighted(){
+  if(!clips.length){ setStatus('Add clips first'); return; }
+  const id = playingClipId || (clips[selIndex] && clips[selIndex].id);
+  const clip = clips.find(c=>c.id===id) || clips[selIndex]; if(!clip) return;
+  const ch = charOf(clip);
+  if(isEnsemble()){ frameOnChar(ch); setStatus('Centered on '+((ch&&ch.name)||'character')); }
+  else { const idx=clips.indexOf(clip); if(idx>=0){ selIndex=idx; if(clip.charId) activeCharId=clip.charId;
+    renderList(); renderTimeline(); showClip(idx); setStatus('Centered on '+((ch&&ch.name)||clip.name)); } }
 }
 function ensembleTotalFrames(fps){ const s=ensembleSchedule(); const auto=s.length?Math.max(...s.map(x=>x.cycle)):1;
   const set=parseFloat($('#sceneLen').value)||0; return Math.max(1,Math.round((set>0?set:auto)*fps)); }
 async function produceFramesEnsemble(fps, emit, abort){
   autoLayoutStage(); frameEnsemble();
-  const total=ensembleTotalFrames(fps), manual=parseFloat($('#sceneryScroll').value)||0, dt=1/fps;
+  const total=ensembleTotalFrames(fps), manual=manualScrollSpeed(), dt=1/fps;
+  const driftMode=camDriftMode();                  // cinematic camera drift (ensemble)
   // world motion is driven by the MAIN character's chronological clip at each moment
   const main=mainChar(); const mainSc = main ? ensembleSchedule().find(s=>s.ch.id===main.id) : null;
   let scrollDist=0;
@@ -2105,11 +3111,34 @@ async function produceFramesEnsemble(fps, emit, abort){
     if(mainSc){ const {clip}=pickEnsembleClip(mainSc,t); moving = clip && clip.scroll!==false; }
     if(moving) scrollDist += manual*dt;            // scroll only while the main character is in a moving clip
     poseEnsembleAt(t); updateScenery(scrollDist, 0, 0);
+    if(driftMode!=='off') applyRenderDrift(driftMode, f/Math.max(1,total-1), 0);
     renderFrame(); await emit(f);
   }
 }
 function runProducer(fps,loops,hold,spin,trans, emit, abort){
   return isEnsemble() ? produceFramesEnsemble(fps, emit, abort) : produceFrames(fps,loops,hold,spin,trans, emit, abort);
+}
+// ---------- Title cards + captions: config, frame budget, and the show wrapper ----------
+function titleCfg(){ const q=id=>document.getElementById(id), on=id=>{const e=q(id);return !!(e&&e.checked);}, v=(id,d)=>{const e=q(id);return e?e.value:d;};
+  return {
+    introOn:on('introOn'), introTitle:v('introTitle',''), introSub:v('introSub',''), introSec:parseFloat(v('introSec',2))||2,
+    outroOn:on('outroOn'), outroText:v('outroText',''), outroSec:parseFloat(v('outroSec',2))||2,
+    capOn:on('capOn'), capPos:v('capPos','bottom'), capSize:parseFloat(v('capSize',0.055))||0.055 };
+}
+function introFrames(fps){ const c=titleCfg(); return c.introOn?Math.max(1,Math.round(c.introSec*fps)):0; }
+function outroFrames(fps){ const c=titleCfg(); return c.outroOn?Math.max(1,Math.round(c.outroSec*fps)):0; }
+function baseTotalFrames(fps,loops,hold){ return isEnsemble()?ensembleTotalFrames(fps):calcTotalFrames(fps,loops,hold); }
+function showTotalFrames(fps,loops,hold){ return introFrames(fps)+baseTotalFrames(fps,loops,hold)+outroFrames(fps); }
+function cardTextAlpha(f,total,fps){ const fade=Math.min(Math.floor(total/3),Math.max(1,Math.round(0.4*fps)));
+  if(f<fade) return (f+1)/(fade+1); if(f>=total-fade) return (total-f)/(fade+1); return 1; }
+// Prepends the intro card, runs the clip producer (with captions baked inside), then appends the outro card.
+async function runShow(fps,loops,hold,spin,trans, emit, abort){
+  let gi=0; const cfg=titleCfg();
+  const inF=introFrames(fps);
+  for(let f=0; f<inF && !abort(); f++){ renderFrame(); drawTitleCard(cardTextAlpha(f,inF,fps), cfg.introTitle, cfg.introSub); await emit(gi++); }
+  if(!abort()) await runProducer(fps,loops,hold,spin,trans, async()=>{ await emit(gi++); }, abort);
+  const outF=outroFrames(fps);
+  for(let f=0; f<outF && !abort(); f++){ renderFrame(); drawTitleCard(cardTextAlpha(f,outF,fps), cfg.outroText, ''); await emit(gi++); }
 }
 $('#ensemble').addEventListener('change', ()=>{ ensembleRoots=new Set(); $('#showAll')?.classList.toggle('on', $('#ensemble').checked); refreshView(); });
 $('#sceneLen').addEventListener('change', ()=>{ renderTimeline(); if(isEnsemble()) refreshView(); });
@@ -2347,6 +3376,8 @@ function renderList(){
         <span class="cdot" style="background:${charColor(c)}" title="${charName(c)}"></span>
         <span class="nm" title="${c.name}">${c.name}</span>
         <span class="dur">${dur}</span>
+        <span class="mv spd ${clipSpeed(c)!==1?'on':''} ${c.spdExp?'exp':''}" data-spd title="Playback speed for this clip — click to open the speed slider (slow-mo / fast-forward). Shift-click to step up quickly.">${fmtSpeed(clipSpeed(c))}</span>
+        <span class="mv ${(c.caption||'').trim()?'on':''}" data-cap title="Caption for this clip (lower-third). Enable captions in the Titles & captions panel.">💬</span>
         <span class="mv ${c.cam.custom?'on':''}" data-cam title="Per-clip camera">🎥</span>
         <span class="mv ${c.scroll!==false?'on':''}" data-scroll title="Background scrolls during this clip (fake forward motion) — toggle off for stationary moves like a tantrum">🏃</span>
         <span class="mv" data-dup title="Duplicate into flow">⧉</span>
@@ -2358,6 +3389,10 @@ function renderList(){
     ctl('[data-dn]',()=>move(i,1));
     ctl('[data-cam]',()=>{ c.cam.exp=!c.cam.exp; if(c.cam.exp){selIndex=i;showClip(i);} renderList(); });
     ctl('[data-scroll]',()=>{ c.scroll = (c.scroll===false); finalizeAdvance(c); renderList(); });   // toggle per-clip background motion + advance
+    li.querySelector('[data-spd]').onclick=e=>{ e.stopPropagation();
+      if(e.shiftKey){ cycleSpeed(c,false); renderList(); renderTimeline(); }   // quick shift-click still cycles
+      else { c.spdExp=!c.spdExp; renderList(); } };
+    ctl('[data-cap]',()=>{ c.capExp=!c.capExp; renderList(); });
     ctl('[data-dup]',()=>duplicateClip(i));
     ctl('.x',()=>{ clips.splice(i,1); selIndex=Math.max(0,selIndex-(i<=selIndex?1:0)); cleanupCharacters(); recomputeAllNorm(); computeSharedFrame(); renderCharacters(); renderList(); showClip(selIndex); updateReady(); });
     if(c.cam.exp){
@@ -2380,6 +3415,32 @@ function renderList(){
           if(i===selIndex){ frameObject(c.root,c); renderFrame(); } };
       });
       li.appendChild(ed);
+    }
+    if(c.spdExp){
+      const se=document.createElement('div'); se.className='spdedit';
+      const sp=clipSpeed(c);
+      se.innerHTML=`<div class="spdedit-row"><span class="spdedit-lbl">Playback speed</span>
+        <input type="range" min="0.25" max="3" step="0.05" value="${sp}">
+        <span class="spdedit-val">${sp.toFixed(2)}×</span></div>
+        <div class="spdedit-presets">${[0.25,0.5,0.75,1,1.5,2,3].map(v=>`<button data-s="${v}" class="${Math.abs(v-sp)<0.001?'on':''}">${v}×</button>`).join('')}</div>`;
+      const rng=se.querySelector('input'), val=se.querySelector('.spdedit-val');
+      const apply=v=>{ c.speed=Math.round(Math.max(0.25,Math.min(3,v))*100)/100; rng.value=c.speed; val.textContent=(+c.speed).toFixed(2)+'×';
+        se.querySelectorAll('.spdedit-presets button').forEach(b=>b.classList.toggle('on', Math.abs(parseFloat(b.dataset.s)-c.speed)<0.001));
+        const chip=li.querySelector('.mv.spd'); if(chip){ chip.textContent=fmtSpeed(c.speed); chip.classList.toggle('on', c.speed!==1); }
+        renderTimeline(); if(clips.indexOf(c)===selIndex && !rendering && !previewing) refreshView(); };
+      rng.oninput=e=>{ e.stopPropagation(); apply(parseFloat(rng.value)); };
+      rng.onclick=e=>e.stopPropagation();
+      se.querySelectorAll('.spdedit-presets button').forEach(b=>b.onclick=e=>{ e.stopPropagation(); apply(parseFloat(b.dataset.s)); });
+      li.appendChild(se);
+    }
+    if(c.capExp){
+      const ce=document.createElement('div'); ce.className='capedit';
+      ce.innerHTML=`<input type="text" placeholder="Caption shown while this clip plays…" value="${(c.caption||'').replace(/"/g,'&quot;')}">`;
+      const inp=ce.querySelector('input');
+      inp.oninput=()=>{ c.caption=inp.value; };
+      inp.onchange=()=>{ renderList(); };            // refresh the 💬 lit state after editing
+      inp.onclick=e=>e.stopPropagation();
+      li.appendChild(ce);
     }
     ul.appendChild(li);
   });
@@ -2418,9 +3479,10 @@ function renderTimeline(){
       const dur=c.duration?c.duration.toFixed(1)+'s':'—';
       b.innerHTML=`<span class="tl-acts"><span data-dup title="Duplicate">⧉</span><span class="del" data-del title="Delete">✕</span></span>
         <span class="tl-nm" title="${c.name}"><span class="tl-idx">${ci+1}</span>${c.name}</span>
-        <span class="tl-dur">${dur}${c.cam.custom?' · 🎥':''}</span>`;
+        <span class="tl-dur">${dur}${clipSpeed(c)!==1?' · '+fmtSpeed(clipSpeed(c)):''}${c.cam.custom?' · 🎥':''}</span>`;
       b.onclick=e=>{ if(e.target.closest('.tl-acts')) return; selIndex=gi; activeCharId=c.charId;
-        renderList(); renderCharacters(); renderTimeline(); if($('#nodeEditor').classList.contains('show')) renderNodes(); refreshView(); };
+        renderList(); renderCharacters(); renderTimeline(); if($('#nodeEditor').classList.contains('show')) renderNodes();
+        seekPreviewToClip(c); };   // jump the playhead to this clip's start (continues playing if it was playing)
       b.querySelector('[data-dup]').onclick=e=>{ e.stopPropagation(); duplicateClip(gi); };
       b.querySelector('[data-del]').onclick=e=>{ e.stopPropagation();
         clips.splice(gi,1); selIndex=Math.max(0,selIndex-(gi<=selIndex?1:0));
@@ -2437,7 +3499,7 @@ function renderTimeline(){
     tl.appendChild(row);
   });
   const fps=parseInt($('#fps').value)||30, loops=parseInt($('#loops').value)||1, hold=parseFloat($('#hold').value)||0;
-  const total=((isEnsemble()?ensembleTotalFrames(fps):calcTotalFrames(fps,loops,hold))/fps)||0;
+  const total=(showTotalFrames(fps,loops,hold)/fps)||0;
   const t=document.createElement('div'); t.className='tl-total'; t.textContent='≈ '+total.toFixed(1)+'s output'+(isEnsemble()?' · ensemble':'');
   tl.appendChild(t);
 }
@@ -2671,6 +3733,12 @@ let camState={radius:1,dist:5,baseYaw:0,camElev:0.2,targetY:0,pivotX:0,pivotZ:0}
 let viewYaw=0, viewPitch=0, viewDolly=1;
 function resetFreeView(){ viewYaw=0; viewPitch=0; viewDolly=1; }
 function orbitCamera(extraYaw=0){
+  if(topView){                                            // straight down, looking at the floor; screen-up = −Z (north)
+    const {targetY=0,pivotX=0,pivotZ=0}=camState; const d=(camState.dist||5)*viewDolly*1.6;
+    camera.up.set(0,0,-1); camera.position.set(pivotX, targetY+d, pivotZ); camera.lookAt(pivotX,targetY,pivotZ);
+    camera.near=Math.max(0.01,d/100); camera.far=d*100+100; camera.updateProjectionMatrix(); return;
+  }
+  camera.up.set(0,1,0);
   const yaw=camState.baseYaw+extraYaw+viewYaw;
   const {radius=1,camElev=0,targetY=0,pivotX=0,pivotZ=0}=camState;
   const dist=(camState.dist||5)*viewDolly;
@@ -2685,6 +3753,19 @@ function orbitCamera(extraYaw=0){
   camera.lookAt(pivotX,targetY,pivotZ);
   camera.near=Math.max(0.01,dist/100); camera.far=dist*100; camera.updateProjectionMatrix();
 }
+// Cinematic camera drift for render/preview — layered purely through the existing extraYaw + viewDolly
+// hooks (viewDolly restored immediately), so it never disturbs the framing/follow math. No-op when off.
+function applyRenderDrift(mode, p, baseYaw){
+  if(!mode || mode==='off'){ orbitCamera(baseYaw||0); return; }
+  const savedDolly=viewDolly, YAW=THREE.MathUtils.degToRad(35), e=Math.max(0,Math.min(1,p||0));
+  let ex=baseYaw||0;
+  if(mode==='orbitL'||mode==='pushOrbit') ex+=e*YAW;
+  else if(mode==='orbitR') ex-=e*YAW;
+  if(mode==='pushin'||mode==='pushOrbit') viewDolly=1-0.20*e;      // dolly in (zoom)
+  else if(mode==='pullout') viewDolly=0.82+0.20*e;                 // start close, ease out
+  orbitCamera(ex); viewDolly=savedDolly;
+}
+const camDriftMode=()=>{ const e=document.getElementById('camDrift'); return e?e.value:'off'; };
 // Scale + center + drop feet to y=0. Returns measured {size} in world units. (No camera changes.)
 function groundClip(root, clip){
   const uniformOn = $('#uniform').checked;
@@ -2725,7 +3806,7 @@ function frameObject(root, clip){
   const s=radius*3;
   key.shadow.camera.left=-s; key.shadow.camera.right=s; key.shadow.camera.top=s; key.shadow.camera.bottom=-s;
   key.shadow.camera.near=0.01; key.shadow.camera.far=dist*6; key.shadow.camera.updateProjectionMatrix();
-  sizeRoom(); sizeEnv();
+  sizeRoom(); sizeEnv(); sizeRunner(); sizeCorridor();
   return camState;
 }
 
@@ -2751,8 +3832,8 @@ function showClip(i){
 function syncLights(){ const l=parseFloat($('#light').value);
   hemi.intensity=1.0*l; key.intensity=1.6*l; fill.intensity=0.6*l; }
 function syncShadow(){ const on=$('#shadow').checked;
-  ground.visible = on && !sceneryFloor.visible && !roomGroup.visible && !envGroup.visible;   // room/env floor catches its own shadow
-  key.castShadow = on || sceneryFloor.visible || roomGroup.visible || envGroup.visible;      // let the floor catch a shadow too
+  ground.visible = on && !sceneryFloor.visible && !roomGroup.visible && !envGroup.visible && !runnerGroup.visible && !corrGroup.visible;   // room/env/runner/corridor floor catches its own shadow
+  key.castShadow = on || sceneryFloor.visible || roomGroup.visible || envGroup.visible || runnerGroup.visible || corrGroup.visible;      // let the floor catch a shadow too
   ground.material.opacity=parseFloat($('#shadowStr').value); }
 $('#shadow').addEventListener('change', ()=>{ syncShadow(); renderFrame(); });
 $('#uniform').addEventListener('change', ()=>{ if(activeRoot){ frameObject(activeRoot,clips[selIndex]); renderFrame(); } });
@@ -2769,6 +3850,7 @@ $('#advanceSpeed').addEventListener('input', ()=>{ $('#advSpeedVal').textContent
     syncLights(); syncShadow();
     const c=clips[selIndex];
     if(activeRoot && !(c&&c.cam.custom)) frameObject(activeRoot,c);
+    if(activeRoot && c && c.hips) placeCharacter(c, startOffset);   // keep the character where it was dragged (frameObject re-centres to origin)
     positionReliefWall();
     renderFrame();
   });
@@ -2776,7 +3858,42 @@ $('#advanceSpeed').addEventListener('input', ()=>{ $('#advSpeedVal').textContent
 $('#aVol').addEventListener('input', ()=>$('#aVolVal').textContent=parseFloat($('#aVol').value).toFixed(2)+'×');
 
 // ---------- Frame rendering ----------
+// ---------- X-ray skeleton: highlight characters hidden behind walls / props / terrain ----------
+const xrayHelpers=new Map();                      // root → SkeletonHelper (depthTest off = draws through occluders)
+const _xrRay=new THREE.Raycaster(), _xrA=new THREE.Vector3(), _xrB=new THREE.Vector3();
+function xrayOccluders(){ const o=[];
+  if(roomGroup.visible) o.push(roomGroup);
+  if(propGroup && propGroup.visible && propGroup.children.length) o.push(propGroup);
+  if(envGroup.visible) o.push(envGroup);
+  if(runnerGroup.visible) o.push(runnerGroup);
+  if(corrGroup.visible) o.push(corrGroup);
+  if(reliefWall.visible) o.push(reliefWall);
+  return o; }
+function displayedCharRoots(){ return isEnsemble()?[...ensembleRoots]:(activeRoot?[activeRoot]:[]); }
+function updateXray(){
+  const roots=displayedCharRoots();
+  for(const [r,h] of [...xrayHelpers]){ if(!roots.includes(r)){ if(h.parent) scene.remove(h); xrayHelpers.delete(r); } }   // drop helpers for hidden characters
+  if(rendering){ for(const [,h] of xrayHelpers) h.visible=false; return; }   // never bake the x-ray overlay into the exported video
+  const occ=xrayOccluders();
+  for(const root of roots){
+    let h=xrayHelpers.get(root), occluded=false;
+    if(occ.length){
+      const clip=clips.find(c=>c.root===root);
+      const tgt=(clip&&clip.hips)?clip.hips.getWorldPosition(_xrA):new THREE.Box3().setFromObject(root).getCenter(_xrA);
+      const dir=_xrB.copy(tgt).sub(camera.position); const dist=dir.length(); dir.normalize();
+      _xrRay.set(camera.position, dir); _xrRay.far=Math.max(0.01, dist-0.2);   // stop just short of the character
+      occluded=_xrRay.intersectObjects(occ,true).length>0;
+    }
+    if(occluded){
+      if(!h){ h=new THREE.SkeletonHelper(root); const m=h.material; m.depthTest=false; m.transparent=true; m.opacity=0.95; if(m.color)m.color.set(0x2fe6ff); h.renderOrder=1200; xrayHelpers.set(root,h); }
+      if(!h.parent) scene.add(h); h.visible=true;
+    } else if(h){ h.visible=false; }
+  }
+}
 function renderFrame(){
+  updateXray();
+  updatePropSelBox();
+  updateGrids();
   renderer.autoClear=false; renderer.clear();
   renderer.render(bgScene,bgCam);
   renderer.clearDepth();
@@ -2797,9 +3914,10 @@ async function produceFrames(fps,loops,hold,spin,trans, emit, abort){
   const dt=1/fps, transFrames=Math.round(trans*fps);
   const mode = ($('#motionMode') && $('#motionMode').value) || 'travel';
   const follow = $('#camFollow') && $('#camFollow').checked;
-  const manualScroll = parseFloat($('#sceneryScroll').value)||0;
+  const manualScroll = manualScrollSpeed();
   const advSpeed = parseFloat(($('#advanceSpeed')||{}).value ?? 1);   // forward-advance multiplier for in-place walks/runs
   let frame=0, spinYaw=0, scrollDist=0, scrollX=0, scrollZ=0;   // scrollDist only advances during scroll-enabled clips
+  const driftMode=camDriftMode(), driftTotal=Math.max(1,calcTotalFrames(fps,loops,hold)-1);   // cinematic camera drift
   const carry={x:startOffset.x, z:startOffset.z, y:0};   // first clip begins at the drag anchor; y = accumulated climb
   for(let ci=0; ci<clips.length; ci++){
     if(abort()) break;
@@ -2809,8 +3927,9 @@ async function produceFrames(fps,loops,hold,spin,trans, emit, abort){
     const baseTargetY=camState.targetY;   // framed look-at height at clip start
     let baseHipsY=0; if(c.hips){ const _h=new THREE.Vector3(); c.hips.getWorldPosition(_h); baseHipsY=_h.y; }  // grounded Hips ref → vertical follow tracks the REAL hips height (climb/fall + within-clip)
     $('#ovLbl').textContent=`Clip ${ci+1} / ${clips.length}`;
-    const nFrames=Math.max(1,Math.round((c.duration||1.5)*fps));
-    const netT=(nFrames-1)*dt;
+    const spd=clipSpeed(c);                        // per-clip playback speed (slow-mo / fast-forward)
+    const nFrames=Math.max(1,Math.round((c.duration||1.5)*fps/spd));   // stretched (slow) / squeezed (fast) frame budget
+    const netT=(nFrames-1)*dt*spd;                 // real animation time spanned (≈ clip duration)
     const travelling = mode==='travel' && c.travelModel;
     const advPer = (travelling && c.advance) ? c.advance*advSpeed : 0;   // synthetic forward distance per play (in-place walks/runs)
     const FALL_RATE=4;                            // world units/sec an in-place fall descends (× the motion-speed slider)
@@ -2824,19 +3943,21 @@ async function produceFrames(fps,loops,hold,spin,trans, emit, abort){
       if(c.hips) placeCharacter(c, {x:D.x, z:D.z, y:D.y});   // x/z travel + accumulated climb (D.y) + manual lift
       if(follow){ camState.pivotX=D.x; camState.pivotZ=D.z;
         if(c.hips){ const _h=new THREE.Vector3(); c.hips.getWorldPosition(_h); camState.targetY=baseTargetY+(_h.y-baseHipsY); } }  // pan up a climb / down a fall, keeping the character framed
-      if(spin){ spinYaw+=dt*0.4; orbitCamera(spinYaw); } else if(follow) orbitCamera(0);
+      if(spin||follow||driftMode!=='off'){ let sY=0; if(spin){ spinYaw+=dt*0.4; sY=spinYaw; }
+        applyRenderDrift(driftMode, frame/driftTotal, sY); }
       if(reliefWall.visible) positionReliefWall();
       if(c.scroll!==false) scrollDist += manualScroll*dt;   // background moves only while THIS clip has scroll on
       updateScenery(scrollDist, follow?D.x:0, follow?D.z:0);
       renderFrame();
       if(doTrans && clipFrame<transFrames) renderOverlay(1-(clipFrame+1)/transFrames);
+      drawClipCaption(c);                           // per-clip lower-third caption, composited on top
       await emit(frame++); clipFrame++;
     };
     for(let l=0;l<loops;l++){
       if(abort()) break;
       if(c.action){ c.action.reset(); c.action.play(); c.mixer.update(0); }
       for(let f=0; f<nFrames && !abort(); f++){
-        const t=f*dt; const tvRaw=travelAt(c,t);
+        const t=Math.min(c.duration||1.5, f*dt*spd); const tvRaw=travelAt(c,t);   // real anim time (scaled by speed)
         const tv=rotY({x:tvRaw.x, z:tvRaw.z + advPer*(t/(c.duration||1))}, heading);  // real travel + forward-advance ramp
         // vertical: lift by the climb already completed (carry.y + l·netY; climb comes from the animation, so tv.y
         // is NOT added — would double it) and SUBTRACT the synthetic fall descent (completed loops + within-loop ramp).
@@ -2844,7 +3965,7 @@ async function produceFrames(fps,loops,hold,spin,trans, emit, abort){
         const D = travelling ? {x:carry.x+sx*(l*net.x+tv.x), z:carry.z+sz*(l*net.z+tv.z), y:carry.y+sy*(l*netY)-fallAt+startOffset.y}
                              : {x:startOffset.x, z:startOffset.z, y:startOffset.y};
         await render1(D);
-        if(c.mixer) c.mixer.update(dt);
+        if(c.mixer) c.mixer.update(dt*spd);        // advance the animation at real rate while emitting stretched/squeezed frames
       }
     }
     const Dhold = travelling ? {x:carry.x+sx*loops*net.x, z:carry.z+sz*loops*net.z, y:carry.y+sy*loops*netY-loops*fallPer+startOffset.y}
@@ -2855,7 +3976,7 @@ async function produceFrames(fps,loops,hold,spin,trans, emit, abort){
   }
 }
 function calcTotalFrames(fps,loops,hold){
-  let t=0; for(const c of clips) t+=Math.max(1,Math.round((c.duration||1.5)*fps))*loops;
+  let t=0; for(const c of clips) t+=Math.max(1,Math.round(effDur(c)*fps))*loops;
   t+=Math.round(hold*fps)*clips.length; return t;
 }
 
@@ -2866,13 +3987,13 @@ async function runScrub(){ scrubbing=true; while(pendingFrac!==null){ const f=pe
 async function doScrub(frac){
   if(!clips.length || realPreview || rendering) return;
   const fps=parseInt($('#fps').value)||30, loops=parseInt($('#loops').value)||1, hold=parseFloat($('#hold').value)||0;
-  const total = isEnsemble() ? ensembleTotalFrames(fps) : calcTotalFrames(fps,loops,hold);
+  const total = showTotalFrames(fps,loops,hold);
   const target = Math.max(0, Math.min(total-1, Math.round(frac*(total-1))));
   $('#scrubT').textContent = (target/fps).toFixed(2)+'s / '+((total-1)/fps).toFixed(2)+'s';
   previewing=true;                                  // reuse the preview guards (scenery scrolls, no gizmo)
   try{
     let cur=-1;
-    await runProducer(fps,loops,hold,false,0, async(f)=>{ cur=f; }, ()=> cur>=target);
+    await runShow(fps,loops,hold,false,0, async(f)=>{ cur=f; }, ()=> cur>=target);
   }catch(e){ /* aborted */ }
   finally{ previewing=false; }
 }
@@ -2884,6 +4005,33 @@ function syncPlayUI(playing){
   const p=$('#scrubPlay'); if(p){ p.textContent=playing?'⏸':'▶'; p.classList.toggle('on',playing); }
   const b=$('#preview'); if(b) b.textContent=playing?'Stop preview':'Preview playback';
 }
+// Global frame where a clip's playhead begins (first occurrence), for both sequence & ensemble.
+function clipStartFrame(clip){
+  const fps=parseInt($('#fps').value)||30, loops=parseInt($('#loops').value)||1, hold=parseFloat($('#hold').value)||0;
+  const intro=introFrames(fps);
+  if(isEnsemble()){
+    const sc=ensembleSchedule().find(s=>s.ch.id===clip.charId); if(!sc) return intro;
+    let t=0; for(let i=0;i<sc.clips.length;i++){ if(sc.clips[i]===clip) break; t+=sc.durs[i]; }
+    return intro+Math.round(t*fps);
+  }
+  let f=0; for(const c of clips){ if(c===clip) break; f+=Math.max(1,Math.round(effDur(c)*fps))*loops+Math.round(hold*fps); }
+  return intro+f;
+}
+let previewSeek=0;                                // fast-forward target for the next preview pass
+// Jump the preview playhead to the start of a clip — works whether paused or playing.
+async function seekPreviewToClip(clip){
+  if(!clip || !clips.length) return;
+  const fps=parseInt($('#fps').value)||30, loops=parseInt($('#loops').value)||1, hold=parseFloat($('#hold').value)||0;
+  const total=showTotalFrames(fps,loops,hold);
+  const sf=Math.max(0,Math.min(total-1, clipStartFrame(clip)));
+  if(previewing){                                 // playing → restart the pass, fast-forwarding to this clip, then keep playing
+    previewing=false;
+    await new Promise(res=>{ const chk=()=>previewing?setTimeout(chk,16):res(); chk(); });
+    previewSeek=sf; startPreview();
+  } else {                                         // paused → move the playhead there and pose it
+    if(total>1){ $('#scrub').value=Math.round(sf/(total-1)*1000); requestScrub(sf/(total-1)); }
+  }
+}
 async function startPreview(){
   if(previewing || !clips.length) return;
   previewing=true; realPreview=true; syncPlayUI(true);
@@ -2891,16 +4039,18 @@ async function startPreview(){
         hold=parseFloat($('#hold').value), spin=$('#spin').checked, trans=parseFloat($('#trans').value);
   try{
     do{
-      const total = isEnsemble()?ensembleTotalFrames(fps):calcTotalFrames(fps,loops,hold);   // playhead scale
-      await runProducer(fps,loops,hold,spin,trans, async(f)=>{
+      const total = showTotalFrames(fps,loops,hold);   // playhead scale (includes intro/outro cards)
+      await runShow(fps,loops,hold,spin,trans, async(f)=>{
         if(total>1){ $('#scrub').value=Math.round(f/(total-1)*1000);                     // move the scrub thumb with playback
           $('#scrubT').textContent=(f/fps).toFixed(2)+'s / '+((total-1)/fps).toFixed(2)+'s'; }
+        if(f<previewSeek) return;               // fast-forward (no real-time wait) up to the seek point
         await frameWait();
       }, ()=>!previewing);
+      previewSeek=0;                              // only the first pass seeks; replays play in full
     } while(previewLoop && previewing);      // 🔁 replay until the user pauses
   }
   catch(err){ console.error(err); setStatus('Preview error: '+(err.message||err)); }
-  finally{ previewing=false; realPreview=false; syncPlayUI(false); refreshView(); }
+  finally{ previewing=false; realPreview=false; previewSeek=0; syncPlayUI(false); refreshView(); }
 }
 function togglePreview(){ if(previewing) previewing=false; else startPreview(); }   // pause sets the flag; the loop unwinds
 $('#preview').addEventListener('click', togglePreview);
@@ -2952,7 +4102,7 @@ async function renderWebCodecs(fps,loops,hold,spin,trans,totalFrames){
   const bitrate=Math.min(40000000, Math.max(2000000, Math.round(outW*outH*fps*0.15)));
   encoder.configure({ codec, width:outW, height:outH, bitrate, framerate:fps, latencyMode:'quality' });
   const usPer=1e6/fps;
-  await runProducer(fps,loops,hold,spin,trans, async(i)=>{
+  await runShow(fps,loops,hold,spin,trans, async(i)=>{
     if(encErr) throw encErr;
     const vf=new VideoFrame(renderer.domElement,{ timestamp:Math.round(i*usPer), duration:Math.round(usPer) });
     encoder.encode(vf,{ keyFrame: i%(fps*2)===0 }); vf.close();
@@ -2987,7 +4137,7 @@ async function renderMediaRecorder(fps,loops,hold,spin,trans,totalFrames){
   const chunks=[]; rec.ondataavailable=e=>{ if(e.data.size) chunks.push(e.data); };
   const done=new Promise(r=>rec.onstop=r); rec.start();
   const t0=performance.now(), msPer=1000/fps;
-  await runProducer(fps,loops,hold,spin,trans, async(i)=>{
+  await runShow(fps,loops,hold,spin,trans, async(i)=>{
     const target=t0+i*msPer;
     while(performance.now()<target-1 && !cancelRender) await frameWait();
     if(track.requestFrame) track.requestFrame();
@@ -3015,7 +4165,7 @@ $('#render').addEventListener('click', async ()=>{
   applySize();
   const fps=parseInt($('#fps').value), loops=parseInt($('#loops').value),
         hold=parseFloat($('#hold').value), spin=$('#spin').checked, trans=parseFloat($('#trans').value);
-  const totalFrames=isEnsemble()?ensembleTotalFrames(fps):calcTotalFrames(fps,loops,hold);
+  const totalFrames=showTotalFrames(fps,loops,hold);
   let blob=null, ext='mp4';
   try{
     if(typeof VideoEncoder!=='undefined'){ $('#ovLbl').textContent='Encoding…';
@@ -3066,7 +4216,7 @@ async function mlLoadIndex(){
     libIndex=j.motions; libSkeletons=j.skeletons||{}; mlLibSig=Object.keys(libSkeletons)[0]||null;
     return true;
   }catch(e){
-    $('#mlList').innerHTML='<div class="hint" style="padding:10px">No built-in motion library in this free edition. Make motions in the <b>🐾 Animate</b> tool (they appear here automatically), or drop your own animated <b>.glb</b> clips in box 1. Rigged characters still auto-retarget any motion you add.</div>';
+    $('#mlList').innerHTML='<div class="hint" style="padding:10px">Motion library not found. Launch via <b>Start GLB Stitcher.bat</b> (a local server is needed to load ./library/).</div>';
     return false;
   }
 }
@@ -3235,7 +4385,6 @@ function renderMotionLib(){
   if(ref && libPoses){ for(const r of rows) r.d = libPoses[r.m.id] ? poseDist(ref, libPoses[r.m.id].s) : 9;
     rows.sort((a,b)=>a.d-b.d); }
   $('#mlCount').textContent=rows.length+' / '+libIndex.length;
-  if(!rows.length){ el.innerHTML='<div class="hint" style="padding:10px">No motions yet — make some in the 🐾 Animate tool, or drop your own animated .glb clips; they appear here to retarget onto your character.</div>'; return; }
   el.innerHTML='';
   const frag=document.createDocumentFragment();
   for(const {m,d} of rows.slice(0,400)){
@@ -3254,12 +4403,12 @@ function renderMotionLib(){
 function buildMergedClip(){
   const loops=parseInt($('#loops').value)||1, hold=parseFloat($('#hold').value)||0;
   const map=new Map(); let tOff=0;
-  const addTrack=(t, off)=>{ let e=map.get(t.name);
+  const addTrack=(t, off, spd)=>{ let e=map.get(t.name);
     const stride=t.times.length? t.values.length/t.times.length : 4;
     if(!e){ e={Type:t.constructor, stride, times:[], values:[]}; map.set(t.name,e); }
-    for(let i=0;i<t.times.length;i++){ e.times.push(t.times[i]+off); for(let k=0;k<e.stride;k++) e.values.push(t.values[i*e.stride+k]); } };
-  for(const c of clips){ const clip=c.action?c.action.getClip():null; if(!clip) continue; const dur=clip.duration||0;
-    for(let l=0;l<loops;l++){ for(const t of clip.tracks) addTrack(t, tOff); tOff+=dur; }
+    for(let i=0;i<t.times.length;i++){ e.times.push(t.times[i]/spd+off); for(let k=0;k<e.stride;k++) e.values.push(t.values[i*e.stride+k]); } };
+  for(const c of clips){ const clip=c.action?c.action.getClip():null; if(!clip) continue; const spd=clipSpeed(c); const dur=(clip.duration||0)/spd;
+    for(let l=0;l<loops;l++){ for(const t of clip.tracks) addTrack(t, tOff, spd); tOff+=dur; }
     if(hold>0){ for(const t of clip.tracks){ const e=map.get(t.name); if(!e) continue;
         const last=[]; for(let k=0;k<e.stride;k++) last.push(t.values[t.values.length-e.stride+k]);
         e.times.push(tOff); e.values.push(...last); e.times.push(tOff+hold); e.values.push(...last); }
@@ -3276,7 +4425,9 @@ async function exportSequenceGLB(){
     mesh.traverse(o=>{ o.frustumCulled=false; });
     const holder=new THREE.Scene(); holder.add(mesh);
     const merged=buildMergedClip();
-    const per=clips.map((c,i)=>{ const cl=c.action.getClip().clone(); cl.name=`${String(i+1).padStart(2,'0')}_${(c.name||'clip').replace(/\.glb$/i,'')}`; return cl; });
+    const per=clips.map((c,i)=>{ const cl=c.action.getClip().clone(); const spd=clipSpeed(c);
+      if(spd!==1){ cl.tracks.forEach(tr=>{ tr.times=tr.times.map(x=>x/spd); }); cl.duration=(cl.duration||0)/spd; }
+      cl.name=`${String(i+1).padStart(2,'0')}_${(c.name||'clip').replace(/\.glb$/i,'')}`; return cl; });
     const animations=[merged, ...per];
     const exporter=new GLTFExporter();
     exporter.parse(holder, (buf)=>{
@@ -3353,8 +4504,120 @@ async function studioRefresh(){ await mlLoadIndex(); await studioMergeMotions();
 studioRefresh();
 if(window.StudioLib) StudioLib.onChange(studioRefresh);
 
+// ==================== Save / Load project ====================
+const PROJ_SKIP=new Set(['scrub','mlSearch','projInput']);
+function collectControls(){ const out={};
+  document.querySelectorAll('.sidebar input[id], .sidebar select[id]').forEach(el=>{
+    if(el.type==='file'||PROJ_SKIP.has(el.id)) return;
+    out[el.id]= el.type==='checkbox'? !!el.checked : el.value; });
+  return out;
+}
+function applyControls(map){ if(!map) return;
+  for(const [id,val] of Object.entries(map)){ const el=document.getElementById(id);
+    if(!el||el.type==='file'||PROJ_SKIP.has(id)) continue;
+    if(el.type==='checkbox') el.checked=!!val; else el.value=val;
+    el.dispatchEvent(new Event('input',{bubbles:true}));
+    el.dispatchEvent(new Event('change',{bubbles:true})); }
+}
+function collectClipMeta(){ return clips.map((c,i)=>({ name:c.name, order:i, speed:clipSpeed(c),
+  caption:c.caption||'', scroll:c.scroll!==false, cam:Object.assign({},c.cam,{exp:false}) })); }
+let pendingClipMeta=null;
+function applyClipMeta(list){ if(!list||!list.length||!clips.length) return;
+  const used=new Set();
+  for(const m of list){ const idx=clips.findIndex((c,i)=>!used.has(i)&&c.name===m.name); if(idx<0) continue;
+    used.add(idx); const c=clips[idx];
+    if(m.speed) c.speed=m.speed;
+    if(typeof m.caption==='string') c.caption=m.caption;
+    if(typeof m.scroll==='boolean') c.scroll=m.scroll;
+    if(m.cam) c.cam=Object.assign({}, c.cam, m.cam, {exp:false});
+    try{ finalizeAdvance(c); }catch(e){} }
+  renderList(); renderTimeline(); if(!rendering&&!previewing) refreshView();
+}
+function projectJSON(){ return JSON.stringify({ app:'glb-stitcher', version:1, savedAt:new Date().toISOString(),
+  controls:collectControls(), clips:collectClipMeta() }, null, 2); }
+function clipNote(){ return clips.length?` (${clips.length} clip setting${clips.length===1?'':'s'}; models & audio not embedded)`:''; }
+let currentFileHandle=null;
+// Save (overwrite the current file when possible) / Save As (always a new file). Uses the File System
+// Access API in Chrome/Edge so Save re-writes the SAME file; falls back to a download elsewhere.
+async function saveProject(forceNew){
+  const json=projectJSON();
+  if(window.showSaveFilePicker){
+    try{
+      let h=currentFileHandle;
+      if(forceNew || !h){ h=await window.showSaveFilePicker({ suggestedName: (h&&h.name)||'glb-stitcher-project.json',
+        types:[{description:'GLB Stitcher project',accept:{'application/json':['.json']}}] }); }
+      const w=await h.createWritable(); await w.write(json); await w.close();
+      currentFileHandle=h; setStatus(`Saved to ${h.name}`+clipNote()); return;
+    }catch(e){ if(e&&e.name==='AbortError'){ setStatus('Save cancelled'); return; } console.warn('FS save failed → download',e); }
+  }
+  const blob=new Blob([json],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download=`glb-stitcher-project_${Date.now()}.json`; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+  setStatus('Project downloaded'+clipNote());
+}
+async function openProject(){
+  if(window.showOpenFilePicker){
+    try{ const [h]=await window.showOpenFilePicker({ types:[{description:'GLB Stitcher project',accept:{'application/json':['.json']}}] });
+      const f=await h.getFile(); await loadProject(f); currentFileHandle=h; return;
+    }catch(e){ if(e&&e.name==='AbortError') return; console.warn('FS open failed → file input',e); }
+  }
+  $('#projInput').click();
+}
+async function loadProject(file){
+  try{ const data=JSON.parse(await file.text());
+    if(!data||data.app!=='glb-stitcher'){ setStatus('That is not a GLB Stitcher project file'); return; }
+    applyControls(data.controls);
+    pendingClipMeta=(data.clips&&data.clips.length)?data.clips:null;
+    applyClipMeta(pendingClipMeta);
+    const missing=(pendingClipMeta||[]).filter(m=>!clips.some(c=>c.name===m.name));
+    setStatus(missing.length
+      ? `Project loaded. Re-add ${missing.length} GLB clip${missing.length===1?'':'s'} (drag the same files) — speeds & captions reattach by name. Audio isn't saved.`
+      : `Project loaded${clips.length?` (${clips.length} clip${clips.length===1?'':'s'} matched)`:''}.`);
+  }catch(e){ console.error(e); setStatus('Could not read that project file'); }
+}
+const _pi=$('#projInput'); if(_pi) _pi.addEventListener('change', e=>{ const f=e.target.files[0]; if(f) loadProject(f); e.target.value=''; });
+// ---- Top menu (Save / Save As / Load / About) ----
+const _mb=$('#appMenuBtn'), _am=$('#appMenu');
+if(_mb&&_am){
+  _mb.addEventListener('click', e=>{ e.stopPropagation(); _am.hidden=!_am.hidden; });
+  _am.addEventListener('click', e=>{ e.stopPropagation(); const b=e.target.closest('button[data-act]'); if(!b) return; _am.hidden=true;
+    const a=b.dataset.act;
+    if(a==='save') saveProject(false); else if(a==='saveas') saveProject(true); else if(a==='load') openProject();
+    else if(a==='help') $('#helpModal').hidden=false; else if(a==='about') $('#aboutModal').hidden=false; });
+  document.addEventListener('click', ()=>{ _am.hidden=true; });
+}
+// version stamps (About badge + copyright year + sidebar footer)
+{ const v=$('#aboutVer'); if(v) v.textContent='v'+APP_VERSION;
+  const y=$('#aboutYear'); if(y) y.textContent=String(new Date().getFullYear());
+  const f=document.querySelector('.foot'); if(f) f.innerHTML=`Runs entirely in your browser · nothing uploaded · <b>${APP_NAME} v${APP_VERSION}</b> · KSOL Designs`; }
+const _ac=$('#aboutClose'); if(_ac) _ac.addEventListener('click', ()=>$('#aboutModal').hidden=true);
+const _abm=$('#aboutModal'); if(_abm) _abm.addEventListener('click', e=>{ if(e.target===_abm) _abm.hidden=true; });
+const _hm=$('#helpModal'); if(_hm) _hm.addEventListener('click', e=>{ if(e.target===_hm) _hm.hidden=true; });
+[$('#helpClose'),$('#helpClose2')].forEach(b=>{ if(b) b.addEventListener('click', ()=>$('#helpModal').hidden=true); });
+document.addEventListener('keydown', e=>{ if(e.key==='Escape'){ if(_am) _am.hidden=true; if(_abm) _abm.hidden=true; if(_hm) _hm.hidden=true; } });
+
 // keep the timeline's output-length estimate in sync
-['loops','hold','fps','res'].forEach(id=>$('#'+id).addEventListener('change', ()=>renderTimeline()));
+['loops','hold','fps','res','introOn','introSec','outroOn','outroSec'].forEach(id=>{ const e=$('#'+id); if(e) e.addEventListener('change', ()=>renderTimeline()); });
+
+// ---------- Collapsible modules ----------
+// Wrap each card's contents (everything after its <h2>) in a body div, make the header a
+// click-to-collapse toggle with a chevron, and remember the open/closed state per card.
+function makeCollapsible(){
+  const slug=t=>t.replace(/\s+/g,'_').replace(/[^\w·]+/g,'').slice(0,40);
+  let saved={}; try{ saved=JSON.parse(localStorage.getItem('glbs_collapsed')||'{}'); }catch(e){}
+  const persist=()=>{ try{ localStorage.setItem('glbs_collapsed', JSON.stringify(saved)); }catch(e){} };
+  document.querySelectorAll('.sidebar .card').forEach(card=>{
+    const h=card.querySelector(':scope > h2'); if(!h || h.classList.contains('card-head')) return;
+    const key = card.id || slug(h.textContent);
+    const body=document.createElement('div'); body.className='card-body';
+    while(h.nextSibling) body.appendChild(h.nextSibling);   // move all post-header nodes into the body
+    card.appendChild(body);
+    h.classList.add('card-head');
+    const chev=document.createElement('span'); chev.className='chev'; chev.textContent='▼'; h.appendChild(chev);
+    if(saved[key]) card.classList.add('collapsed');
+    h.addEventListener('click', ()=>{ const c=card.classList.toggle('collapsed'); saved[key]=c; persist(); });
+  });
+}
+makeCollapsible();
 
 // ---------- init ----------
 applySize(); syncLights(); syncShadow(); renderFrame(); renderTimeline(); renderCharacters();
