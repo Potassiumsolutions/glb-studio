@@ -1,6 +1,6 @@
-# The pre-extracted biped motion library is NOT distributed here (see README).
-# Guarded so it can never be committed by accident from a local dev copy.
-glb-stitcher/library/
+# The bundled motion library (glb-stitcher/library/) is now our OWN procedurally-generated
+# set, made with the Rig Animator — free to distribute. (The earlier third-party-extracted
+# library is NOT used here.) So the library folder is intentionally tracked and shipped.
 
 # junk
 node_modules/

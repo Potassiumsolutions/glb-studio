@@ -10,7 +10,7 @@ motion you make is instantly usable by the next step:
 ![KSOL Designs GLB Studio](studio/help/menu.png)
 
 - **🧍 Rig** — drop a textured `.glb` character; it **auto-fits a skeleton** (biped / quadruped / bird) and **auto-skins** it. Nudge the joints if you want, then export a rigged GLB.
-- **🐾 Animate** — procedurally generate **quadruped & bird** motions (walk, trot, gallop, wing-flap…), tuned by speed / amplitude / loop length.
+- **🐾 Animate** — procedurally generate **biped, quadruped & bird** motions, organized by category (walking, running, jumping, climbing, boxing, fencing, football, dancing…), tuned by speed / amplitude / loop length.
 - **🎬 Stitch** — load a rigged character, **auto-retarget** motions onto it, and composite clips into one **MP4** with 3D scenes, camera moves, multiple characters, audio and cross-fades.
 
 Everything runs **client-side** — nothing is uploaded, no account, no cloud.
@@ -56,13 +56,15 @@ The **Studio** shell ties them together with a menu and a shared in-browser libr
 
 ## A note on the motion library
 
-This free edition **does not ship a pre-built biped motion library.** The Stitcher's
-retarget feature still works with (a) motions you make in **🐾 Animate**, and (b) any
-animated `.glb` clips you drop in yourself — rigged characters auto-retarget whatever you add.
+This edition ships with an **original biped motion library** — a set of actions
+(walking, running, jumping, climbing, boxing, fencing, football, dancing and everyday
+gestures) that were **procedurally generated with the 🐾 Animate tool in this suite**, so
+they're free to distribute. Load a rigged biped character in **🎬 Stitch** and they
+auto-retarget onto it.
 
-The pre-made library is left out on purpose: bundling motion data extracted from a
-third-party generator's catalogue would redistribute *their* content. Bring your own
-motions and it's all yours.
+You can grow the library at any time: make more motions in **🐾 Animate** (biped,
+quadruped or bird), or drop in your own animated `.glb` clips — rigged characters
+auto-retarget whatever you add.
 
 ---
 

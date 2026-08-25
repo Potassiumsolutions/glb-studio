@@ -31,6 +31,8 @@
   .mrow .mt{flex:1}
   .mrow .tag{font-size:9px;text-transform:uppercase;letter-spacing:.04em;padding:2px 6px;border-radius:20px;font-weight:700}
   .tag.move{background:rgba(56,211,159,.16);color:var(--accent2)} .tag.stay{background:rgba(139,152,168,.16);color:var(--muted)}
+  .mcat{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700;margin:8px 2px 1px}
+  .mcat:first-child{margin-top:0}
   label.block{display:block;font-size:12px;color:var(--muted);margin:10px 0 4px}
   .range-row{display:flex;align-items:center;gap:10px}
   input[type=range]{flex:1}
@@ -59,17 +61,18 @@
   <aside>
     <div>
       <h1>🐾 Rig Animator <span class="appver">v1.0.0</span></h1>
-      <div class="hint" style="margin-top:0">Procedurally generate animations for your <b>quadruped</b> and <b>bird</b> rigs, then export them into the GLB Stitcher motion library — used exactly like the biped ones.</div>
+      <div class="hint" style="margin-top:0">Procedurally generate original animations for your <b>biped</b>, <b>quadruped</b> and <b>bird</b> rigs — organized by category (boxing, fencing, football, dancing, running, walking, jumping, climbing…) — then export them into the GLB Stitcher motion library.</div>
     </div>
 
     <div class="card">
       <h2>Rig type</h2>
       <div class="seg" id="rigSeg">
-        <button data-rig="quad" class="on">🐕 Quadruped</button>
+        <button data-rig="biped" class="on">🧍 Biped</button>
+        <button data-rig="quad">🐕 Quadruped</button>
         <button data-rig="birdFlight">🕊 Bird (flight)</button>
         <button data-rig="birdPerched">🦶 Bird (perched)</button>
       </div>
-      <div class="hint" id="rigNote">27-bone quadruped rig (Hips / legs / spine / tail).</div>
+      <div class="hint" id="rigNote">24-bone biped rig (standard humanoid — Hips / spine / arms / legs / head).</div>
     </div>
 
     <div class="card">
@@ -149,6 +152,8 @@ const QUAD_TEMPLATE = [{"name":"Hips","parent":null,"t":[-0.0032502757385373116,
 const BIRD_TEMPLATE = [{"name":"Bone_000","parent":null,"t":[0.004967880435287952,0.6934616565704346,-0.01910165697336197],"q":[0.3826833963394165,0,0,0.9238795638084412]},{"name":"Bone_001","parent":"Bone_000","t":[4.656612873077393e-10,0.30534982681274414,0],"q":[0.369060218334198,0,0,0.9294055104255676]},{"name":"Bone_003","parent":"Bone_001","t":[-4.656612873077393e-10,0.3672141134738922,-1.862645149230957e-9],"q":[0.2810724079608917,0,0,0.9596865773200989]},{"name":"Bone_002","parent":"Bone_003","t":[0,0.06294944882392883,-5.960464477539063e-8],"q":[-2.1606685152164573e-7,0,0,1]},{"name":"Bone_006","parent":"Bone_001","t":[0.11875321716070175,-0.1513923704624176,0.3735619783401489],"q":[-0.1890871226787567,-0.9818503260612488,-0.014435759745538235,0.0027800335083156824]},{"name":"Bone_005","parent":"Bone_006","t":[1.5452696899842522e-8,0.11627371609210968,-3.898945521996211e-8],"q":[-0.11875336617231369,-0.6166316866874695,0.33265388011932373,0.7035655379295349]},{"name":"Bone_004","parent":"Bone_005","t":[6.705522537231445e-8,0.01869877427816391,-7.450580596923828e-9],"q":[0.5801616907119751,0.24031077325344086,0.40424293279647827,0.6650193929672241]},{"name":"Bone_021","parent":"Bone_004","t":[1.7113393369072583e-8,0.015267476439476013,2.6930990770779317e-8],"q":[-0.5435625910758972,-0.22515185177326202,-0.09177826344966888,0.8033822774887085]},{"name":"Bone_020","parent":"Bone_021","t":[3.725290298461914e-8,0.038924653083086014,-1.4901161193847656e-8],"q":[-2.57732580166703e-7,0,4.217411913032265e-7,1]},{"name":"Bone_023","parent":"Bone_004","t":[0.030535008758306503,-0.015267498791217804,-0.01079567614942789],"q":[-0.7677292823791504,-0.318004846572876,-0.07129273563623428,0.5517083406448364]},{"name":"Bone_022","parent":"Bone_023","t":[-1.1175870895385742e-8,0.040393929928541183,1.4901161193847656e-8],"q":[-2.6077033865590238e-8,3.725290742551124e-9,3.166496753692627e-7,1]},{"name":"Bone_026","parent":"Bone_004","t":[0.007633793633431196,-0.038168735802173615,-0.01079572830349207],"q":[-0.8145613074302673,-0.33740296959877014,0.18057170510292053,0.4359391927719116]},{"name":"Bone_025","parent":"Bone_026","t":[-1.1316274139971938e-8,0.03892456740140915,-1.5273762699052895e-8],"q":[4.0031352455116576e-7,-0.8816746473312378,0.47185784578323364,3.8187596373973065e-7]},{"name":"Bone_024","parent":"Bone_025","t":[-1.7074079927681396e-9,0.010795744135975838,-3.584354146823898e-8],"q":[-1.4901161193847656e-8,-9.491253116777898e-9,6.8080357838859115e-15,1]},{"name":"Bone_009","parent":"Bone_001","t":[-0.11875322461128235,-0.1513923704624176,0.3735619783401489],"q":[-0.18908707797527313,0.981850266456604,0.01443576067686081,0.0027800335083156824]},{"name":"Bone_008","parent":"Bone_009","t":[-1.545270578162672e-8,0.11627373844385147,1.9898841685517255e-8],"q":[-0.07096629589796066,0.36849480867385864,-0.3921988308429718,0.8398544192314148]},{"name":"Bone_007","parent":"Bone_008","t":[3.5390257835388184e-8,0.026444071903824806,1.4901161193847656e-8],"q":[0.346700519323349,-0.1436081975698471,-0.4852433204650879,0.7897558808326721]},{"name":"Bone_029","parent":"Bone_007","t":[-2.9182047001086175e-8,0.015267487615346909,1.0113780035680975e-8],"q":[-0.5435627102851868,0.2251516729593277,0.09177827090024948,0.8033822774887085]},{"name":"Bone_028","parent":"Bone_029","t":[-1.4901161193847656e-8,0.03892457112669945,0],"q":[0.22515124082565308,-0.5435627698898315,0.5031804442405701,0.6329739093780518]},{"name":"Bone_027","parent":"Bone_028","t":[1.4427712358155986e-9,0.015267477370798588,-2.2219843742732337e-9],"q":[-7.450580596923828e-9,-1.580506250320468e-7,-3.72529100900465e-8,1]},{"name":"Bone_031","parent":"Bone_007","t":[-0.022901279851794243,-0.02290121279656887,-0.010795723646879196],"q":[-0.6624047160148621,0.2743777632713318,0.2474268227815628,0.6517030596733093]},{"name":"Bone_030","parent":"Bone_031","t":[1.4901161193847656e-8,0.04451199620962143,-2.3283064365386963e-8],"q":[6.472691893577576e-8,-1.3224780559539795e-7,3.725290653733282e-8,1]},{"name":"Bone_034","parent":"Bone_007","t":[-4.1979319576057605e-8,-0.045802462846040726,-0.010795763693749905],"q":[-0.8145613074302673,0.3374028205871582,-0.1805717647075653,0.43593931198120117]},{"name":"Bone_033","parent":"Bone_034","t":[-1.1728388926712796e-8,0.03892458230257034,-2.502427776107652e-8],"q":[0.3875094950199127,-0.4408379793167114,0.2359296679496765,0.774490475654602]},{"name":"Bone_032","parent":"Bone_033","t":[-7.450580596923828e-9,0.015267468057572842,7.450580596923828e-9],"q":[-8.860615707817487e-7,7.972120670274307e-7,-8.797258033155231e-7,1]},{"name":"Bone_011","parent":"Bone_001","t":[-4.656612873077393e-10,-0.37483128905296326,0.2589862048625946],"q":[0.9294054508209229,0,0,0.36906033754348755]},{"name":"Bone_010","parent":"Bone_011","t":[0,0.48855966329574585,2.9802322387695312e-8],"q":[1.4156104555240745e-7,0,0,1]},{"name":"Bone_015","parent":"Bone_001","t":[-0.14034472405910492,0.05712921544909477,-0.10632394999265671],"q":[-0.7550824880599976,0.574705958366394,0.008449751883745193,0.3154236972332001]},{"name":"Bone_014","parent":"Bone_015","t":[-2.2351741790771484e-8,0.210170716047287,8.940696716308594e-8],"q":[0.1923164576292038,-0.07133704423904419,0.18517617881298065,0.9610594511032104]},{"name":"Bone_013","parent":"Bone_014","t":[1.043081283569336e-7,0.2987905442714691,-2.9802322387695312e-8],"q":[-0.37739643454551697,0.0843212902545929,-0.42898663878440857,0.8163530826568604]},{"name":"Bone_012","parent":"Bone_013","t":[5.21540641784668e-8,0.6203560829162598,-4.842877388000488e-8],"q":[8.735806318327377e-7,-9.499490971620617e-8,-6.984920020158825e-8,1]},{"name":"Bone_019","parent":"Bone_001","t":[0.14034470915794373,0.05712921544909477,-0.10632394999265671],"q":[-0.7550825476646423,-0.5747058987617493,-0.008449593558907509,0.3154236376285553]},{"name":"Bone_018","parent":"Bone_019","t":[-2.9802322387695312e-8,0.21017080545425415,6.705522537231445e-8],"q":[0.19231635332107544,0.07133709639310837,-0.18517613410949707,0.9610594511032104]},{"name":"Bone_017","parent":"Bone_018","t":[1.1175870895385742e-8,0.29879069328308105,2.9802322387695312e-8],"q":[-0.3789888620376587,-0.08673231303691864,0.4283749759197235,0.8156836628913879]},{"name":"Bone_016","parent":"Bone_017","t":[1.4901161193847656e-8,0.6352084279060364,-7.450580596923828e-8],"q":[5.317851901054382e-7,1.30385160446167e-7,-3.669410659767891e-7,1]}];
 const BIRD_GROUND_TEMPLATE = [{"name":"Bone_000","parent":null,"t":[0.004967880435287952,0.6934616565704346,-0.01910165697336197],"q":[0,0,0,1]},{"name":"Bone_001","parent":"Bone_000","t":[4.656612873077393e-10,0.21591495001216243,0.2159149201615688],"q":[0,0,0,1]},{"name":"Bone_003","parent":"Bone_001","t":[-4.656612873077393e-10,0.01079561088140002,0.36705539882242133],"q":[0,0,0,1]},{"name":"Bone_002","parent":"Bone_003","t":[0,-0.03238719336330731,0.05397872745606547],"q":[0,0,0,1]},{"name":"Bone_006","parent":"Bone_001","t":[0.11875321716070175,-0.377851255477177,-0.1403447089131968],"q":[0,0,0,1]},{"name":"Bone_005","parent":"Bone_006","t":[0.0431829705915564,-6.098224436534849e-8,0.1079574400010832],"q":[0,0,0,1]},{"name":"Bone_004","parent":"Bone_005","t":[0.010795741872573233,-0.010795717764219614,0.01079577287912506],"q":[0,0,0,1]},{"name":"Bone_021","parent":"Bone_004","t":[0.010795754064704538,2.8050879952168373e-8,-0.010795723111644367],"q":[0,0,0,1]},{"name":"Bone_020","parent":"Bone_021","t":[0.02159156232576731,-0.03238724982119301,1.965624130129129e-8],"q":[0,0,0,1]},{"name":"Bone_023","parent":"Bone_004","t":[0.01079573877414658,-0.01079574881684664,0.03238724838745599],"q":[0,0,0,1]},{"name":"Bone_022","parent":"Bone_023","t":[0.010795751161243539,-0.03238721592022381,0.021591445994594616],"q":[0,0,0,1]},{"name":"Bone_026","parent":"Bone_004","t":[-0.021591495529785176,-0.010795751571417767,0.03238725968678219],"q":[0,0,0,1]},{"name":"Bone_025","parent":"Bone_026","t":[-1.912442990081864e-8,-0.032387194399079,0.021591485798268334],"q":[0,0,0,1]},{"name":"Bone_024","parent":"Bone_025","t":[-3.4337060694777932e-9,-3.495522699070719e-8,0.010795744787984118],"q":[0,0,0,1]},{"name":"Bone_009","parent":"Bone_001","t":[-0.11875322461128235,-0.377851255477177,-0.1403447089131968],"q":[0,0,0,1]},{"name":"Bone_008","parent":"Bone_009","t":[-0.04318296606546612,-2.0199834027678776e-9,0.10795746467881387],"q":[0,0,0,1]},{"name":"Bone_007","parent":"Bone_008","t":[-0.021591500305714162,-0.010795783452170804,0.010795698415630578],"q":[0,0,0,1]},{"name":"Bone_029","parent":"Bone_007","t":[-0.010795765066407031,1.1944502831262582e-8,-0.01079572289837874],"q":[0,0,0,1]},{"name":"Bone_028","parent":"Bone_029","t":[-0.02159149976174332,-0.0323871796870987,5.408323233702106e-9],"q":[0,0,0,1]},{"name":"Bone_027","parent":"Bone_028","t":[-0.01079573861597144,-3.1628935581728967e-9,0.010795736375801446],"q":[0,0,0,1]},{"name":"Bone_031","parent":"Bone_007","t":[-3.2021888418665156e-8,-0.010795769613853867,0.03238723842071273],"q":[0,0,0,1]},{"name":"Bone_030","parent":"Bone_031","t":[-0.021591469352176845,-0.032387241508231024,0.021591506168596536],"q":[0,0,0,1]},{"name":"Bone_034","parent":"Bone_007","t":[0.03238721714305917,-0.010795769185514392,0.03238724489419742],"q":[0,0,0,1]},{"name":"Bone_033","parent":"Bone_034","t":[-6.554360332255982e-9,-0.032387193564851924,0.021591501784203188],"q":[0,0,0,1]},{"name":"Bone_032","parent":"Bone_033","t":[-0.010795756227192227,-0.010795704691277719,-2.258615156014443e-9],"q":[0,0,0,1]},{"name":"Bone_011","parent":"Bone_001","t":[-4.656612873077393e-10,-0.26989381164263626,-0.36705543049725403],"q":[0,0,0,1]},{"name":"Bone_010","parent":"Bone_011","t":[0,-0.3454639506625107,-0.34546379583300535],"q":[0,0,0,1]},{"name":"Bone_015","parent":"Bone_001","t":[-0.14034472405910492,0.10795751877100224,0.05397874004121353],"q":[0,0,0,1]},{"name":"Bone_014","parent":"Bone_015","t":[-0.03303497282706355,0.06963265067726243,-0.170032864758127],"q":[0,0,0,1]},{"name":"Bone_013","parent":"Bone_014","t":[-0.0408079023113104,0.1279295393681137,-0.062075510162899195],"q":[0,0,0,1]},{"name":"Bone_012","parent":"Bone_013","t":[-0.0718996432139985,0.08042806650088918,-0.7530031527410064],"q":[0,0,0,1]},{"name":"Bone_019","parent":"Bone_001","t":[0.14034470915794373,0.10795751877100224,0.05397874004121353],"q":[0,0,0,1]},{"name":"Bone_018","parent":"Bone_019","t":[0.033034980472359976,0.06963271202162424,-0.17003300376928496],"q":[0,0,0,1]},{"name":"Bone_017","parent":"Bone_018","t":[0.04080792052476512,0.12792961042116557,-0.06207553009775754],"q":[0,0,0,1]},{"name":"Bone_016","parent":"Bone_017","t":[0.0738428939484903,0.0788089214054295,-0.7718959847658842],"q":[0,0,0,1]}];
 
+const BIPED_TEMPLATE=[{"name":"Hips","parent":null,"t":[0.3514323830604553,93.1820068359375,2.4681317806243896],"q":[0.09671296924352646,-0.002452216111123562,-0.002452216111123562,0.9953063130378723]},{"name":"LeftUpLeg","parent":"Hips","t":[13.032580375671387,-8.191000938415527,1.481066346168518],"q":[0.9853003621101379,0.08781034499406815,-0.10616007447242737,0.10100791603326797]},{"name":"LeftLeg","parent":"LeftUpLeg","t":[0.0000033974647521972656,34.189334869384766,2.384185791015625e-7],"q":[0.10850117355585098,-0.055730871856212616,-0.0772327184677124,0.9895234704017639]},{"name":"LeftFoot","parent":"LeftLeg","t":[0.0000019073486328125,39.69127655029297,-0.0000022649765014648438],"q":[-0.4542984664440155,-0.000946009939070791,0.13468791544437408,0.8806084394454956]},{"name":"LeftToeBase","parent":"LeftFoot","t":[-0.0000027418136596679688,14.574542045593262,0],"q":[-0.3855721950531006,-0.0604911632835865,-0.02534286119043827,0.9203437566757202]},{"name":"RightUpLeg","parent":"Hips","t":[-12.908900260925293,-8.159860610961914,1.6237926483154297],"q":[0.9856469631195068,-0.08462988585233688,0.10340943187475204,0.10317128896713257]},{"name":"RightLeg","parent":"RightUpLeg","t":[-0.0000039637088775634766,33.6377067565918,0.000003814697265625],"q":[0.11121493577957153,0.0567297525703907,0.07950877398252487,0.988985002040863]},{"name":"RightFoot","parent":"RightLeg","t":[0.0000030994415283203125,40.1825065612793,0.0000019073486328125],"q":[-0.4417993128299713,0.011907439678907394,-0.12506763637065887,0.8882734179496765]},{"name":"RightToeBase","parent":"RightFoot","t":[0.0000019371509552001953,14.98222541809082,-0.000004410743713378906],"q":[-0.3944631814956665,0.07434003800153732,0.03203657642006874,0.9153392910957336]},{"name":"Spine02","parent":"Hips","t":[-0.12368007749319077,10.999615669250488,-3.104846477508545],"q":[-0.13711602985858917,-0.00005171179509488866,0.005469110328704119,0.9905399084091187]},{"name":"Spine01","parent":"Spine02","t":[-4.563480615615845e-8,11.43010139465332,-0.0000012806849554181099],"q":[5.5847531044150855e-9,-3.6525311664092897e-9,3.4488043532121537e-9,1]},{"name":"Spine","parent":"Spine01","t":[-1.7730053514242172e-7,11.430103302001953,-0.0000019598519429564476],"q":[-0.0017833394231274724,-0.0015407655155286193,0.0014293546555563807,0.9999961853027344]},{"name":"LeftShoulder","parent":"Spine","t":[3.552244186401367,6.29480504989624,-0.050733860582113266],"q":[0.5103314518928528,0.5310128927230835,-0.49178457260131836,0.4644729495048523]},{"name":"LeftArm","parent":"LeftShoulder","t":[3.8089638110250235e-9,14.020439147949219,0.000015147325939324219],"q":[0.039191342890262604,0.040778711438179016,0.02576484903693199,0.998066782951355]},{"name":"LeftForeArm","parent":"LeftArm","t":[0.000005304813385009766,22.009174346923828,-0.000017665326595306396],"q":[-0.10903087258338928,-0.09245651960372925,0.19189831614494324,0.9709475636482239]},{"name":"LeftHand","parent":"LeftForeArm","t":[0.00000476837158203125,24.38747787475586,-0.000011682510375976562],"q":[0.10080726444721222,0.07579464465379715,-0.0853658989071846,0.9883348941802979]},{"name":"RightShoulder","parent":"Spine","t":[-3.5200490951538086,6.706518173217773,0.021349482238292694],"q":[0.5101808309555054,-0.5311576724052429,0.4837670624256134,0.47281768918037415]},{"name":"RightArm","parent":"RightShoulder","t":[-1.2110831448808312e-8,14.305038452148438,-4.6763091177126626e-8],"q":[0.059587739408016205,-0.062037091702222824,-0.02625039778649807,0.9959475994110107]},{"name":"RightForeArm","parent":"RightArm","t":[-0.000002205371856689453,20.321115493774414,3.427267074584961e-7],"q":[-0.14492803812026978,0.12108682841062546,-0.1817191243171692,0.9650450944900513]},{"name":"RightHand","parent":"RightForeArm","t":[0.0000017583370208740234,24.665122985839844,-9.5367431640625e-7],"q":[0.10721207410097122,-0.08431710302829742,0.09296943992376328,0.9862823486328125]},{"name":"neck","parent":"Spine","t":[-0.03219477832317352,8.114310264587402,0.029383856803178787],"q":[0.001814943621866405,-0.002171437256038189,0.001979868160560727,0.9999940395355225]},{"name":"Head","parent":"neck","t":[-3.073213861171098e-7,6.582283973693848,0.0000010741398455138551],"q":[0.3823748528957367,0.0001742809545248747,-0.004747908562421799,0.9239950776100159]},{"name":"head_end","parent":"Head","t":[-0.11819514632225037,20.897512435913086,-10.338361740112305],"q":[-0.2276899218559265,-7.532030110724008e-9,0.002603105967864394,0.9737302660942078]},{"name":"headfront","parent":"Head","t":[0.11819534748792648,8.768507957458496,10.338418006896973],"q":[0.4202080965042114,-4.3748038081048435e-8,-0.0048041134141385555,0.9074150323867798]}];
+
 // ===== Bone groupings (from the Character Rigger derivation) =====
 const QUAD_LEGS = [
   {hip:'frontleg',   knee:'frontleg0',   shin:'frontleg1',   foot:'frontleg2',   front:true,  side:'L'},
@@ -161,6 +166,17 @@ const BIRD_WINGS = [['Bone_015','Bone_014','Bone_013','Bone_012'], ['Bone_019','
 const BIRD_LEGS  = [['Bone_006','Bone_005','Bone_004'], ['Bone_009','Bone_008','Bone_007']];
 const BIRD_TAIL  = ['Bone_011','Bone_010'];
 const BIRD_NECK  = ['Bone_003']; const BIRD_HEAD='Bone_002'; const BIRD_BODY='Bone_001';
+// Biped (24-bone) groupings — Left = s:1, Right = s:-1
+const BIPED_LEGS = [
+  {up:'LeftUpLeg',  knee:'LeftLeg',  foot:'LeftFoot',  toe:'LeftToeBase',  s:1},
+  {up:'RightUpLeg', knee:'RightLeg', foot:'RightFoot', toe:'RightToeBase', s:-1},
+];
+const BIPED_ARMS = [
+  {sh:'LeftShoulder',  arm:'LeftArm',  fore:'LeftForeArm',  hand:'LeftHand',  s:1},
+  {sh:'RightShoulder', arm:'RightArm', fore:'RightForeArm', hand:'RightHand', s:-1},
+];
+const BIPED_SPINE = ['Spine02','Spine01','Spine'];
+const B_HEAD='Head', B_NECK='neck', B_LARM=BIPED_ARMS[0], B_RARM=BIPED_ARMS[1], B_LLEG=BIPED_LEGS[0], B_RLEG=BIPED_LEGS[1];
 
 const AX = { x:new THREE.Vector3(1,0,0), y:new THREE.Vector3(0,1,0), z:new THREE.Vector3(0,0,1) };
 const TAU = Math.PI*2, clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -353,14 +369,151 @@ const BIRD_PERCHED_MOTIONS=[
      wingFlap(TAU*(t/0.4)*P.speed,1.2*u,P); setRootY(u*u*0.35*P.amp); sw(BIRD_BODY,AX.x,-0.25*u); }},
 ];
 
+// ===== Biped motions (our own original actions, organized by category) =====
+const ramp=(u,a,b)=>clamp((u-(a||0))/(((b??1)-(a||0))||1),0,1);
+const bump=(u,c,w)=>Math.max(0,1-Math.abs(u-c)/w);              // triangular peak at c, half-width w
+const eio=u=>u<0.5?2*u*u:1-Math.pow(-2*u+2,2)/2;                // ease in/out
+// World-axis pose helpers, relative to a natural standing base. The character faces +Z, so "forward" about
+// world X is a NEGATIVE angle — these helpers make +a mean the intuitive direction.
+const armF =(Ar,a)=>sw(Ar.arm, AX.x, -a);       // +a = raise arm forward / up
+const armO =(Ar,a)=>sw(Ar.arm, AX.z, a*Ar.s);   // +a = raise arm out to the side
+const elb  =(Ar,a)=>sw(Ar.fore, AX.x, a);       // +a = bend elbow (hand comes up/forward)
+const wristW=(Ar,a)=>sw(Ar.hand, AX.x, a);
+const legF =(L,a)=>sw(L.up, AX.x, -a);          // +a = swing thigh forward
+const kneeB=(L,a)=>sw(L.knee, AX.x, a);         // +a = bend knee
+const twist=(a)=>{ sw('Spine02',AX.y,a*0.5); sw('Spine',AX.y,a*0.5); };
+const leanF=(a)=>BIPED_SPINE.forEach(s=>sw(s,AX.x,-a/3));   // +a = lean torso forward
+function bstand(){ resetPose(); armO(B_LARM,-1.4); armO(B_RARM,-1.4); }   // T-pose arms → hanging at the sides
+function guard(A){ bstand(); [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,0.65*A); armO(Ar,0.35*A); elb(Ar,1.7*A); }); kneeB(B_LLEG,0.25*A); kneeB(B_RLEG,0.25*A); leanF(0.1*A); }
+function bipedGait(t,P,dur,o){ o=o||{}; bstand();
+  const legAmp=o.legAmp??0.55,kneeAmp=o.kneeAmp??0.7,armAmp=o.armAmp??0.5,bob=o.bob??0.03,lean=o.lean??0,dir=o.dir??1,footAmp=o.footAmp??0.35,sway=o.sway??0.04,A=P.amp;
+  const cyc=(t/dur)*P.speed,ph=TAU*cyc;
+  BIPED_LEGS.forEach((L,i)=>{ const a=ph+(i?Math.PI:0);
+    legF(L, dir*Math.sin(a)*legAmp*A);
+    const lift=Math.max(0,Math.sin(a+Math.PI*0.6));
+    kneeB(L,lift*kneeAmp*A); sw(L.foot,AX.x,-lift*footAmp*A); });
+  BIPED_ARMS.forEach((Ar,i)=>{ const a=ph+(i?0:Math.PI);
+    armF(Ar, dir*Math.sin(a)*armAmp*A); elb(Ar,(0.25+0.25*Math.sin(a+0.5))*armAmp*A); });
+  sw('Hips',AX.y,Math.sin(ph)*sway*A); sw('Spine02',AX.y,-Math.sin(ph)*sway*1.2*A);
+  if(lean) leanF(lean*A); if(bob) setRootY(Math.abs(Math.sin(ph))*bob*A);
+}
+
+const BIPED_MOTIONS=[
+  // —— Walking ——
+  {id:'stroll', name:'Easy Stroll', cat:'Walking', type:'move', dur:1.2, build:(t,P)=>bipedGait(t,P,1.2,{legAmp:0.45,kneeAmp:0.55,armAmp:0.4,bob:0.025})},
+  {id:'stride', name:'Purposeful Stride', cat:'Walking', type:'move', dur:1.0, build:(t,P)=>bipedGait(t,P,1.0,{legAmp:0.6,kneeAmp:0.68,armAmp:0.55,bob:0.035,lean:0.12})},
+  {id:'creep', name:'Cautious Creep', cat:'Walking', type:'move', dur:1.7, build:(t,P)=>{ bipedGait(t,P,1.7,{legAmp:0.5,kneeAmp:1.0,armAmp:0.15,bob:0.01,footAmp:0.2});
+    [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,0.35*P.amp); elb(Ar,1.0*P.amp); }); leanF(0.3*P.amp); setRootY(-0.06*P.amp); }},
+  {id:'backpedal', name:'Backpedal', cat:'Walking', type:'move', dur:1.1, build:(t,P)=>bipedGait(t,P,1.1,{legAmp:0.45,kneeAmp:0.55,armAmp:0.35,dir:-1,lean:-0.1})},
+  // —— Running ——
+  {id:'jog', name:'Steady Jog', cat:'Running', type:'move', dur:0.72, build:(t,P)=>bipedGait(t,P,0.72,{legAmp:0.7,kneeAmp:1.0,armAmp:0.7,bob:0.06,lean:0.2,footAmp:0.5})},
+  {id:'sprint', name:'Full Sprint', cat:'Running', type:'move', dur:0.56, build:(t,P)=>bipedGait(t,P,0.56,{legAmp:0.9,kneeAmp:1.25,armAmp:0.95,bob:0.09,lean:0.4,footAmp:0.6})},
+  // —— Jumping ——
+  {id:'hop', name:'Bunny Hops', cat:'Jumping', type:'move', dur:0.6, build:(t,P)=>{ bstand(); const u=((t/0.6)*P.speed)%1, h=Math.max(0,Math.sin(Math.PI*u)), c=1-h;
+    setRootY(h*0.28*P.amp); [B_LLEG,B_RLEG].forEach(L=>{ legF(L,-0.15*c*P.amp); kneeB(L,1.0*c*P.amp); sw(L.foot,AX.x,-0.5*h*P.amp); });
+    [B_LARM,B_RARM].forEach(Ar=>armF(Ar,0.4*h*P.amp)); }},
+  {id:'bound', name:'Standing Bound', cat:'Jumping', type:'stay', dur:1.2, build:(t,P)=>{ bstand(); const u=t/1.2, A=P.amp;
+    const crouch=u<0.22?eio(u/0.22):(u>0.8?eio((u-0.8)/0.2):0), h=Math.sin(Math.PI*clamp((u-0.2)/0.6,0,1));
+    setRootY(h*0.6*A - crouch*0.18*A);
+    [B_LLEG,B_RLEG].forEach(L=>{ legF(L,(-crouch*0.35+h*0.15)*A); kneeB(L,crouch*1.3*A); });
+    [B_LARM,B_RARM].forEach(Ar=>armF(Ar,(h*1.6-crouch*0.5)*A)); leanF((crouch*0.3-h*0.2)*A); }},
+  {id:'tuck', name:'Tuck Leap', cat:'Jumping', type:'stay', dur:1.0, build:(t,P)=>{ bstand(); const u=t/1.0, A=P.amp, h=Math.sin(Math.PI*clamp((u-0.1)/0.8,0,1)), tuck=Math.max(0,Math.sin(Math.PI*u));
+    setRootY(h*0.65*A); [B_LLEG,B_RLEG].forEach(L=>{ legF(L,tuck*1.0*A); kneeB(L,tuck*1.4*A); });
+    [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,tuck*0.9*A); elb(Ar,tuck*0.9*A); }); leanF(tuck*0.3*A); }},
+  // —— Climbing ——
+  {id:'climb', name:'Rung Climb', cat:'Climbing', type:'move', dur:1.4, build:(t,P)=>{ bstand(); const cyc=(t/1.4)*P.speed, ph=TAU*cyc, A=P.amp;
+    BIPED_ARMS.forEach((Ar,i)=>{ const a=ph+(i?Math.PI:0), reach=(Math.sin(a)*0.5+0.5);
+      armF(Ar,(1.9+reach*0.6)*A); elb(Ar,(1.0-reach*0.7)*A); });
+    BIPED_LEGS.forEach((L,i)=>{ const a=ph+(i?0:Math.PI), step=(Math.sin(a)*0.5+0.5);
+      legF(L,(0.3+step*0.7)*A); kneeB(L,(0.4+step*0.9)*A); });
+    leanF(0.15*A); setRootY(Math.sin(ph*2)*0.02*A); }},
+  {id:'clamber', name:'Ledge Haul', cat:'Climbing', type:'stay', dur:1.8, build:(t,P)=>{ bstand(); const u=t/1.8, A=P.amp;
+    const reach=ramp(u,0,0.3), pull=ramp(u,0.3,0.75), stand=ramp(u,0.75,1);
+    [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,(2.4*reach - 1.4*pull)*A); elb(Ar,(0.4+1.4*pull)*A); });
+    [B_LLEG,B_RLEG].forEach(L=>{ legF(L,(1.0*pull - 0.9*stand)*A); kneeB(L,(1.3*pull)*A); });
+    setRootY((0.35*pull + 0.05*stand)*A); leanF((0.4*reach - 0.2*stand)*A); }},
+  // —— Boxing ——
+  {id:'boxbounce', name:'Boxer’s Bounce', cat:'Boxing', type:'stay', dur:0.7, build:(t,P)=>{ guard(P.amp); const ph=TAU*(t/0.7)*P.speed;
+    setRootY(Math.abs(Math.sin(ph))*0.05*P.amp); twist(Math.sin(ph)*0.1*P.amp); sw('Hips',AX.y,Math.sin(ph)*0.08*P.amp); }},
+  {id:'jab', name:'Lead Jab', cat:'Boxing', type:'stay', dur:0.6, build:(t,P)=>{ guard(P.amp); const u=(t/0.6*P.speed)%1, p=bump(u,0.4,0.35), A=P.amp;
+    armF(B_LARM,0.35*p*A); elb(B_LARM,-1.6*p*A); twist(-0.18*p*A); }},
+  {id:'cross', name:'Power Cross', cat:'Boxing', type:'stay', dur:0.8, build:(t,P)=>{ guard(P.amp); const u=(t/0.8*P.speed)%1, p=bump(u,0.45,0.4), A=P.amp;
+    armF(B_RARM,0.45*p*A); elb(B_RARM,-1.6*p*A); twist(0.4*p*A); sw('Hips',AX.y,0.25*p*A); }},
+  {id:'uppercut', name:'Rising Uppercut', cat:'Boxing', type:'stay', dur:0.75, build:(t,P)=>{ guard(P.amp); const u=(t/0.75*P.speed)%1, p=bump(u,0.45,0.4), A=P.amp;
+    armF(B_RARM,0.5*p*A); elb(B_RARM,0.4*p*A); twist(0.3*p*A); setRootY(0.06*p*A); leanF(-0.15*p*A); }},
+  // —— Fencing ——
+  {id:'engarde', name:'En Garde', cat:'Fencing', type:'stay', dur:2.0, build:(t,P)=>{ bstand(); const A=P.amp, b=Math.sin(TAU*t/2*P.speed);
+    armF(B_RARM,1.35*A); elb(B_RARM,0.1*A);                       // sword arm forward
+    armF(B_LARM,-0.4*A); armO(B_LARM,1.1*A); elb(B_LARM,1.6*A);   // rear arm up/back
+    kneeB(B_LLEG,0.4*A); kneeB(B_RLEG,0.5*A); sw('Hips',AX.y,-0.25*A); twist(-0.2*A); setRootY(-0.05*A + b*0.01*A); }},
+  {id:'lunge', name:'Fencing Lunge', cat:'Fencing', type:'stay', dur:1.1, build:(t,P)=>{ bstand(); const A=P.amp, p=bump((t/1.1*P.speed)%1,0.5,0.45);
+    armF(B_RARM,(1.35+0.5*p)*A); elb(B_RARM,0.05*A);
+    armF(B_LARM,-0.4*A); armO(B_LARM,(1.1-0.4*p)*A); elb(B_LARM,1.4*A);
+    legF(B_RLEG,0.9*p*A); kneeB(B_RLEG,0.9*p*A); legF(B_LLEG,-0.3*p*A);
+    setRootY(-0.18*p*A); twist(-0.15*A); }},
+  {id:'riposte', name:'Parry – Riposte', cat:'Fencing', type:'stay', dur:1.0, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.0*P.speed)%1;
+    const parry=bump(u,0.3,0.25), thrust=bump(u,0.7,0.25);
+    armF(B_RARM,(1.0+0.6*thrust)*A); armO(B_RARM,0.5*parry*A); elb(B_RARM,(0.5-0.4*thrust)*A);
+    armF(B_LARM,-0.4*A); armO(B_LARM,0.9*A); elb(B_LARM,1.4*A); kneeB(B_RLEG,0.4*A); twist((-0.1-0.25*thrust)*A); }},
+  // —— Football ——
+  {id:'kick', name:'Punt Kick', cat:'Football', type:'stay', dur:1.0, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.0*P.speed)%1;
+    const wind=bump(u,0.3,0.28), strike=ramp(u,0.35,0.6), follow=ramp(u,0.6,0.95);
+    legF(B_RLEG,(-0.6*wind + 1.2*strike)*A); kneeB(B_RLEG,(1.2*wind*(1-strike))*A);
+    kneeB(B_LLEG,0.25*A); armF(B_LARM,0.4*strike*A); armF(B_RARM,-0.3*strike*A);
+    twist(0.2*follow*A); leanF(-0.15*strike*A); }},
+  {id:'throw', name:'Overhand Throw', cat:'Football', type:'stay', dur:1.0, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.0*P.speed)%1;
+    const wind=ramp(u,0,0.4), rel=bump(u,0.55,0.25), follow=ramp(u,0.6,1);
+    armF(B_RARM,(-0.9*wind + 2.6*rel)*A); armO(B_RARM,(0.9*wind - 0.3*rel)*A); elb(B_RARM,(1.4*wind - 0.9*rel)*A);
+    armF(B_LARM,(0.6*wind - 0.4*follow)*A); twist((0.4*wind - 0.5*follow)*A); sw('Hips',AX.y,-0.2*follow*A); legF(B_LLEG,0.3*follow*A); }},
+  // —— Dancing ——
+  {id:'sidestep', name:'Side-Step Groove', cat:'Dancing', type:'stay', dur:1.2, build:(t,P)=>{ bstand(); const A=P.amp, ph=TAU*(t/1.2)*P.speed, s=Math.sin(ph);
+    sw('Hips',AX.z,s*0.12*A); sw('Spine02',AX.z,-s*0.12*A); setRootY(Math.abs(Math.sin(ph*2))*0.03*A);
+    [B_LARM,B_RARM].forEach((Ar,i)=>{ armO(Ar,(0.3+0.25*(i?s:-s))*A); elb(Ar,1.2*A); armF(Ar,0.3+0.2*s*(i?1:-1)*A); });
+    sw(B_HEAD,AX.z,s*0.1*A); }},
+  {id:'raisethroof', name:'Overhead Sway', cat:'Dancing', type:'stay', dur:1.6, build:(t,P)=>{ bstand(); const A=P.amp, s=Math.sin(TAU*(t/1.6)*P.speed);
+    [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,2.6*A); armO(Ar,0.3*A); }); sw('Spine02',AX.z,s*0.14*A); sw('Hips',AX.z,-s*0.1*A);
+    sw(B_HEAD,AX.z,s*0.1*A); setRootY(Math.abs(s)*0.02*A); }},
+  {id:'spin', name:'Spin Flourish', cat:'Dancing', type:'stay', dur:1.4, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.4*P.speed)%1;
+    sw('Hips',AX.y,TAU*eio(u)*A); [B_LARM,B_RARM].forEach(Ar=>{ armO(Ar,1.2*A); armF(Ar,0.15*A); });
+    leanF(0.1*A); setRootY(Math.sin(Math.PI*u)*0.04*A); }},
+  {id:'fistpump', name:'Fist-Pump Celebration', cat:'Dancing', type:'stay', dur:0.8, build:(t,P)=>{ bstand(); const A=P.amp, p=Math.max(0,Math.sin(TAU*(t/0.8)*P.speed));
+    armF(B_RARM,(1.6+1.0*p)*A); elb(B_RARM,(1.5-1.3*p)*A); armF(B_LARM,0.5*A); elb(B_LARM,1.4*A);
+    setRootY(p*0.05*A); leanF(-0.08*p*A); }},
+  // —— Gestures / Idle ——
+  {id:'idle', name:'Relaxed Idle', cat:'Gestures', type:'stay', dur:2.6, build:(t,P)=>{ bstand(); const A=P.amp, b=Math.sin(TAU*t/2.6*P.speed);
+    sw('Spine02',AX.x,-b*0.03*A); setRootY(b*0.008*A); sw(B_HEAD,AX.y,Math.sin(TAU*t/5*P.speed)*0.08*A);
+    [B_LARM,B_RARM].forEach(Ar=>armF(Ar,Math.sin(TAU*t/2.6*P.speed)*0.03*A)); }},
+  {id:'scan', name:'Scan the Horizon', cat:'Gestures', type:'stay', dur:2.8, build:(t,P)=>{ bstand(); const A=P.amp;
+    sw(B_HEAD,AX.y,Math.sin(TAU*t/2.8*P.speed)*0.7*A); sw(B_NECK,AX.y,Math.sin(TAU*t/2.8*P.speed)*0.3*A); sw(B_HEAD,AX.x,Math.sin(TAU*t/1.4*P.speed)*0.1*A); }},
+  {id:'wave', name:'Friendly Wave', cat:'Gestures', type:'stay', dur:1.6, build:(t,P)=>{ bstand(); const A=P.amp;
+    armF(B_RARM,1.6*A); armO(B_RARM,0.5*A); elb(B_RARM,0.9*A); wristW(B_RARM,Math.sin(TAU*t/0.5*P.speed)*0.5*A);
+    sw(B_HEAD,AX.z,0.06*A); }},
+  {id:'nod', name:'Nod Yes', cat:'Gestures', type:'stay', dur:1.2, build:(t,P)=>{ bstand(); sw(B_HEAD,AX.x,(0.25+0.25*Math.sin(TAU*(t/0.6)*P.speed))*P.amp); }},
+  {id:'shake', name:'Shake No', cat:'Gestures', type:'stay', dur:1.2, build:(t,P)=>{ bstand(); sw(B_HEAD,AX.y,Math.sin(TAU*(t/0.6)*P.speed)*0.4*P.amp); }},
+  {id:'sit', name:'Take a Seat', cat:'Gestures', type:'stay', dur:1.6, build:(t,P)=>{ bstand(); const A=P.amp, k=eio(clamp(t/0.9,0,1));
+    [B_LLEG,B_RLEG].forEach(L=>{ legF(L,1.4*k*A); kneeB(L,1.5*k*A); }); setRootY(-0.42*k*A);
+    leanF(-0.1*k*A); [B_LARM,B_RARM].forEach(Ar=>armF(Ar,0.3*k*A)); }},
+  {id:'crouch', name:'Low Crouch', cat:'Gestures', type:'stay', dur:1.4, build:(t,P)=>{ bstand(); const A=P.amp, k=eio(clamp(t/0.7,0,1));
+    [B_LLEG,B_RLEG].forEach(L=>{ legF(L,0.5*k*A); kneeB(L,1.2*k*A); }); setRootY(-0.3*k*A);
+    leanF(0.3*k*A); [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,0.5*k*A); elb(Ar,0.7*k*A); }); }},
+  {id:'stagger', name:'Off-Balance Stagger', cat:'Gestures', type:'stay', dur:1.6, build:(t,P)=>{ bstand(); const A=P.amp, s=Math.sin(TAU*t/1.6*P.speed), s2=Math.sin(TAU*t/0.8*P.speed+1);
+    sw('Hips',AX.z,s*0.14*A); sw('Spine02',AX.z,-s2*0.16*A); sw('Spine02',AX.x,Math.sin(TAU*t/1.1*P.speed)*0.14*A);
+    [B_LARM,B_RARM].forEach((Ar,i)=>armO(Ar,(0.3+0.4*(i?s:-s))*A)); kneeB(B_LLEG,Math.max(0,s)*0.3*A); kneeB(B_RLEG,Math.max(0,-s)*0.3*A); }},
+];
+
+// The biped template is stored in centimetres (Hips y≈93); normalize to metres so the proxy + our metre-scale
+// motion authoring match the quad/bird convention. Quaternions (rest orientation) are kept EXACTLY, so the baked
+// rotations still retarget onto the Rigger's biped characters (the Stitcher rescales positions cm↔m at retarget).
+const BIPED_TEMPLATE_M = BIPED_TEMPLATE.map(b=>({ name:b.name, parent:b.parent, t:[b.t[0]/100,b.t[1]/100,b.t[2]/100], q:b.q.slice() }));
 const RIGS = {
+  biped:       {tpl:BIPED_TEMPLATE_M,      label:'24-bone biped rig (standard humanoid — Hips / spine / arms / legs / head).', motions:BIPED_MOTIONS},
   quad:        {tpl:QUAD_TEMPLATE,         label:'27-bone quadruped rig (Hips / legs / spine / tail).', motions:QUAD_MOTIONS},
   birdFlight:  {tpl:BIRD_TEMPLATE,         label:'35-bone standard bird (UniRig), wings-spread in-flight pose.', motions:BIRD_FLIGHT_MOTIONS},
   birdPerched: {tpl:BIRD_GROUND_TEMPLATE,  label:'35-bone standard bird (UniRig), wings-folded perched pose.', motions:BIRD_PERCHED_MOTIONS},
 };
 
 // ===== State + playback =====
-let rigKey='quad', motion=null, playing=true, looping=true, tNow=0, lastMs=performance.now();
+let rigKey='biped', motion=null, playing=true, looping=true, tNow=0, lastMs=performance.now();
 function P(){ return { speed:parseFloat($('#spd').value)||1, amp:parseFloat($('#amp').value)||1 }; }
 function curDur(){ return parseFloat($('#dur').value)||motion.dur; }
 function setRig(k){
@@ -371,10 +524,15 @@ function setRig(k){
 }
 function renderMotions(){
   const host=$('#mlist'); host.innerHTML='';
-  for(const m of RIGS[rigKey].motions){
-    const row=document.createElement('div'); row.className='mrow'; row.dataset.id=m.id;
-    row.innerHTML=`<span class="mt">${m.name}</span><span class="tag ${m.type}">${m.type}</span>`;
-    row.onclick=()=>selectMotion(m); host.appendChild(row);
+  const motions=RIGS[rigKey].motions;
+  const cats=[]; for(const m of motions){ const c=m.cat||'Other'; if(!cats.includes(c)) cats.push(c); }
+  for(const c of cats){
+    if(cats.length>1){ const h=document.createElement('div'); h.className='mcat'; h.textContent=c; host.appendChild(h); }
+    for(const m of motions.filter(x=>(x.cat||'Other')===c)){
+      const row=document.createElement('div'); row.className='mrow'; row.dataset.id=m.id;
+      row.innerHTML=`<span class="mt">${m.name}</span><span class="tag ${m.type}">${m.type}</span>`;
+      row.onclick=()=>selectMotion(m); host.appendChild(row);
+    }
   }
 }
 function selectMotion(m){
@@ -437,7 +595,7 @@ function addToPack(){
   const id='ra_'+rigKey+'_'+motion.id+'_'+Math.round(D*100)+'_'+Math.round(params.amp*100)+'_'+Math.round(params.speed*100);
   if(pack.motions.some(x=>x.id===id)){ $('#status').textContent='Already in the pack: '+motion.name; return; }
   const entry={ id, name:motion.name+(params.amp!==1||params.speed!==1?' ('+params.speed.toFixed(1)+'× spd, '+params.amp.toFixed(1)+'× amp)':''),
-    type:motion.type, tags:[motion.type, rigKey], sig, duration:D };
+    type:motion.type, tags:[motion.type, rigKey].concat(motion.cat?[motion.cat.toLowerCase()]:[]), cat:motion.cat||'', sig, duration:D };
   const clip=bakeClip(motion, D, params), pose=poseSig(motion, D, params);
   pack.motions.push(entry); pack.clips[id]=clip; pack.poses[id]=pose;
   resetPose();
@@ -465,5 +623,5 @@ $('#scrub').addEventListener('input',()=>{ if(!motion)return; playing=false; $('
 $('#addPack').addEventListener('click',addToPack);
 $('#exportPack').addEventListener('click',exportPack);
 
-resize(); setRig('quad'); applyCam(); requestAnimationFrame(frame);
+resize(); setRig('biped'); applyCam(); requestAnimationFrame(frame);
 </script>
