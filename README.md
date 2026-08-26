@@ -56,11 +56,11 @@ The **Studio** shell ties them together with a menu and a shared in-browser libr
 
 ## A note on the motion library
 
-This edition ships with an **original biped motion library** — **110 actions across 11
+This edition ships with an **original biped motion library** — **150 actions across 15
 categories** (Walking, Running, Jumping, Climbing, Boxing, Fencing, Football,
-Track & Field, Dancing, Household, and everyday Gestures) — all **procedurally generated
-with the 🐾 Animate tool in this suite**, so they're free to distribute. Load a rigged
-biped character in **🎬 Stitch** and they auto-retarget onto it.
+Track & Field, Combat, Sports, Dancing, Household, Work, Emotes, and everyday Gestures) —
+all **procedurally generated with the 🐾 Animate tool in this suite**, so they're free to
+distribute. Load a rigged biped character in **🎬 Stitch** and they auto-retarget onto it.
 
 You can grow the library at any time: make more motions in **🐾 Animate** (biped,
 quadruped or bird), or drop in your own animated `.glb` clips — rigged characters
