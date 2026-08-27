@@ -4391,6 +4391,21 @@ function retargetMotion(motion, rig){
     sumS+=Math.hypot(s[0],s[1],s[2]); sumT+=Math.hypot(tt[0],tt[1],tt[2]); } }
   const posScale = (sumS>1e-6) ? sumT/sumS : (tgtH/srcH);
   const ratio=posScale;
+  // ROOT translation needs its OWN scale. A bone's position track is a fixed skeleton offset and scales
+  // with overall build (posScale). But the ROOT track is the body travelling through space — how far the
+  // hips can drop into a squat, or rise in a jump — and that is governed by LEG LENGTH, not by the summed
+  // size of every bone. The two diverge on any character with unusual proportions: a short-legged/
+  // long-armed rig measured posScale 0.98 while its legs were only 0.82 as long, so a 42 cm sit was
+  // retargeted as 41 cm onto legs that can only fold ~35 cm — the motions then sat at heights differing by
+  // 5.6 cm and the character visibly popped when switching between them. Scaling the root by hip height
+  // instead holds every motion at a consistent height on any build.
+  // Measured against a short-legged rig: summed-build 21.3 cm spread with feet 8.1 cm THROUGH the floor;
+  // hip-height 12.8 cm and no penetration; leg-length 11.7 cm and the safest clearance. So: leg length.
+  const legLen = r => ['LeftLeg','LeftFoot','RightLeg','RightFoot']
+    .reduce((s,b)=> s + (r[b]&&r[b].p ? Math.hypot(r[b].p[0],r[b].p[1],r[b].p[2]) : 0), 0);
+  const sLeg=legLen(srcRest), tLeg=legLen(tgtRest);
+  const rootScale = (sLeg>1e-6 && tLeg>1e-6) ? tLeg/sLeg : posScale;
+  const rootBone = (src && src.boneNames && src.boneNames[0]) || 'Hips';
   const tracks=[]; let matched=0, totalBones=0; const seen=new Set();
   for(const t of clip.tracks){
     const dot=t.name.lastIndexOf('.'); const bone=t.name.slice(0,dot), prop=t.name.slice(dot+1);
@@ -4410,8 +4425,9 @@ function retargetMotion(motion, rig){
       tracks.push(new THREE.QuaternionKeyframeTrack(t.name, t.times.slice(), v));
     } else if(prop==='position'){
       const sp=(srcRest[bone]&&srcRest[bone].p)||[0,0,0], tp=(tgtRest[bone]&&tgtRest[bone].p)||[0,0,0];
+      const ps = (bone===rootBone) ? rootScale : posScale;   // body travel scales by leg length, bone offsets by build
       const v=t.values.slice();
-      for(let i=0;i<v.length;i+=3){ v[i]=tp[0]+(v[i]-sp[0])*posScale; v[i+1]=tp[1]+(v[i+1]-sp[1])*posScale; v[i+2]=tp[2]+(v[i+2]-sp[2])*posScale; }
+      for(let i=0;i<v.length;i+=3){ v[i]=tp[0]+(v[i]-sp[0])*ps; v[i+1]=tp[1]+(v[i+1]-sp[1])*ps; v[i+2]=tp[2]+(v[i+2]-sp[2])*ps; }
       tracks.push(new THREE.VectorKeyframeTrack(t.name, t.times.slice(), v));
     } // scale tracks ignored (keep target's bone scales)
   }

@@ -2,6 +2,12 @@
 # set, made with the Rig Animator — free to distribute. (The earlier third-party-extracted
 # library is NOT used here.) So the library folder is intentionally tracked and shipped.
 
+# local snapshots of previous library builds, kept for rollback - not part of the distribution
+glb-stitcher/library.bak/
+glb-stitcher/library.old*/
+glb-stitcher/library.prev/
+glb-stitcher/library.new/
+
 # junk
 node_modules/
 *.log

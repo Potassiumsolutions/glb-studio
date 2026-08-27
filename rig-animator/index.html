@@ -41,9 +41,10 @@
   .btn:hover{border-color:var(--accent)} .btn.primary{background:var(--accent);border-color:var(--accent);color:#00142e;font-weight:600}
   .btn.primary:disabled{opacity:.5;cursor:not-allowed}
   .btn.ghost{background:transparent}
-  .stage{flex:1;position:relative;background:#000;display:flex;flex-direction:column}
+  .stage{flex:1;position:relative;background:#000;display:flex;flex-direction:column;min-width:0}
+  .cw{flex:1;position:relative;overflow:hidden;min-width:0;min-height:0}
   .cw{flex:1;position:relative;overflow:hidden}
-  canvas{display:block}
+  canvas{display:block;position:absolute;top:0;left:0;width:100%;height:100%}
   .status{position:absolute;left:12px;top:12px;font-size:12px;color:var(--muted);background:rgba(0,0,0,.5);padding:5px 10px;border-radius:8px;max-width:60%}
   .hud{position:absolute;right:12px;top:12px;font-size:11px;color:var(--muted);background:rgba(0,0,0,.5);padding:5px 10px;border-radius:8px;text-align:right;line-height:1.5}
   .scrubber{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--bg);border-top:1px solid var(--line)}
@@ -60,7 +61,7 @@
 <main>
   <aside>
     <div>
-      <h1>🐾 Rig Animator <span class="appver">v1.0.0</span></h1>
+      <h1>🐾 Rig Animator <span class="appver">v1.1.0</span></h1>
       <div class="hint" style="margin-top:0">Procedurally generate original animations for your <b>biped</b>, <b>quadruped</b> and <b>bird</b> rigs — organized by category (boxing, fencing, football, dancing, running, walking, jumping, climbing…) — then export them into the GLB Stitcher motion library.</div>
     </div>
 
@@ -113,7 +114,7 @@
         </g>
       </svg>
       <div>
-        <div><b>Rig Animator</b> v1.0.0 · part of GLB Studio</div>
+        <div><b>Rig Animator</b> v1.1.0 · part of GLB Studio</div>
         <div class="appfoot-sub">© <span class="cred-year">2026</span> Paul A.T. Ramey · <b>KSOL Designs</b> · <a href="https://www.ksoldesigns.com" target="_blank" rel="noopener">ksoldesigns.com</a></div>
       </div>
     </div>
@@ -139,7 +140,7 @@
   "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
 } }
 </script>
-<script src="../Studio/studio-lib.js"></script>
+<script src="../studio/studio-lib.js"></script>
 <script type="module">
 import * as THREE from 'three';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
@@ -215,7 +216,7 @@ function resize(){ const w=cw.clientWidth,h=cw.clientHeight; renderer.setSize(w,
 new ResizeObserver(resize).observe(cw);
 
 // ===== Skeleton + proxy build =====
-let boneByName={}, boneList=[], restLocalQ={}, restWorldQ={}, rigRoot=null, animRoot=null;
+let boneByName={}, boneList=[], restLocalQ={}, restLocalP={}, restWorldQ={}, rigRoot=null, animRoot=null;
 const GIRTH = name=>{
   const n=name.toLowerCase();
   if(/hips|chest|bone_000|bone_001/.test(n)) return 0.12;
@@ -230,7 +231,7 @@ const COL = name=> name.startsWith('R_')||name.startsWith('Right') ? 0xe0894b
                  : 0x9aa4b2;
 function buildRig(tpl){
   if(rigRoot){ scene.remove(rigRoot); }
-  boneByName={}; boneList=[]; restLocalQ={}; restWorldQ={};
+  boneByName={}; boneList=[]; restLocalQ={}; restLocalP={}; restWorldQ={};
   rigRoot=new THREE.Group(); rigRoot.rotation.x=0;
   animRoot=new THREE.Group(); rigRoot.add(animRoot);
   // 1) bones
@@ -238,7 +239,7 @@ function buildRig(tpl){
     const bone=new THREE.Bone(); bone.name=b.name;
     bone.position.set(b.t[0],b.t[1],b.t[2]);
     bone.quaternion.set(b.q[0],b.q[1],b.q[2],b.q[3]);
-    restLocalQ[b.name]=bone.quaternion.clone();
+    restLocalQ[b.name]=bone.quaternion.clone(); restLocalP[b.name]=bone.position.clone();
     boneByName[b.name]=bone; boneList.push(b.name);
     (b.parent && boneByName[b.parent] ? boneByName[b.parent] : animRoot).add(bone);
   }
@@ -269,7 +270,7 @@ function buildRig(tpl){
 }
 
 // ===== Pose authoring API =====
-function resetPose(){ for(const n of boneList) boneByName[n].quaternion.copy(restLocalQ[n]); }
+function resetPose(){ for(const n of boneList){ boneByName[n].quaternion.copy(restLocalQ[n]); boneByName[n].position.copy(restLocalP[n]); } if(animRoot){ animRoot.rotation.set(0,0,0); animRoot.position.set(0,0,0); } }
 const _q=new THREE.Quaternion(), _a=new THREE.Vector3();
 function sw(name, worldAxis, angle){   // rotate `name` by `angle` about a WORLD axis, on top of its rest
   const b=boneByName[name]; if(!b||!angle) return;
@@ -370,9 +371,17 @@ const BIRD_PERCHED_MOTIONS=[
 ];
 
 // ===== Biped motions (our own original actions, organized by category) =====
-const ramp=(u,a,b)=>clamp((u-(a||0))/(((b??1)-(a||0))||1),0,1);
-const bump=(u,c,w)=>Math.max(0,1-Math.abs(u-c)/w);              // triangular peak at c, half-width w
-const eio=u=>u<0.5?2*u*u:1-Math.pow(-2*u+2,2)/2;                // ease in/out
+// ---- Easing primitives ------------------------------------------------------------------
+// The "not smooth" feel of the one-shot actions came from two shared building blocks:
+//   • a LINEAR ramp  → velocity "corners" at the start/end of every windup & follow-through
+//   • a TRIANGULAR bump → velocity reverses INSTANTLY at the apex → a visible snap on every strike
+// Easing both (smoothstep = zero velocity at the ends, rounded apex) smooths ~60 motions at once,
+// while keeping every key pose exactly where it was (ramp still 0→1 over [a,b]; bump still peaks 1 at c).
+const smooth=x=>{ x=clamp(x,0,1); return x*x*(3-2*x); };                              // smoothstep (C1)
+const lramp=(u,a,b)=>clamp((u-(a||0))/(((b??1)-(a||0))||1),0,1);                      // LINEAR 0→1 over [a,b] — kept for the locomotion gaits (unchanged feel)
+const ramp=(u,a,b)=>smooth(lramp(u,a,b));                                             // eased 0→1 — natural accel-in / decel-out for one-shot actions
+const bump=(u,c,w)=>{ const x=Math.max(0,1-Math.abs(u-c)/w); return x*x*(3-2*x); };   // eased triangular peak at c, half-width w — rounded apex (no snap)
+const eio=u=>u<0.5?2*u*u:1-Math.pow(-2*u+2,2)/2;                // ease in/out (quadratic) — unchanged (used by the protected gaits)
 // World-axis pose helpers, relative to a natural standing base. The character faces +Z, so "forward" about
 // world X is a NEGATIVE angle — these helpers make +a mean the intuitive direction.
 const armF =(Ar,a)=>sw(Ar.arm, AX.x, -a);       // +a = raise arm forward / up
@@ -383,21 +392,87 @@ const legF =(L,a)=>sw(L.up, AX.x, -a);          // +a = swing thigh forward
 const legO =(L,a)=>sw(L.up, AX.z, a*L.s);       // +a = abduct thigh outward
 const kneeB=(L,a)=>sw(L.knee, AX.x, a);         // +a = bend knee
 const twist=(a)=>{ sw('Spine02',AX.y,a*0.5); sw('Spine',AX.y,a*0.5); };
-const leanF=(a)=>BIPED_SPINE.forEach(s=>sw(s,AX.x,-a/3));   // +a = lean torso forward
+const leanF=(a)=>BIPED_SPINE.forEach(s=>sw(s,AX.x,a/3));   // +a = lean torso forward (spine points up, so +X rotation tips it forward)
 const leanS=(a)=>BIPED_SPINE.forEach(s=>sw(s,AX.z,a/3));    // +a = lean/bend to the side
-function bstand(){ resetPose(); armO(B_LARM,-1.4); armO(B_RARM,-1.4); }   // T-pose arms → hanging at the sides
-function guard(A){ bstand(); [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,0.65*A); armO(Ar,0.35*A); elb(Ar,1.7*A); }); kneeB(B_LLEG,0.25*A); kneeB(B_RLEG,0.25*A); leanF(0.1*A); }
-function bipedGait(t,P,dur,o){ o=o||{}; bstand();
-  const legAmp=o.legAmp??0.55,kneeAmp=o.kneeAmp??0.7,armAmp=o.armAmp??0.5,bob=o.bob??0.03,lean=o.lean??0,dir=o.dir??1,footAmp=o.footAmp??0.35,sway=o.sway??0.04,knee0=o.knee0??0,A=P.amp;
+const LEG_ADD=0.11;   // rest thighs splay ~11° outward — adduct back toward vertical (natural stance)
+const SHIN_ADD=0.13;  // rest lower-leg (knee→foot) splays outward too — rotate the shin in so the leg reads straight
+const FOOT_FLAT=-0.82, FOOT_TRACK=0.7;   // rest foot is 45° toe-down; level the sole while planted (+ counter leg swing)
+function bstandBare(){ resetPose(); armO(B_LARM,-1.4); armO(B_RARM,-1.4);
+  legO(B_LLEG,-LEG_ADD); legO(B_RLEG,-LEG_ADD);                                   // thighs un-splayed
+  sw(B_LLEG.knee,AX.z,-SHIN_ADD*B_LLEG.s); sw(B_RLEG.knee,AX.z,-SHIN_ADD*B_RLEG.s); }   // shins rotated in → straight legs (feet still at rest tiptoe)
+function bstand(){ bstandBare(); sw(B_LLEG.foot,AX.x,FOOT_FLAT); sw(B_RLEG.foot,AX.x,FOOT_FLAT); }   // + soles flat on the ground (standing base for stationary poses)
+function footStep(L,lift,swing,A){   // roll one foot for custom ground-step motions: sole flat when planted → stays partly cocked through swing (call after bstandBare)
+  const wgt=eio(lramp(lift,0,0.7));                                           // wide, eased → no toe snap
+  sw(L.foot,AX.x, (FOOT_FLAT-swing*FOOT_TRACK*0.55)*(1-wgt) + (FOOT_FLAT*0.55)*wgt); }
+// ===== Anatomical aiming — point a limb SEGMENT along a WORLD direction (physics-based posing) =====
+// Instead of guessing armF/armO constants, we say where each segment should point in world space
+// (derived from the movement's anatomy) and solve the rotation directly.
+const _av1=new THREE.Vector3(), _av2=new THREE.Vector3(), _awq=new THREE.Quaternion();
+function aim(boneName, childName, dir){
+  animRoot.updateMatrixWorld(false);
+  const b=boneByName[boneName], c=boneByName[childName]; if(!b||!c) return;
+  b.getWorldPosition(_av1); c.getWorldPosition(_av2);
+  const cur=_av2.sub(_av1); if(cur.lengthSq()<1e-9) return; cur.normalize();
+  const tgt=dir.clone().normalize();
+  const d=Math.max(-1,Math.min(1,cur.dot(tgt))); if(d>0.99999) return;
+  const axis=new THREE.Vector3().crossVectors(cur,tgt); if(axis.lengthSq()<1e-9) axis.set(0,1,0); axis.normalize();
+  b.getWorldQuaternion(_awq).invert(); const localAxis=axis.applyQuaternion(_awq).normalize();
+  b.quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(localAxis, Math.acos(d)));
+  b.updateMatrixWorld(true);
+}
+const V=(x,y,z)=>new THREE.Vector3(x,y,z);
+const lerpDir=(a,b,t)=>a.clone().lerp(b,t);
+function setArm(Ar,upper,fore){ aim(Ar.arm,Ar.fore,upper); aim(Ar.fore,Ar.hand,fore); }   // orient upper arm then forearm
+// 2-bone inverse kinematics — place the HAND at an exact world point (elbow solved by cosine rule).
+// `pole` biases which way the elbow bends (default down). This is the core "put the hand here" primitive.
+const _ikS=new THREE.Vector3(),_ikE=new THREE.Vector3(),_ikH=new THREE.Vector3(),_ikT=new THREE.Vector3();
+function reachIK(Ar, target, pole){
+  animRoot.updateMatrixWorld(false);
+  boneByName[Ar.arm].getWorldPosition(_ikS); boneByName[Ar.fore].getWorldPosition(_ikE); boneByName[Ar.hand].getWorldPosition(_ikH);
+  const L1=_ikS.distanceTo(_ikE), L2=_ikE.distanceTo(_ikH);
+  const dv=_ikT.copy(target).sub(_ikS); let d=dv.length(); d=Math.max(Math.abs(L1-L2)+0.02, Math.min((L1+L2)*0.999, d));
+  const dir=dv.clone().normalize(); _ikT.copy(_ikS).addScaledVector(dir,d);                 // reachable point on the ray to target
+  const cosA=Math.max(-1,Math.min(1,(L1*L1+d*d-L2*L2)/(2*L1*d))), sinA=Math.sqrt(1-cosA*cosA);
+  let pv=(pole||new THREE.Vector3(0,-1,0)).clone(); pv.sub(dir.clone().multiplyScalar(pv.dot(dir)));
+  if(pv.lengthSq()<1e-6){ pv.set(0,0,1).sub(dir.clone().multiplyScalar(dir.z)); } pv.normalize();
+  const elbowDir=dir.clone().multiplyScalar(cosA).add(pv.multiplyScalar(sinA)).normalize();
+  aim(Ar.arm, Ar.fore, elbowDir);
+  animRoot.updateMatrixWorld(false); boneByName[Ar.fore].getWorldPosition(_ikE);
+  aim(Ar.fore, Ar.hand, _ikT.clone().sub(_ikE).normalize());
+}
+function grip(target, pole){ reachIK(B_LARM, target, pole); reachIK(B_RARM, target, pole); }   // BOTH hands to one point (bat / club / ball)
+function shaft(top, bot, pole){ reachIK(B_RARM, top, pole); reachIK(B_LARM, bot, pole); }        // hands SPACED along a shaft (broom / rake / shovel / rope)
+// Boxing arm configs — world directions, s=Ar.s flips L/R (char faces +Z, +X=left). Elbow down, glove at cheek.
+const BX_GU=s=>V(0.15*s,-0.95,0.12),  BX_GF=s=>V(-0.10*s,0.90,0.35);
+function guardArm(Ar){ setArm(Ar, BX_GU(Ar.s), BX_GF(Ar.s)); }
+function guard(A){ bstand(); guardArm(B_LARM); guardArm(B_RARM); kneeB(B_LLEG,0.25*A); kneeB(B_RLEG,0.25*A); leanF(0.1*A); }
+function bipedGait(t,P,dur,o){ o=o||{}; bstandBare();
+  const legAmp=o.legAmp??0.55,kneeAmp=o.kneeAmp??0.7,armAmp=o.armAmp??0.5,bob=o.bob??0.03,lean=o.lean??0,dir=o.dir??1,footAmp=o.footAmp??0.35,sway=o.sway??0.04,knee0=o.knee0??0,bodyTilt=o.bodyTilt??0,frontKick=o.frontKick??0,hipSway=o.hipSway??sway,shDrive=o.shDrive??0.22,elbow0=o.elbow0??0.25*armAmp,elbowAmp=o.elbowAmp??0.25*armAmp,footTuck=o.footTuck??0,footFront=o.footFront??0.9,footInline=o.footInline??0.4,A=P.amp;
   const cyc=(t/dur)*P.speed,ph=TAU*cyc;
   BIPED_LEGS.forEach((L,i)=>{ const a=ph+(i?Math.PI:0);
-    legF(L, dir*Math.sin(a)*legAmp*A);
+    const swing=dir*Math.sin(a)*legAmp*A;
+    legF(L, swing);
+    legO(L, -Math.abs(swing)*0.22);          // rotate leg inward as it swings (fore OR aft) so feet track under the body
     const lift=Math.max(0,Math.sin(a+Math.PI*0.6));
-    kneeB(L,(knee0+lift*kneeAmp)*A); sw(L.foot,AX.x,-lift*footAmp*A); });
+    const front=Math.max(0,dir*Math.sin(a));                                   // how far the thigh is out in front (0..1)
+    kneeB(L, Math.max(-0.28,(knee0+lift*kneeAmp)*A - front*front*frontKick*A));  // knee straightens (past the rest bend) as the leg reaches forward → leg extends almost full-straight out front
+    let footRot;
+    if(footTuck){ const s=dir*Math.sin(a), c=dir*Math.cos(a);   // sprint ankle
+      const land=eio(clamp(Math.max(0,s)*Math.max(0,-c)*2.2,0,1));   // leg forward AND descending → foot planting out in front
+      const back=clamp(Math.max(0,-s),0,1);                          // leg behind the body → toe-off
+      footRot = ((-footInline)*(1-land) + (-footFront)*land)*(1-back) + 0.12*back; }   // swing: almost in-line w/ leg (toe clears, no stub) → plant in front: parallel to the ground for grip → behind: toe points out
+    else { const wgt=eio(lramp(lift,0,0.5));                   // walk foot roll: heel-strike→flat in stance, LEVEL (slight toe-up) in swing
+      footRot = (FOOT_FLAT-swing*FOOT_TRACK)*(1-wgt) + (FOOT_FLAT-0.30)*wgt; }   // swing foot dorsiflexed (toe up) to counter the bent shin so the sole reads flatter, not a pointed toe
+    sw(L.foot,AX.x, footRot); });
   BIPED_ARMS.forEach((Ar,i)=>{ const a=ph+(i?0:Math.PI);
-    armF(Ar, dir*Math.sin(a)*armAmp*A); elb(Ar,(0.25+0.25*Math.sin(a+0.5))*armAmp*A); });
-  sw('Hips',AX.y,Math.sin(ph)*sway*A); sw('Spine02',AX.y,-Math.sin(ph)*sway*1.2*A);
-  if(lean) leanF(lean*A); if(bob) setRootY(Math.abs(Math.sin(ph))*bob*A);
+    sw(Ar.sh, AX.x, -dir*Math.sin(a)*armAmp*shDrive*A);         // each shoulder joint swings, carrying its arm → fuller motion
+    armF(Ar, dir*Math.sin(a)*armAmp*A); elb(Ar,(elbow0 + elbowAmp*Math.sin(a+0.5))*A); });   // elbow flexes/extends through the swing
+  sw('Hips',AX.y,Math.sin(ph)*hipSway*A);   // pelvis rotates about the vertical axis → legs swing with it (bigger stride)
+  sw('Spine02',AX.y,-Math.sin(ph)*sway*1.7*A); sw('Spine01',AX.y,-Math.sin(ph)*sway*0.8*A);   // shoulder girdle counter-rotates the hips
+  sw(B_NECK,AX.y,Math.sin(ph)*sway*0.9*A); sw(B_HEAD,AX.x,Math.sin(2*ph)*0.03*A); sw(B_HEAD,AX.z,Math.sin(ph)*0.035*A);  // subtle head bob + sway
+  if(lean) sw('Spine02',AX.x, lean*A);   // lean the whole torso forward rigidly from the waist — shoulder sphere, neck & head ride along in the same relationship as Easy Stroll
+  if(bodyTilt&&animRoot) animRoot.rotation.x = bodyTilt*A;   // tilt the ENTIRE rig (hips included) forward about the feet — whole-body sprint lean
+  if(bob) setRootY(Math.abs(Math.sin(ph))*bob*A);
 }
 // side-step locomotion (dir +1 = travels right / -1 = left)
 function bipedStrafe(t,P,dur,dir,o){ o=o||{}; bstand(); const A=P.amp,cyc=(t/dur)*P.speed,ph=TAU*cyc, abd=o.abd??0.22, lift=o.lift??0.35;
@@ -405,175 +480,497 @@ function bipedStrafe(t,P,dur,dir,o){ o=o||{}; bstand(); const A=P.amp,cyc=(t/dur
     legO(L, dir*(0.12+abd*Math.sin(a))*A); kneeB(L, Math.max(0,Math.sin(a))*lift*A); });
   [B_LARM,B_RARM].forEach(Ar=>armO(Ar,0.2*A)); leanS(dir*0.06*A); setRootY(Math.abs(Math.sin(ph*2))*0.02*A);
 }
-// bent-arm horizontal hook (Boxing)
-function hook(Ar,p,A){ armO(Ar,(0.35+0.5*p)*A); elb(Ar,(1.5-0.2*p)*A); armF(Ar,0.35*p*A); }
+// —— Boxing punch primitives (deltas layered on top of guard(); p=0 chambered → p=1 contact) ——
+// Kinetic chain: legs → hips → trunk → shoulder → fist. The fist must reach a target in FRONT of the
+// body on/near the centreline, not flare outward.
+// p=0 chambered (guard) → p=1 contact. Blend guard→contact world directions, then aim.
+// STRAIGHT: both segments point forward (elbow extends) → fist drives to the centreline out front.
+function straight(Ar,p,A){ setArm(Ar, lerpDir(BX_GU(Ar.s),V(-0.10*Ar.s,0.12,1.0),p), lerpDir(BX_GF(Ar.s),V(-0.05*Ar.s,0.05,1.0),p)); }
+// HOOK: upper arm abducts to shoulder height (elbow OUT), forearm stays ~perpendicular and sweeps ACROSS
+//       the front to the centreline → the classic horizontal arc, elbow locked ~90°.
+function hook(Ar,p,A){ setArm(Ar, lerpDir(BX_GU(Ar.s),V(0.55*Ar.s,0.10,0.55),p), lerpDir(BX_GF(Ar.s),V(-0.85*Ar.s,0.12,0.42),p)); }
+// UPPERCUT: forearm swings UP under the chin, upper arm forward-low → fist rises up the centreline.
+function upper(Ar,p,A){ setArm(Ar, lerpDir(BX_GU(Ar.s),V(0.10*Ar.s,-0.15,0.55),p), lerpDir(BX_GF(Ar.s),V(0,0.95,0.5),p)); }
+// —— General arm-reach primitives (from a bstand base; a=0..1) ——
+// ⚠ From bstand the arm hangs down, so armF ALONE barely swings it forward (it mostly twists); forward
+// reach needs armF PAIRED with armO inward. These recipes were found empirically (see MOTION-RESEARCH.md).
+function reachF(Ar,a,A){ armF(Ar,1.2*a*A); armO(Ar,-0.95*a*A); elb(Ar,0.1*a*A); }   // point / thrust forward at shoulder height → hand z≈+0.31
+function reachHigh(Ar,a,A){ armF(Ar,1.5*a*A); armO(Ar,-1.4*a*A); }                    // release forward-and-UP (throws)          → hand z≈+0.40, y≈1.25
+function reachUp(Ar,a,A){ armO(Ar,2.4*a*A); armF(Ar,0.2*a*A); }                       // raise the arm overhead (chop/serve chamber) → hand y≈1.70
+function raiseArm(Ar,a,A){ armO(Ar,1.55*a*A); armF(Ar,0.15*a*A); }                    // arm up to ~head height beside the body (wave/hail) → hand y≈1.3
+function handToHead(Ar,a,A){ armO(Ar,1.6*a*A); elb(Ar,1.95*a*A); armF(Ar,0.3*a*A); }  // bring the hand up to the head/face (salute/drink/facepalm) → y≈1.35
 
+// ===== Refined locomotion — bipedGait + real-gait biomechanics, layered on top =====
+// Calls the PROVEN bipedGait unchanged, then adds — additively (sw() accumulates) — the four things
+// real human gait has that a pure sine leg-swing lacks:
+//   1. Double knee bend — a stance-phase knee dip at weight-acceptance (~15–24°), SEPARATE from the
+//      swing lift. This is the single biggest realism cue: it reads as the leg "taking the weight".
+//   2. Pelvic list / drop — the swing-side hip drops 6–11° (Trendelenburg); lowers the CoM rise so the
+//      body glides instead of pogo-ing.
+//   3. Pelvic tilt — a small ant/post tip, twice per stride.
+//   4. Head leveling — the neck counter-rotates the pelvic list so the head rides steady (like the eyes do).
+// Because bipedGait itself is never modified, every original motion that uses it stays byte-identical.
+function bipedGait2(t,P,dur,o){ o=o||{};
+  bipedGait(t,P,dur,o);
+  const A=P.amp, cyc=(t/dur)*P.speed, ph=TAU*cyc;
+  const list=o.pelvicList??0.09, tiltAmp=o.pelvicTilt??0.025, stanceKnee=o.stanceKnee??0.22;
+  sw('Hips', AX.z, Math.sin(ph)*list*A);                 // pelvic list — swing-side hip drops
+  sw(B_NECK, AX.z, -Math.sin(ph)*list*0.6*A);            // neck counters the list → head stays level
+  sw('Hips', AX.x, Math.sin(2*ph)*tiltAmp*A);            // subtle ant/post pelvic tilt (2× per stride)
+  BIPED_LEGS.forEach((L,i)=>{ const a=ph+(i?Math.PI:0);
+    let d=((a%TAU)+TAU)%TAU;                             // 0..2π  (contact ≈ π/2, toe-off ≈ 3π/2)
+    const load=Math.max(0, 1-Math.abs(d-Math.PI*0.72)/(Math.PI*0.33));   // window early in stance
+    kneeB(L, stanceKnee*A*(load*load*(3-2*load)));       // smoothed weight-acceptance knee flex → the 2nd bend
+  });
+}
+
+// ═════ FOOT-PLANTED GAIT (physics-based locomotion) ═════════════════════════════════════════════
+// Real locomotion is defined by where the FOOT is, not by sine waves on joint angles. The old bipedGait
+// swung the hip and bent the knee on independent sines; the foot was wherever those happened to put it,
+// which measured 10–25 cm ABOVE the floor for most of the cycle (the figure walked on air) and lifted the
+// heel highest while the thigh was still extended behind (a prancing look).
+//
+// Here each leg's ANKLE follows a trajectory and the hip+knee are SOLVED from it (2-bone IK):
+//   • STANCE — the foot is planted. The ground doesn't move, so in an in-place clip the ankle travels
+//     straight backward at constant speed, staying at floor height. Near the end it rises over the toe
+//     (heel-off) exactly as a real foot pivots at push-off.
+//   • SWING  — the ankle lifts into an arc, carries forward past the body and reaches out to land.
+// Because the target IS the floor, the foot can never float, and the knee flexion needed to follow the
+// arc emerges automatically — including the "double knee bend" (a small stance dip at weight-acceptance
+// plus the big swing-phase flexion) which is the strongest realism cue in human gait.
+//
+// Research applied: duty factor separates the gaits (walk ≈0.62 stance, jog ≈0.45, sprint ≈0.32 with a
+// flight phase); the CoM is LOWEST at double support and HIGHEST at midstance — the old code inverted
+// this, raising the body exactly when the spread legs needed it lowest, which is *why* the feet floated;
+// ankle rocker heel-strike → foot-flat → heel-off → toe-off; pelvis rotates ±4° about the vertical and
+// lists ~5° toward the swing side; arms counter-swing with elbow flexion rising with speed.
+const GROUND_ANKLE = 0.110;   // world Y of the ankle joint with the sole flat on the floor (measured)
+const FOOT_LEN = 0.146;       // ankle → toe (measured)
+const _lkH=new THREE.Vector3(),_lkK=new THREE.Vector3(),_lkA=new THREE.Vector3(),_lkT=new THREE.Vector3();
+function legIK(L, target, pole){          // place the ANKLE at a world point; knee bends FORWARD
+  animRoot.updateMatrixWorld(false);
+  boneByName[L.up].getWorldPosition(_lkH); boneByName[L.knee].getWorldPosition(_lkK); boneByName[L.foot].getWorldPosition(_lkA);
+  const L1=_lkH.distanceTo(_lkK), L2=_lkK.distanceTo(_lkA);
+  const dv=_lkT.copy(target).sub(_lkH); let d=dv.length();
+  d=Math.max(Math.abs(L1-L2)+0.02, Math.min((L1+L2)*0.999, d));      // clamp into reach — never hyper-extend
+  const dir=dv.clone().normalize(); _lkT.copy(_lkH).addScaledVector(dir,d);
+  const cosA=clamp((L1*L1+d*d-L2*L2)/(2*L1*d),-1,1), sinA=Math.sqrt(1-cosA*cosA);
+  let pv=(pole||AX.z).clone(); pv.sub(dir.clone().multiplyScalar(pv.dot(dir)));
+  if(pv.lengthSq()<1e-6){ pv.set(0,0,1).sub(dir.clone().multiplyScalar(dir.z)); } pv.normalize();
+  aim(L.up, L.knee, dir.clone().multiplyScalar(cosA).add(pv.multiplyScalar(sinA)).normalize());
+  animRoot.updateMatrixWorld(false); boneByName[L.knee].getWorldPosition(_lkK);
+  aim(L.knee, L.foot, _lkT.clone().sub(_lkK).normalize());
+}
+// Arm swing for locomotion. `armF` alone barely swings the arm forward on this rig (it mostly twists and
+// abducts — raising its amplitude splayed the hand sideways instead of forward), so aim the two segments
+// along world directions instead: the upper arm hangs and tilts fore/aft about the shoulder, the forearm
+// continues along it plus the elbow's flexion. Keeps the swing in the sagittal plane, hand close to the hip.
+//   swing  = shoulder flexion in radians (+ forward). Walking ≈0.35, running ≈0.8.
+//   flex   = elbow flexion in radians. Walking ≈0.35, running ≈1.5 (elbow closes as speed rises).
+//   out    = lateral clearance so the arm doesn't pass through the torso.
+function gaitArm(Ar, swing, flex, out){
+  const s=Ar.s, o=out??0.13, a=swing, b=swing+flex;
+  setArm(Ar, V(o*s, -Math.cos(a), Math.sin(a)), V(o*0.8*s, -Math.cos(b), Math.sin(b)));
+}
+const _gHip=new THREE.Vector3(), _gTgt=new THREE.Vector3(), _gFoot=new THREE.Vector3();
+// Keep the feet PLANTED at fixed spots on the floor while the body moves above them. Squatting, sitting,
+// lunging, bracing and pushing all lower or shift the torso, but the feet do not move — the knees and hips
+// absorb it. Posing those as "drop the root and bend the knee by hand" let the two drift apart and drove
+// the feet through the floor (measured up to 27 cm below it). Pose the BODY first, then call this last.
+//   zL/zR = each foot's world fore/aft position (0 ≈ under the hips; split them for a lunge or a stride)
+//   y     = floor height, or [yL,yR] to raise one foot (a step, a kerb); footY tilts the foot (toe up +)
+function plantFeet(zL, zR, o){
+  o=o||{}; animRoot.updateMatrixWorld(true);
+  const w=o.width??0.078, y=o.y??GROUND_ANKLE, fy=o.footY??0, pick=(v,i)=>Array.isArray(v)?v[i]:v;
+  [[B_LLEG,zL],[B_RLEG,zR]].forEach(([L,z],i)=>{
+    const a=pick(fy,i);
+    // A raised heel pivots the foot over the toe, so the ankle must rise by however far the toe would
+    // otherwise drop below it — the same coupling the gait uses at push-off. Without it, tilting a foot
+    // toe-down drove it straight through the floor.
+    const lift = a<0 ? FOOT_LEN*(-a)/Math.sqrt(1+a*a) : 0;
+    _gTgt.set(L.s*w, pick(y,i)+lift, z);
+    legIK(L, _gTgt, AX.z);
+    aim(L.foot, L.toe, _gFoot.set(0, a, 1));
+  });
+}
+function gaitIK(t,P,dur,o){
+  o=o||{}; const A=P.amp;
+  const strideBase=(o.stride??0.20)*A, duty=o.duty??0.62, clearBase=(o.clear??0.05)*A,
+        hipDrop=(o.hipDrop??0.022)*A, ground=o.ground??GROUND_ANKLE,
+        lean=o.lean??0, dir=o.dir??1, bodyTilt=o.bodyTilt??0, track=o.track??0.62,
+        armSwing=(o.armSwing??0.38)*A, elbow0=o.elbow0??0.32, elbowAmp=o.elbowAmp??0.18,
+        armOut=o.armOut??0.13, shDrive=o.shDrive??0.22,
+        pelvisRot=(o.pelvisRot??0.07)*A, pelvisList=(o.pelvisList??0.05)*A, headBob=o.headBob??1,
+        toeOff=o.toeOff??0.5, strikeUp=o.strikeUp??0.34, swingUp=o.swingUp??0.30;
+  // At push-off the foot pivots over the TOE, so the ankle must rise by exactly the amount the toe would
+  // otherwise drop below it — otherwise the plantarflexed foot drives through the floor. Deriving it from
+  // the toe-off angle keeps the two in lockstep instead of needing a hand-tuned constant per gait.
+  const heelRise = o.heelRise!=null ? o.heelRise*A : FOOT_LEN*toeOff/Math.sqrt(1+toeOff*toeOff);
+  const cyc=(((t/dur)*P.speed)%1+1)%1, ph=TAU*cyc;
+  bstandBare();
+  // Whole-body vertical. Standing height is the CEILING — at midstance the stance leg is straight and the
+  // hip is as high as it can go; the body only ever DIPS from there, deepest at double support when the
+  // legs are spread. (Oscillating above neutral asked the leg to be longer than it is: the IK clamped and
+  // the planted foot lifted off the floor — that showed up as a false "flight phase" in a walk.)
+  setRootY(-(o.crouch??0)*A - hipDrop*0.5*(1+Math.cos(4*Math.PI*(cyc-0.06)))
+           + (o.rootExtra?o.rootExtra(cyc)*A:0));
+  // Whole-body forward lean is applied at the PELVIS, not by rotating the scene root: a root rotation is
+  // not part of the baked skeleton and would be silently lost on export. Tilting Hips carries the torso
+  // AND the legs, and the foot IK below then puts the feet back on the floor underneath the leaning body.
+  if(bodyTilt) sw('Hips',AX.x, bodyTilt*A);
+  if(lean) sw('Spine02',AX.x, lean*A);
+  sw('Hips',AX.y, Math.sin(ph)*pelvisRot*dir);                  // pelvis rotates forward with the swing leg
+  sw('Hips',AX.z, Math.sin(ph)*pelvisList);                     // list — hip drops toward the swing side
+  sw('Spine02',AX.y, -Math.sin(ph)*pelvisRot*1.4*dir);          // shoulder girdle counter-rotates the pelvis
+  sw(B_NECK,AX.z, -Math.sin(ph)*pelvisList*0.6);                // neck levels the head against the list
+  sw(B_HEAD,AX.x, Math.sin(2*ph)*0.025*A*headBob);
+  animRoot.updateMatrixWorld(true);
+  BIPED_ARMS.forEach((Ar,i)=>{ const a=ph+(i?0:Math.PI);        // arms counter-swing the same-side leg
+    sw(Ar.sh, AX.x, -dir*Math.sin(a)*armSwing*shDrive);         // shoulder joint drives with the swing
+    gaitArm(Ar, dir*Math.sin(a)*armSwing + (lean||0)*0.5, (elbow0 + elbowAmp*Math.sin(a+0.5))*A, armOut); });
+  const legMul=o.legMul||null, clearMul=o.clearMul||null;        // per-leg stride/clearance (limp, injury)
+  BIPED_LEGS.forEach((L,i)=>{
+    const u=(cyc+(i?0.5:0))%1;
+    const stride=strideBase*(legMul?legMul[i]:1), clear=clearBase*(clearMul?clearMul[i]:1);
+    let z,y,fs,plant;
+    if(u<duty){ plant=1; fs=u/duty;                              // STANCE — planted, travelling straight back
+      z=stride*(1-2*fs);
+      y=ground + heelRise*smooth(clamp((fs-0.62)/0.38,0,1)); }    // heel lifts, foot pivots over the toe
+    else { plant=0; fs=(u-duty)/(1-duty);                         // SWING — lift, carry forward, reach out
+      z=-stride+2*stride*smooth(fs);
+      // the ankle is already raised by heel-off at toe-off; decay that as the clearance arc takes over,
+      // so ankle height is CONTINUOUS across the stance→swing seam (a step change here drove the toe
+      // through the floor at push-off)
+      y=ground + heelRise*(1-smooth(clamp(fs/0.28,0,1))) + clear*Math.sin(Math.PI*fs); }
+    boneByName[L.up].getWorldPosition(_gHip);
+    _gTgt.set(_gHip.x*track, y, _gHip.z + z*dir);                 // feet track nearer the midline than the hips
+    legIK(L, _gTgt, AX.z);
+    // ankle rocker: heel-strike (toe up) → flat → heel-off/toe-off (toe down) → swing (dorsiflex to clear)
+    let fy;
+    if(plant) fy = fs<0.18 ? strikeUp*(1-fs/0.18) : (fs<0.62 ? 0 : -toeOff*smooth((fs-0.62)/0.38));
+    else { const e=smooth(clamp(fs/0.45,0,1)); fy = -toeOff*(1-e) + swingUp*e; }
+    _gFoot.set(0, fy, 1); aim(L.foot, L.toe, _gFoot);
+  });
+}
+
+// ═════ JUMPING ═══════════════════════════════════════════════════════════════════════════════════
+// A jump has four distinct mechanical phases, and getting their SHAPES right is what sells it:
+//   1. COUNTERMOVEMENT — the body dips and the arms swing back. This is not decoration: pre-stretching
+//      the leg extensors is what lets a human jump appreciably higher than from a static squat.
+//   2. PROPULSION — explosive triple extension (hip, knee, ankle) while the arms swing up and forward;
+//      the arm swing transfers momentum and adds real height.
+//   3. FLIGHT — once the feet leave the floor the centre of mass is BALLISTIC: gravity is constant, so
+//      its path is a parabola. Using a parabola instead of a sine is what makes hang time read correctly
+//      — the body decelerates into the apex and accelerates out of it, so it hangs at the top.
+//   4. LANDING — the feet touch and the knees/hips flex to absorb, dipping BELOW standing height before
+//      recovering. Landing rigid reads as a floaty mistake; the absorption dip is what gives it weight.
+// Returns: y = root height offset, crouch = 0..1 leg-compression amount, air = 0..1 airborne-ness.
+function jumpProfile(u, o){
+  o=o||{};
+  const t0=o.crouchEnd??0.26, t1=o.takeoff??0.36, t2=o.land??0.78, t3=1.0;
+  const dip=o.dip??0.16, h=o.height??0.34, absorb=o.absorb??0.13;
+  // `flight` is 1 ONLY while genuinely airborne. `air` also ramps up through the push-off, for things that
+  // should anticipate the launch (the arm swing). Posing the legs off `air` instead of `flight` tucked them
+  // up while the feet were still driving against the floor, which put them through it.
+  if(u<t0){ const s=smooth(u/t0);            return {y:-dip*s,        crouch:s,   air:0, flight:0, land:0, s}; }
+  if(u<t1){ const s=smooth((u-t0)/(t1-t0));  return {y:-dip*(1-s),    crouch:1-s, air:s, flight:0, land:0, s}; }
+  if(u<t2){ const s=(u-t1)/(t2-t1);          return {y:h*4*s*(1-s),   crouch:0,   air:1, flight:1, land:0, s}; }
+  const s=Math.sin(Math.PI*clamp((u-t2)/(t3-t2),0,1));
+  return {y:-absorb*s, crouch:s, air:0, flight:0, land:1, s};
+}
+// Airborne foot attitude: the toes point most at the apex and dorsiflex again to meet the floor. Ramping
+// it across the flight phase (rather than snapping to a fixed point angle) avoids a visible pop at the
+// instant the foot leaves the ground, and gets the toes up ready for the landing.
+function airFoot(L, s, point, fwd){
+  aim(L.foot, L.toe, V(0, -point*Math.sin(Math.PI*clamp(s,0,1)), fwd??0.9));
+}
 const BIPED_MOTIONS=[
   // —— Walking ——
-  {id:'stroll', name:'Easy Stroll', cat:'Walking', type:'move', dur:1.2, build:(t,P)=>bipedGait(t,P,1.2,{legAmp:0.45,kneeAmp:0.55,armAmp:0.4,bob:0.025})},
-  {id:'stride', name:'Purposeful Stride', cat:'Walking', type:'move', dur:1.0, build:(t,P)=>bipedGait(t,P,1.0,{legAmp:0.6,kneeAmp:0.68,armAmp:0.55,bob:0.035,lean:0.12})},
-  {id:'brisk', name:'Brisk Walk', cat:'Walking', type:'move', dur:0.85, build:(t,P)=>bipedGait(t,P,0.85,{legAmp:0.62,kneeAmp:0.7,armAmp:0.62,bob:0.04,lean:0.16})},
-  {id:'creep', name:'Cautious Creep', cat:'Walking', type:'move', dur:1.7, build:(t,P)=>{ bipedGait(t,P,1.7,{legAmp:0.5,kneeAmp:1.0,armAmp:0.15,bob:0.01,footAmp:0.2});
-    [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,0.35*P.amp); elb(Ar,1.0*P.amp); }); leanF(0.3*P.amp); setRootY(-0.06*P.amp); }},
-  {id:'backpedal', name:'Backpedal', cat:'Walking', type:'move', dur:1.1, build:(t,P)=>bipedGait(t,P,1.1,{legAmp:0.45,kneeAmp:0.55,armAmp:0.35,dir:-1,lean:-0.1})},
-  {id:'trudge', name:'Weary Trudge', cat:'Walking', type:'move', dur:1.5, build:(t,P)=>{ bipedGait(t,P,1.5,{legAmp:0.4,kneeAmp:0.7,armAmp:0.25,bob:0.02,lean:0.22});
-    sw(B_HEAD,AX.x,0.35*P.amp); [B_LARM,B_RARM].forEach(Ar=>armF(Ar,-0.1*P.amp)); }},
-  {id:'strut', name:'Confident Strut', cat:'Walking', type:'move', dur:1.0, build:(t,P)=>{ bipedGait(t,P,1.0,{legAmp:0.55,kneeAmp:0.6,armAmp:0.6,bob:0.05,sway:0.08});
-    sw('Spine02',AX.x,-0.08*P.amp); sw(B_HEAD,AX.x,-0.06*P.amp); }},
-  {id:'limp', name:'Injured Limp', cat:'Walking', type:'move', dur:1.4, build:(t,P)=>{ bstand(); const A=P.amp,cyc=(t/1.4)*P.speed,ph=TAU*cyc;
-    // right leg stiff (short step, small bend), left normal; dip on the right stance
-    legF(B_LLEG,Math.sin(ph)*0.5*A); legF(B_RLEG,-Math.sin(ph)*0.28*A);
-    kneeB(B_LLEG,Math.max(0,Math.sin(ph+Math.PI*0.6))*0.7*A); kneeB(B_RLEG,0.15*A);
-    const dip=Math.max(0,Math.sin(ph)); setRootY(-dip*0.05*A); leanS(-dip*0.12*A); leanF(0.15*A);
-    armF(B_LARM,-Math.sin(ph)*0.3*A); armF(B_RARM,Math.sin(ph)*0.2*A); }},
+  // Walking = duty factor > 0.5 (always at least one foot down; no flight phase). Stride, cadence, arm
+  // swing and elbow flexion all scale together with intent/speed — that's what separates these.
+  {id:'stroll', name:'Easy Stroll', cat:'Walking', type:'move', dur:1.2, build:(t,P)=>gaitIK(t,P,1.2,{stride:0.22,duty:0.64,clear:0.045,hipDrop:0.022,armSwing:0.30,elbow0:0.24,pelvisRot:0.06,pelvisList:0.045})},
+  {id:'stride', name:'Purposeful Stride', cat:'Walking', type:'move', dur:1.0, build:(t,P)=>gaitIK(t,P,1.0,{stride:0.28,duty:0.62,clear:0.055,hipDrop:0.028,lean:0.10,armSwing:0.46,elbow0:0.34,pelvisRot:0.08})},
+  {id:'brisk', name:'Brisk Walk', cat:'Walking', type:'move', dur:0.85, build:(t,P)=>gaitIK(t,P,0.85,{stride:0.29,duty:0.60,clear:0.06,hipDrop:0.030,lean:0.13,armSwing:0.56,elbow0:0.44,elbowAmp:0.22,pelvisRot:0.09})},
+  // Sneaking: body low over bent knees, weight carried over a long stance so each foot can be placed
+  // deliberately (high duty), toes set down first rather than the heel (hence no heel-strike roll), and
+  // very little arm swing — a creeping human holds the arms still for balance and quiet.
+  // All sub-cycles are whole fractions of dur so the loop closes cleanly.
+  {id:'creep', name:'Cautious Creep', cat:'Walking', type:'move', dur:1.8, build:(t,P)=>{ const A=P.amp;
+    gaitIK(t,P,1.8,{stride:0.17,duty:0.72,clear:0.055,hipDrop:0.012,crouch:0.15,lean:0.16,
+      armSwing:0.10,elbow0:1.05,elbowAmp:0.05,armOut:0.20,shDrive:0.1,pelvisRot:0.04,pelvisList:0.03,
+      strikeUp:0.02,toeOff:0.22,swingUp:0.10});                            // toe-first placement, no heel roll
+    sw('Spine02',AX.x,0.10*A); sw('Spine01',AX.x,0.10*A);                  // hunch the upper back over
+    const scan=Math.sin(TAU*(t/1.8)*P.speed);                              // head scans, one full sweep per loop
+    sw(B_NECK,AX.y,scan*0.55*A); sw(B_HEAD,AX.y,scan*0.45*A); sw(B_HEAD,AX.x,0.26*A); }},
+  // Walking backwards: the foot reaches back with the TOE and rolls onto the heel — the opposite of the
+  // forward heel-strike roll — so the ankle stays near flat throughout, and the stride is shorter because
+  // you can't see where you're going.
+  {id:'backpedal', name:'Backpedal', cat:'Walking', type:'move', dur:1.1, build:(t,P)=>gaitIK(t,P,1.1,{stride:0.19,duty:0.64,clear:0.05,hipDrop:0.02,dir:-1,lean:-0.06,armSwing:0.26,elbow0:0.30,pelvisRot:0.05,strikeUp:0.05,toeOff:0.15,swingUp:0.12})},
+  // Exhaustion: short shuffling steps, minimal foot clearance (feet barely leave the floor), a long
+  // stance (reluctant to lift), heavy forward slump and almost no arm swing.
+  {id:'trudge', name:'Weary Trudge', cat:'Walking', type:'move', dur:1.5, build:(t,P)=>{ const A=P.amp;
+    gaitIK(t,P,1.5,{stride:0.175,duty:0.70,clear:0.022,hipDrop:0.026,lean:0.24,armSwing:0.14,elbow0:0.34,
+      elbowAmp:0.04,pelvisRot:0.035,pelvisList:0.055,strikeUp:0.10,toeOff:0.28});
+    sw(B_HEAD,AX.x,0.34*A); sw('Spine01',AX.x,0.10*A); }},                 // head hangs, upper back slumped
+  // Swagger: exaggerated pelvic rotation and list (the "roll"), a taller bouncier CoM rise, chest up.
+  {id:'strut', name:'Confident Strut', cat:'Walking', type:'move', dur:1.0, build:(t,P)=>{ const A=P.amp;
+    gaitIK(t,P,1.0,{stride:0.26,duty:0.60,clear:0.065,hipDrop:0.038,armSwing:0.50,elbow0:0.42,
+      pelvisRot:0.14,pelvisList:0.095,armOut:0.18});
+    sw('Spine02',AX.x,-0.09*A); sw(B_HEAD,AX.x,-0.06*A); }},               // chest lifted, chin up
+  // Antalgic (pain-avoiding) gait — the clinical pattern: stance on the injured side is CUT SHORT to get
+  // the weight off it, the sound leg takes a longer step, the injured leg takes a short stiff one that
+  // barely leaves the floor, and the trunk lurches over the bad side while it is loaded.
+  {id:'limp', name:'Injured Limp', cat:'Walking', type:'move', dur:1.4, build:(t,P)=>{ const A=P.amp;
+    const load=c=>Math.max(0,-Math.sin(TAU*c));                            // right (injured) leg bearing weight
+    gaitIK(t,P,1.4,{stride:0.24,duty:0.60,clear:0.055,hipDrop:0.02,lean:0.14,armSwing:0.26,elbow0:0.35,
+      pelvisRot:0.05,pelvisList:0.03, legMul:[1,0.42], clearMul:[1,0.30],   // right leg = the injured one
+      rootExtra:c=>-load(c)*0.045});                                       // dip onto the bad leg (before the
+    const ld=load(((t/1.4)*P.speed)%1);                                    //  leg IK, so the feet stay planted)
+    leanS(-ld*0.16*A); sw('Spine02',AX.z,-ld*0.06*A); }},                  // trunk lurches over the bad side
   {id:'shuffleL', name:'Side Shuffle Left', cat:'Walking', type:'move', dur:0.9, build:(t,P)=>bipedStrafe(t,P,0.9,-1)},
   {id:'shuffleR', name:'Side Shuffle Right', cat:'Walking', type:'move', dur:0.9, build:(t,P)=>bipedStrafe(t,P,0.9,1)},
   // —— Running ——
-  {id:'jog', name:'Steady Jog', cat:'Running', type:'move', dur:0.72, build:(t,P)=>bipedGait(t,P,0.72,{legAmp:0.7,kneeAmp:1.0,armAmp:0.7,bob:0.06,lean:0.2,footAmp:0.5})},
-  {id:'run', name:'Distance Run', cat:'Running', type:'move', dur:0.64, build:(t,P)=>bipedGait(t,P,0.64,{legAmp:0.8,kneeAmp:1.1,armAmp:0.8,bob:0.075,lean:0.28,footAmp:0.55})},
-  {id:'sprint', name:'Full Sprint', cat:'Running', type:'move', dur:0.56, build:(t,P)=>bipedGait(t,P,0.56,{legAmp:0.9,kneeAmp:1.25,armAmp:0.95,bob:0.09,lean:0.42,footAmp:0.6})},
-  {id:'runback', name:'Backward Run', cat:'Running', type:'move', dur:0.68, build:(t,P)=>bipedGait(t,P,0.68,{legAmp:0.65,kneeAmp:1.0,armAmp:0.6,dir:-1,lean:-0.18,bob:0.05})},
-  {id:'skip', name:'Power Skip', cat:'Running', type:'move', dur:0.7, build:(t,P)=>{ bipedGait(t,P,0.7,{legAmp:0.6,kneeAmp:1.1,armAmp:0.7,lean:0.1});
-    setRootY(Math.abs(Math.sin(TAU*(t/0.7)*P.speed))*0.12*P.amp); }},
+  // Running = duty factor < 0.5, which produces a FLIGHT phase (neither foot down) — the real definition
+  // that separates a run from a walk. As speed rises: duty falls, stride and knee lift grow, the trunk
+  // leans further forward, and the elbows close toward 90°. The ankle also stops heel-striking and lands
+  // flatter/forefoot, so these use a small strikeUp and a big toe-off.
+  {id:'jog', name:'Steady Jog', cat:'Running', type:'move', dur:0.72, build:(t,P)=>gaitIK(t,P,0.72,{stride:0.29,duty:0.46,clear:0.11,hipDrop:0.034,lean:0.11,bodyTilt:0.06,armSwing:0.66,elbow0:1.25,elbowAmp:0.24,shDrive:0.40,pelvisRot:0.09,strikeUp:0.12,toeOff:0.62,swingUp:0.34})},
+  {id:'run', name:'Distance Run', cat:'Running', type:'move', dur:0.64, build:(t,P)=>gaitIK(t,P,0.64,{stride:0.33,duty:0.43,clear:0.135,hipDrop:0.038,lean:0.15,bodyTilt:0.09,armSwing:0.82,elbow0:1.42,elbowAmp:0.28,shDrive:0.45,pelvisRot:0.10,strikeUp:0.08,toeOff:0.68,swingUp:0.36})},
+  {id:'sprint', name:'Full Sprint', cat:'Running', type:'move', dur:0.56, build:(t,P)=>gaitIK(t,P,0.56,{stride:0.38,duty:0.34,clear:0.19,hipDrop:0.045,lean:0.20,bodyTilt:0.16,armSwing:1.05,elbow0:1.55,elbowAmp:0.32,shDrive:0.60,pelvisRot:0.13,strikeUp:0.02,toeOff:0.80,swingUp:0.42,armOut:0.11})},
+  {id:'windsprint', name:'Wind Sprint', cat:'Running', type:'move', dur:0.48, build:(t,P)=>gaitIK(t,P,0.48,{stride:0.355,duty:0.36,clear:0.175,hipDrop:0.042,lean:0.18,bodyTilt:0.14,armSwing:0.98,elbow0:1.5,elbowAmp:0.3,shDrive:0.56,pelvisRot:0.12,strikeUp:0.03,toeOff:0.76,swingUp:0.40})},
+  {id:'cooljog', name:'Cool-Down Jog', cat:'Running', type:'move', dur:0.9, build:(t,P)=>gaitIK(t,P,0.9,{stride:0.24,duty:0.48,clear:0.085,hipDrop:0.030,lean:0.06,armSwing:0.52,elbow0:1.10,elbowAmp:0.2,shDrive:0.34,pelvisRot:0.075,strikeUp:0.16,toeOff:0.54,swingUp:0.30})},
+  {id:'runback', name:'Backward Run', cat:'Running', type:'move', dur:0.68, build:(t,P)=>gaitIK(t,P,0.68,{stride:0.25,duty:0.45,clear:0.10,hipDrop:0.032,dir:-1,lean:-0.12,armSwing:0.60,elbow0:1.25,elbowAmp:0.2,shDrive:0.40,pelvisRot:0.07,strikeUp:0.05,toeOff:0.20,swingUp:0.16})},
+  // Skipping: a step-hop on the same leg — an extra flight hop on top of the run cycle, so the CoM rises
+  // twice as far as a run and the trailing knee drives high.
+  {id:'skip', name:'Power Skip', cat:'Running', type:'move', dur:0.7, build:(t,P)=>gaitIK(t,P,0.7,
+    {stride:0.24,duty:0.44,clear:0.16,hipDrop:0.03,lean:0.07,armSwing:0.70,elbow0:1.2,
+     elbowAmp:0.25,shDrive:0.42,pelvisRot:0.08,strikeUp:0.06,toeOff:0.66,swingUp:0.38,
+     rootExtra:c=>Math.abs(Math.sin(TAU*c))*0.09})},                       // the extra step-hop, lifted before
+                                                                           // the IK so the airborne foot follows
+  // "Set" position: hips ABOVE shoulder height, weight forward over the hands, front shin loaded — then the
+  // whole body drives out low and long. The first strides are almost horizontal, which is why the torso
+  // stays down rather than popping upright.
   {id:'sprintstart', name:'Sprinter’s Start', cat:'Running', type:'stay', dur:1.1, build:(t,P)=>{ bstand(); const A=P.amp, u=t/1.1;
     const set=ramp(u,0,0.3), go=ramp(u,0.35,0.8);
-    legF(B_LLEG,(0.9*set - 0.5*go)*A); kneeB(B_LLEG,(1.2*set)*A); legF(B_RLEG,(-0.7*set + 1.0*go)*A); kneeB(B_RLEG,(0.9*set*(1-go))*A);
-    leanF((0.7*set - 0.2*go)*A); [B_LARM,B_RARM].forEach((Ar,i)=>armF(Ar,(i?0.9:-0.9)*(set+go*0.5)*A)); setRootY(-0.15*set*A + 0.1*go*A); }},
-  {id:'highknees', name:'High-Knees Drill', cat:'Running', type:'move', dur:0.55, build:(t,P)=>{ bstand(); const A=P.amp,ph=TAU*(t/0.55)*P.speed;
-    BIPED_LEGS.forEach((L,i)=>{ const a=ph+(i?Math.PI:0), k=Math.max(0,Math.sin(a)); legF(L,k*1.1*A); kneeB(L,k*1.5*A); });
-    BIPED_ARMS.forEach((Ar,i)=>{ armF(Ar,Math.sin(ph+(i?0:Math.PI))*0.6*A); elb(Ar,1.3*A); });
-    setRootY(Math.abs(Math.sin(ph))*0.05*A); leanF(0.1*A); }},
+    setRootY((-0.30*set + 0.20*go)*A); animRoot.position.z += (0.10*set + 0.18*go)*A;
+    leanF((0.85*set - 0.30*go)*A);
+    plantFeet(-0.30-0.14*go*A, 0.02, {width:0.070, footY:[-0.35*set,0.10*set],
+      y:[GROUND_ANKLE+0.10*go*A, GROUND_ANKLE]});                          // rear foot drives off, then lifts
+    animRoot.updateMatrixWorld(true);
+    // hands on the track in the set position, then swing through as the body launches
+    gaitArm(B_LARM,(-0.9*set + 1.2*go)*A,(0.3+0.5*go)*A,0.13);
+    gaitArm(B_RARM,( 0.9*set - 1.0*go)*A,(0.3+0.7*go)*A,0.13); }},
+  {id:'highknees', name:'High-Knees Drill', cat:'Running', type:'move', dur:0.55, build:(t,P)=>{ bstand(); const A=P.amp;
+    const c=((t/0.55)*P.speed)%1, ph=TAU*c;
+    setRootY((-0.04 + Math.abs(Math.sin(ph))*0.05)*A); leanF(0.10*A);
+    BIPED_ARMS.forEach((Ar,i)=>gaitArm(Ar, Math.sin(ph+(i?0:Math.PI))*0.55*A, 1.35*A, 0.13));
+    animRoot.updateMatrixWorld(true);
+    BIPED_LEGS.forEach((L,i)=>{ const k=Math.max(0,Math.sin(ph+(i?Math.PI:0)));
+      if(k>0.12){ legF(L,k*1.30*A); kneeB(L,k*1.75*A); airFoot(L,k,0.45); }   // knee driven to hip height
+      else { legIK(L, V(L.s*0.070, GROUND_ANKLE+0.035, 0.02), AX.z);          // support leg — up on the ball
+        aim(L.foot, L.toe, V(0,-0.26,1)); } }); }},                           //   of the foot, as in the drill
   {id:'carioca', name:'Carioca Grapevine', cat:'Running', type:'move', dur:0.8, build:(t,P)=>{ bstand(); const A=P.amp,ph=TAU*(t/0.8)*P.speed;
     BIPED_LEGS.forEach((L,i)=>{ const a=ph+(i?Math.PI:0); legO(L,0.2*Math.sin(a)*A); legF(L,0.25*Math.cos(a)*A); kneeB(L,Math.max(0,Math.sin(a))*0.5*A); });
     twist(Math.sin(ph)*0.2*A); [B_LARM,B_RARM].forEach(Ar=>armO(Ar,0.5*A)); }},
-  {id:'cooljog', name:'Cool-Down Jog', cat:'Running', type:'move', dur:0.9, build:(t,P)=>bipedGait(t,P,0.9,{legAmp:0.45,kneeAmp:0.7,armAmp:0.4,bob:0.04,lean:0.08})},
-  {id:'windsprint', name:'Wind Sprint', cat:'Running', type:'move', dur:0.48, build:(t,P)=>bipedGait(t,P,0.48,{legAmp:0.85,kneeAmp:1.2,armAmp:0.95,bob:0.08,lean:0.5,footAmp:0.6})},
   // —— Jumping ——
-  {id:'hop', name:'Bunny Hops', cat:'Jumping', type:'move', dur:0.6, build:(t,P)=>{ bstand(); const u=((t/0.6)*P.speed)%1, h=Math.max(0,Math.sin(Math.PI*u)), c=1-h;
-    setRootY(h*0.28*P.amp); [B_LLEG,B_RLEG].forEach(L=>{ legF(L,-0.15*c*P.amp); kneeB(L,1.0*c*P.amp); sw(L.foot,AX.x,-0.5*h*P.amp); });
-    [B_LARM,B_RARM].forEach(Ar=>armF(Ar,0.4*h*P.amp)); }},
-  {id:'bound', name:'Standing Bound', cat:'Jumping', type:'stay', dur:1.2, build:(t,P)=>{ bstand(); const u=t/1.2, A=P.amp;
-    const crouch=u<0.22?eio(u/0.22):(u>0.8?eio((u-0.8)/0.2):0), h=Math.sin(Math.PI*clamp((u-0.2)/0.6,0,1));
-    setRootY(h*0.6*A - crouch*0.18*A);
-    [B_LLEG,B_RLEG].forEach(L=>{ legF(L,(-crouch*0.35+h*0.15)*A); kneeB(L,crouch*1.3*A); });
-    [B_LARM,B_RARM].forEach(Ar=>armF(Ar,(h*1.6-crouch*0.5)*A)); leanF((crouch*0.3-h*0.2)*A); }},
-  {id:'tuck', name:'Tuck Leap', cat:'Jumping', type:'stay', dur:1.0, build:(t,P)=>{ bstand(); const u=t/1.0, A=P.amp, h=Math.sin(Math.PI*clamp((u-0.1)/0.8,0,1)), tuck=Math.max(0,Math.sin(Math.PI*u));
-    setRootY(h*0.65*A); [B_LLEG,B_RLEG].forEach(L=>{ legF(L,tuck*1.0*A); kneeB(L,tuck*1.4*A); });
-    [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,tuck*0.9*A); elb(Ar,tuck*0.9*A); }); leanF(tuck*0.3*A); }},
-  {id:'longjump', name:'Long Jump', cat:'Jumping', type:'stay', dur:1.3, build:(t,P)=>{ bstand(); const u=t/1.3,A=P.amp, crouch=u<0.2?eio(u/0.2):0, h=Math.sin(Math.PI*clamp((u-0.2)/0.7,0,1)), land=ramp(u,0.85,1);
-    setRootY(h*0.4*A - crouch*0.15*A);
-    legF(B_LLEG,(0.6*h - 0.3*crouch + 0.5*land)*A); legF(B_RLEG,(0.5*h - 0.3*crouch + 0.5*land)*A);
-    [B_LLEG,B_RLEG].forEach(L=>kneeB(L,(crouch*1.0 + land*0.8)*A));
-    [B_LARM,B_RARM].forEach(Ar=>armF(Ar,(h*1.8 - crouch*0.4)*A)); leanF((0.4*h + 0.3*land)*A); }},
-  {id:'squatjump', name:'Squat Jump', cat:'Jumping', type:'move', dur:0.9, build:(t,P)=>{ bstand(); const u=((t/0.9)*P.speed)%1,A=P.amp, h=Math.max(0,Math.sin(Math.PI*clamp((u-0.1)/0.7,0,1))), c=u<0.15?u/0.15:(u>0.8?(u-0.8)/0.2:0);
-    setRootY(h*0.35*A - c*0.28*A); [B_LLEG,B_RLEG].forEach(L=>{ kneeB(L,c*1.6*A); legF(L,-c*0.4*A); });
-    [B_LARM,B_RARM].forEach(Ar=>armF(Ar,(h*1.2 - c*0.3)*A)); leanF(c*0.3*A); }},
-  {id:'jack', name:'Jumping Jacks', cat:'Jumping', type:'move', dur:0.8, build:(t,P)=>{ bstand(); const A=P.amp, o=Math.max(0,Math.sin(TAU*(t/0.8)*P.speed)), h=Math.abs(Math.sin(TAU*(t/0.8)*P.speed));
-    [B_LLEG,B_RLEG].forEach(L=>legO(L,o*0.5*A)); [B_LARM,B_RARM].forEach(Ar=>armO(Ar,o*2.3*A)); setRootY(h*0.06*A); }},
-  {id:'onefoot', name:'One-Foot Hops', cat:'Jumping', type:'move', dur:0.55, build:(t,P)=>{ bstand(); const u=((t/0.55)*P.speed)%1,A=P.amp,h=Math.max(0,Math.sin(Math.PI*u));
-    setRootY(h*0.22*A); legF(B_RLEG,0.5*A); kneeB(B_RLEG,1.1*A); kneeB(B_LLEG,(1-h)*0.9*A);
-    armF(B_LARM,h*0.5*A); armF(B_RARM,-h*0.3*A); }},
-  {id:'splitleap', name:'Split Leap', cat:'Jumping', type:'stay', dur:1.1, build:(t,P)=>{ bstand(); const u=t/1.1,A=P.amp,h=Math.sin(Math.PI*clamp((u-0.1)/0.8,0,1));
-    setRootY(h*0.5*A); legF(B_LLEG,h*0.9*A); legF(B_RLEG,-h*0.9*A); [B_LARM,B_RARM].forEach(Ar=>armO(Ar,h*1.0*A + 0.2*A)); leanF(-0.1*h*A); }},
-  {id:'boxjump', name:'Box Jump', cat:'Jumping', type:'stay', dur:1.2, build:(t,P)=>{ bstand(); const u=t/1.2,A=P.amp, c=u<0.25?eio(u/0.25):0, h=ramp(u,0.25,0.55), land=ramp(u,0.55,0.75), settle=ramp(u,0.75,1);
-    setRootY((h*0.45 - c*0.2 - settle*0.05)*A);
-    [B_LLEG,B_RLEG].forEach(L=>{ legF(L,(c*0.4 + (h+land)*0.8 - settle*0.5)*A); kneeB(L,(c*1.2 + land*1.3)*A); });
-    [B_LARM,B_RARM].forEach(Ar=>armF(Ar,(h*1.4 - c*0.4)*A)); leanF((c*0.3 + land*0.3)*A); }},
-  {id:'spinjump', name:'Spin Jump', cat:'Jumping', type:'stay', dur:1.0, build:(t,P)=>{ bstand(); const u=t/1.0,A=P.amp,h=Math.sin(Math.PI*clamp((u-0.1)/0.8,0,1));
-    setRootY(h*0.5*A); sw('Hips',AX.y,TAU*eio(u)*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,h*0.8*A)); [B_LARM,B_RARM].forEach(Ar=>armO(Ar,h*0.9*A)); }},
+  // Small repeated hops: a short, stiff, ankle-driven bounce — the knees barely bend and most of the work
+  // is plantarflexion, which is why the toes stay pointed through the air.
+  {id:'hop', name:'Bunny Hops', cat:'Jumping', type:'move', dur:0.6, build:(t,P)=>{ bstand(); const A=P.amp;
+    const j=jumpProfile(((t/0.6)*P.speed)%1,{crouchEnd:0.20,takeoff:0.30,land:0.74,dip:0.09,height:0.17,absorb:0.08});
+    setRootY(j.y*A); leanF(0.10*A + j.crouch*0.16*A);
+    [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,(0.35*j.air - 0.25*j.crouch)*A); elb(Ar,0.5*A); });
+    if(j.flight) [B_LLEG,B_RLEG].forEach(L=>{ legF(L,0.12*A); kneeB(L,0.35*A); airFoot(L,j.s,0.75); })
+    else plantFeet(0.01,0.01,{width:0.070}); }},
+  // A maximal standing jump for distance: deep countermovement, a big double-arm swing that drives the
+  // body up and forward, legs extended in flight, then reaching the feet out to land.
+  {id:'bound', name:'Standing Bound', cat:'Jumping', type:'stay', dur:1.2, build:(t,P)=>{ bstand(); const A=P.amp;
+    const j=jumpProfile(t/1.2,{crouchEnd:0.24,takeoff:0.36,land:0.80,dip:0.20,height:0.42,absorb:0.16});
+    setRootY(j.y*A); animRoot.position.z -= (j.crouch*0.09 - j.air*0.05)*A;
+    leanF((0.10 + j.crouch*0.42 - j.air*0.12 + j.land*0.35)*A);
+    [B_LARM,B_RARM].forEach(Ar=>gaitArm(Ar,(-0.9*j.crouch + 1.5*j.air - 0.5*j.land)*A, 0.4*A, 0.13));
+    if(j.flight) [B_LLEG,B_RLEG].forEach(L=>{ legF(L,(0.25+0.55*j.s)*A); kneeB(L,(0.9-0.5*j.s)*A); airFoot(L,j.s,0.40); })
+    else plantFeet(0.02,0.02,{width:0.085}); }},
+  // Tuck jump: knees driven hard to the chest at the apex, then extended again to land.
+  {id:'tuck', name:'Tuck Leap', cat:'Jumping', type:'stay', dur:1.0, build:(t,P)=>{ bstand(); const A=P.amp;
+    const j=jumpProfile(t/1.0,{crouchEnd:0.22,takeoff:0.34,land:0.80,dip:0.17,height:0.40,absorb:0.14});
+    const tk=j.air?Math.sin(Math.PI*j.s):0;                                // tuck peaks at the apex
+    setRootY(j.y*A); leanF((0.08 + j.crouch*0.34 + tk*0.30 + j.land*0.30)*A);
+    [B_LARM,B_RARM].forEach(Ar=>gaitArm(Ar,(-0.8*j.crouch + 1.1*j.air)*A, (0.4+0.9*tk)*A, 0.13));
+    if(j.flight) [B_LLEG,B_RLEG].forEach(L=>{ legF(L,tk*1.35*A); kneeB(L,(0.5+tk*1.4)*A); airFoot(L,j.s,0.50); })
+    else plantFeet(0.02,0.02,{width:0.080}); }},
+  // Long jump: the same launch but angled forward — flatter arc, legs swung through and reached out in
+  // front for the landing, arms thrown forward to keep the feet ahead of the body.
+  {id:'longjump', name:'Long Jump', cat:'Jumping', type:'stay', dur:1.3, build:(t,P)=>{ bstand(); const A=P.amp;
+    const j=jumpProfile(t/1.3,{crouchEnd:0.20,takeoff:0.32,land:0.84,dip:0.16,height:0.30,absorb:0.18});
+    setRootY(j.y*A); animRoot.position.z -= (j.crouch*0.08 - j.air*0.06)*A;
+    leanF((0.12 + j.crouch*0.38 + j.air*0.30 + j.land*0.50)*A);
+    [B_LARM,B_RARM].forEach(Ar=>gaitArm(Ar,(-1.0*j.crouch + 1.3*j.air - 0.8*j.land)*A, 0.45*A, 0.13));
+    if(j.flight) [B_LLEG,B_RLEG].forEach(L=>{ legF(L,(0.4+0.9*j.s)*A); kneeB(L,(1.1-0.7*j.s)*A); airFoot(L,j.s,0.20,1); })
+    else plantFeet(j.land?0.16:0.02, j.land?0.16:0.02, {width:0.085}); }},
+  // Repeated squat jumps: a deep squat between each rep, so the dip is much bigger than the hop's.
+  {id:'squatjump', name:'Squat Jump', cat:'Jumping', type:'move', dur:0.9, build:(t,P)=>{ bstand(); const A=P.amp;
+    const j=jumpProfile(((t/0.9)*P.speed)%1,{crouchEnd:0.24,takeoff:0.36,land:0.72,dip:0.26,height:0.26,absorb:0.24});
+    setRootY(j.y*A); animRoot.position.z -= (j.crouch*0.10)*A;
+    leanF((0.08 + j.crouch*0.45)*A);
+    [B_LARM,B_RARM].forEach(Ar=>gaitArm(Ar,(-0.7*j.crouch + 1.0*j.air)*A, 0.4*A, 0.13));
+    if(j.flight) [B_LLEG,B_RLEG].forEach(L=>{ legF(L,0.15*A); kneeB(L,0.4*A); airFoot(L,j.s,0.55); })
+    else plantFeet(0.02,0.02,{width:0.095}); }},
+  // Jumping jacks: a low bounce with the legs abducting and the arms sweeping overhead in time.
+  {id:'jack', name:'Jumping Jacks', cat:'Jumping', type:'move', dur:0.8, build:(t,P)=>{ bstand(); const A=P.amp;
+    const c=((t/0.8)*P.speed)%1, o=0.5-0.5*Math.cos(TAU*c), air=Math.abs(Math.sin(TAU*c));
+    setRootY((air*0.07 - 0.05*(1-air))*A);
+    [B_LARM,B_RARM].forEach(Ar=>{ armO(Ar,o*2.3*A); armF(Ar,0.1*A); });
+    if(air>0.35) [B_LLEG,B_RLEG].forEach(L=>{ legO(L,o*0.45*A); kneeB(L,0.2*A); airFoot(L,(air-0.35)/0.65,0.45); })
+    else plantFeet(0.01,0.01,{width:0.070+o*0.115}); }},                   // feet land wide, then together
+  // Hopping on one leg: the other knee is held up, and the landing leg absorbs everything.
+  {id:'onefoot', name:'One-Foot Hops', cat:'Jumping', type:'move', dur:0.55, build:(t,P)=>{ bstand(); const A=P.amp;
+    const j=jumpProfile(((t/0.55)*P.speed)%1,{crouchEnd:0.20,takeoff:0.30,land:0.72,dip:0.11,height:0.19,absorb:0.10});
+    setRootY(j.y*A); leanF((0.10+j.crouch*0.22)*A);
+    legF(B_RLEG,0.95*A); kneeB(B_RLEG,1.45*A); aim(B_RLEG.foot,B_RLEG.toe,V(0,-0.4,0.9));   // free leg held up
+    gaitArm(B_LARM,(0.3*j.air-0.2*j.crouch)*A,0.6*A,0.13); gaitArm(B_RARM,(-0.2*j.air)*A,0.9*A,0.16);
+    if(j.flight){ legF(B_LLEG,0.12*A); kneeB(B_LLEG,0.35*A); airFoot(B_LLEG,j.s,0.75); }
+    else { animRoot.updateMatrixWorld(true); legIK(B_LLEG, V(B_LLEG.s*0.035, GROUND_ANKLE, 0.01), AX.z);
+      aim(B_LLEG.foot,B_LLEG.toe,V(0,0,1)); } }},
+  // Split leap: legs scissor to a full split at the apex, arms opened out for line.
+  {id:'splitleap', name:'Split Leap', cat:'Jumping', type:'stay', dur:1.1, build:(t,P)=>{ bstand(); const A=P.amp;
+    const j=jumpProfile(t/1.1,{crouchEnd:0.20,takeoff:0.32,land:0.82,dip:0.15,height:0.38,absorb:0.14});
+    const sp=j.air?Math.sin(Math.PI*j.s):0;
+    setRootY(j.y*A); leanF((0.06+j.crouch*0.30+j.land*0.28)*A);
+    [B_LARM,B_RARM].forEach(Ar=>{ armO(Ar,(0.25+sp*1.15)*A); armF(Ar,(-0.5*j.crouch)*A); });
+    if(j.flight){ legF(B_LLEG,sp*1.05*A); legF(B_RLEG,-sp*0.85*A);
+      [B_LLEG,B_RLEG].forEach(L=>{ kneeB(L,(0.35-0.3*sp)*A); airFoot(L,j.s,0.85,0.7); }); }   // pointed toes
+    else plantFeet(0.02,0.02,{width:0.080}); }},
+  // Box jump: the landing is HIGHER than the take-off — the feet come down on the box, so the whole body
+  // finishes elevated in a deep absorbed squat rather than returning to the floor.
+  {id:'boxjump', name:'Box Jump', cat:'Jumping', type:'stay', dur:1.2, build:(t,P)=>{ bstand(); const A=P.amp; const u=t/1.2;
+    const j=jumpProfile(u,{crouchEnd:0.24,takeoff:0.36,land:0.70,dip:0.20,height:0.40,absorb:0.02});
+    const box=0.30*A, on=ramp(u,0.66,0.78);                                // box top, and being ON it
+    setRootY(j.y*A + on*box*0.62); animRoot.position.z -= (j.crouch*0.09 - (j.air+on)*0.10)*A;
+    leanF((0.10 + j.crouch*0.42 + j.air*0.25 + on*0.40)*A);
+    [B_LARM,B_RARM].forEach(Ar=>gaitArm(Ar,(-1.0*j.crouch + 1.3*j.air - 0.7*on)*A, 0.45*A, 0.13));
+    if(j.flight && on<0.02) [B_LLEG,B_RLEG].forEach(L=>{ legF(L,(0.5+0.9*j.s)*A); kneeB(L,(1.2+0.5*j.s)*A); airFoot(L,j.s,0.30,0.95); })
+    else plantFeet(0.14*on+0.02, 0.14*on+0.02, {width:0.090, y:GROUND_ANKLE+on*box}); }},   // feet land on the box
+  // Spin jump: a full 360° turn about the vertical while airborne, arms pulled in to spin faster.
+  {id:'spinjump', name:'Spin Jump', cat:'Jumping', type:'stay', dur:1.0, build:(t,P)=>{ bstand(); const A=P.amp; const u=t/1.0;
+    const j=jumpProfile(u,{crouchEnd:0.22,takeoff:0.34,land:0.80,dip:0.16,height:0.34,absorb:0.13});
+    setRootY(j.y*A); leanF((0.08+j.crouch*0.32+j.land*0.28)*A);
+    sw('Hips',AX.y, TAU*smooth(clamp((u-0.30)/0.52,0,1))*A);               // the turn happens in the air
+    [B_LARM,B_RARM].forEach(Ar=>{ armO(Ar,(0.2+0.5*j.air)*A); elb(Ar,(0.6+0.9*j.air)*A); });   // arms tuck in
+    if(j.flight) [B_LLEG,B_RLEG].forEach(L=>{ legF(L,0.2*A); kneeB(L,0.75*A); airFoot(L,j.s,0.60); })
+    else plantFeet(0.02,0.02,{width:0.080}); }},
   // —— Climbing ——
   {id:'climb', name:'Ladder Climb Up', cat:'Climbing', type:'move', dur:1.4, build:(t,P)=>{ bstand(); const cyc=(t/1.4)*P.speed, ph=TAU*cyc, A=P.amp;
-    BIPED_ARMS.forEach((Ar,i)=>{ const a=ph+(i?Math.PI:0), reach=(Math.sin(a)*0.5+0.5); armF(Ar,(1.9+reach*0.6)*A); elb(Ar,(1.0-reach*0.7)*A); });
+    BIPED_ARMS.forEach((Ar,i)=>{ const a=ph+(i?Math.PI:0), reach=(Math.sin(a)*0.5+0.5); reachUp(Ar,(0.75+0.25*reach),A); elb(Ar,(1.0-reach*0.7)*A); });   // hands grip the rungs overhead, alternating
     BIPED_LEGS.forEach((L,i)=>{ const a=ph+(i?0:Math.PI), step=(Math.sin(a)*0.5+0.5); legF(L,(0.3+step*0.7)*A); kneeB(L,(0.4+step*0.9)*A); });
     leanF(0.15*A); setRootY(Math.sin(ph*2)*0.02*A); }},
   {id:'climbdown', name:'Ladder Climb Down', cat:'Climbing', type:'move', dur:1.4, build:(t,P)=>{ bstand(); const cyc=(t/1.4)*P.speed, ph=TAU*cyc, A=P.amp;
-    BIPED_ARMS.forEach((Ar,i)=>{ const a=ph+(i?Math.PI:0), reach=(Math.sin(a)*0.5+0.5); armF(Ar,(1.4+reach*0.5)*A); elb(Ar,(0.6+reach*0.5)*A); });
+    BIPED_ARMS.forEach((Ar,i)=>{ const a=ph+(i?Math.PI:0), reach=(Math.sin(a)*0.5+0.5); reachUp(Ar,(0.6+0.2*reach),A); elb(Ar,(0.6+reach*0.5)*A); });   // hands grip the rungs, alternating
     BIPED_LEGS.forEach((L,i)=>{ const a=ph+(i?0:Math.PI), step=(Math.sin(a)*0.5+0.5); legF(L,(0.5+step*0.5)*A); kneeB(L,(0.6+step*0.7)*A); });
     leanF(0.1*A); }},
   {id:'clamber', name:'Ledge Mantle', cat:'Climbing', type:'stay', dur:1.8, build:(t,P)=>{ bstand(); const u=t/1.8, A=P.amp;
     const reach=ramp(u,0,0.3), pull=ramp(u,0.3,0.75), stand=ramp(u,0.75,1);
-    [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,(2.4*reach - 1.4*pull)*A); elb(Ar,(0.4+1.4*pull)*A); });
+    [B_LARM,B_RARM].forEach(Ar=>{ reachUp(Ar,(0.8*reach+0.4*pull),A); elb(Ar,(0.4+1.4*pull)*A); });   // reach the ledge overhead → pull the body up
     [B_LLEG,B_RLEG].forEach(L=>{ legF(L,(1.0*pull - 0.9*stand)*A); kneeB(L,(1.3*pull)*A); });
     setRootY((0.35*pull + 0.05*stand)*A); leanF((0.4*reach - 0.2*stand)*A); }},
   {id:'traverseL', name:'Side Traverse Left', cat:'Climbing', type:'move', dur:1.4, build:(t,P)=>{ bstand(); const A=P.amp, ph=TAU*(t/1.4)*P.speed;
     // hands gripping the wall at ~shoulder height, reaching left; legs edge left; chest pressed to the wall.
-    [B_LARM,B_RARM].forEach((Ar,i)=>{ const r=Math.max(0,Math.sin(ph+(i?Math.PI:0))); armF(Ar,(1.15+0.35*r)*A); armO(Ar,0.35*A); elb(Ar,(1.1-0.5*r)*A); });
+    [B_LARM,B_RARM].forEach((Ar,i)=>{ const r=Math.max(0,Math.sin(ph+(i?Math.PI:0))); reachF(Ar,(0.55+0.2*r),A); armF(Ar,0.5*A); elb(Ar,(1.1-0.5*r)*A); });   // hands press the wall at shoulder height
     BIPED_LEGS.forEach((L,i)=>{ const a=ph+(i?Math.PI:0); legO(L,-(0.18+0.18*Math.sin(a))*A); kneeB(L,(0.45+0.4*Math.max(0,Math.sin(a)))*A); });
     leanF(0.45*A); leanS(-0.12*A); }},
   {id:'traverseR', name:'Side Traverse Right', cat:'Climbing', type:'move', dur:1.4, build:(t,P)=>{ bstand(); const A=P.amp, ph=TAU*(t/1.4)*P.speed;
-    [B_LARM,B_RARM].forEach((Ar,i)=>{ const r=Math.max(0,Math.sin(ph+(i?Math.PI:0))); armF(Ar,(1.15+0.35*r)*A); armO(Ar,0.35*A); elb(Ar,(1.1-0.5*r)*A); });
+    [B_LARM,B_RARM].forEach((Ar,i)=>{ const r=Math.max(0,Math.sin(ph+(i?Math.PI:0))); reachF(Ar,(0.55+0.2*r),A); armF(Ar,0.5*A); elb(Ar,(1.1-0.5*r)*A); });   // hands press the wall at shoulder height
     BIPED_LEGS.forEach((L,i)=>{ const a=ph+(i?Math.PI:0); legO(L,(0.18+0.18*Math.sin(a))*A); kneeB(L,(0.45+0.4*Math.max(0,Math.sin(a)))*A); });
     leanF(0.45*A); leanS(0.12*A); }},
   {id:'scramble', name:'Wall Scramble', cat:'Climbing', type:'move', dur:0.9, build:(t,P)=>{ bstand(); const A=P.amp, ph=TAU*(t/0.9)*P.speed;
-    BIPED_ARMS.forEach((Ar,i)=>{ const a=ph+(i?Math.PI:0),r=(Math.sin(a)*0.5+0.5); armF(Ar,(2.0+0.4*r)*A); elb(Ar,(0.8-0.5*r)*A); });
+    BIPED_ARMS.forEach((Ar,i)=>{ const a=ph+(i?Math.PI:0),r=(Math.sin(a)*0.5+0.5); reachUp(Ar,(0.8+0.2*r),A); elb(Ar,(0.8-0.5*r)*A); });   // hands claw up the wall, alternating
     BIPED_LEGS.forEach((L,i)=>{ const a=ph+(i?0:Math.PI),s=(Math.sin(a)*0.5+0.5); legF(L,(0.5+s*0.8)*A); kneeB(L,(0.6+s*1.0)*A); });
     leanF(0.4*A); setRootY(Math.abs(Math.sin(ph))*0.03*A); }},
   {id:'ropeclimb', name:'Rope Climb', cat:'Climbing', type:'move', dur:1.5, build:(t,P)=>{ bstand(); const A=P.amp, ph=TAU*(t/1.5)*P.speed;
-    BIPED_ARMS.forEach((Ar,i)=>{ const a=ph+(i?Math.PI:0),r=(Math.sin(a)*0.5+0.5); armF(Ar,(2.1+0.3*r)*A); elb(Ar,(1.2-0.9*r)*A); });
+    BIPED_ARMS.forEach((Ar,i)=>{ const a=ph+(i?Math.PI:0),r=(Math.sin(a)*0.5+0.5); reachUp(Ar,(0.8+0.2*r),A); elb(Ar,(1.2-0.9*r)*A); });   // hands haul up the rope, alternating
     BIPED_LEGS.forEach((L,i)=>{ const a=ph+(i?Math.PI:0),s=(Math.sin(a)*0.5+0.5); legF(L,(0.6+s*0.5)*A); kneeB(L,(0.8+s*0.7)*A); legO(L,0.12*A); });
     leanF(0.1*A); }},
   {id:'shimmy', name:'Cliff Shimmy', cat:'Climbing', type:'move', dur:1.6, build:(t,P)=>{ bstand(); const A=P.amp, ph=TAU*(t/1.6)*P.speed;
     // hanging by the hands from a ledge overhead, feet dangling, edging sideways
-    [B_LARM,B_RARM].forEach((Ar,i)=>{ armF(Ar,2.5*A); armO(Ar,0.2*A); elb(Ar,(0.3+0.3*Math.max(0,Math.sin(ph+(i?Math.PI:0))))*A); });
+    [B_LARM,B_RARM].forEach((Ar,i)=>{ reachUp(Ar,1,A); elb(Ar,(0.3+0.3*Math.max(0,Math.sin(ph+(i?Math.PI:0))))*A); });   // hanging by the hands from the ledge overhead
     [B_LLEG,B_RLEG].forEach((L,i)=>{ legF(L,0.15*A); kneeB(L,(0.3+0.2*Math.sin(ph+(i?Math.PI:0)))*A); });
     leanF(0.25*A); }},
   {id:'peek', name:'Peek Over Ledge', cat:'Climbing', type:'stay', dur:2.2, build:(t,P)=>{ bstand(); const A=P.amp, u=(t<1.1?t:2.2-t)/0.6, r=clamp(u,0,1);
-    [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,1.9*r*A); elb(Ar,0.9*r*A); }); leanF(0.5*r*A); sw(B_HEAD,AX.x,-0.4*r*A);
-    [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.5*r*A)); setRootY(-0.1*r*A); }},
+    [B_LARM,B_RARM].forEach(Ar=>{ reachF(Ar,r*0.8,A); elb(Ar,0.9*r*A); }); leanF(0.5*r*A); sw(B_HEAD,AX.x,-0.4*r*A);   // hands onto the ledge, peer over
+    setRootY(-0.20*r*A); animRoot.position.z -= 0.06*r*A; plantFeet(0.02,0.02,{width:0.090}); }},
   {id:'cling', name:'Cling to Wall', cat:'Climbing', type:'stay', dur:2.0, build:(t,P)=>{ bstand(); const A=P.amp, b=Math.sin(TAU*t/2*P.speed);
-    [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,(2.1+b*0.05)*A); armO(Ar,0.4*A); elb(Ar,0.9*A); });
+    [B_LARM,B_RARM].forEach(Ar=>{ reachUp(Ar,0.9,A); elb(Ar,0.9*A); });   // hands gripping the wall overhead
     [B_LLEG,B_RLEG].forEach(L=>{ legF(L,0.35*A); kneeB(L,0.9*A); legO(L,0.15*A); }); leanF(0.35*A); }},
   // —— Boxing ——
   {id:'boxbounce', name:'Boxer’s Bounce', cat:'Boxing', type:'stay', dur:0.7, build:(t,P)=>{ guard(P.amp); const ph=TAU*(t/0.7)*P.speed;
     setRootY(Math.abs(Math.sin(ph))*0.05*P.amp); twist(Math.sin(ph)*0.1*P.amp); sw('Hips',AX.y,Math.sin(ph)*0.08*P.amp); }},
   {id:'jab', name:'Lead Jab', cat:'Boxing', type:'stay', dur:0.6, build:(t,P)=>{ guard(P.amp); const u=(t/0.6*P.speed)%1, p=bump(u,0.4,0.35), A=P.amp;
-    armF(B_LARM,0.35*p*A); elb(B_LARM,-1.6*p*A); twist(-0.18*p*A); }},
+    straight(B_LARM,p,A); twist(-0.12*p*A); sw('Hips',AX.y,-0.08*p*A); }},
   {id:'cross', name:'Power Cross', cat:'Boxing', type:'stay', dur:0.8, build:(t,P)=>{ guard(P.amp); const u=(t/0.8*P.speed)%1, p=bump(u,0.45,0.4), A=P.amp;
-    armF(B_RARM,0.45*p*A); elb(B_RARM,-1.6*p*A); twist(0.4*p*A); sw('Hips',AX.y,0.25*p*A); }},
+    straight(B_RARM,p,A); twist(0.42*p*A); sw('Hips',AX.y,0.35*p*A); legF(B_RLEG,-0.12*p*A); }},   // rear-leg drive + hip rotation
   {id:'uppercut', name:'Rising Uppercut', cat:'Boxing', type:'stay', dur:0.75, build:(t,P)=>{ guard(P.amp); const u=(t/0.75*P.speed)%1, p=bump(u,0.45,0.4), A=P.amp;
-    armF(B_RARM,0.5*p*A); elb(B_RARM,0.4*p*A); twist(0.3*p*A); setRootY(0.06*p*A); leanF(-0.15*p*A); }},
+    upper(B_RARM,p,A); twist(0.3*p*A); sw('Hips',AX.y,0.28*p*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.18*(1-p)*A)); setRootY(0.05*p*A); }},   // legs load then drive up
   {id:'hookL', name:'Left Hook', cat:'Boxing', type:'stay', dur:0.7, build:(t,P)=>{ guard(P.amp); const u=(t/0.7*P.speed)%1, p=bump(u,0.45,0.4), A=P.amp;
-    hook(B_LARM,p,A); twist(-0.5*p*A); sw('Hips',AX.y,-0.3*p*A); }},
+    hook(B_LARM,p,A); twist(-0.45*p*A); sw('Hips',AX.y,-0.32*p*A); legF(B_LLEG,-0.1*p*A); }},
   {id:'hookR', name:'Right Hook', cat:'Boxing', type:'stay', dur:0.7, build:(t,P)=>{ guard(P.amp); const u=(t/0.7*P.speed)%1, p=bump(u,0.45,0.4), A=P.amp;
-    hook(B_RARM,p,A); twist(0.5*p*A); sw('Hips',AX.y,0.3*p*A); }},
+    hook(B_RARM,p,A); twist(0.5*p*A); sw('Hips',AX.y,0.35*p*A); legF(B_RLEG,-0.12*p*A); }},
   {id:'bodyshot', name:'Body Rip', cat:'Boxing', type:'stay', dur:0.7, build:(t,P)=>{ guard(P.amp); const u=(t/0.7*P.speed)%1, p=bump(u,0.45,0.4), A=P.amp;
-    armF(B_LARM,0.1*p*A); elb(B_LARM,-1.2*p*A); armO(B_LARM,-0.3*p*A); leanF(0.25*p*A); twist(-0.3*p*A); sw('Hips',AX.y,-0.2*p*A); }},
+    hook(B_LARM,p*0.85,A); armF(B_LARM,-0.2*p*A); leanF(0.3*p*A); twist(-0.32*p*A); sw('Hips',AX.y,-0.22*p*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.2*p*A)); }},   // low hook to the ribs: drop + lean in
   {id:'slip', name:'Slip & Weave', cat:'Boxing', type:'stay', dur:1.0, build:(t,P)=>{ guard(P.amp); const A=P.amp, ph=TAU*(t/1.0)*P.speed, s=Math.sin(ph);
     leanS(s*0.22*A); leanF(0.15*Math.abs(s)*A); sw('Hips',AX.z,s*0.1*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.15*Math.abs(s)*A)); }},
   {id:'block', name:'High Guard Block', cat:'Boxing', type:'stay', dur:0.9, build:(t,P)=>{ guard(P.amp); const u=(t/0.9*P.speed)%1, p=bump(u,0.5,0.45), A=P.amp;
     [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,0.5*p*A); elb(Ar,0.4*p*A); }); leanF(0.1*p*A); sw(B_HEAD,AX.x,0.15*p*A); }},
   {id:'onetwo', name:'One-Two Combo', cat:'Boxing', type:'stay', dur:1.0, build:(t,P)=>{ guard(P.amp); const u=(t/1.0*P.speed)%1, jab=bump(u,0.28,0.2), cross=bump(u,0.62,0.2), A=P.amp;
-    armF(B_LARM,0.35*jab*A); elb(B_LARM,-1.6*jab*A); twist(-0.18*jab*A);
-    armF(B_RARM,0.45*cross*A); elb(B_RARM,-1.6*cross*A); twist(0.4*cross*A); sw('Hips',AX.y,0.25*cross*A - 0.1*jab*A); }},
+    straight(B_LARM,jab,A); twist(-0.12*jab*A);
+    straight(B_RARM,cross,A); twist(0.42*cross*A); sw('Hips',AX.y,0.35*cross*A - 0.08*jab*A); legF(B_RLEG,-0.12*cross*A); }},
   // —— Fencing ——
+  // The fencing guard: feet roughly shoulder-width apart along the line of attack, both knees bent so the
+  // hips sit LOW between them, body bladed side-on to present a narrow target.
   {id:'engarde', name:'En Garde', cat:'Fencing', type:'stay', dur:2.0, build:(t,P)=>{ bstand(); const A=P.amp, b=Math.sin(TAU*t/2*P.speed);
-    armF(B_RARM,1.35*A); elb(B_RARM,0.1*A); armF(B_LARM,-0.4*A); armO(B_LARM,1.1*A); elb(B_LARM,1.6*A);
-    kneeB(B_LLEG,0.4*A); kneeB(B_RLEG,0.5*A); sw('Hips',AX.y,-0.25*A); twist(-0.2*A); setRootY(-0.05*A + b*0.01*A); }},
+    setRootY((-0.13 + b*0.012)*A);
+    sw('Hips',AX.y,-0.25*A); twist(-0.2*A);
+    plantFeet(-0.20, 0.22, {width:0.075});                                 // rear foot back, lead foot forward
+    reachF(B_RARM,0.68,A); elb(B_RARM,0.1*A); armF(B_LARM,-0.4*A); armO(B_LARM,1.1*A); elb(B_LARM,1.6*A); }},   // sword arm extended
   {id:'advance', name:'Advance Step', cat:'Fencing', type:'move', dur:0.9, build:(t,P)=>{ bstand(); const A=P.amp, ph=TAU*(t/0.9)*P.speed, s=Math.sin(ph);
-    armF(B_RARM,1.3*A); elb(B_RARM,0.1*A); armF(B_LARM,-0.4*A); armO(B_LARM,1.0*A); elb(B_LARM,1.5*A);
+    reachF(B_RARM,0.65,A); elb(B_RARM,0.1*A); armF(B_LARM,-0.4*A); armO(B_LARM,1.0*A); elb(B_LARM,1.5*A);   // sword arm extended forward
     legF(B_RLEG,(0.3+0.25*s)*A); legF(B_LLEG,(0.1-0.25*s)*A); kneeB(B_LLEG,0.5*A); kneeB(B_RLEG,0.4*A); sw('Hips',AX.y,-0.25*A); }},
   {id:'retreat', name:'Retreat Step', cat:'Fencing', type:'move', dur:0.9, build:(t,P)=>{ bstand(); const A=P.amp, ph=TAU*(t/0.9)*P.speed, s=Math.sin(ph);
-    armF(B_RARM,1.3*A); elb(B_RARM,0.1*A); armF(B_LARM,-0.4*A); armO(B_LARM,1.0*A); elb(B_LARM,1.5*A);
+    reachF(B_RARM,0.65,A); elb(B_RARM,0.1*A); armF(B_LARM,-0.4*A); armO(B_LARM,1.0*A); elb(B_LARM,1.5*A);   // sword arm extended forward
     legF(B_RLEG,(0.2-0.25*s)*A); legF(B_LLEG,(-0.1+0.25*s)*A); kneeB(B_LLEG,0.5*A); kneeB(B_RLEG,0.4*A); sw('Hips',AX.y,-0.25*A); }},
+  // The lunge: the REAR leg drives the body forward and ends straight, the lead foot shoots out and lands
+  // with its shin vertical, and the hips drop — so the body travels forward and down, not just down.
   {id:'lunge', name:'Fencing Lunge', cat:'Fencing', type:'stay', dur:1.1, build:(t,P)=>{ bstand(); const A=P.amp, p=bump((t/1.1*P.speed)%1,0.5,0.45);
-    armF(B_RARM,(1.35+0.5*p)*A); elb(B_RARM,0.05*A); armF(B_LARM,-0.4*A); armO(B_LARM,(1.1-0.4*p)*A); elb(B_LARM,1.4*A);
-    legF(B_RLEG,0.9*p*A); kneeB(B_RLEG,0.9*p*A); legF(B_LLEG,-0.3*p*A); setRootY(-0.18*p*A); twist(-0.15*A); }},
+    setRootY((-0.13 - 0.10*p)*A); animRoot.position.z += 0.22*p*A;          // body drives forward and down
+    sw('Hips',AX.y,-0.22*A); twist(-0.15*A); leanF(0.14*p*A);
+    plantFeet(-0.20-0.10*p*A, 0.22+0.34*p*A, {width:0.075, footY:[-0.30*p,0]});   // rear heel lifts as it drives
+    reachF(B_RARM,(0.7+0.3*p),A); elb(B_RARM,0.05*A);                       // sword arm extends to the target
+    armF(B_LARM,-0.3*A); armO(B_LARM,(1.0-0.3*p)*A); elb(B_LARM,1.3*A); }},  // rear arm flung back for balance
   {id:'riposte', name:'Parry – Riposte', cat:'Fencing', type:'stay', dur:1.0, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.0*P.speed)%1, parry=bump(u,0.3,0.25), thrust=bump(u,0.7,0.25);
-    armF(B_RARM,(1.0+0.6*thrust)*A); armO(B_RARM,0.5*parry*A); elb(B_RARM,(0.5-0.4*thrust)*A);
+    reachF(B_RARM,(0.5+0.4*thrust),A); armO(B_RARM,0.5*parry*A); elb(B_RARM,(0.5-0.4*thrust)*A);
     armF(B_LARM,-0.4*A); armO(B_LARM,0.9*A); elb(B_LARM,1.4*A); kneeB(B_RLEG,0.4*A); twist((-0.1-0.25*thrust)*A); }},
   {id:'beat', name:'Beat Attack', cat:'Fencing', type:'stay', dur:0.9, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/0.9*P.speed)%1, beat=bump(u,0.35,0.18), lunge=bump(u,0.7,0.25);
-    armF(B_RARM,(1.3+0.6*lunge)*A); armO(B_RARM,-0.25*beat*A); elb(B_RARM,(0.15)*A);
-    armF(B_LARM,-0.4*A); armO(B_LARM,1.0*A); elb(B_LARM,1.5*A); legF(B_RLEG,0.7*lunge*A); kneeB(B_RLEG,0.6*lunge*A); setRootY(-0.12*lunge*A); }},
+    setRootY((-0.13 - 0.07*lunge)*A); animRoot.position.z += 0.14*lunge*A;
+    sw('Hips',AX.y,-0.22*A); twist(-0.12*A);
+    plantFeet(-0.20-0.06*lunge*A, 0.22+0.24*lunge*A, {width:0.075, footY:[-0.24*lunge,0]});
+    reachF(B_RARM,(0.55+0.35*lunge),A); armO(B_RARM,-0.25*beat*A); elb(B_RARM,0.15*A);   // blade knocks, then attacks
+    armF(B_LARM,-0.4*A); armO(B_LARM,1.0*A); elb(B_LARM,1.5*A); }},
+  // The flèche is a running attack — the fencer drives past the opponent, so the body pitches forward past
+  // its own base of support and the rear leg leaves the floor entirely.
   {id:'fleche', name:'Flèche Charge', cat:'Fencing', type:'stay', dur:1.0, build:(t,P)=>{ bstand(); const A=P.amp, u=t/1.0, drive=ramp(u,0.2,0.8);
-    armF(B_RARM,1.8*A); elb(B_RARM,0.05*A); armF(B_LARM,(0.5*drive)*A); legF(B_RLEG,drive*0.8*A); legF(B_LLEG,-drive*0.5*A);
-    kneeB(B_LLEG,0.6*A); leanF(0.5*drive*A); setRootY(-0.1*drive*A); }},
+    setRootY(-0.12*drive*A); animRoot.position.z += 0.20*drive*A;
+    leanF(0.5*drive*A); sw('Hips',AX.y,-0.18*A);
+    animRoot.updateMatrixWorld(true);
+    legIK(B_LLEG, V(B_LLEG.s*0.075, GROUND_ANKLE+0.20*drive*A, -0.26-0.10*drive*A), AX.z);   // rear leg lifts off
+    airFoot(B_LLEG, drive*0.8, 0.55);
+    legIK(B_RLEG, V(B_RLEG.s*0.075, GROUND_ANKLE, 0.20+0.16*drive*A), AX.z);                 // lead foot drives
+    aim(B_RLEG.foot,B_RLEG.toe,V(0,-0.2*drive,1));
+    reachF(B_RARM,0.9,A); elb(B_RARM,0.05*A); armF(B_LARM,0.4*drive*A); }},
   {id:'salute', name:'Fencer’s Salute', cat:'Fencing', type:'stay', dur:1.6, build:(t,P)=>{ bstand(); const A=P.amp, u=(t<0.8?t:1.6-t)/0.5, r=clamp(u,0,1);
-    armF(B_RARM,(2.4*r)*A); elb(B_RARM,(1.4*r)*A); sw(B_HEAD,AX.x,-0.1*r*A); }},
+    reachUp(B_RARM,r*0.8,A); elb(B_RARM,(1.4*r)*A); sw(B_HEAD,AX.x,-0.1*r*A); }},   // sword raised in salute
   {id:'highparry', name:'High Parry', cat:'Fencing', type:'stay', dur:0.8, build:(t,P)=>{ bstand(); const A=P.amp, p=bump((t/0.8*P.speed)%1,0.45,0.4);
-    armF(B_RARM,(1.2+0.5*p)*A); armO(B_RARM,0.5*p*A); elb(B_RARM,(0.3+0.4*p)*A);
+    reachF(B_RARM,(0.5+0.3*p),A); armF(B_RARM,0.3*p*A); armO(B_RARM,0.3*p*A); elb(B_RARM,(0.3+0.4*p)*A);   // blade up-forward to parry high
     armF(B_LARM,-0.4*A); armO(B_LARM,1.0*A); elb(B_LARM,1.5*A); kneeB(B_RLEG,0.4*A); }},
   {id:'feint', name:'Feint – Disengage', cat:'Fencing', type:'stay', dur:1.1, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.1*P.speed)%1, feint=bump(u,0.3,0.2), hit=bump(u,0.72,0.22);
-    armF(B_RARM,(1.3+0.5*hit)*A); armO(B_RARM,(0.4*feint-0.3*hit)*A); elb(B_RARM,(0.2+0.4*feint)*A);
+    reachF(B_RARM,(0.55+0.3*hit),A); armO(B_RARM,(0.4*feint-0.3*hit)*A); elb(B_RARM,(0.2+0.4*feint)*A);
     armF(B_LARM,-0.4*A); armO(B_LARM,1.0*A); elb(B_LARM,1.5*A); legF(B_RLEG,0.6*hit*A); kneeB(B_RLEG,0.5*hit*A); }},
   // —— Football ——
   {id:'punt', name:'Punt Kick', cat:'Football', type:'stay', dur:1.0, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.0*P.speed)%1, wind=bump(u,0.3,0.28), strike=ramp(u,0.35,0.6), follow=ramp(u,0.6,0.95);
@@ -583,34 +980,54 @@ const BIPED_MOTIONS=[
     legF(B_LLEG,0.2*step*A); kneeB(B_LLEG,0.3*A); legF(B_RLEG,(-0.7*wind + 1.1*strike)*A); kneeB(B_RLEG,1.0*wind*(1-strike)*A);
     armO(B_LARM,0.6*A); armF(B_RARM,-0.3*strike*A); leanS(-0.15*A); twist(0.15*strike*A); }},
   {id:'throw', name:'Overhand Throw', cat:'Football', type:'stay', dur:1.0, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.0*P.speed)%1, wind=ramp(u,0,0.4), rel=bump(u,0.55,0.25), follow=ramp(u,0.6,1);
-    armF(B_RARM,(-0.9*wind + 2.6*rel)*A); armO(B_RARM,(0.9*wind - 0.3*rel)*A); elb(B_RARM,(1.4*wind - 0.9*rel)*A);
-    armF(B_LARM,(0.6*wind - 0.4*follow)*A); twist((0.4*wind - 0.5*follow)*A); sw('Hips',AX.y,-0.2*follow*A); legF(B_LLEG,0.3*follow*A); }},
+    reachUp(B_RARM,wind*0.7,A); reachHigh(B_RARM,rel,A); elb(B_RARM,(1.4*wind - 1.0*rel)*A);
+    armF(B_LARM,(0.5*wind - 0.4*follow)*A); twist((0.4*wind - 0.5*follow)*A); sw('Hips',AX.y,-0.25*follow*A); legF(B_LLEG,0.3*follow*A); leanF(0.15*rel*A); }},
   {id:'catch', name:'Leaping Catch', cat:'Football', type:'stay', dur:1.0, build:(t,P)=>{ bstand(); const A=P.amp, u=t/1.0, h=Math.sin(Math.PI*clamp((u-0.1)/0.7,0,1)), reach=bump(u,0.45,0.35);
-    setRootY(h*0.4*A); [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,(1.6+0.6*reach)*A); armO(Ar,0.3*A); elb(Ar,-0.3*reach*A); });
+    setRootY(h*0.4*A); [B_LARM,B_RARM].forEach(Ar=>{ reachHigh(Ar,(0.7+0.3*reach),A); elb(Ar,0.2*A); });
     [B_LLEG,B_RLEG].forEach(L=>{ legF(L,h*0.5*A); kneeB(L,h*0.8*A); }); leanF(0.2*reach*A); }},
-  {id:'juke', name:'Juke Move', cat:'Football', type:'stay', dur:1.0, build:(t,P)=>{ bstand(); const A=P.amp, ph=TAU*(t/1.0)*P.speed, s=Math.sin(ph);
-    sw('Hips',AX.z,s*0.16*A); leanS(-s*0.14*A); legO(B_LLEG,Math.max(0,s)*0.3*A); legO(B_RLEG,Math.max(0,-s)*0.3*A);
-    [B_LARM,B_RARM].forEach((Ar,i)=>armF(Ar,(i?s:-s)*0.4*A + 0.3*A)); kneeB(B_LLEG,0.2*A); kneeB(B_RLEG,0.2*A); }},
-  {id:'stiffarm', name:'Stiff-Arm', cat:'Football', type:'move', dur:0.7, build:(t,P)=>{ bipedGait(t,P,0.7,{legAmp:0.6,kneeAmp:0.9,armAmp:0.3,lean:0.25});
+  // A juke is a hard lateral weight-shift: the body's mass throws sideways over one planted foot while the
+  // other steps out to catch it, so the hips travel side to side and the feet plant alternately.
+  {id:'juke', name:'Juke Move', cat:'Football', type:'stay', dur:1.0, build:(t,P)=>{ bstand(); const A=P.amp;
+    const s=Math.sin(TAU*(t/1.0)*P.speed);
+    setRootY(-0.11*A); animRoot.position.x += s*0.10*A;                    // weight throws side to side
+    sw('Hips',AX.z,s*0.14*A); leanS(-s*0.16*A); leanF(0.18*A);
+    plantFeet(0.04, 0.04, {width:0.16});                                   // wide athletic base, feet planted
+    [B_LARM,B_RARM].forEach((Ar,i)=>gaitArm(Ar,((i?s:-s)*0.45+0.25)*A, 1.1*A, 0.17)); }},
+  {id:'stiffarm', name:'Stiff-Arm', cat:'Football', type:'move', dur:0.7, build:(t,P)=>{ gaitIK(t,P,0.7,{stride:0.28,duty:0.44,clear:0.12,hipDrop:0.034,lean:0.24,armSwing:0.45,elbow0:1.2,shDrive:0.35,strikeUp:0.06,toeOff:0.66});
     armF(B_RARM,1.5*P.amp); elb(B_RARM,-0.2*P.amp); }},
   {id:'header', name:'Header', cat:'Football', type:'stay', dur:0.9, build:(t,P)=>{ bstand(); const A=P.amp, u=t/0.9, jump=Math.sin(Math.PI*clamp((u-0.1)/0.6,0,1)), snap=bump(u,0.5,0.2);
     setRootY(jump*0.35*A); leanF((-0.3+0.6*snap)*A); sw(B_HEAD,AX.x,(-0.3+0.5*snap)*A);
     [B_LARM,B_RARM].forEach(Ar=>armO(Ar,jump*0.6*A + 0.2*A)); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,jump*0.6*A)); }},
   {id:'throwin', name:'Throw-In', cat:'Football', type:'stay', dur:1.1, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.1*P.speed)%1, wind=ramp(u,0,0.45), rel=ramp(u,0.45,0.75);
-    [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,(-0.8*wind + 3.0*rel)*A); elb(Ar,(1.4*wind - 1.2*rel)*A); }); leanF((-0.3*wind + 0.3*rel)*A);
-    [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.2*A)); }},
+    BIPED_SPINE.forEach(s=>sw(s,AX.x,(-0.3*wind + 0.35*rel)*A)); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.2*A));
+    grip(lerpDir(lerpDir(V(0,1.55,0.15),V(0,1.72,-0.12),wind),V(0,1.5,0.42),rel), V(0,0,1)); }},   // both hands cup the ball: behind the head → forward over the top
+  // Slide tackle: the player drops onto the outside hip and skids, one leg extended straight at the ball
+  // and the other folded underneath. The body ends almost on the ground, leaning back, arm out for balance.
   {id:'tackle', name:'Slide Tackle', cat:'Football', type:'stay', dur:1.1, build:(t,P)=>{ bstand(); const A=P.amp, u=t/1.1, slide=ramp(u,0.15,0.6);
-    setRootY(-0.4*slide*A); legF(B_RLEG,1.3*slide*A); kneeB(B_RLEG,0.2*A); legF(B_LLEG,0.6*slide*A); kneeB(B_LLEG,1.4*slide*A);
-    leanF(-0.4*slide*A); [B_LARM,B_RARM].forEach(Ar=>armO(Ar,0.5*slide*A)); }},
+    setRootY(-0.62*slide*A); animRoot.position.z += 0.18*slide*A;
+    BIPED_SPINE.forEach(s=>sw(s,AX.x,-0.30*slide*A));                      // torso leans back over the skid
+    sw('Hips',AX.z,-0.28*slide*A); leanS(-0.18*slide*A);
+    animRoot.updateMatrixWorld(true);
+    legIK(B_RLEG, V(B_RLEG.s*0.06, GROUND_ANKLE, 0.30+0.34*slide*A), AX.z);        // strike leg extended
+    aim(B_RLEG.foot,B_RLEG.toe,V(0,0.25,1));
+    legIK(B_LLEG, V(B_LLEG.s*0.16, GROUND_ANKLE, -0.10-0.10*slide*A), AX.z);       // support leg folded under
+    aim(B_LLEG.foot,B_LLEG.toe,V(0,-0.2,1));
+    gaitArm(B_RARM,-0.5*slide*A,0.5*A,0.30); armO(B_LARM,(0.3+0.7*slide)*A); }},
   {id:'tdcele', name:'Touchdown Celebration', cat:'Football', type:'stay', dur:1.2, build:(t,P)=>{ bstand(); const A=P.amp, ph=TAU*(t/1.2)*P.speed, h=Math.abs(Math.sin(ph));
-    [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,2.5*A); armO(Ar,0.3*A); }); setRootY(h*0.1*A);
+    [B_LARM,B_RARM].forEach(Ar=>reachUp(Ar,1,A)); setRootY(h*0.1*A);
     [B_LLEG,B_RLEG].forEach(L=>kneeB(L,h*0.4*A)); sw('Hips',AX.y,Math.sin(ph)*0.1*A); }},
   // —— Track & Field ——
+  // In the blocks: four-point stance with the HANDS bearing weight on the line, hips raised above the
+  // shoulders in "set", then the block leg drives the whole body out low and forward.
   {id:'blockstart', name:'Blocks Start', cat:'Track & Field', type:'stay', dur:1.2, build:(t,P)=>{ bstand(); const A=P.amp, u=t/1.2, set=ramp(u,0,0.35), go=ramp(u,0.4,0.9);
-    // crouched in the blocks, hands down, then explode forward
-    leanF((0.9*set - 0.3*go)*A); [B_LARM,B_RARM].forEach((Ar,i)=>armF(Ar,(i? (1.0*set):(0.4*set)) + (i?-0.8:0.8)*go*A));
-    legF(B_LLEG,(0.9*set - 0.5*go)*A); kneeB(B_LLEG,1.3*set*A); legF(B_RLEG,(-0.6*set + 1.0*go)*A); kneeB(B_RLEG,0.9*set*(1-go)*A);
-    setRootY(-0.28*set*A + 0.08*go*A); }},
+    setRootY((-0.30*set + 0.22*go)*A); animRoot.position.z += (0.12*set + 0.20*go)*A;
+    leanF((0.95*set - 0.35*go)*A);
+    plantFeet(-0.32-0.12*go*A, 0.00, {width:0.070, footY:[-0.30*set,0.05*set],
+      y:[GROUND_ANKLE+0.12*go*A, GROUND_ANKLE]});
+    animRoot.updateMatrixWorld(true);
+    // hands press the track in "set", then swing through hard as the body launches
+    if(go<0.25){ [B_LARM,B_RARM].forEach(Ar=>reachIK(Ar, V(Ar.s*0.13, GROUND_ANKLE-0.02, 0.34), V(0,-0.2,0.9))); }
+    else { gaitArm(B_LARM,(1.2*go)*A,(0.4+0.6*go)*A,0.13); gaitArm(B_RARM,(-1.0*go)*A,(0.4+0.8*go)*A,0.13); } }},
   {id:'hurdle', name:'Hurdle Clearance', cat:'Track & Field', type:'stay', dur:1.0, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.0*P.speed)%1, air=Math.sin(Math.PI*clamp((u-0.1)/0.7,0,1));
     setRootY(air*0.3*A); legF(B_RLEG,air*1.3*A); kneeB(B_RLEG,-0.2*air*A); legF(B_LLEG,-air*0.6*A); kneeB(B_LLEG,air*1.4*A);
     armF(B_LARM,air*1.2*A); armF(B_RARM,-air*0.4*A); leanF(0.4*air*A); }},
@@ -621,31 +1038,31 @@ const BIPED_MOTIONS=[
     setRootY(up*0.55*A); BIPED_SPINE.forEach(s=>sw(s,AX.x,arch*0.4*A)); sw(B_HEAD,AX.x,-arch*0.4*A);
     [B_LLEG,B_RLEG].forEach(L=>{ legF(L,-arch*0.4*A); kneeB(L,up*0.8*A); }); [B_LARM,B_RARM].forEach(Ar=>armO(Ar,up*0.9*A)); }},
   {id:'javelin', name:'Javelin Throw', cat:'Track & Field', type:'stay', dur:1.1, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.1*P.speed)%1, cross=ramp(u,0,0.45), rel=bump(u,0.62,0.22), follow=ramp(u,0.65,1);
-    armF(B_RARM,(-1.2*cross + 2.6*rel)*A); armO(B_RARM,0.4*cross*A); elb(B_RARM,(0.6*cross - 0.4*rel)*A);
-    armF(B_LARM,(0.7*cross - 0.5*follow)*A); twist((0.5*cross - 0.6*follow)*A); legF(B_LLEG,0.5*follow*A); kneeB(B_LLEG,0.3*A); leanF(0.2*follow*A); }},
+    reachUp(B_RARM,cross*0.5,A); reachHigh(B_RARM,rel,A); elb(B_RARM,(0.6*cross - 0.4*rel)*A);   // arm drawn back high → whips forward-up
+    armF(B_LARM,(0.6*cross - 0.5*follow)*A); twist((0.5*cross - 0.6*follow)*A); legF(B_LLEG,0.5*follow*A); kneeB(B_LLEG,0.3*A); leanF(0.2*follow*A); }},
   {id:'shotput', name:'Shot Put', cat:'Track & Field', type:'stay', dur:1.1, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.1*P.speed)%1, coil=ramp(u,0,0.5), push=bump(u,0.65,0.25);
-    armF(B_RARM,(0.3*coil + 1.4*push)*A); armO(B_RARM,(0.7*coil - 0.2*push)*A); elb(B_RARM,(1.5*coil - 1.2*push)*A);
-    twist((-0.4*coil + 0.6*push)*A); sw('Hips',AX.y,(-0.3*coil + 0.4*push)*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,(0.6*coil - 0.2*push)*A)); setRootY(-0.1*coil*A + 0.06*push*A); }},
+    reachHigh(B_RARM,push,A); elb(B_RARM,(1.5*coil - 1.2*push)*A); armO(B_RARM,0.4*coil*A);   // ball at the neck (coil, elbow bent) → punched up-forward
+    twist((-0.4*coil + 0.6*push)*A); sw('Hips',AX.y,(-0.3*coil + 0.4*push)*A); setRootY((-0.20*coil + 0.10*push)*A); plantFeet(-0.20-0.04*coil*A, 0.18+0.06*push*A, {width:0.085, footY:[-0.25*push,0]}); }},
   {id:'discus', name:'Discus Spin', cat:'Track & Field', type:'stay', dur:1.3, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.3*P.speed)%1;
     sw('Hips',AX.y,TAU*eio(u)*A); armF(B_RARM,0.4*A); armO(B_RARM,1.4*A); elb(B_RARM,0.1*A); armO(B_LARM,0.8*A);
     [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.4*A)); leanF(0.15*A); }},
   {id:'polevault', name:'Pole-Vault Plant', cat:'Track & Field', type:'stay', dur:1.3, build:(t,P)=>{ bstand(); const A=P.amp, u=t/1.3, plant=ramp(u,0,0.3), up=Math.sin(Math.PI*clamp((u-0.25)/0.7,0,1));
-    [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,(1.8*plant + 0.9*up)*A); elb(Ar,(0.9*plant - 0.6*up)*A); });
+    [B_LARM,B_RARM].forEach(Ar=>{ reachUp(Ar,(0.7*plant+0.3*up),A); elb(Ar,(0.9*plant - 0.6*up)*A); });   // arms up planting/holding the pole
     setRootY(up*0.7*A); [B_LLEG,B_RLEG].forEach(L=>{ legF(L,up*1.0*A); kneeB(L,up*1.4*A); }); leanF(0.2*plant*A - 0.3*up*A); }},
-  {id:'batonpass', name:'Baton Handoff', cat:'Track & Field', type:'move', dur:0.8, build:(t,P)=>{ bipedGait(t,P,0.8,{legAmp:0.6,kneeAmp:0.9,armAmp:0.3,lean:0.2});
+  {id:'batonpass', name:'Baton Handoff', cat:'Track & Field', type:'move', dur:0.8, build:(t,P)=>{ gaitIK(t,P,0.8,{stride:0.30,duty:0.43,clear:0.13,hipDrop:0.036,lean:0.16,armSwing:0.55,elbow0:1.3,shDrive:0.4,strikeUp:0.06,toeOff:0.68});
     armF(B_RARM,-1.2*P.amp); elb(B_RARM,-0.1*P.amp); }},
   {id:'finishlean', name:'Finish-Line Lean', cat:'Track & Field', type:'stay', dur:1.0, build:(t,P)=>{ bstand(); const A=P.amp, u=t/1.0, lean=ramp(u,0.3,0.7);
     leanF(0.7*lean*A); [B_LARM,B_RARM].forEach(Ar=>armF(Ar,-1.0*lean*A)); legF(B_RLEG,0.7*lean*A); kneeB(B_RLEG,0.3*A); legF(B_LLEG,-0.4*lean*A); sw(B_HEAD,AX.x,0.2*lean*A); }},
   // —— Dancing ——
   {id:'sidestep', name:'Side-Step Groove', cat:'Dancing', type:'stay', dur:1.2, build:(t,P)=>{ bstand(); const A=P.amp, ph=TAU*(t/1.2)*P.speed, s=Math.sin(ph);
     sw('Hips',AX.z,s*0.12*A); sw('Spine02',AX.z,-s*0.12*A); setRootY(Math.abs(Math.sin(ph*2))*0.03*A);
-    [B_LARM,B_RARM].forEach((Ar,i)=>{ armO(Ar,(0.3+0.25*(i?s:-s))*A); elb(Ar,1.2*A); armF(Ar,0.3+0.2*s*(i?1:-1)*A); }); sw(B_HEAD,AX.z,s*0.1*A); }},
+    [B_LARM,B_RARM].forEach((Ar,i)=>{ armO(Ar,(0.3+0.25*(i?s:-s))*A); elb(Ar,1.2*A); armF(Ar,0.3+0.2*s*(i?1:-1)*A); }); sw(B_HEAD,AX.z,s*0.1*A); plantFeet(0.02,0.02,{width:0.105}); }},
   {id:'raisethroof', name:'Overhead Sway', cat:'Dancing', type:'stay', dur:1.6, build:(t,P)=>{ bstand(); const A=P.amp, s=Math.sin(TAU*(t/1.6)*P.speed);
-    [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,2.6*A); armO(Ar,0.3*A); }); sw('Spine02',AX.z,s*0.14*A); sw('Hips',AX.z,-s*0.1*A); sw(B_HEAD,AX.z,s*0.1*A); setRootY(Math.abs(s)*0.02*A); }},
+    [B_LARM,B_RARM].forEach(Ar=>reachUp(Ar,1,A)); sw('Spine02',AX.z,s*0.14*A); sw('Hips',AX.z,-s*0.1*A); sw(B_HEAD,AX.z,s*0.1*A); setRootY(Math.abs(s)*0.02*A); }},
   {id:'spin', name:'Spin Flourish', cat:'Dancing', type:'stay', dur:1.4, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.4*P.speed)%1;
     sw('Hips',AX.y,TAU*eio(u)*A); [B_LARM,B_RARM].forEach(Ar=>{ armO(Ar,1.2*A); armF(Ar,0.15*A); }); leanF(0.1*A); setRootY(Math.sin(Math.PI*u)*0.04*A); }},
   {id:'fistpump', name:'Fist-Pump Celebration', cat:'Dancing', type:'stay', dur:0.8, build:(t,P)=>{ bstand(); const A=P.amp, p=Math.max(0,Math.sin(TAU*(t/0.8)*P.speed));
-    armF(B_RARM,(1.6+1.0*p)*A); elb(B_RARM,(1.5-1.3*p)*A); armF(B_LARM,0.5*A); elb(B_LARM,1.4*A); setRootY(p*0.05*A); leanF(-0.08*p*A); }},
+    raiseArm(B_RARM,(0.6+0.4*p),A); elb(B_RARM,(1.6-1.0*p)*A); armF(B_LARM,0.4*A); elb(B_LARM,1.4*A); setRootY(p*0.05*A); leanF(-0.08*p*A); }},
   {id:'robot', name:'The Robot', cat:'Dancing', type:'stay', dur:1.6, build:(t,P)=>{ bstand(); const A=P.amp, st=Math.round(Math.sin(TAU*(t/1.6)*P.speed)*2)/2;
     armF(B_RARM,(0.9+0.5*st)*A); elb(B_RARM,1.4*A); armF(B_LARM,(0.9-0.5*st)*A); elb(B_LARM,1.4*A); twist(st*0.15*A); sw(B_HEAD,AX.y,st*0.2*A); }},
   {id:'twist', name:'The Twist', cat:'Dancing', type:'stay', dur:0.9, build:(t,P)=>{ bstand(); const A=P.amp, s=Math.sin(TAU*(t/0.9)*P.speed);
@@ -655,7 +1072,7 @@ const BIPED_MOTIONS=[
     BIPED_LEGS.forEach((L,i)=>{ const a=ph+(i?Math.PI:0); kneeB(L,Math.max(0,Math.sin(a))*0.6*A); legF(L,Math.sin(a)*0.1*A); });
     setRootY(Math.abs(Math.sin(ph))*0.04*A); [B_LARM,B_RARM].forEach((Ar,i)=>{ armF(Ar,Math.sin(ph+(i?0:Math.PI))*0.4*A); elb(Ar,0.9*A); }); }},
   {id:'discopoint', name:'Disco Point', cat:'Dancing', type:'stay', dur:1.0, build:(t,P)=>{ bstand(); const A=P.amp, ph=TAU*(t/1.0)*P.speed, s=Math.sin(ph);
-    armF(B_RARM,(1.8+0.5*Math.max(0,s))*A); armO(B_RARM,0.5*A); armF(B_LARM,0.4*A); elb(B_LARM,1.2*A);
+    reachHigh(B_RARM,(0.7+0.2*Math.max(0,s)),A); armF(B_LARM,0.4*A); elb(B_LARM,1.2*A);   // pointing arm up on the diagonal
     sw('Hips',AX.z,s*0.1*A); leanS(s*0.08*A); setRootY(Math.abs(s)*0.03*A); }},
   {id:'bodywave', name:'Body Wave', cat:'Dancing', type:'stay', dur:1.4, build:(t,P)=>{ bstand(); const A=P.amp, ph=TAU*(t/1.4)*P.speed;
     sw(B_HEAD,AX.x,Math.sin(ph)*0.2*A); sw('Spine',AX.x,Math.sin(ph-0.6)*0.15*A); sw('Spine02',AX.x,Math.sin(ph-1.2)*0.18*A); sw('Hips',AX.x,Math.sin(ph-1.8)*0.12*A);
@@ -669,69 +1086,117 @@ const BIPED_MOTIONS=[
   {id:'scan', name:'Scan the Horizon', cat:'Gestures', type:'stay', dur:2.8, build:(t,P)=>{ bstand(); const A=P.amp;
     sw(B_HEAD,AX.y,Math.sin(TAU*t/2.8*P.speed)*0.7*A); sw(B_NECK,AX.y,Math.sin(TAU*t/2.8*P.speed)*0.3*A); sw(B_HEAD,AX.x,Math.sin(TAU*t/1.4*P.speed)*0.1*A); }},
   {id:'wave', name:'Friendly Wave', cat:'Gestures', type:'stay', dur:1.6, build:(t,P)=>{ bstand(); const A=P.amp;
-    armF(B_RARM,1.6*A); armO(B_RARM,0.5*A); elb(B_RARM,0.9*A); wristW(B_RARM,Math.sin(TAU*t/0.5*P.speed)*0.5*A); sw(B_HEAD,AX.z,0.06*A); }},
+    raiseArm(B_RARM,1,A); elb(B_RARM,0.7*A); armO(B_RARM,Math.sin(TAU*t/0.5*P.speed)*0.35*A); wristW(B_RARM,Math.sin(TAU*t/0.5*P.speed)*0.4*A); sw(B_HEAD,AX.z,0.06*A); }},   // arm raised by the head, sweeps side-to-side
   {id:'nod', name:'Nod Yes', cat:'Gestures', type:'stay', dur:1.2, build:(t,P)=>{ bstand(); sw(B_HEAD,AX.x,(0.25+0.25*Math.sin(TAU*(t/0.6)*P.speed))*P.amp); }},
   {id:'shake', name:'Shake No', cat:'Gestures', type:'stay', dur:1.2, build:(t,P)=>{ bstand(); sw(B_HEAD,AX.y,Math.sin(TAU*(t/0.6)*P.speed)*0.4*P.amp); }},
+  // Sitting: the hips travel BACK and down over planted feet (a hip hinge), they don't just sink in place —
+  // the shins stay vertical over the heels and the seat ends up behind the ankles.
   {id:'sit', name:'Take a Seat', cat:'Gestures', type:'stay', dur:1.6, build:(t,P)=>{ bstand(); const A=P.amp, k=eio(clamp(t/0.9,0,1));
-    [B_LLEG,B_RLEG].forEach(L=>{ legF(L,1.4*k*A); kneeB(L,1.5*k*A); }); setRootY(-0.42*k*A); leanF(-0.1*k*A); [B_LARM,B_RARM].forEach(Ar=>armF(Ar,0.3*k*A)); }},
+    setRootY(-0.40*k*A); animRoot.position.z -= 0.16*k*A;                  // hips drop AND travel back
+    leanF(0.30*k*A); [B_LARM,B_RARM].forEach(Ar=>armF(Ar,0.35*k*A));
+    plantFeet(0.02, 0.02, {footY:0.05}); }},
+  // Squatting keeps the heels down and the weight over the midfoot; the torso leans forward to hold the
+  // centre of mass over the feet — without that lean a real person topples backwards.
   {id:'crouch', name:'Low Crouch', cat:'Gestures', type:'stay', dur:1.4, build:(t,P)=>{ bstand(); const A=P.amp, k=eio(clamp(t/0.7,0,1));
-    [B_LLEG,B_RLEG].forEach(L=>{ legF(L,0.5*k*A); kneeB(L,1.2*k*A); }); setRootY(-0.3*k*A); leanF(0.3*k*A); [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,0.5*k*A); elb(Ar,0.7*k*A); }); }},
+    setRootY(-0.28*k*A); animRoot.position.z -= 0.10*k*A;
+    leanF(0.42*k*A); [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,0.5*k*A); elb(Ar,0.7*k*A); });
+    plantFeet(0.02, 0.02, {width:0.095}); }},
   {id:'stagger', name:'Off-Balance Stagger', cat:'Gestures', type:'stay', dur:1.6, build:(t,P)=>{ bstand(); const A=P.amp, s=Math.sin(TAU*t/1.6*P.speed), s2=Math.sin(TAU*t/0.8*P.speed+1);
     sw('Hips',AX.z,s*0.14*A); sw('Spine02',AX.z,-s2*0.16*A); sw('Spine02',AX.x,Math.sin(TAU*t/1.1*P.speed)*0.14*A);
-    [B_LARM,B_RARM].forEach((Ar,i)=>armO(Ar,(0.3+0.4*(i?s:-s))*A)); kneeB(B_LLEG,Math.max(0,s)*0.3*A); kneeB(B_RLEG,Math.max(0,-s)*0.3*A); }},
+    [B_LARM,B_RARM].forEach((Ar,i)=>armO(Ar,(0.3+0.4*(i?s:-s))*A)); setRootY(-0.05*A); animRoot.position.x += s*0.07*A; plantFeet(0.10*s*A, -0.10*s*A, {width:0.115}); }},
   {id:'beckon', name:'Beckon Come', cat:'Gestures', type:'stay', dur:1.2, build:(t,P)=>{ bstand(); const A=P.amp;
-    armF(B_RARM,1.2*A); armO(B_RARM,0.2*A); elb(B_RARM,(0.7+0.5*Math.max(0,Math.sin(TAU*(t/0.6)*P.speed)))*A); }},
+    reachF(B_RARM,0.7,A); elb(B_RARM,(0.6+0.7*Math.max(0,Math.sin(TAU*(t/0.6)*P.speed)))*A); }},   // arm out, hand curls in repeatedly
   {id:'shrug', name:'Shrug', cat:'Gestures', type:'stay', dur:1.6, build:(t,P)=>{ bstand(); const A=P.amp, r=Math.max(0,Math.sin(TAU*(t/1.6)*P.speed));
     [B_LARM,B_RARM].forEach(Ar=>{ armO(Ar,0.5*r*A); armF(Ar,0.4*r*A); elb(Ar,-1.1*r*A); }); sw(B_HEAD,AX.z,0.05*r*A); }},
   // —— Household ——
+  // Sitting onto a seat: hips travel back over planted feet until the seat takes the weight; the shins end
+  // roughly vertical with the feet under the knees, and the torso leans in on the way down then comes upright.
   {id:'sitchair', name:'Sit on Chair', cat:'Household', type:'stay', dur:1.6, build:(t,P)=>{ bstand(); const A=P.amp, k=eio(clamp(t/1.0,0,1));
-    [B_LLEG,B_RLEG].forEach(L=>{ legF(L,1.5*k*A); kneeB(L,1.6*k*A); }); setRootY(-0.45*k*A); leanF(0.1*k*A); [B_LARM,B_RARM].forEach(Ar=>armF(Ar,0.2*k*A)); }},
+    setRootY(-0.42*k*A); animRoot.position.z -= 0.20*k*A;
+    leanF((0.34*k - 0.16*k*k)*A); [B_LARM,B_RARM].forEach(Ar=>armF(Ar,0.25*k*A));
+    plantFeet(0.05, 0.05, {footY:0.06}); }},
+  // Standing up reverses it — but the drive is a forward weight-shift ("nose over toes") THEN the leg push,
+  // which is why the lean peaks in the middle of the rise rather than at either end.
   {id:'standchair', name:'Stand from Chair', cat:'Household', type:'stay', dur:1.5, build:(t,P)=>{ bstand(); const A=P.amp, u=t/1.5, k=eio(clamp(1-u/0.8,0,1)), push=bump(u,0.4,0.3);
-    [B_LLEG,B_RLEG].forEach(L=>{ legF(L,1.5*k*A); kneeB(L,1.6*k*A); }); setRootY(-0.45*k*A); leanF((0.35*push+0.15*k)*A); [B_LARM,B_RARM].forEach(Ar=>armF(Ar,0.3*push*A)); }},
+    setRootY(-0.42*k*A); animRoot.position.z -= 0.20*k*A;
+    leanF((0.34*k + 0.30*push)*A); [B_LARM,B_RARM].forEach(Ar=>armF(Ar,0.3*push*A));
+    plantFeet(0.05, 0.05, {footY:0.06}); }},
   {id:'sitbed', name:'Sit on the Bed', cat:'Household', type:'stay', dur:1.5, build:(t,P)=>{ bstand(); const A=P.amp, k=eio(clamp(t/1.0,0,1));
-    [B_LLEG,B_RLEG].forEach(L=>{ legF(L,1.1*k*A); kneeB(L,1.3*k*A); }); setRootY(-0.52*k*A); leanF(-0.05*k*A); [B_LARM,B_RARM].forEach(Ar=>armF(Ar,-0.4*k*A)); }},
+    setRootY(-0.46*k*A); animRoot.position.z -= 0.22*k*A;
+    leanF((0.30*k - 0.22*k*k)*A); [B_LARM,B_RARM].forEach(Ar=>armF(Ar,-0.35*k*A));
+    plantFeet(0.08, 0.08, {footY:0.10}); }},
   {id:'getupbed', name:'Get Up from Bed', cat:'Household', type:'stay', dur:1.6, build:(t,P)=>{ bstand(); const A=P.amp, u=t/1.6, k=eio(clamp(1-u/0.8,0,1)), push=bump(u,0.35,0.3);
-    [B_LLEG,B_RLEG].forEach(L=>{ legF(L,1.1*k*A); kneeB(L,1.3*k*A); }); setRootY(-0.52*k*A); leanF((0.4*push+0.1*k)*A); [B_LARM,B_RARM].forEach(Ar=>armF(Ar,(-0.3*k+0.4*push)*A)); }},
+    setRootY(-0.46*k*A); animRoot.position.z -= 0.22*k*A;
+    leanF((0.30*k + 0.34*push)*A); [B_LARM,B_RARM].forEach(Ar=>armF(Ar,(-0.3*k+0.4*push)*A));
+    plantFeet(0.08, 0.08, {footY:0.10}); }},
   {id:'dishes', name:'Wash the Dishes', cat:'Household', type:'stay', dur:0.6, build:(t,P)=>{ bstand(); const A=P.amp, ph=TAU*(t/0.6)*P.speed;
     [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,0.8*A); armO(Ar,0.2*A); elb(Ar,1.3*A); }); armF(B_RARM,(0.8+0.15*Math.sin(ph))*A); wristW(B_RARM,Math.sin(ph)*0.3*A); leanF(0.15*A); sw(B_HEAD,AX.x,0.15*A); }},
   {id:'opendoor', name:'Open the Door', cat:'Household', type:'stay', dur:1.4, build:(t,P)=>{ bstand(); const A=P.amp, u=t/1.4, reach=ramp(u,0,0.35), pull=ramp(u,0.45,0.9);
-    armF(B_RARM,(1.3*reach-0.4*pull)*A); elb(B_RARM,(0.3+0.8*pull)*A); leanF((0.2*reach-0.2*pull)*A); legF(B_RLEG,-0.3*pull*A); kneeB(B_RLEG,0.3*pull*A); twist(-0.2*pull*A); }},
+    reachF(B_RARM,reach,A); armF(B_RARM,-0.3*pull*A); elb(B_RARM,(0.3+0.8*pull)*A); leanF((0.15*reach-0.2*pull)*A); legF(B_RLEG,-0.3*pull*A); kneeB(B_RLEG,0.3*pull*A); twist(-0.2*pull*A); }},
   {id:'closedoor', name:'Close the Door', cat:'Household', type:'stay', dur:1.2, build:(t,P)=>{ bstand(); const A=P.amp, u=t/1.2, reach=ramp(u,0,0.35), push=ramp(u,0.4,0.85);
-    armF(B_RARM,(1.0*reach+0.6*push)*A); elb(B_RARM,(0.5-0.4*push)*A); leanF((0.15+0.25*push)*A); legF(B_LLEG,0.3*push*A); kneeB(B_LLEG,0.3*push*A); }},
+    reachF(B_RARM,(0.5*reach+0.3*push),A); armF(B_RARM,0.3*push*A); elb(B_RARM,(0.5-0.4*push)*A); leanF((0.15+0.25*push)*A); legF(B_LLEG,0.3*push*A); kneeB(B_LLEG,0.3*push*A); }},
   {id:'sweep', name:'Sweep the Floor', cat:'Household', type:'stay', dur:1.2, build:(t,P)=>{ bstand(); const A=P.amp, s=Math.sin(TAU*(t/1.2)*P.speed);
-    [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,0.9*A); elb(Ar,0.9*A); armO(Ar,0.1*A); }); twist(s*0.2*A); sw('Hips',AX.y,s*0.1*A); leanF(0.25*A); sw(B_HEAD,AX.x,0.2*A); setRootY(-0.03*A); }},
+    twist(s*0.2*A); sw('Hips',AX.y,s*0.1*A); leanF(0.25*A); sw(B_HEAD,AX.x,0.2*A); setRootY(-0.09*A); plantFeet(-0.06,0.10,{width:0.090});
+    shaft(V(0.05+0.18*s,1.05,0.3), V(0.12+0.32*s,0.5,0.55), V(0,-0.4,0.6)); }},   // broom held diagonally, sweeps side-to-side
+  // Bending to pick something up: hips hinge BACK as the chest goes down (that counterweight is what keeps
+  // you balanced over your feet), knees bend, feet stay planted, hands reach the floor in front.
   {id:'pickup', name:'Pick Up Object', cat:'Household', type:'stay', dur:1.5, build:(t,P)=>{ bstand(); const A=P.amp, u=t/1.5, down=Math.sin(Math.PI*clamp((u-0.05)/0.9,0,1));
-    leanF(0.7*down*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.9*down*A)); setRootY(-0.15*down*A); [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,0.9*down*A); elb(Ar,0.4*down*A); }); }},
+    setRootY(-0.20*down*A); animRoot.position.z -= 0.12*down*A;
+    leanF(0.85*down*A); plantFeet(0.02, 0.02);
+    [B_LARM,B_RARM].forEach(Ar=>reachIK(Ar, V(Ar.s*0.12, GROUND_ANKLE+0.10*(1-down), 0.30), V(0,-0.4,0.7))); }},
   {id:'drink', name:'Take a Drink', cat:'Household', type:'stay', dur:1.8, build:(t,P)=>{ bstand(); const A=P.amp, u=t/1.8, r=eio(clamp((u<0.5?u/0.5:(1-(u-0.5)/0.5)),0,1));
-    armF(B_RARM,1.0*r*A); armO(B_RARM,0.2*r*A); elb(B_RARM,1.8*r*A); sw(B_HEAD,AX.x,-0.2*r*A); }},
+    handToHead(B_RARM,r,A); sw(B_HEAD,AX.x,-0.2*r*A); }},   // cup rises to the mouth, head tips back
   // —— Combat ——
   {id:'slash', name:'Sword Slash', cat:'Combat', type:'stay', dur:0.8, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/0.8*P.speed)%1, wind=ramp(u,0,0.4), swing=bump(u,0.55,0.25);
-    armF(B_RARM,(2.2*wind - 1.5*swing)*A); armO(B_RARM,(0.6*wind - 0.8*swing)*A); elb(B_RARM,0.4*A); twist((-0.4*wind + 0.6*swing)*A); sw('Hips',AX.y,(-0.2*wind+0.3*swing)*A); legF(B_LLEG,0.3*swing*A); }},
+    reachUp(B_RARM,(wind*(1-swing)*0.8),A); reachF(B_RARM,swing,A); sw(B_RARM.arm,AX.y,-0.5*swing*A*B_RARM.s); elb(B_RARM,0.4*A);   // cock over the shoulder → cut down-across to the front
+    twist((-0.4*wind + 0.6*swing)*A); sw('Hips',AX.y,(-0.2*wind+0.3*swing)*A); legF(B_LLEG,0.25*swing*A); leanF(0.1*swing*A); }},
   {id:'chopdown', name:'Overhead Chop', cat:'Combat', type:'stay', dur:0.9, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/0.9*P.speed)%1, up=ramp(u,0,0.45), down=ramp(u,0.45,0.7);
-    [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,(2.5*up - 1.9*down)*A); elb(Ar,(0.3+0.5*up-0.4*down)*A); }); leanF((-0.2*up+0.4*down)*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.3*down*A)); }},
+    leanF((-0.15*up+0.45*down)*A); setRootY((-0.05-0.16*down)*A); plantFeet(-0.12,0.14,{width:0.090});
+    const raise=V(0.0,1.78,-0.05), impact=V(0.0,0.85,0.5);   // both hands on the sword: raise overhead → chop down to the front
+    grip(lerpDir(lerpDir(V(0,1.1,0.3),raise,up),impact,down), V(0,0.2,1)); }},
   {id:'shieldblock', name:'Shield Block', cat:'Combat', type:'stay', dur:0.9, build:(t,P)=>{ bstand(); const A=P.amp, p=bump((t/0.9*P.speed)%1,0.5,0.45);
     armF(B_LARM,(0.9+0.3*p)*A); armO(B_LARM,-0.5*A); elb(B_LARM,1.4*A); armF(B_RARM,0.5*A); elb(B_RARM,1.5*A); kneeB(B_LLEG,0.3*A); kneeB(B_RLEG,0.3*A); leanF(0.15*A); twist(-0.15*A); }},
-  {id:'dodgeroll', name:'Dodge Roll', cat:'Combat', type:'stay', dur:0.9, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/0.9*P.speed)%1, roll=eio(clamp((u-0.15)/0.7,0,1)), tuck=Math.sin(Math.PI*clamp((u-0.1)/0.8,0,1));
-    sw('Hips',AX.x,-TAU*roll*A); setRootY(-0.2*tuck*A); [B_LLEG,B_RLEG].forEach(L=>{ legF(L,tuck*1.2*A); kneeB(L,tuck*1.6*A); }); [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,tuck*1.0*A); elb(Ar,tuck*1.2*A); }); leanF(tuck*0.3*A); }},
-  {id:'thrust', name:'Spear Thrust', cat:'Combat', type:'stay', dur:0.8, build:(t,P)=>{ bstand(); const A=P.amp, p=bump((t/0.8*P.speed)%1,0.5,0.4);
-    armF(B_RARM,(0.9+0.9*p)*A); elb(B_RARM,(0.9-0.7*p)*A); armF(B_LARM,(0.6+0.4*p)*A); elb(B_LARM,(1.0-0.3*p)*A); legF(B_RLEG,0.7*p*A); kneeB(B_RLEG,0.6*p*A); setRootY(-0.1*p*A); leanF(0.2*p*A); }},
+  // A dodge roll: drop into a tight ball, rotate a full turn about the contact point, come back to the
+  // feet. While rolling the body is a ball — the limbs tuck in and nothing is planted; the height follows
+  // the roll, lowest when inverted, and the feet only take weight again at the very start and end.
+  {id:'dodgeroll', name:'Dodge Roll', cat:'Combat', type:'stay', dur:0.9, build:(t,P)=>{ bstand(); const A=P.amp;
+    const u=((t/0.9)*P.speed)%1, roll=eio(clamp((u-0.15)/0.7,0,1)), tuck=Math.sin(Math.PI*clamp((u-0.05)/0.9,0,1));
+    setRootY((-0.40*tuck)*A); animRoot.position.z += 0.30*roll*A;
+    sw('Hips',AX.x,-TAU*roll*A);                                           // the full rotation
+    leanF(tuck*0.45*A);
+    if(tuck>0.25){ [B_LLEG,B_RLEG].forEach(L=>{ legF(L,(0.6+tuck*0.9)*A); kneeB(L,(0.8+tuck*1.3)*A); airFoot(L,tuck,0.5); }); }
+    else plantFeet(0.02,0.02,{width:0.085});
+    [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,tuck*1.0*A); elb(Ar,(0.3+tuck*1.5)*A); armO(Ar,-0.25*tuck*A); }); }},
+  {id:'thrust', name:'Spear Thrust', cat:'Combat', type:'stay', dur:0.8, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/0.8*P.speed)%1, chamber=ramp(u,0,0.35), p=bump(u,0.55,0.35);
+    reachF(B_RARM,(0.3+0.7*p),A); elb(B_RARM,(0.9*chamber*(1-p))*A);          // rear hand: drawn back (elbow cocked) → drives the spear forward
+    reachF(B_LARM,(0.4+0.6*p),A); elb(B_LARM,(0.6-0.3*p)*A);                   // lead hand guides forward
+    setRootY((-0.08-0.10*p)*A); animRoot.position.z += 0.16*p*A; leanF(0.25*p*A); twist(-0.1*p*A); plantFeet(0.20+0.20*p*A, -0.22, {width:0.080, footY:[0,-0.28*p]}); }},
   {id:'bowshot', name:'Bow Draw & Loose', cat:'Combat', type:'stay', dur:1.2, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.2*P.speed)%1, draw=ramp(u,0.1,0.6), loose=ramp(u,0.65,0.8);
-    armF(B_LARM,1.4*A); elb(B_LARM,0.1*A); armF(B_RARM,1.2*draw*A); armO(B_RARM,0.5*draw*A); elb(B_RARM,(1.7*draw - 1.4*loose)*A); twist(-0.2*draw*A); sw(B_HEAD,AX.y,-0.15*draw*A); }},
+    reachF(B_LARM,0.8,A); elb(B_LARM,0.1*A); armF(B_RARM,0.3*draw*A); armO(B_RARM,0.6*draw*A); elb(B_RARM,(1.7*draw - 1.4*loose)*A); twist(-0.2*draw*A); sw(B_HEAD,AX.y,-0.15*draw*A); }},   // bow arm out front, string hand draws to the cheek
   {id:'cast', name:'Cast Spell', cat:'Combat', type:'stay', dur:1.4, build:(t,P)=>{ bstand(); const A=P.amp, ph=TAU*(t/1.4)*P.speed, push=Math.max(0,Math.sin(ph));
-    [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,(1.2+0.4*push)*A); armO(Ar,0.3*A); elb(Ar,(0.8-0.4*push)*A); wristW(Ar,-0.4*A); }); leanF(0.1*push*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.2*A)); }},
+    [B_LARM,B_RARM].forEach(Ar=>{ reachF(Ar,(0.5+0.5*push),A); elb(Ar,(0.9-0.5*push)*A); wristW(Ar,-0.4*A); }); leanF(0.12*push*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.2*A)); }},
   {id:'flinch', name:'Take a Hit', cat:'Combat', type:'stay', dur:0.7, build:(t,P)=>{ bstand(); const A=P.amp, p=Math.max(0,Math.sin(Math.PI*clamp(((t/0.7*P.speed)%1)/0.6,0,1)));
     leanF(-0.4*p*A); sw(B_HEAD,AX.x,-0.3*p*A); [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,0.6*p*A); elb(Ar,1.0*p*A); }); twist(0.2*p*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.2*p*A)); }},
   {id:'knockback', name:'Knockback Stagger', cat:'Combat', type:'stay', dur:1.0, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.0*P.speed)%1, hit=Math.max(0,Math.sin(Math.PI*clamp(u/0.5,0,1))), rec=ramp(u,0.5,1);
-    leanF((-0.5*hit+0.3*rec)*A); legF(B_RLEG,(-0.6*hit+0.4*rec)*A); kneeB(B_RLEG,0.4*hit*A); legF(B_LLEG,0.3*hit*A); [B_LARM,B_RARM].forEach(Ar=>armO(Ar,0.7*hit*A)); sw(B_HEAD,AX.x,-0.3*hit*A); setRootY(-0.05*hit*A); }},
-  {id:'death', name:'Fall Down', cat:'Combat', type:'stay', dur:1.4, build:(t,P)=>{ bstand(); const A=P.amp, k=eio(clamp(t/1.1,0,1));
-    setRootY(-0.55*k*A); [B_LLEG,B_RLEG].forEach(L=>{ legF(L,0.8*k*A); kneeB(L,1.6*k*A); }); BIPED_SPINE.forEach(s=>sw(s,AX.x,-0.4*k*A)); sw(B_HEAD,AX.x,-0.3*k*A); [B_LARM,B_RARM].forEach(Ar=>armO(Ar,0.6*k*A)); }},
+    leanF((-0.5*hit+0.3*rec)*A); [B_LARM,B_RARM].forEach(Ar=>armO(Ar,0.7*hit*A)); sw(B_HEAD,AX.x,-0.3*hit*A); setRootY(-0.14*hit*A); animRoot.position.z -= 0.14*hit*A; plantFeet(0.10*hit*A, -0.30*hit*A, {width:0.090}); }},
+  // Collapsing: the knees buckle first and the body drops onto them, THEN the trunk folds over as the
+  // legs give way completely. Two staged phases — a body that simply sinks straight down reads as an
+  // elevator, not a fall. The feet end up behind and under, as they do when someone crumples in place.
+  {id:'death', name:'Fall Down', cat:'Combat', type:'stay', dur:1.4, build:(t,P)=>{ bstand(); const A=P.amp, u=t/1.4;
+    const buckle=eio(clamp(u/0.5,0,1)), collapse=eio(clamp((u-0.4)/0.6,0,1));
+    setRootY((-0.40*buckle - 0.26*collapse)*A);
+    animRoot.position.z -= (0.06*buckle + 0.16*collapse)*A;
+    BIPED_SPINE.forEach(s=>sw(s,AX.x,(-0.12*buckle - 0.30*collapse)*A));   // trunk folds as the legs give out
+    sw(B_HEAD,AX.x,(-0.15*buckle - 0.35*collapse)*A);
+    plantFeet(-0.10-0.16*collapse*A, -0.10-0.16*collapse*A, {width:0.085, footY:-0.45*collapse});
+    [B_LARM,B_RARM].forEach(Ar=>{ armO(Ar,(0.35*buckle + 0.55*collapse)*A); armF(Ar,-0.4*collapse*A); }); }},
   // —— Emotes ——
   {id:'cheer', name:'Cheer', cat:'Emotes', type:'stay', dur:0.9, build:(t,P)=>{ bstand(); const A=P.amp, p=Math.max(0,Math.sin(TAU*(t/0.9)*P.speed));
-    [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,(2.2+0.3*p)*A); armO(Ar,0.4*A); }); setRootY(p*0.1*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,p*0.4*A)); sw(B_HEAD,AX.x,-0.15*A); }},
+    [B_LARM,B_RARM].forEach(Ar=>reachUp(Ar,0.9+0.1*p,A)); setRootY(p*0.1*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,p*0.4*A)); sw(B_HEAD,AX.x,-0.15*A); }},   // both arms punch overhead
   {id:'applaud', name:'Applaud', cat:'Emotes', type:'stay', dur:0.5, build:(t,P)=>{ bstand(); const A=P.amp, clap=Math.max(0,Math.sin(TAU*(t/0.5)*P.speed));
     [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,1.1*A); armO(Ar,(0.55-0.4*clap)*A); elb(Ar,1.5*A); }); }},
   {id:'cry', name:'Sob', cat:'Emotes', type:'stay', dur:1.6, build:(t,P)=>{ bstand(); const A=P.amp, b=Math.abs(Math.sin(TAU*(t/0.8)*P.speed));
-    [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,1.5*A); armO(Ar,0.3*A); elb(Ar,1.7*A); }); sw(B_HEAD,AX.x,0.4*A); leanF(0.2*A); sw('Spine02',AX.x,b*0.06*A); setRootY(-b*0.02*A); }},
+    sw(B_HEAD,AX.x,0.4*A); leanF(0.2*A); sw('Spine02',AX.x,b*0.06*A); setRootY((-0.05-b*0.02)*A); plantFeet(0.02,0.02,{width:0.075}); [B_LARM,B_RARM].forEach(Ar=>handToHead(Ar,1,A)); }},
   {id:'laugh', name:'Laugh', cat:'Emotes', type:'stay', dur:1.0, build:(t,P)=>{ bstand(); const A=P.amp, b=Math.max(0,Math.sin(TAU*(t/0.5)*P.speed));
     leanF(0.25*A + b*0.1*A); sw(B_HEAD,AX.x,-0.2*A - b*0.1*A); [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,0.5*A); elb(Ar,1.0*A); }); setRootY(b*0.03*A); }},
   {id:'angry', name:'Angry Stomp', cat:'Emotes', type:'stay', dur:0.8, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/0.8*P.speed)%1, stomp=Math.max(0,Math.sin(Math.PI*clamp(u/0.5,0,1)));
@@ -739,54 +1204,116 @@ const BIPED_MOTIONS=[
   {id:'bow', name:'Take a Bow', cat:'Emotes', type:'stay', dur:1.6, build:(t,P)=>{ bstand(); const A=P.amp, k=eio(clamp((t<0.9?t:1.6-t)/0.6,0,1));
     leanF(0.9*k*A); sw(B_HEAD,AX.x,0.3*k*A); armF(B_LARM,-0.3*k*A); armF(B_RARM,0.3*k*A); armO(B_RARM,-0.3*k*A); }},
   {id:'facepalm', name:'Facepalm', cat:'Emotes', type:'stay', dur:1.6, build:(t,P)=>{ bstand(); const A=P.amp, k=eio(clamp(t/0.7,0,1));
-    armF(B_RARM,1.5*k*A); armO(B_RARM,0.3*k*A); elb(B_RARM,1.7*k*A); sw(B_HEAD,AX.x,0.2*k*A); leanF(0.15*k*A); }},
+    handToHead(B_RARM,k,A); sw(B_HEAD,AX.x,0.2*k*A); leanF(0.15*k*A); }},
   {id:'ponder', name:'Ponder', cat:'Emotes', type:'stay', dur:2.4, build:(t,P)=>{ bstand(); const A=P.amp;
-    armF(B_RARM,1.2*A); armO(B_RARM,0.2*A); elb(B_RARM,1.9*A); armF(B_LARM,0.3*A); elb(B_LARM,1.4*A); sw(B_HEAD,AX.y,Math.sin(TAU*t/2.4*P.speed)*0.15*A); sw(B_HEAD,AX.x,0.1*A); }},
+    handToHead(B_RARM,0.85,A); armF(B_LARM,0.3*A); elb(B_LARM,1.4*A); sw(B_HEAD,AX.y,Math.sin(TAU*t/2.4*P.speed)*0.15*A); sw(B_HEAD,AX.x,0.1*A); }},   // hand to the chin, thinking
   {id:'salute2', name:'Sharp Salute', cat:'Emotes', type:'stay', dur:1.4, build:(t,P)=>{ bstand(); const A=P.amp, k=eio(clamp((t<0.6?t/0.4:1),0,1));
-    armF(B_RARM,1.4*k*A); armO(B_RARM,0.6*k*A); elb(B_RARM,1.6*k*A); legO(B_LLEG,-0.05*k*A); legO(B_RLEG,-0.05*k*A); sw(B_HEAD,AX.x,-0.05*k*A); }},
+    handToHead(B_RARM,k,A); legO(B_LLEG,-0.05*k*A); legO(B_RLEG,-0.05*k*A); sw(B_HEAD,AX.x,-0.05*k*A); }},   // hand snaps up to the brow
   {id:'point', name:'Point Out', cat:'Emotes', type:'stay', dur:1.4, build:(t,P)=>{ bstand(); const A=P.amp, k=eio(clamp(t/0.6,0,1));
-    armF(B_RARM,1.6*k*A); armO(B_RARM,0.4*k*A); elb(B_RARM,0.2*k*A); sw(B_HEAD,AX.y,0.1*k*A); leanF(0.1*k*A); }},
+    reachF(B_RARM,k,A); elb(B_RARM,0.12*A); sw(B_HEAD,AX.y,0.1*k*A); leanF(0.1*k*A); }},   // arm extends forward, finger points
   // —— Work ——
   {id:'shovel', name:'Shovel Dig', cat:'Work', type:'stay', dur:1.4, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.4*P.speed)%1, dig=ramp(u,0,0.4), lift=ramp(u,0.4,0.7), toss=ramp(u,0.7,1);
-    leanF((0.5*dig - 0.3*lift)*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.5*dig*A)); [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,(0.8*dig + 0.2*lift - 0.4*toss)*A); elb(Ar,(0.9 - 0.3*lift)*A); }); twist(0.3*toss*A); }},
+    leanF((0.5*dig - 0.3*lift)*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.5*dig*A)); twist(0.3*toss*A);
+    const by=0.45+0.5*lift+0.2*toss, bz=0.55-0.3*toss; shaft(V(-0.05,1.05,0.28), V(0.05+0.3*toss,by,bz), V(0,-0.4,0.6)); }},   // shovel digs low → lifts → tosses aside
   {id:'hammer', name:'Swing Hammer', cat:'Work', type:'stay', dur:0.7, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/0.7*P.speed)%1, up=ramp(u,0,0.4), down=ramp(u,0.4,0.6);
-    armF(B_RARM,(2.0*up - 1.6*down)*A); elb(B_RARM,(0.5+0.6*up-0.5*down)*A); armF(B_LARM,0.5*A); elb(B_LARM,1.0*A); leanF(0.15*down*A); }},
+    reachUp(B_RARM,up*(1-down),A); reachF(B_RARM,down,A); elb(B_RARM,(0.5+0.5*up-0.4*down)*A); armF(B_LARM,0.4*A); elb(B_LARM,1.0*A); leanF(0.15*down*A); }},
   {id:'chopwood', name:'Chop Wood', cat:'Work', type:'stay', dur:0.9, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/0.9*P.speed)%1, up=ramp(u,0,0.45), down=ramp(u,0.45,0.65);
-    [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,(2.4*up - 2.0*down)*A); elb(Ar,(0.3+0.4*up-0.3*down)*A); }); leanF((-0.15*up+0.5*down)*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.3*down*A)); }},
-  {id:'liftcrate', name:'Lift Crate', cat:'Work', type:'stay', dur:1.6, build:(t,P)=>{ bstand(); const A=P.amp, u=t/1.6, down=Math.sin(Math.PI*clamp((u-0.05)/0.5,0,1)), lift=ramp(u,0.5,1);
-    leanF(0.6*down*A - 0.1*lift*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.9*down*A)); setRootY(-0.2*down*A); [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,(0.7*down + 0.5*lift)*A); elb(Ar,(0.4+0.8*lift)*A); }); }},
-  {id:'carry', name:'Carry a Load', cat:'Work', type:'move', dur:1.1, build:(t,P)=>{ bipedGait(t,P,1.1,{legAmp:0.4,kneeAmp:0.6,armAmp:0.08,bob:0.02,lean:0.12}); [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,0.8*P.amp); elb(Ar,1.3*P.amp); }); }},
-  {id:'pushheavy', name:'Push Heavy', cat:'Work', type:'stay', dur:1.0, build:(t,P)=>{ bstand(); const A=P.amp, ph=TAU*(t/1.0)*P.speed, drive=0.7+0.15*Math.sin(ph);
-    [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,1.3*A); elb(Ar,0.3*A); }); leanF(0.5*A); legF(B_RLEG,-0.4*drive*A); kneeB(B_RLEG,0.5*A); legF(B_LLEG,0.2*A); setRootY(-0.05*A); }},
+    leanF((-0.15*up+0.5*down)*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.3*down*A));
+    const raise=V(0.0,1.75,-0.05), impact=V(0.0,0.72,0.5);   // both hands on the axe: overhead → chop down to the block
+    grip(u<0.45 ? lerpDir(V(0,1.1,0.35),raise,up) : lerpDir(raise,impact,down), V(0,0.2,1)); }},
+  // Safe lifting technique: squat DOWN to the load with the back near-neutral, then drive up with the legs.
+  // The crate stays close to the body and rises with the hips rather than being hauled by the back.
+  {id:'liftcrate', name:'Lift Crate', cat:'Work', type:'stay', dur:1.6, build:(t,P)=>{ bstand(); const A=P.amp, u=t/1.6,
+      squat=Math.sin(Math.PI*clamp((u-0.05)/0.55,0,1)), lift=ramp(u,0.5,1);
+    setRootY(-0.30*squat*A); animRoot.position.z -= 0.10*squat*A;
+    leanF((0.42*squat - 0.10*lift)*A); plantFeet(0.02, 0.02, {width:0.095});
+    const boxY=GROUND_ANKLE+0.10 + 0.55*lift*A;                            // the crate rises as the legs drive
+    [B_LARM,B_RARM].forEach(Ar=>reachIK(Ar, V(Ar.s*0.20, boxY, 0.26), V(0,-0.5,0.6))); }},
+  // Carrying a load: shorter steps, wider base, longer stance (stability), trunk leans back slightly to
+  // counter the weight held in front, and the arms are OUT of the swing entirely — they hold the box.
+  {id:'carry', name:'Carry a Load', cat:'Work', type:'move', dur:1.1, build:(t,P)=>{ const A=P.amp;
+    gaitIK(t,P,1.1,{stride:0.19,duty:0.68,clear:0.045,hipDrop:0.020,lean:-0.06,armSwing:0,elbow0:0,
+      shDrive:0,pelvisRot:0.04,pelvisList:0.035,track:0.85});
+    [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,0.8*A); elb(Ar,1.3*A); }); }},
+  // Pushing something heavy: a long staggered stance with the rear leg driving, the body angled into the
+  // load so the push line runs from the rear foot through the hips to the hands, and the arms braced.
+  {id:'pushheavy', name:'Push Heavy', cat:'Work', type:'stay', dur:1.0, build:(t,P)=>{ bstand(); const A=P.amp,
+      drive=0.5+0.5*Math.sin(TAU*(t/1.0)*P.speed);
+    setRootY(-0.10*A); animRoot.position.z += 0.05*drive*A;
+    leanF(0.55*A);
+    plantFeet(0.16, -0.24, {footY:[0,-0.30]});                             // lead foot flat, rear heel raised
+    [B_LARM,B_RARM].forEach(Ar=>reachIK(Ar, V(Ar.s*0.17, 1.06, 0.40+0.05*drive*A), V(0,-0.3,0.8))); }},   // both hands brace forward on the object
   {id:'pullrope', name:'Pull Rope', cat:'Work', type:'stay', dur:1.0, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.0*P.speed)%1, pull=Math.max(0,Math.sin(TAU*u));
-    [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,(1.2-0.4*pull)*A); elb(Ar,(0.3+1.1*pull)*A); }); leanF(-0.25*pull*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.3*A)); legF(B_LLEG,-0.2*pull*A); }},
-  {id:'stairs', name:'Climb Stairs', cat:'Work', type:'move', dur:1.1, build:(t,P)=>{ bstand(); const A=P.amp, cyc=(t/1.1)*P.speed, ph=TAU*cyc;
-    BIPED_LEGS.forEach((L,i)=>{ const a=ph+(i?Math.PI:0), k=Math.max(0,Math.sin(a)); legF(L,(0.2+0.5*k)*A); kneeB(L,(0.3+1.0*k)*A); }); BIPED_ARMS.forEach((Ar,i)=>armF(Ar,Math.sin(ph+(i?0:Math.PI))*0.3*A)); leanF(0.2*A); setRootY(Math.sin(ph*2)*0.03*A); }},
+    leanF(-0.25*pull*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.3*A)); legF(B_LLEG,-0.2*pull*A);
+    const rz=0.5-0.35*pull; shaft(V(-0.05,1.2,rz+0.1), V(0.08,1.0,rz), V(0,-0.5,0.4)); }},   // both hands on the rope, haul it back
+  // Stair climbing: each foot is placed on a step ABOVE the last, so one foot is always higher than the
+  // other and the body is lifted by the leading leg extending. The trunk leans forward to put the centre
+  // of mass over the new step — that lean is what makes it read as "up" rather than walking on the spot.
+  {id:'stairs', name:'Climb Stairs', cat:'Work', type:'move', dur:1.1, build:(t,P)=>{ bstand(); const A=P.amp;
+    const cyc=(((t/1.1)*P.speed)%1+1)%1, ph=TAU*cyc, RISE=0.17*A, RUN=0.20*A;
+    setRootY((-0.05 + 0.5*RISE*(1-Math.cos(ph)))*A);                       // body is lifted a step per cycle
+    leanF(0.28*A); sw('Hips',AX.y,Math.sin(ph)*0.05*A);
+    BIPED_ARMS.forEach((Ar,i)=>gaitArm(Ar, Math.sin(ph+(i?0:Math.PI))*0.30*A, 0.5*A, 0.13));
+    animRoot.updateMatrixWorld(true);
+    BIPED_LEGS.forEach((L,i)=>{ const a=ph+(i?Math.PI:0), k=Math.max(0,Math.sin(a));
+      // planted on its step, or swinging up and forward onto the next one
+      const step = k>0.02 ? 1 : 0;
+      const y = GROUND_ANKLE + (step? RISE*smooth(k) : 0) + (step? 0.05*Math.sin(Math.PI*k) : 0);
+      const z = (step? RUN*smooth(k) : -RUN*0.35);
+      legIK(L, V(L.s*0.075, y, z), AX.z);
+      aim(L.foot, L.toe, V(0, step? 0.10*k : 0, 1)); }); }},   // flat on the tread; toe up as it rises
   {id:'rake', name:'Rake the Ground', cat:'Work', type:'stay', dur:1.2, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.2*P.speed)%1, reach=ramp(u,0,0.4), pull=ramp(u,0.45,0.9);
-    [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,(1.0*reach - 0.4*pull)*A); elb(Ar,(0.5+0.6*pull)*A); }); leanF((0.3*reach - 0.1*pull)*A); legF(B_RLEG,-0.15*pull*A); }},
-  {id:'catchbreath', name:'Catch Breath', cat:'Work', type:'stay', dur:2.0, build:(t,P)=>{ bstand(); const A=P.amp, b=Math.sin(TAU*t/1.4*P.speed);
-    leanF(0.7*A); [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,0.9*A); armO(Ar,0.2*A); elb(Ar,0.4*A); }); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.3*A)); sw(B_HEAD,AX.x,0.3*A + b*0.05*A); setRootY(-0.05*A + b*0.02*A); }},
+    leanF((0.3*reach - 0.1*pull)*A); legF(B_RLEG,-0.15*pull*A);
+    const rz=0.6-0.25*pull; shaft(V(0.0,1.05,0.3+0.05*reach), V(0.08,0.5,rz+0.05), V(0,-0.4,0.6)); }},   // rake head reaches out then hauls back
+  // The universal exhausted pose: bent forward, hands braced on the knees, chest heaving.
+  {id:'catchbreath', name:'Catch Breath', cat:'Work', type:'stay', dur:2.0, build:(t,P)=>{ bstand(); const A=P.amp,
+      b=Math.sin(TAU*t/1.4*P.speed);                                       // the breathing cycle
+    setRootY((-0.16 + b*0.012)*A); animRoot.position.z -= 0.06*A;
+    leanF(0.80*A); sw('Spine',AX.x,(0.10+b*0.05)*A); sw(B_HEAD,AX.x,0.26*A);
+    plantFeet(0.02, 0.02, {width:0.10});
+    animRoot.updateMatrixWorld(true);
+    BIPED_LEGS.forEach((L,i)=>{ boneByName[L.knee].getWorldPosition(_gHip);   // hands find the knees
+      reachIK(BIPED_ARMS[i], V(_gHip.x*1.15, _gHip.y+0.05, _gHip.z+0.06), V(0,-0.3,0.8)); }); }},
   // —— Sports ——
   {id:'dribble', name:'Basketball Dribble', cat:'Sports', type:'stay', dur:0.5, build:(t,P)=>{ bstand(); const A=P.amp, ph=TAU*(t/0.5)*P.speed, d=Math.max(0,Math.sin(ph));
-    armF(B_RARM,(0.6+0.3*d)*A); elb(B_RARM,(1.0-0.4*d)*A); wristW(B_RARM,0.3*d*A); armF(B_LARM,0.4*A); elb(B_LARM,1.2*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.4*A)); leanF(0.2*A); setRootY(-0.05*A); }},
-  {id:'jumpshot', name:'Jump Shot', cat:'Sports', type:'stay', dur:1.0, build:(t,P)=>{ bstand(); const A=P.amp, u=t/1.0, c=u<0.2?eio(u/0.2):0, h=Math.sin(Math.PI*clamp((u-0.2)/0.6,0,1)), rel=bump(u,0.55,0.2);
-    setRootY(h*0.4*A - c*0.15*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,c*1.0*A)); [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,(1.4 + 1.2*h - 0.3*c)*A); elb(Ar,(1.2 - 1.0*h - 0.6*rel)*A); }); }},
+    armF(B_RARM,(0.6+0.3*d)*A); elb(B_RARM,(1.0-0.4*d)*A); wristW(B_RARM,0.3*d*A); armF(B_LARM,0.4*A); elb(B_LARM,1.2*A); leanF(0.2*A); setRootY(-0.16*A); plantFeet(-0.06,0.08,{width:0.105}); }},
+  // Jump shot: gather and dip, rise, and release the ball at the TOP of the jump — the shot happens at the
+  // apex where the body is momentarily still, which is the whole point of shooting off a jump.
+  {id:'jumpshot', name:'Jump Shot', cat:'Sports', type:'stay', dur:1.0, build:(t,P)=>{ bstand(); const A=P.amp;
+    const j=jumpProfile(t/1.0,{crouchEnd:0.22,takeoff:0.34,land:0.82,dip:0.19,height:0.30,absorb:0.14});
+    const rel=bump(t/1.0,0.56,0.18);                                       // release at the apex
+    setRootY(j.y*A); leanF((0.06 + j.crouch*0.34 + j.land*0.26)*A);
+    if(j.flight) [B_LLEG,B_RLEG].forEach(L=>{ legF(L,0.20*A); kneeB(L,(0.45+0.3*j.s)*A); airFoot(L,j.s,0.55); });
+    else plantFeet(0.02,0.02,{width:0.085});
+    [B_LARM,B_RARM].forEach(Ar=>{ reachUp(Ar,(0.55+0.45*j.air),A);         // ball goes up as the body does
+      elb(Ar,(1.25 - 0.9*j.air - 0.7*rel)*A); wristW(Ar,0.5*rel*A); }); }},   // wrist snaps on release
   {id:'golf', name:'Golf Swing', cat:'Sports', type:'stay', dur:1.2, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.2*P.speed)%1, back=ramp(u,0,0.45), thru=ramp(u,0.45,0.8);
-    [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,0.6*A); elb(Ar,0.3*A); }); twist((0.8*back - 1.4*thru)*A); sw('Hips',AX.y,(0.3*back - 0.6*thru)*A); sw('Spine02',AX.z,(0.3*back - 0.3*thru)*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.25*A)); }},
+    twist((0.5*back - 1.0*thru)*A); sw('Hips',AX.y,(0.3*back - 0.6*thru)*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.25*A)); leanF(0.3*A);
+    // both hands grip the club; grip head travels address(low front) → top(high back) → impact(low) → follow(high left)
+    const addr=V(0.02,0.6,0.42), top=V(-0.28,1.45,-0.1), fin=V(0.32,1.4,0.06);
+    let g; if(u<0.45) g=lerpDir(addr,top,back); else { const dn=ramp(u,0.45,0.65), fo=ramp(u,0.65,0.9); g=lerpDir(lerpDir(top,addr,dn),fin,fo); }
+    grip(g, V(0,-1,0.3)); }},
   {id:'batswing', name:'Bat Swing', cat:'Sports', type:'stay', dur:0.9, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/0.9*P.speed)%1, load=ramp(u,0,0.35), swing=ramp(u,0.35,0.65);
-    [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,0.7*A); armO(Ar,0.3*A); elb(Ar,1.2*A); }); twist((0.6*load - 1.6*swing)*A); sw('Hips',AX.y,(0.2*load - 0.7*swing)*A); legF(B_LLEG,0.3*swing*A); }},
+    twist((0.6*load - 1.6*swing)*A); sw('Hips',AX.y,(0.2*load - 0.7*swing)*A); legF(B_LLEG,0.3*swing*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.2*A));
+    const cock=V(-0.24,1.4,-0.14), contact=V(0.06,1.12,0.5), follow=V(0.44,1.28,0.05);   // hands together on the bat: cocked → contact out front → follow across
+    grip(u<0.35 ? lerpDir(V(-0.05,1.15,0.15),cock,load) : lerpDir(lerpDir(cock,contact,swing),follow,ramp(u,0.65,1)), V(0,-0.5,0.5)); }},
   {id:'pitch', name:'Pitch', cat:'Sports', type:'stay', dur:1.1, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.1*P.speed)%1, wind=ramp(u,0,0.4), kick=Math.sin(Math.PI*clamp((u-0.2)/0.4,0,1)), rel=bump(u,0.7,0.2);
-    legF(B_LLEG,kick*1.0*A); kneeB(B_LLEG,kick*1.3*A); armF(B_RARM,(-1.0*wind + 2.6*rel)*A); elb(B_RARM,(1.3*wind - 0.9*rel)*A); armO(B_RARM,0.5*wind*A); twist((0.4*wind - 0.6*rel)*A); leanF(0.3*rel*A); }},
+    legF(B_LLEG,kick*0.9*A - 0.4*rel*A); kneeB(B_LLEG,kick*1.3*A);            // leg kicks up then plants forward
+    reachUp(B_RARM,wind*0.6,A); reachHigh(B_RARM,rel,A); elb(B_RARM,(1.3*wind - 1.0*rel)*A); armO(B_RARM,-0.3*rel*A);   // arm cocks up-back → whips forward to release
+    twist((0.4*wind - 0.6*rel)*A); leanF(0.3*rel*A); }},
   {id:'bowl', name:'Bowl a Roll', cat:'Sports', type:'stay', dur:1.1, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.1*P.speed)%1, back=ramp(u,0,0.45), fwd=ramp(u,0.45,0.75);
     armF(B_RARM,(-1.3*back + 1.6*fwd)*A); elb(B_RARM,0.1*A); legF(B_LLEG,0.5*fwd*A); kneeB(B_LLEG,0.5*fwd*A); leanF(0.4*fwd*A); armO(B_LARM,0.4*A); }},
   {id:'tennisserve', name:'Tennis Serve', cat:'Sports', type:'stay', dur:1.2, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.2*P.speed)%1, toss=ramp(u,0,0.4), hit=bump(u,0.6,0.25);
-    armF(B_LARM,1.8*toss*A); armF(B_RARM,(1.6*toss - 0.2 + 1.0*hit)*A); elb(B_RARM,(1.4*toss - 1.2*hit)*A); BIPED_SPINE.forEach(s=>sw(s,AX.x,0.3*toss*A - 0.2*hit*A)); setRootY(0.06*hit*A); }},
+    reachUp(B_LARM,toss*0.9,A);                                              // toss hand points straight up
+    reachUp(B_RARM,(0.5*toss+0.5*hit),A); elb(B_RARM,(1.5*toss - 1.3*hit)*A);   // racket: cocked behind (elbow bent) → snaps up to contact overhead
+    BIPED_SPINE.forEach(s=>sw(s,AX.x,0.3*toss*A - 0.25*hit*A)); setRootY(0.06*hit*A); leanF(-0.1*toss*A); }},
   {id:'forehand', name:'Tennis Forehand', cat:'Sports', type:'stay', dur:0.9, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/0.9*P.speed)%1, back=ramp(u,0,0.4), swing=ramp(u,0.4,0.7);
     armF(B_RARM,(0.5+0.6*swing)*A); armO(B_RARM,(1.0*back - 0.6*swing)*A); elb(B_RARM,(0.6-0.3*swing)*A); twist((0.5*back - 0.8*swing)*A); sw('Hips',AX.y,(0.2*back-0.4*swing)*A); }},
   {id:'roundhouse', name:'Roundhouse Kick', cat:'Sports', type:'stay', dur:0.9, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/0.9*P.speed)%1, chamber=ramp(u,0,0.35), kick=bump(u,0.55,0.25);
     legF(B_RLEG,(0.4*chamber + 0.6*kick)*A); legO(B_RLEG,(0.5*chamber + 1.0*kick)*A); kneeB(B_RLEG,(1.0*chamber*(1-kick))*A); sw('Hips',AX.y,(0.3*chamber + 0.5*kick)*A); twist(0.3*kick*A); kneeB(B_LLEG,0.3*A); [B_LARM,B_RARM].forEach(Ar=>armO(Ar,0.5*A)); }},
   {id:'karatechop', name:'Karate Chop', cat:'Sports', type:'stay', dur:0.7, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/0.7*P.speed)%1, up=ramp(u,0,0.4), down=bump(u,0.55,0.25);
-    armF(B_RARM,(1.6*up - 0.6*down)*A); armO(B_RARM,(0.8*up - 0.9*down)*A); elb(B_RARM,0.5*A); twist((-0.3*up + 0.4*down)*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.25*A)); }},
+    reachUp(B_RARM,(up*(1-down)*0.7),A); reachF(B_RARM,down,A); elb(B_RARM,0.4*A);   // hand cocked up by the ear → chops down-forward
+    twist((-0.3*up + 0.45*down)*A); leanF(0.1*down*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.25*A)); }},
 ];
 
 // The biped template is stored in centimetres (Hips y≈93); normalize to metres so the proxy + our metre-scale
@@ -844,28 +1371,40 @@ function frame(){
 const BAKE_FPS=30;
 function bakeClip(m, D, params){
   const n=Math.max(2,Math.round(D*BAKE_FPS)); const times=[]; for(let i=0;i<n;i++) times.push(i/BAKE_FPS);
-  const q={}, py={}; for(const bn of boneList) q[bn]=[]; const rootY=[];
-  for(let i=0;i<n;i++){ setRootY(0); m.build(times[i], params); animRoot.updateMatrixWorld(false);
+  const q={}; for(const bn of boneList) q[bn]=[]; const root=[];
+  for(let i=0;i<n;i++){ setRootY(0); animRoot.position.set(0,0,0); m.build(times[i], params); animRoot.updateMatrixWorld(false);
     for(const bn of boneList){ const b=boneByName[bn]; q[bn].push(b.quaternion.x,b.quaternion.y,b.quaternion.z,b.quaternion.w); }
-    rootY.push(animRoot.position.y);
+    root.push(animRoot.position.x, animRoot.position.y, animRoot.position.z);
   }
   resetPose();
   const tracks=[];
   for(const bn of boneList) tracks.push({ name:bn+'.quaternion', type:'quaternion', times:times.slice(), values:q[bn] });
-  // include root vertical motion (jumps/hops) as a Hips-parent position track on the root bone
-  const rootBone=boneList[0];
-  if(rootY.some(v=>Math.abs(v)>1e-4)){
-    const base=boneByName[rootBone].position;
-    const vals=[]; for(let i=0;i<n;i++) vals.push(base.x, base.y+rootY[i], base.z);
+  // ROOT TRANSLATION — required, not optional: a squat, a sit, a jump or a gait's weight shift IS the hips
+  // moving. Without it the baked leg angles (solved against a lowered pelvis) would put a crouching
+  // character's feet in the air.
+  // It is baked as a Hips.position track of rest + delta, in CENTIMETRES, because the retarget reads it as
+  //   out = targetRest + (clip − sourceRest) × posScale
+  // and posScale is the ratio of summed rest-offset magnitudes. Our rest is this rig's own cm values, and
+  // measuring the reference character (SM/spi_biped) gives 521.664 cm against our identical 521.664 → the
+  // position mapping is an exact identity. (An earlier attempt was abandoned as "the figure sinks"; that
+  // was diagnosed on a model whose rig keeps its height in the ARMATURE PARENT — Hips local ≈0.02 instead
+  // of ≈93 — so its targetRest was ~0 and every motion dropped by a full hip height. That is a property of
+  // that one rig, not of the position track.)
+  const rootBone=boneList[0], base=restLocalP[rootBone];
+  if(root.some(v=>Math.abs(v)>1e-5)){
+    const vals=[]; for(let i=0;i<n;i++) vals.push((base.x+root[i*3])*100, (base.y+root[i*3+1])*100, (base.z+root[i*3+2])*100);
     tracks.push({ name:rootBone+'.position', type:'vector', times:times.slice(), values:vals });
   }
   return { name:'RigAnimator|'+m.name, duration:D, tracks, uuid:crypto.randomUUID(), blendMode:2500 };
 }
 function skeletonEntry(){
+  // Rest pose for retargeting MUST be per-bone LOCAL (position + quaternion) — the Stitcher captures the
+  // character's rest the same way (bone.position / bone.quaternion, both local) and computes the pose
+  // delta as srcRestLocal⁻¹·clipLocal. Storing WORLD rest here mixed spaces and contorted every non-root
+  // bone identically (all motions looked the same + broken). (Matches how the reference library stores rest.)
   const names=boneList.slice().sort(); const rest={};
-  const wp=new THREE.Vector3();
-  for(const bn of boneList){ boneByName[bn].getWorldPosition(wp); const q=restWorldQ[bn];
-    rest[bn]={ p:[wp.x,wp.y,wp.z], q:[q.x,q.y,q.z,q.w] }; }
+  for(const bn of boneList){ const p=restLocalP[bn], q=restLocalQ[bn];
+    rest[bn]={ p:[p.x*100,p.y*100,p.z*100], q:[q.x,q.y,q.z,q.w] }; }   // p in CENTIMETRES to match the character rig scale → the Stitcher's summed-magnitude posScale ≈ 1 (metres blew it up to ~82× → root bob launched the figure)
   return { sig:names.join('|'), boneNames:boneList.slice(), rest };
 }
 function poseSig(m, D, params){
