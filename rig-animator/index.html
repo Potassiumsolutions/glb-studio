@@ -400,7 +400,10 @@ const FOOT_FLAT=-0.82, FOOT_TRACK=0.7;   // rest foot is 45° toe-down; level th
 function bstandBare(){ resetPose(); armO(B_LARM,-1.4); armO(B_RARM,-1.4);
   legO(B_LLEG,-LEG_ADD); legO(B_RLEG,-LEG_ADD);                                   // thighs un-splayed
   sw(B_LLEG.knee,AX.z,-SHIN_ADD*B_LLEG.s); sw(B_RLEG.knee,AX.z,-SHIN_ADD*B_RLEG.s); }   // shins rotated in → straight legs (feet still at rest tiptoe)
-function bstand(){ bstandBare(); sw(B_LLEG.foot,AX.x,FOOT_FLAT); sw(B_RLEG.foot,AX.x,FOOT_FLAT); }   // + soles flat on the ground (standing base for stationary poses)
+const FOOT_LEVEL = new THREE.Vector3(0,0,1);   // flat: ankle→toe horizontal, pointing forward
+// Standing base for stationary poses: soles flat on the ground AND level side-to-side. Setting the foot's
+// world direction (rather than pitching it about world X) is what keeps the sole level — see footAim.
+function bstand(){ bstandBare(); footAim(B_LLEG, FOOT_LEVEL, 0); footAim(B_RLEG, FOOT_LEVEL, 0); }
 function footStep(L,lift,swing,A){   // roll one foot for custom ground-step motions: sole flat when planted → stays partly cocked through swing (call after bstandBare)
   const wgt=eio(lramp(lift,0,0.7));                                           // wide, eased → no toe snap
   sw(L.foot,AX.x, (FOOT_FLAT-swing*FOOT_TRACK*0.55)*(1-wgt) + (FOOT_FLAT*0.55)*wgt); }
@@ -421,6 +424,30 @@ function aim(boneName, childName, dir){
   b.updateMatrixWorld(true);
 }
 const V=(x,y,z)=>new THREE.Vector3(x,y,z);
+// Point a foot along a world direction AND control its ROLL about its own long axis.
+// `aim()` only constrains direction — the roll is left to whatever the leg chain happened to accumulate.
+// For arms that is harmless, but a foot has a sole: measured on a retargeted character, both feet sat at a
+// constant ~20° roll (left −18.8°, right +19.4°), i.e. the character standing on the edges of its soles.
+// The roll came from flattening the foot with one big rotation about world X — the foot's rest is skewed
+// (the toe splays outward), so a 47° single-axis rotation twists it. Constraining the roll explicitly is
+// the fix, and it holds no matter what the leg above is doing.
+//   roll: 0 = sole level side-to-side; + rolls onto the outer edge (used for banking/inversion).
+const _faQ=new THREE.Quaternion(), _faA=new THREE.Vector3(), _faT=new THREE.Vector3();
+function footAim(L, dir, roll){
+  aim(L.foot, L.toe, dir);
+  animRoot.updateMatrixWorld(false);
+  const b=boneByName[L.foot]; if(!b) return;
+  b.getWorldPosition(_faA); boneByName[L.toe].getWorldPosition(_faT);
+  const fwd=_faT.clone().sub(_faA); if(fwd.lengthSq()<1e-9) return; fwd.normalize();
+  b.getWorldQuaternion(_faQ);
+  const lat=new THREE.Vector3(1,0,0).applyQuaternion(_faQ);      // the foot's own lateral axis, in world
+  const cur=Math.asin(clamp(lat.y,-1,1));                        // how far it has tipped out of horizontal
+  const d=((roll||0)*L.s)-cur;
+  if(Math.abs(d)<1e-4) return;
+  const localFwd=fwd.clone().applyQuaternion(_faQ.clone().invert()).normalize();
+  b.quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(localFwd, d));
+  b.updateMatrixWorld(true);
+}
 const lerpDir=(a,b,t)=>a.clone().lerp(b,t);
 function setArm(Ar,upper,fore){ aim(Ar.arm,Ar.fore,upper); aim(Ar.fore,Ar.hand,fore); }   // orient upper arm then forearm
 // 2-bone inverse kinematics — place the HAND at an exact world point (elbow solved by cosine rule).
@@ -475,10 +502,23 @@ function bipedGait(t,P,dur,o){ o=o||{}; bstandBare();
   if(bob) setRootY(Math.abs(Math.sin(ph))*bob*A);
 }
 // side-step locomotion (dir +1 = travels right / -1 = left)
-function bipedStrafe(t,P,dur,dir,o){ o=o||{}; bstand(); const A=P.amp,cyc=(t/dur)*P.speed,ph=TAU*cyc, abd=o.abd??0.22, lift=o.lift??0.35;
-  BIPED_LEGS.forEach((L,i)=>{ const a=ph+(i?Math.PI:0);
-    legO(L, dir*(0.12+abd*Math.sin(a))*A); kneeB(L, Math.max(0,Math.sin(a))*lift*A); });
-  [B_LARM,B_RARM].forEach(Ar=>armO(Ar,0.2*A)); leanS(dir*0.06*A); setRootY(Math.abs(Math.sin(ph*2))*0.02*A);
+// Side-stepping. Abducting the thigh about world Z swung the leg sideways but ALSO rolled the foot with it
+// (the foot points along +Z, so a rotation about Z is a roll about the foot's own long axis) — the soles
+// ended up canted ~20°. Placing each foot at a lateral target and levelling it fixes both: the feet stay
+// flat, and the step reads as one foot pushing while the other reaches out and lands.
+function bipedStrafe(t,P,dur,dir,o){
+  o=o||{}; bstand(); const A=P.amp, ph=TAU*(((t/dur)*P.speed)%1);
+  const reach=(o.reach??0.17)*A, lift=(o.lift??0.055)*A;
+  leanS(dir*0.06*A); [B_LARM,B_RARM].forEach(Ar=>armO(Ar,0.2*A));
+  setRootY(-0.02*A - Math.abs(Math.sin(ph))*0.012*A);
+  animRoot.updateMatrixWorld(true);
+  BIPED_LEGS.forEach((L,i)=>{
+    const a=ph+(i?Math.PI:0), s=Math.sin(a);
+    // one foot planted while the other lifts and reaches out to the side, then they swap
+    const step=Math.max(0,s), x=L.s*0.075 + dir*reach*0.5*(1+s)*0.5;
+    legIK(L, V(x, GROUND_ANKLE + lift*Math.sin(Math.PI*step), 0.02), AX.z);
+    footAim(L, FOOT_LEVEL, 0);                       // soles stay flat through the whole slide
+  });
 }
 // —— Boxing punch primitives (deltas layered on top of guard(); p=0 chambered → p=1 contact) ——
 // Kinetic chain: legs → hips → trunk → shoulder → fist. The fist must reach a target in FRONT of the
@@ -590,7 +630,7 @@ function plantFeet(zL, zR, o){
     const lift = a<0 ? FOOT_LEN*(-a)/Math.sqrt(1+a*a) : 0;
     _gTgt.set(L.s*w, pick(y,i)+lift, z);
     legIK(L, _gTgt, AX.z);
-    aim(L.foot, L.toe, _gFoot.set(0, a, 1));
+    footAim(L, _gFoot.set(0, a, 1), 0);
   });
 }
 function gaitIK(t,P,dur,o){
@@ -649,7 +689,7 @@ function gaitIK(t,P,dur,o){
     let fy;
     if(plant) fy = fs<0.18 ? strikeUp*(1-fs/0.18) : (fs<0.62 ? 0 : -toeOff*smooth((fs-0.62)/0.38));
     else { const e=smooth(clamp(fs/0.45,0,1)); fy = -toeOff*(1-e) + swingUp*e; }
-    _gFoot.set(0, fy, 1); aim(L.foot, L.toe, _gFoot);
+    _gFoot.set(0, fy, 1); footAim(L, _gFoot, 0);
   });
 }
 
@@ -682,7 +722,7 @@ function jumpProfile(u, o){
 // it across the flight phase (rather than snapping to a fixed point angle) avoids a visible pop at the
 // instant the foot leaves the ground, and gets the toes up ready for the landing.
 function airFoot(L, s, point, fwd){
-  aim(L.foot, L.toe, V(0, -point*Math.sin(Math.PI*clamp(s,0,1)), fwd??0.9));
+  footAim(L, V(0, -point*Math.sin(Math.PI*clamp(s,0,1)), fwd??0.9), 0);
 }
 const BIPED_MOTIONS=[
   // —— Walking ——
@@ -760,15 +800,12 @@ const BIPED_MOTIONS=[
     // hands on the track in the set position, then swing through as the body launches
     gaitArm(B_LARM,(-0.9*set + 1.2*go)*A,(0.3+0.5*go)*A,0.13);
     gaitArm(B_RARM,( 0.9*set - 1.0*go)*A,(0.3+0.7*go)*A,0.13); }},
-  {id:'highknees', name:'High-Knees Drill', cat:'Running', type:'move', dur:0.55, build:(t,P)=>{ bstand(); const A=P.amp;
-    const c=((t/0.55)*P.speed)%1, ph=TAU*c;
-    setRootY((-0.04 + Math.abs(Math.sin(ph))*0.05)*A); leanF(0.10*A);
-    BIPED_ARMS.forEach((Ar,i)=>gaitArm(Ar, Math.sin(ph+(i?0:Math.PI))*0.55*A, 1.35*A, 0.13));
-    animRoot.updateMatrixWorld(true);
-    BIPED_LEGS.forEach((L,i)=>{ const k=Math.max(0,Math.sin(ph+(i?Math.PI:0)));
-      if(k>0.12){ legF(L,k*1.30*A); kneeB(L,k*1.75*A); airFoot(L,k,0.45); }   // knee driven to hip height
-      else { legIK(L, V(L.s*0.070, GROUND_ANKLE+0.035, 0.02), AX.z);          // support leg — up on the ball
-        aim(L.foot, L.toe, V(0,-0.26,1)); } }); }},                           //   of the foot, as in the drill
+  // The drill: knees driven to hip height with a very short stride, almost on the spot. Built on the same
+  // planted-foot engine as the other gaits (rather than free-posing the lifted leg), so the support foot
+  // is always properly on the floor instead of jumping between a posed and a planted state.
+  {id:'highknees', name:'High-Knees Drill', cat:'Running', type:'move', dur:0.55, build:(t,P)=>gaitIK(t,P,0.55,
+    {stride:0.09,duty:0.40,clear:0.30,hipDrop:0.022,lean:0.12,armSwing:0.50,elbow0:1.35,elbowAmp:0.15,
+     shDrive:0.40,pelvisRot:0.05,strikeUp:0.05,toeOff:0.55,swingUp:0.30})},
   {id:'carioca', name:'Carioca Grapevine', cat:'Running', type:'move', dur:0.8, build:(t,P)=>{ bstand(); const A=P.amp,ph=TAU*(t/0.8)*P.speed;
     BIPED_LEGS.forEach((L,i)=>{ const a=ph+(i?Math.PI:0); legO(L,0.2*Math.sin(a)*A); legF(L,0.25*Math.cos(a)*A); kneeB(L,Math.max(0,Math.sin(a))*0.5*A); });
     twist(Math.sin(ph)*0.2*A); [B_LARM,B_RARM].forEach(Ar=>armO(Ar,0.5*A)); }},
@@ -826,11 +863,11 @@ const BIPED_MOTIONS=[
   {id:'onefoot', name:'One-Foot Hops', cat:'Jumping', type:'move', dur:0.55, build:(t,P)=>{ bstand(); const A=P.amp;
     const j=jumpProfile(((t/0.55)*P.speed)%1,{crouchEnd:0.20,takeoff:0.30,land:0.72,dip:0.11,height:0.19,absorb:0.10});
     setRootY(j.y*A); leanF((0.10+j.crouch*0.22)*A);
-    legF(B_RLEG,0.95*A); kneeB(B_RLEG,1.45*A); aim(B_RLEG.foot,B_RLEG.toe,V(0,-0.4,0.9));   // free leg held up
+    legF(B_RLEG,0.95*A); kneeB(B_RLEG,1.45*A); footAim(B_RLEG,V(0,-0.4,0.9),0);   // free leg held up
     gaitArm(B_LARM,(0.3*j.air-0.2*j.crouch)*A,0.6*A,0.13); gaitArm(B_RARM,(-0.2*j.air)*A,0.9*A,0.16);
     if(j.flight){ legF(B_LLEG,0.12*A); kneeB(B_LLEG,0.35*A); airFoot(B_LLEG,j.s,0.75); }
     else { animRoot.updateMatrixWorld(true); legIK(B_LLEG, V(B_LLEG.s*0.035, GROUND_ANKLE, 0.01), AX.z);
-      aim(B_LLEG.foot,B_LLEG.toe,V(0,0,1)); } }},
+      footAim(B_LLEG,V(0,0,1),0); } }},
   // Split leap: legs scissor to a full split at the apex, arms opened out for line.
   {id:'splitleap', name:'Split Leap', cat:'Jumping', type:'stay', dur:1.1, build:(t,P)=>{ bstand(); const A=P.amp;
     const j=jumpProfile(t/1.1,{crouchEnd:0.20,takeoff:0.32,land:0.82,dip:0.15,height:0.38,absorb:0.14});
@@ -962,7 +999,7 @@ const BIPED_MOTIONS=[
     legIK(B_LLEG, V(B_LLEG.s*0.075, GROUND_ANKLE+0.20*drive*A, -0.26-0.10*drive*A), AX.z);   // rear leg lifts off
     airFoot(B_LLEG, drive*0.8, 0.55);
     legIK(B_RLEG, V(B_RLEG.s*0.075, GROUND_ANKLE, 0.20+0.16*drive*A), AX.z);                 // lead foot drives
-    aim(B_RLEG.foot,B_RLEG.toe,V(0,-0.2*drive,1));
+    footAim(B_RLEG,V(0,-0.2*drive,1),0);
     reachF(B_RARM,0.9,A); elb(B_RARM,0.05*A); armF(B_LARM,0.4*drive*A); }},
   {id:'salute', name:'Fencer’s Salute', cat:'Fencing', type:'stay', dur:1.6, build:(t,P)=>{ bstand(); const A=P.amp, u=(t<0.8?t:1.6-t)/0.5, r=clamp(u,0,1);
     reachUp(B_RARM,r*0.8,A); elb(B_RARM,(1.4*r)*A); sw(B_HEAD,AX.x,-0.1*r*A); }},   // sword raised in salute
@@ -1009,9 +1046,9 @@ const BIPED_MOTIONS=[
     sw('Hips',AX.z,-0.28*slide*A); leanS(-0.18*slide*A);
     animRoot.updateMatrixWorld(true);
     legIK(B_RLEG, V(B_RLEG.s*0.06, GROUND_ANKLE, 0.30+0.34*slide*A), AX.z);        // strike leg extended
-    aim(B_RLEG.foot,B_RLEG.toe,V(0,0.25,1));
+    footAim(B_RLEG,V(0,0.25,1),0);
     legIK(B_LLEG, V(B_LLEG.s*0.16, GROUND_ANKLE, -0.10-0.10*slide*A), AX.z);       // support leg folded under
-    aim(B_LLEG.foot,B_LLEG.toe,V(0,-0.2,1));
+    footAim(B_LLEG,V(0,-0.2,1),0);
     gaitArm(B_RARM,-0.5*slide*A,0.5*A,0.30); armO(B_LARM,(0.3+0.7*slide)*A); }},
   {id:'tdcele', name:'Touchdown Celebration', cat:'Football', type:'stay', dur:1.2, build:(t,P)=>{ bstand(); const A=P.amp, ph=TAU*(t/1.2)*P.speed, h=Math.abs(Math.sin(ph));
     [B_LARM,B_RARM].forEach(Ar=>reachUp(Ar,1,A)); setRootY(h*0.1*A);
@@ -1261,7 +1298,7 @@ const BIPED_MOTIONS=[
       const y = GROUND_ANKLE + (step? RISE*smooth(k) : 0) + (step? 0.05*Math.sin(Math.PI*k) : 0);
       const z = (step? RUN*smooth(k) : -RUN*0.35);
       legIK(L, V(L.s*0.075, y, z), AX.z);
-      aim(L.foot, L.toe, V(0, step? 0.10*k : 0, 1)); }); }},   // flat on the tread; toe up as it rises
+      footAim(L, V(0, step? 0.10*k : 0, 1), 0); }); }},   // flat on the tread; toe up as it rises
   {id:'rake', name:'Rake the Ground', cat:'Work', type:'stay', dur:1.2, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.2*P.speed)%1, reach=ramp(u,0,0.4), pull=ramp(u,0.45,0.9);
     leanF((0.3*reach - 0.1*pull)*A); legF(B_RLEG,-0.15*pull*A);
     const rz=0.6-0.25*pull; shaft(V(0.0,1.05,0.3+0.05*reach), V(0.08,0.5,rz+0.05), V(0,-0.4,0.6)); }},   // rake head reaches out then hauls back
