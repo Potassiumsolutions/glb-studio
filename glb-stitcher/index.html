@@ -323,6 +323,7 @@
       <div class="row" style="margin-top:6px">
         <button class="btn ghost" id="mlUseLoaded" style="width:auto;padding:5px 12px;font-size:12px">Use loaded character as rig</button>
       </div>
+      <div id="mlSourceBar" class="mlsrc" style="display:none"></div>
       <div class="row" style="margin-top:10px">
         <input type="text" id="mlSearch" placeholder="filter 579 motions by name…" style="flex:1;background:var(--panel2,#161b23);border:1px solid var(--line,#252c37);color:inherit;border-radius:6px;padding:6px 8px;font-size:12px">
       </div>
@@ -873,7 +874,7 @@
   }
 }
 </script>
-<script src="../Studio/studio-lib.js"></script>
+<script src="../studio/studio-lib.js"></script>
 <script type="module">
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
@@ -4325,27 +4326,81 @@ mlStyle.textContent=`
 .ml-seqchip{display:flex;align-items:center;gap:6px;background:var(--panel,#12161d);border:1px solid var(--line,#252c37);border-radius:14px;padding:3px 8px 3px 10px;font-size:11px}
 .ml-seqchip .n{color:var(--muted,#8a97a8)}
 .ml-seqchip .x{cursor:pointer;color:var(--muted,#8a97a8)}
-.ml-seqchip .x:hover{color:var(--danger,#ff6b6b)}`;
+.ml-seqchip .x:hover{color:var(--danger,#ff6b6b)}
+.mlsrc{display:flex;gap:4px;margin-top:10px;padding:3px;background:var(--panel,#12161d);border:1px solid var(--line,#252c37);border-radius:8px}
+.mlsrc button{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;background:transparent;border:0;
+  color:var(--muted,#8a97a8);font:inherit;font-size:12px;padding:6px 10px;border-radius:6px;cursor:pointer}
+.mlsrc button:hover{color:var(--fg,#e7edf5)}
+.mlsrc button.on{background:var(--panel2,#161b23);color:var(--fg,#e7edf5);box-shadow:0 1px 2px rgba(0,0,0,.35)}
+.mlsrc button i{font-style:normal;font-size:10px;padding:1px 6px;border-radius:10px;
+  background:var(--line,#252c37);color:var(--muted,#8a97a8)}
+.mlsrc button.on i{background:var(--accent2,#38d39f);color:#0a1f10}`;
 document.head.appendChild(mlStyle);
 
 let libIndex=null, libSkeletons=null, mlLibSig=null, libRig=null;
 const mlClipCache=new Map();
 
+// ===== Motion library source =====================================================================
+// Two libraries can sit side by side: our own procedurally-generated set (shipped, redistributable)
+// and any third-party set kept for local use only. Which folders actually exist is probed at load,
+// so this same code runs in the public build — where only ./library-ksol exists — without changes.
+const ML_SOURCES=[
+  { key:'ksol',  dir:'./library-ksol', label:'KSOL Designs', note:'our own motions' },
+  { key:'meshy', dir:'./library',      label:'Imported',     note:'local use only' },
+];
+let mlSources=[], mlSource=null;
+const mlDir=()=> (mlSource&&mlSource.dir) || './library';
+
+async function mlDetectSources(){
+  if(mlSources.length) return mlSources;
+  for(const s of ML_SOURCES){
+    try{ const r=await fetch(s.dir+'/index.json',{method:'GET'});
+      if(r.ok){ const j=await r.json(); mlSources.push({...s, count:(j.motions||[]).length}); } }catch(e){}
+  }
+  // With only one library present the chooser is hidden, so its configured label never shows in the UI —
+  // but it does appear in the status line, and "Imported" would be wrong in a build where ./library IS ours.
+  if(mlSources.length===1) mlSources[0].label='Motion library';
+  const saved=localStorage.getItem('mlSource');
+  mlSource = mlSources.find(s=>s.key===saved) || mlSources[0] || null;
+  return mlSources;
+}
+// Switching source throws away everything derived from the previous one, then reloads from scratch.
+async function mlSetSource(key){
+  const s=mlSources.find(x=>x.key===key); if(!s||s===mlSource) return;
+  mlSource=s; try{ localStorage.setItem('mlSource',key); }catch(e){}
+  libIndex=null; libSkeletons=null; mlLibSig=null; libPoses=null; mlClipCache.clear();
+  mlSeq=[];                                         // the queue references ids that may not exist here
+  renderMlSourceBar(); renderSeqBar();
+  await studioRefresh();                            // reloads the index, re-merges Studio motions, redraws
+  setStatus('Motion library: '+s.label+' ('+s.count+' motions)');
+}
+function renderMlSourceBar(){
+  const el=$('#mlSourceBar'); if(!el) return;
+  if(mlSources.length<2){ el.style.display='none'; return; }   // only one library present - no chooser
+  el.style.display='';
+  el.innerHTML=mlSources.map(s=>
+    `<button data-src="${s.key}" class="${s===mlSource?'on':''}" title="${s.note}">${s.label}<i>${s.count}</i></button>`
+  ).join('');
+  el.querySelectorAll('button').forEach(b=>b.onclick=()=>mlSetSource(b.dataset.src));
+}
+
 async function mlLoadIndex(){
   if(libIndex) return true;
+  await mlDetectSources();
   try{
-    const r=await fetch('./library/index.json'); if(!r.ok) throw 0;
+    const r=await fetch(mlDir()+'/index.json'); if(!r.ok) throw 0;
     const j=await r.json();
     libIndex=j.motions; libSkeletons=j.skeletons||{}; mlLibSig=Object.keys(libSkeletons)[0]||null;
+    renderMlSourceBar();
     return true;
   }catch(e){
-    $('#mlList').innerHTML='<div class="hint" style="padding:10px">Motion library not found. Launch via <b>Start GLB Stitcher.bat</b> (a local server is needed to load ./library/).</div>';
+    $('#mlList').innerHTML='<div class="hint" style="padding:10px">Motion library not found. Launch via <b>Start GLB Stitcher.bat</b> (a local server is needed to load the library folder).</div>';
     return false;
   }
 }
 async function mlFetchClip(id){
   if(mlClipCache.has(id)) return mlClipCache.get(id);
-  const r=await fetch('./library/m/'+id+'.json'); const j=await r.json(); mlClipCache.set(id,j); return j;
+  const r=await fetch(mlDir()+'/m/'+id+'.json'); const j=await r.json(); mlClipCache.set(id,j); return j;
 }
 
 // --- skeleton helpers (ported from the GLB Motion Library retargeter) ---
@@ -4472,7 +4527,7 @@ async function addMotionClip(meta){
 
 // ---- Sequence flow: rank motions by how well their start pose matches a reference end pose ----
 let libPoses=null;
-async function mlLoadPoses(){ if(libPoses) return libPoses; try{ const r=await fetch('./library/poses.json'); if(r.ok) libPoses=await r.json(); }catch(e){} return libPoses; }
+async function mlLoadPoses(){ if(libPoses) return libPoses; try{ const r=await fetch(mlDir()+'/poses.json'); if(r.ok) libPoses=await r.json(); }catch(e){} return libPoses; }
 function quatAngle(a,ai,b,bi){ let d=a[ai]*b[bi]+a[ai+1]*b[bi+1]+a[ai+2]*b[bi+2]+a[ai+3]*b[bi+3]; d=Math.min(1,Math.abs(d)); return 2*Math.acos(d); }
 function poseDist(vecA, vecB){ const n=Math.min(vecA.length,vecB.length)/4; if(!n) return 9; let s=0; for(let i=0;i<n;i++) s+=quatAngle(vecA,i*4,vecB,i*4); return s/n; }  // mean bone angle (rad)
 const FLOW_MAX=0.35;   // mean angle below this ≈ little/no pop between clips
