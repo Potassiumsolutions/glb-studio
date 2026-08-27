@@ -882,7 +882,10 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 
 const $ = s => document.querySelector(s);
-const APP_NAME='GLB Stitcher', APP_VERSION='1.0.0', APP_BUILD='2026-08-24';   // version shown in About + footer
+const APP_NAME='GLB Stitcher', APP_VERSION='1.1.0', APP_BUILD='2026-08-27';   // version shown in About + footer
+// Bump APP_BUILD whenever the app or the bundled motion library changes. It is printed to the console and
+// shown in the footer so "am I running the current version?" can be answered by looking, not by guessing —
+// a stale browser tab kept an old build alive twice while the files on disk were already up to date.
 const wrap = $('#canvasWrap');
 
 // ---------- Three.js core ----------
@@ -4817,9 +4820,11 @@ if(_mb&&_am){
   document.addEventListener('click', ()=>{ _am.hidden=true; });
 }
 // version stamps (About badge + copyright year + sidebar footer)
-{ const v=$('#aboutVer'); if(v) v.textContent='v'+APP_VERSION;
+{ const v=$('#aboutVer'); if(v) v.textContent='v'+APP_VERSION+' · '+APP_BUILD;
   const y=$('#aboutYear'); if(y) y.textContent=String(new Date().getFullYear());
-  const f=document.querySelector('.foot'); if(f) f.innerHTML=`Runs entirely in your browser · nothing uploaded · <b>${APP_NAME} v${APP_VERSION}</b> · KSOL Designs`; }
+  const f=document.querySelector('.foot'); if(f) f.innerHTML=`Runs entirely in your browser · nothing uploaded · <b>${APP_NAME} v${APP_VERSION}</b> · build ${APP_BUILD} · KSOL Designs`; }
+// Also log it, so a stale tab is obvious from the console without hunting for the footer.
+console.log(`%c${APP_NAME} v${APP_VERSION}  build ${APP_BUILD}`,'font-weight:bold');
 const _ac=$('#aboutClose'); if(_ac) _ac.addEventListener('click', ()=>$('#aboutModal').hidden=true);
 const _abm=$('#aboutModal'); if(_abm) _abm.addEventListener('click', e=>{ if(e.target===_abm) _abm.hidden=true; });
 const _hm=$('#helpModal'); if(_hm) _hm.addEventListener('click', e=>{ if(e.target===_hm) _hm.hidden=true; });
