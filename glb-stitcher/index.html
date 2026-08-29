@@ -712,7 +712,7 @@
         <button class="node-link" id="linkNodes" title="Connect the selected GLBs in order" disabled>🔗 Link selected</button>
         <svg id="nodeWires"></svg>
         <div class="node-layer" id="nodeLayer"></div>
-        <div class="node-hint">Each row is a character's own timeline · click a <b>▶ Start</b> (or a character in the list) to make it <b>active</b> — new movements are added to the active character · click a movement to select it; the next movement you add is inserted right after it · drag a movement's <b>▸ out</b> onto another's <b>in ◂</b> to reorder within that character · click a wire to drop a link</div>
+        <div class="node-hint">Each row is a character's own timeline · click a <b>▶ Start</b> (or a character in the list) to make it <b>active</b> — new movements are added to the active character · click a movement to select it; the next movement you add is inserted right after it · drag a movement's <b>▸ out</b> onto another's <b>in ◂</b> to reorder within that character · click a wire to drop a link · <b>Ctrl+C / X / V</b> copy · cut · paste and <b>Del</b> delete the selected node(s) · <b>Ctrl+D</b> duplicate · <b>Ctrl+A</b> select all</div>
       </div>
       <div class="char-pop" id="charPop">
         <div class="cp-head">
@@ -2121,6 +2121,7 @@ function selectedProp(){ return props.find(p=>p.id===propSel)||null; }
 function newPropId(pref){ return pref+Date.now().toString(36)+Math.floor(Math.random()*1e4); }
 // Clipboard for copy/paste. For built-in obstacles we remember the obId (rebuilt fresh); for loaded GLBs we keep a cloned Object3D.
 let propClipboard=null;
+let lastClipKind=null;   // 'prop' | 'node' — which clipboard Ctrl+V should paste on the main page
 function copyProp(p){ if(!p) return; propClipboard={ obId:p.obId||null, name:p.name, scale:p.scale, rotY:p.rotY, lift:p.lift||0,
     x:p.x, z:p.z, clone:p.obId?null:p.wrap.children[0].clone(true) };
   setStatus('Copied '+p.name); }
@@ -2831,16 +2832,25 @@ window.addEventListener('keydown', e=>{
   // ----- Selected-prop shortcuts (standard Windows keys). Node editor owns Ctrl-combos while it's open. -----
   const nodeOpen=$('#nodeEditor') && $('#nodeEditor').classList.contains('show');
   const sp=selectedProp();
+  // On the MAIN page the same standard keys act on the selected PROP if one is picked, otherwise on the
+  // selected timeline CLIP (movement). While the node editor is open it owns these — handled in its own
+  // listener. `nodeSelIds/deleteSelectedNodes/pasteClipObjs/nodeClipboard` are the shared clip clipboard.
   if((e.ctrlKey||e.metaKey) && !nodeOpen){
     const k=e.key.toLowerCase();
     if(k==='z'){ if(e.shiftKey) redoScene(); else undoScene(); e.preventDefault(); return; }   // Ctrl+Z undo, Ctrl+Shift+Z redo
     if(k==='y'){ redoScene(); e.preventDefault(); return; }                                      // Ctrl+Y redo
-    if(k==='c'){ if(sp){ copyProp(sp); e.preventDefault(); } return; }
-    if(k==='x'){ if(sp){ copyProp(sp); deleteProp(sp.id); setStatus('Cut '+sp.name); e.preventDefault(); } return; }
-    if(k==='v'){ if(propClipboard){ pasteProp(); e.preventDefault(); } return; }
-    if(k==='d'){ if(sp){ duplicateProp(sp); e.preventDefault(); } return; }
+    if(k==='c'){ if(sp){ copyProp(sp); lastClipKind='prop'; e.preventDefault(); }
+                 else if(clips[selIndex]){ nodeClipboard=[clips[selIndex]]; lastClipKind='node'; setStatus('Movement copied'); e.preventDefault(); } return; }
+    if(k==='x'){ if(sp){ copyProp(sp); deleteProp(sp.id); lastClipKind='prop'; setStatus('Cut '+sp.name); e.preventDefault(); }
+                 else if(clips[selIndex]){ const c=clips[selIndex]; c._char=characters.find(ch=>ch.id===c.charId)||null; nodeClipboard=[c]; lastClipKind='node'; deleteSelectedNodes([c.id]); setStatus('Movement cut'); e.preventDefault(); } return; }
+    if(k==='v'){ if(lastClipKind==='node' && nodeClipboard.length){ pasteClipObjs(nodeClipboard); e.preventDefault(); }
+                 else if(propClipboard){ pasteProp(); e.preventDefault(); }
+                 else if(nodeClipboard.length){ pasteClipObjs(nodeClipboard); e.preventDefault(); } return; }
+    if(k==='d'){ if(sp){ duplicateProp(sp); e.preventDefault(); }
+                 else if(clips[selIndex]){ duplicateClips([clips[selIndex].id]); e.preventDefault(); } return; }
   }
   if(sp && (e.key==='Delete')){ deleteProp(sp.id); setStatus('Deleted prop'); e.preventDefault(); return; }
+  if(!nodeOpen && e.key==='Delete' && clips[selIndex]){ deleteSelectedNodes([clips[selIndex].id]); e.preventDefault(); return; }   // Delete the selected timeline movement
   if(sp && (e.key==='PageUp'||e.key==='PageDown')){   // raise/lower a selected prop (stages grow taller)
     nudgePropLift(sp, (e.key==='PageUp'?1:-1)*(e.shiftKey?0.5:0.15)); e.preventDefault(); return; }
   if(e.key==='m'||e.key==='M'){ if(clips.length) toggleGizmo(); return; }
@@ -3037,6 +3047,12 @@ async function addGLBs(files){
   sortClips();
   clips.forEach(c=>{ if(!c._norm){
     bakeRigScale(c.root, c.gltf && c.gltf.animations);   // normalize the cm/0.01-armature rig → standard metre rig
+    // Capture the REST pose now, while the skeleton is still exactly as the file describes it. A retarget
+    // maps a library motion onto the character's rest, so reading it later — after the character's own
+    // embedded animation has posed the bones — silently retargets onto a random frame. The Meshy
+    // quadruped's embedded clip carries a +90 deg X rotation on Hips, which is why every motion put the
+    // dog on end. Nothing has called mixer.update() at this point, so this is the file's own pose.
+    c.restPose = mlCaptureRest(c.root);
     c.baseScale = c.root.scale.clone();
     c.restH = measureRest(c).getSize(new THREE.Vector3()).y || 1;
     c.hips = findHips(c.root);
@@ -3436,8 +3452,13 @@ function rotY(v,a){ if(!a) return v; const c=Math.cos(a), s=Math.sin(a); return 
 // the animation itself: how far the feet sweep horizontally (stride) and how airborne the hips get.
 const MOVE_RE=/\b(walk|walking|run|running|jog|jogging|sprint|march|marching|strut|stroll|stride|dash|sneak|creep|tiptoe)\b/i;
 const STAY_RE=/\b(idle|tantrum|flip|backflip|jump|leap|hop|sit|stand|standing|wave|dance|dancing|throw|throwing|attack|punch|kick|death|die|dying|fall|falling|cheer|clap|talk|pose|spin|power|arm ?circle|shuffle|shrug|salute|aim|shoot|block|dodge|roll)\b/i;
+// Climbing clips carry their OWN travel in the baked root track (up a wall, or sideways along a ledge), so
+// they must NOT also get a synthetic forward skate across the floor — treat them as non-scrolling and let
+// the baked netX/netY be the only motion.
+const CLIMB_RE=/\b(climb|scramble|rope|traverse|shimmy|mantle|clamber|ledge|cling|rappel)\b/i;
 function analyzeMotion(c){
   const nm=(c.name||'');
+  if(CLIMB_RE.test(nm)) return {scroll:false, reason:'climb', name:nm};
   if(MOVE_RE.test(nm)) return {scroll:true,  reason:'name', name:nm};
   if(STAY_RE.test(nm)) return {scroll:false, reason:'name', name:nm};
   if(!c.hips || !c.action || !c.duration) return {scroll:false, reason:'nodata'};
@@ -3637,7 +3658,7 @@ const LANE_TOP=14, LANE_H=62, COL0=150, COL_W=94, START_X=14, START_W=54;
 let nodeDrag=null, tempWire=null;
 let playingClipId=null, nodeScrollX=0;   // node-editor playback highlight + horizontal scroll to keep it on screen
 let nodeSel=new Set();          // multi-selection of clip ids in the node editor
-let nodeClipboard=[];           // ids copied with Ctrl+C, pasted with Ctrl+V
+let nodeClipboard=[];           // clip OBJECTS copied/cut with Ctrl+C / Ctrl+X, pasted (as clones) with Ctrl+V
 const nodeRect=()=>$('#nodeEditor').getBoundingClientRect();
 const laneY=li=>LANE_TOP+li*LANE_H;
 function laneIndexOf(charId){ return activeChars().findIndex(ch=>ch.id===charId); }
@@ -3823,15 +3844,49 @@ function duplicateClips(ids){
   renderList(); renderTimeline(); renderNodes(); showClip(selIndex); updateReady();
   setStatus(copies.length+' node'+(copies.length>1?'s':'')+' duplicated');
 }
+// The ids currently selected in the node editor: the multi-selection if any, else the primary clip.
+function nodeSelIds(){ return nodeSel.size?[...nodeSel]:(selIndex>=0&&clips[selIndex]?[clips[selIndex].id]:[]); }
+// Delete the selected movement node(s) — same teardown the timeline ✕ button uses, then reframe.
+function deleteSelectedNodes(ids){
+  ids = ids || nodeSelIds(); if(!ids.length){ setStatus('No movement selected'); return; }
+  const idset=new Set(ids);
+  for(let i=clips.length-1;i>=0;i--){ if(idset.has(clips[i].id)) clips.splice(i,1); }
+  clips.forEach((c,k)=>c.order=k);
+  nodeSel=new Set(); selIndex=Math.max(0,Math.min(selIndex,clips.length-1));
+  cleanupCharacters(); recomputeAllNorm(); computeSharedFrame();
+  renderCharacters(); renderList(); renderTimeline(); renderNodes();
+  if(clips.length) showClip(selIndex); else renderFrame();
+  updateReady(); setStatus('Deleted '+ids.length+' movement'+(ids.length>1?'s':''));
+}
+// Paste clip OBJECTS (clones, sharing root/mixer like duplicateClips) after the current selection. Works
+// for both copy (sources still present) and cut (sources removed — the objects live on in the clipboard).
+function pasteClipObjs(srcs){
+  if(!srcs||!srcs.length){ setStatus('Nothing to paste'); return; }
+  let at=(selIndex>=0&&selIndex<clips.length)?selIndex+1:clips.length;
+  const copies=[];
+  for(const c of srcs){
+    if(c.charId && !characters.some(ch=>ch.id===c.charId) && c._char) characters.push(c._char);   // a cut may have emptied the lane
+    const d=Object.assign(Object.create(Object.getPrototypeOf(c)), c);
+    d.id=crypto.randomUUID(); d.cam=Object.assign({}, c.cam, {exp:false}); d.node=c.node?{x:c.node.x+28,y:c.node.y+28}:null;
+    clips.splice(at++,0,d); copies.push(d);
+  }
+  clips.forEach((c,k)=>c.order=k);
+  nodeSel=new Set(copies.map(c=>c.id)); selIndex=clips.indexOf(copies[0]);
+  cleanupCharacters(); recomputeAllNorm(); computeSharedFrame();
+  renderCharacters(); renderList(); renderTimeline(); renderNodes(); showClip(selIndex); updateReady();
+  setStatus('Pasted '+copies.length+' movement'+(copies.length>1?'s':''));
+}
 window.addEventListener('keydown', e=>{
   if(!$('#nodeEditor').classList.contains('show')) return;
   const t=(e.target&&e.target.tagName)||''; if(/^(INPUT|TEXTAREA|SELECT)$/.test(t)) return;
+  if(e.key==='Delete'){ deleteSelectedNodes(); e.preventDefault(); return; }        // Delete → remove the selected node(s)
   const mod=e.ctrlKey||e.metaKey; if(!mod) return;
   const k=e.key.toLowerCase();
   if(k==='a'){ nodeSel=new Set(clips.map(c=>c.id)); if(clips.length) selectPrimary(clips[clips.length-1].id); renderNodes(); e.preventDefault(); }
-  else if(k==='c'){ nodeClipboard=[...(nodeSel.size?nodeSel:(selIndex>=0?[clips[selIndex].id]:[]))]; setStatus(nodeClipboard.length+' node'+(nodeClipboard.length>1?'s':'')+' copied'); e.preventDefault(); }
-  else if(k==='v'){ if(nodeClipboard.length) duplicateClips(nodeClipboard); e.preventDefault(); }
-  else if(k==='d'){ const ids=nodeSel.size?[...nodeSel]:(selIndex>=0?[clips[selIndex].id]:[]); if(ids.length) duplicateClips(ids); e.preventDefault(); }
+  else if(k==='c'){ const ids=nodeSelIds(); nodeClipboard=clips.filter(c=>ids.includes(c.id)); lastClipKind='node'; setStatus(nodeClipboard.length+' node'+(nodeClipboard.length>1?'s':'')+' copied'); e.preventDefault(); }
+  else if(k==='x'){ const ids=nodeSelIds(); nodeClipboard=clips.filter(c=>ids.includes(c.id)); nodeClipboard.forEach(c=>c._char=characters.find(ch=>ch.id===c.charId)||null); const n=nodeClipboard.length; lastClipKind='node'; deleteSelectedNodes(); if(n) setStatus(n+' node'+(n>1?'s':'')+' cut'); e.preventDefault(); }
+  else if(k==='v'){ pasteClipObjs(nodeClipboard); e.preventDefault(); }
+  else if(k==='d'){ const ids=nodeSelIds(); if(ids.length) duplicateClips(ids); e.preventDefault(); }
 });
 function startTempWire(e){ tempWire=document.createElementNS(SVGNS,'path'); tempWire.setAttribute('class','wire temp'); $('#nodeWires').appendChild(tempWire); updateTempWire(e); }
 function updateTempWire(e){ if(!tempWire) return; const r=nodeRect();
@@ -4063,7 +4118,12 @@ async function produceFrames(fps,loops,hold,spin,trans, emit, abort){
     const fallPer = (travelling && c.fall) ? FALL_RATE*advSpeed*(c.duration||1) : 0;   // synthetic descent per play (world)
     const netRaw=travelAt(c, netT);
     const net=rotY({x:netRaw.x, z:netRaw.z + advPer}, heading);   // net horizontal travel + advance, aligned to facing
-    const netY=netRaw.y||0;                       // net vertical travel (climbs) — carried between clips/loops
+    // Only CLIMBING produces a PERSISTENT vertical gain that should carry into the next clip (climb a wall,
+    // mantle onto a ledge → chain to climb higher). A sit, a fall, a crouch or a jump lowers/rises WITHIN
+    // its own clip (played by the mixer) and recovers by the end — carrying that as a permanent offset would
+    // drop every following clip underground (a sit-on-chair left the next motion 42 cm below the floor).
+    const vClimb=CLIMB_RE.test(c.name||'');
+    const netY=vClimb ? (netRaw.y||0) : 0;        // net vertical travel — carried between clips/loops for climbs only
     const sx=c.root.scale.x, sz=c.root.scale.z, sy=c.root.scale.y;
     let clipFrame=0;
     const render1 = async (D)=>{
@@ -4414,25 +4474,31 @@ function mlLegLength(root){ root.updateMatrixWorld(true); const hips=findHips(ro
   for(const b of mlBoneList(root)){ const w=new THREE.Vector3(); b.getWorldPosition(w); minY=Math.min(minY,w.y); }
   return Math.max(0.05, hw.y-minY); }
 
-// Set the character every motion is retargeted onto. pose() forces the true bind/rest pose
-// first, so rest capture is correct even if `root` is a clip that is currently mid-animation.
+// Set the character every motion is retargeted onto.
+// The rest pose is whatever the character looked like BEFORE anything animated it — that is what a
+// retarget maps onto. Reading the bones live is wrong the moment the character has been posed, and some
+// exports make that immediate: the quadruped GLB ships its own embedded clip whose Hips track carries the
+// armature's +90 deg, so a live capture recorded a rest 90 deg off and every retargeted motion stood the
+// dog on end. Prefer the snapshot taken at load; otherwise force the bind pose with pose(), snapshotting
+// and restoring the bones around it so the rendered character is left exactly as it was.
 function mlSetRig(root, label){
-  // Capture the rig's REST pose to drive retargeting. pose() is needed to read the true bind, but it
-  // corrupts a live, already-normalized/re-bound character — so snapshot every bone, pose, capture,
-  // then restore the bones exactly. The rig's rendered state is left untouched.
-  const skins=[], saved=[];
-  root.traverse(o=>{ if(o.isSkinnedMesh && o.skeleton){ skins.push(o); saved.push(o.skeleton.bones.map(b=>({p:b.position.clone(),q:b.quaternion.clone(),s:b.scale.clone()}))); } });
-  root.traverse(o=>{ if(o.isSkinnedMesh && o.skeleton) o.skeleton.pose(); });
-  root.updateMatrixWorld(true);
-  libRig={ root, rest:mlCaptureRest(root), legLength:mlLegLength(root), sig:skelSig(root), label };
-  skins.forEach((o,si)=>{ o.skeleton.bones.forEach((b,i)=>{ b.position.copy(saved[si][i].p); b.quaternion.copy(saved[si][i].q); b.scale.copy(saved[si][i].s); }); });
-  root.updateMatrixWorld(true);
+  const src = clips.find(c => c.root === root);
+  let rest = src && src.restPose;
+  if(!rest){
+    const skins=[], saved=[];
+    root.traverse(o=>{ if(o.isSkinnedMesh && o.skeleton){ skins.push(o); saved.push(o.skeleton.bones.map(b=>({p:b.position.clone(),q:b.quaternion.clone(),s:b.scale.clone()}))); } });
+    root.traverse(o=>{ if(o.isSkinnedMesh && o.skeleton) o.skeleton.pose(); });
+    root.updateMatrixWorld(true);
+    rest = mlCaptureRest(root);
+    skins.forEach((o,si)=>{ o.skeleton.bones.forEach((b,i)=>{ b.position.copy(saved[si][i].p); b.quaternion.copy(saved[si][i].q); b.scale.copy(saved[si][i].s); }); });
+    root.updateMatrixWorld(true);
+  }
+  libRig={ root, rest, legLength:mlLegLength(root), sig:skelSig(root), label };
   const match = mlLibSig && libRig.sig===mlLibSig;
   $('#mlRig').innerHTML=`Rig: <b>${label}</b> · ${mlBoneList(root).length} bones · ${match?'✓ matches library skeleton':'⚠ different rig — retargets by bone name'}`;
   renderMotionLib();   // re-filter the list to this rig's skeleton (biped / quad / bird)
   if(clips.length) refreshView();
 }
-
 // per-skeleton bone match + proportion (leg-length) scaling + rest-pose compensation
 function retargetMotion(motion, rig){
   const clip=THREE.AnimationClip.parse(motion.clip);
