@@ -325,7 +325,7 @@
       </div>
       <div id="mlSourceBar" class="mlsrc" style="display:none"></div>
       <div class="row" style="margin-top:10px">
-        <input type="text" id="mlSearch" placeholder="filter 579 motions by name…" style="flex:1;background:var(--panel2,#161b23);border:1px solid var(--line,#252c37);color:inherit;border-radius:6px;padding:6px 8px;font-size:12px">
+        <input type="text" id="mlSearch" placeholder="filter motions by name…" style="flex:1;background:var(--panel2,#161b23);border:1px solid var(--line,#252c37);color:inherit;border-radius:6px;padding:6px 8px;font-size:12px">
       </div>
       <div class="row" style="margin-top:6px;font-size:11px">
         <label class="mlchk"><input type="radio" name="mlType" value="all" checked> all</label>
@@ -333,6 +333,7 @@
         <label class="mlchk"><input type="radio" name="mlType" value="stay"> in place</label>
         <span class="hint" id="mlCount" style="margin-left:auto"></span>
       </div>
+      <div id="mlCatBar" class="mlcats"></div>
       <div id="mlList" style="max-height:280px;overflow-y:auto;margin-top:8px;border:1px solid var(--line,#252c37);border-radius:8px"></div>
       <label class="mlchk" style="margin-top:8px;font-size:12px"><input type="checkbox" id="mlSeqMode"> Build a sequence — queue motions that flow together, add them all at once</label>
       <div id="mlSeqWrap" style="display:none;margin-top:6px">
@@ -4386,6 +4387,18 @@ mlStyle.textContent=`
 .ml-t.move{color:#0a1f10;background:var(--accent2,#38d39f);border-color:var(--accent2,#38d39f)}
 .mlchk{display:inline-flex;align-items:center;gap:3px;cursor:pointer}
 .ml-flow{font-size:10px;padding:1px 6px;border-radius:10px;background:rgba(56,211,159,.16);color:var(--accent2,#38d39f);border:1px solid var(--accent2,#38d39f);flex:none}
+.mlcats{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
+.mlcat-chip{font-size:11px;padding:3px 9px;border-radius:12px;border:1px solid var(--line,#252c37);background:var(--panel2,#161b23);color:var(--muted,#8a97a8);cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+.mlcat-chip:hover{color:var(--fg,#e7edf5)}
+.mlcat-chip.on{background:var(--accent2,#38d39f);color:#0a1f10;border-color:var(--accent2,#38d39f)}
+.mlcat-chip i{font-style:normal;font-size:10px;opacity:.75}
+.mlcat-chip.on i{opacity:1}
+.ml-grp{display:flex;align-items:center;gap:7px;padding:6px 10px;font-size:11px;font-weight:600;letter-spacing:.02em;text-transform:uppercase;color:var(--fg,#e7edf5);background:var(--panel,#12161d);border-top:1px solid var(--line,#252c37);cursor:pointer;position:sticky;top:0;z-index:1;user-select:none}
+.ml-grp:first-child{border-top:none}
+.ml-grp:hover{background:var(--panel2,#161b23)}
+.ml-grp .car{color:var(--accent2,#38d39f);font-size:10px;width:10px;flex:none}
+.ml-grp .gnm{flex:1}
+.ml-grp .gct{color:var(--muted,#8a97a8);font-weight:400}
 .ml-seqchip{display:flex;align-items:center;gap:6px;background:var(--panel,#12161d);border:1px solid var(--line,#252c37);border-radius:14px;padding:3px 8px 3px 10px;font-size:11px}
 .ml-seqchip .n{color:var(--muted,#8a97a8)}
 .ml-seqchip .x{cursor:pointer;color:var(--muted,#8a97a8)}
@@ -4633,33 +4646,74 @@ async function addSequenceToTimeline(){
   setStatus(`Added a ${items.length}-motion sequence to the timeline`);
 }
 
+// Category browsing state: which chip is active + which category groups are collapsed (persisted).
+let mlCat='all';
+let mlCollapsed=(()=>{ try{ return new Set(JSON.parse(localStorage.getItem('mlCollapsed')||'[]')); }catch(e){ return new Set(); } })();
+function mlSaveCollapsed(){ try{ localStorage.setItem('mlCollapsed', JSON.stringify([...mlCollapsed])); }catch(e){} }
+// One motion row (shared by the grouped browse list and the flow-ranked sequence list).
+function mlRow(m, flows){
+  const row=document.createElement('div'); row.className='ml-mot'; row.title=(mlSeqOn()?'Queue “':'Add “')+m.name+'”';
+  row.innerHTML=`<span class="ml-t ${m.type==='move'?'move':''}">${m.type==='move'?'moves':'in place'}</span>`
+    +`<span class="ml-nm">${m.name}</span>${flows?'<span class="ml-flow">flows</span>':''}<span class="ml-d">${m.duration}s</span>`;
+  row.onclick=()=>{ if(mlSeqOn()){ mlSeq.push(m); renderSeqBar(); renderMotionLib(); } else addMotionClip(m); };
+  return row;
+}
 function renderMotionLib(){
-  const el=$('#mlList'); if(!el) return;
-  if(!libIndex){ el.innerHTML='<div class="hint" style="padding:10px">Loading library…</div>'; return; }
+  const el=$('#mlList'), bar=$('#mlCatBar'); if(!el) return;
+  if(!libIndex){ el.innerHTML='<div class="hint" style="padding:10px">Loading library…</div>'; if(bar) bar.innerHTML=''; return; }
   const q=$('#mlSearch').value.trim().toLowerCase();
   const ty=(document.querySelector('input[name=mlType]:checked')||{}).value||'all';
   // Once a rig is loaded, only show motions authored for ITS skeleton (biped / quadruped / bird) —
   // motions retarget by bone name, so a mismatched skeleton wouldn't apply. No rig yet → show all.
   const rigSig = (libRig && libRig.sig) || null;
-  let rows=libIndex.filter(m=> (ty==='all'||m.type===ty) && (!q||m.name.toLowerCase().includes(q))
-                             && (!rigSig || m.sig===rigSig))
-                   .map(m=>({m, d:null}));
-  const ref = mlSeqOn() ? refPoseEnd() : null;
-  if(ref && libPoses){ for(const r of rows) r.d = libPoses[r.m.id] ? poseDist(ref, libPoses[r.m.id].s) : 9;
-    rows.sort((a,b)=>a.d-b.d); }
+  const seq = mlSeqOn();
+  // Base set: type + rig + name search. Category is applied after, so the chips can show live counts.
+  const base=libIndex.filter(m=> (ty==='all'||m.type===ty) && (!q||m.name.toLowerCase().includes(q))
+                               && (!rigSig || m.sig===rigSig));
+  // ---- category chips (hidden while building a sequence — that list is a flat flow ranking) ----
+  if(bar){
+    if(seq){ bar.style.display='none'; bar.innerHTML=''; }
+    else {
+      bar.style.display='flex';
+      const order=[], cnt={};                                  // categories in first-appearance (authoring) order
+      for(const m of base){ const c=m.cat||'Other'; if(!(c in cnt)){ order.push(c); cnt[c]=0; } cnt[c]++; }
+      if(mlCat!=='all' && !(mlCat in cnt)) mlCat='all';        // selected category no longer present → reset
+      bar.innerHTML='';
+      const chip=(label,val,n)=>{ const b=document.createElement('button'); b.className='mlcat-chip'+(mlCat===val?' on':'');
+        b.innerHTML=`${label}<i>${n}</i>`; b.onclick=()=>{ mlCat=val; renderMotionLib(); }; bar.appendChild(b); };
+      chip('All','all',base.length);
+      for(const c of order) chip(c,c,cnt[c]);
+    }
+  }
+  // ---- sequence mode: flat list, ranked by how well each start-pose flows from the last queued end-pose ----
+  if(seq){
+    const ref=refPoseEnd();
+    const rows=base.map(m=>({m, d:(ref&&libPoses&&libPoses[m.id])?poseDist(ref,libPoses[m.id].s):(ref?9:null)}));
+    if(ref) rows.sort((a,b)=>a.d-b.d);
+    $('#mlCount').textContent=rows.length+' / '+libIndex.length;
+    el.innerHTML=''; const frag=document.createDocumentFragment();
+    for(const {m,d} of rows.slice(0,400)) frag.appendChild(mlRow(m, d!=null && d<FLOW_MAX));
+    el.appendChild(frag);
+    if(rows.length>400){ const dv=document.createElement('div'); dv.className='hint'; dv.style.padding='6px 10px'; dv.textContent='+'+(rows.length-400)+' more — refine your search'; el.appendChild(dv); }
+    return;
+  }
+  // ---- browse mode: grouped by category, collapsible (a search or a picked chip forces groups open) ----
+  const rows = (mlCat==='all') ? base : base.filter(m=>(m.cat||'Other')===mlCat);
   $('#mlCount').textContent=rows.length+' / '+libIndex.length;
-  el.innerHTML='';
-  const frag=document.createDocumentFragment();
-  for(const {m,d} of rows.slice(0,400)){
-    const flows = d!=null && d<FLOW_MAX;
-    const row=document.createElement('div'); row.className='ml-mot'; row.title=(mlSeqOn()?'Queue “':'Add “')+m.name+'”';
-    row.innerHTML=`<span class="ml-t ${m.type==='move'?'move':''}">${m.type==='move'?'moves':'in place'}</span>`
-      +`<span class="ml-nm">${m.name}</span>${flows?'<span class="ml-flow">flows</span>':''}<span class="ml-d">${m.duration}s</span>`;
-    row.onclick=()=>{ if(mlSeqOn()){ mlSeq.push(m); renderSeqBar(); renderMotionLib(); } else addMotionClip(m); };
-    frag.appendChild(row);
+  const order=[], groups={};
+  for(const m of rows){ const c=m.cat||'Other'; if(!groups[c]){ groups[c]=[]; order.push(c); } groups[c].push(m); }
+  const forceOpen = !!q || mlCat!=='all';                      // don't hide anything the user is actively narrowing to
+  el.innerHTML=''; const frag=document.createDocumentFragment();
+  for(const c of order){
+    const items=groups[c], collapsed = !forceOpen && mlCollapsed.has(c);
+    const hd=document.createElement('div'); hd.className='ml-grp';
+    hd.innerHTML=`<span class="car">${collapsed?'▸':'▾'}</span><span class="gnm">${c}</span><span class="gct">${items.length}</span>`;
+    hd.onclick=()=>{ if(mlCollapsed.has(c)) mlCollapsed.delete(c); else mlCollapsed.add(c); mlSaveCollapsed(); renderMotionLib(); };
+    frag.appendChild(hd);
+    if(!collapsed) for(const m of items) frag.appendChild(mlRow(m,false));
   }
   el.appendChild(frag);
-  if(rows.length>400){ const d=document.createElement('div'); d.className='hint'; d.style.padding='6px 10px'; d.textContent='+'+(rows.length-400)+' more — refine your search'; el.appendChild(d); }
+  if(!order.length){ const dv=document.createElement('div'); dv.className='hint'; dv.style.padding='8px 10px'; dv.textContent='No motions match.'; el.appendChild(dv); }
 }
 
 // ---- Bake the whole timeline into one GLB (character + merged "Sequence" clip + each clip named) ----

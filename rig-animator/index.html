@@ -2731,14 +2731,19 @@ const BIPED_MOTIONS=[
     reachIK(B_RARM, pathAt(THROW_ARC,u),  V(-0.5,-1,-0.2));       // elbow stays outside and below the hand
     reachIK(B_LARM, pathAt(THROW_LEAD,u), V( 0.6,-1, 0.0));
     sw(B_HEAD,AX.y,(0.32*wind-0.30*follow)*A); }},
+  // Leap up and reach UP-AND-FORWARD to pull in a ball above the head. Hands solved with reachIK to points
+  // high and in FRONT (+Z) so the arms can't wind up pointing down or behind; the body leans forward into it.
   {id:'catch', name:'Leaping Catch', cat:'Football', type:'stay', dur:1.0, build:(t,P)=>{ bstand(); const A=P.amp, u=t/1.0;
     const j=jumpProfile(u,{crouchEnd:0.22,takeoff:0.34,land:0.76,dip:0.15,height:0.34,absorb:0.13});
-    const reach=bump(u,0.52,0.30);
+    const reach=bump(u,0.52,0.34);
     setRootY(j.y*A);
-    [B_LARM,B_RARM].forEach(Ar=>{ reachHigh(Ar,(0.65+0.35*reach),A); elb(Ar,(0.30-0.20*reach)*A); });
+    leanF((0.12 + 0.34*reach - 0.10*j.crouch)*A);                       // lean forward into the catch
+    animRoot.updateMatrixWorld(true);
+    const by=animRoot.position.y;
+    [B_LARM,B_RARM].forEach(Ar=>                                        // ready at the chest → extended overhead-front at the catch
+      reachIK(Ar, V(Ar.s*0.16, by+1.30+0.52*reach, 0.16+0.08*reach), V(0,-1,0)));
     if(j.flight){ [B_LLEG,B_RLEG].forEach(L=>{ legF(L,0.42*A); kneeB(L,(0.55+0.45*j.s)*A); footFlex(L,-0.40); }); }
-    else { animRoot.updateMatrixWorld(true); plantFeet(0.02,0.02,{width:0.090}); }
-    leanF((0.12*reach - 0.10*j.crouch)*A); }},
+    else { animRoot.updateMatrixWorld(true); plantFeet(0.02,0.02,{width:0.090}); } }},
   // A juke is a hard lateral weight-shift: the body's mass throws sideways over one planted foot while the
   // other steps out to catch it, so the hips travel side to side and the feet plant alternately.
   {id:'juke', name:'Juke Move', cat:'Football', type:'stay', dur:1.0, build:(t,P)=>{ bstand(); const A=P.amp;
@@ -2749,7 +2754,9 @@ const BIPED_MOTIONS=[
     [B_LARM,B_RARM].forEach((Ar,i)=>gaitArm(Ar,((i?s:-s)*0.45+0.25)*A, 1.1*A, 0.17)); }},
   {id:'stiffarm', name:'Stiff-Arm', cat:'Football', type:'move', dur:0.72, build:(t,P)=>{ const A=P.amp;
     gaitRun(t,P,0.72,{duty:0.40,hip:1.0,knee:1.0,lean:0.26,armSwing:30,elbow0:1.30,flight:0.045,pelvisRot:7});
-    armF(B_RARM,1.5*A); elb(B_RARM,-0.2*A); }},                            // free arm punched out straight
+    animRoot.updateMatrixWorld(true); const by=animRoot.position.y;
+    reachIK(B_RARM, V(B_RARM.s*0.12, by+1.26, 0.46), V(0,-1,0));           // STIFF arm punched straight out FRONT (armF alone only abducts it sideways on this rig)
+    reachIK(B_LARM, V(B_LARM.s*0.09, by+1.16, 0.15), V(0,-1,0)); }},       // off arm curled high & tight, cradling the ball at the ribs
   {id:'header', name:'Header', cat:'Football', type:'stay', dur:0.9, build:(t,P)=>{ bstand(); const A=P.amp, u=t/0.9, jump=Math.sin(Math.PI*clamp((u-0.1)/0.6,0,1)), snap=bump(u,0.5,0.2);
     setRootY(jump*0.35*A); leanF((-0.3+0.6*snap)*A); sw(B_HEAD,AX.x,(-0.3+0.5*snap)*A);
     [B_LARM,B_RARM].forEach(Ar=>armO(Ar,jump*0.6*A + 0.2*A)); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,jump*0.6*A)); }},
@@ -2771,8 +2778,12 @@ const BIPED_MOTIONS=[
     legIK(B_LLEG, V(B_LLEG.s*0.16, GROUND_ANKLE, -0.10-0.10*slide*A), AX.z);       // support leg folded under
     footFlex(B_LLEG,-0.20);                                                       // support foot folded under the body
     gaitArm(B_RARM,-0.5*slide*A,0.5*A,0.30); armO(B_LARM,(0.3+0.7*slide)*A); }},
+  // Both arms thrust STRAIGHT UP — the touchdown signal — with a little celebratory bounce. (reachUp=armO
+  // flung them out to the sides into a T; solve the hands overhead instead.)
   {id:'tdcele', name:'Touchdown Celebration', cat:'Football', type:'stay', dur:1.2, build:(t,P)=>{ bstand(); const A=P.amp, ph=TAU*(t/1.2)*P.speed, h=Math.abs(Math.sin(ph));
-    [B_LARM,B_RARM].forEach(Ar=>reachUp(Ar,1,A)); setRootY(h*0.1*A);
+    setRootY(h*0.10*A);
+    animRoot.updateMatrixWorld(true); const by=animRoot.position.y;
+    [B_LARM,B_RARM].forEach(Ar=>reachIK(Ar, V(Ar.s*0.12, by+1.92+0.05*h, 0.03), V(0,-1,0)));
     [B_LLEG,B_RLEG].forEach(L=>kneeB(L,h*0.4*A)); sw('Hips',AX.y,Math.sin(ph)*0.1*A); }},
   // —— Track & Field ——
   // In the blocks: four-point stance with the HANDS bearing weight on the line, hips raised above the
@@ -2824,8 +2835,9 @@ const BIPED_MOTIONS=[
     armF(B_LARM,(1.15*cross - 1.25*follow)*A); armO(B_LARM,-0.55*cross*A); elb(B_LARM,(0.45+0.65*follow)*A);
     sw(B_HEAD,AX.y,(0.30*cross-0.30*follow)*A); }},
   {id:'shotput', name:'Shot Put', cat:'Track & Field', type:'stay', dur:1.1, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.1*P.speed)%1, coil=ramp(u,0,0.5), push=bump(u,0.65,0.25);
-    reachHigh(B_RARM,push,A); elb(B_RARM,(1.5*coil - 1.2*push)*A); armO(B_RARM,0.4*coil*A);   // ball at the neck (coil, elbow bent) → punched up-forward
-    twist((-0.4*coil + 0.6*push)*A); sw('Hips',AX.y,(-0.3*coil + 0.4*push)*A); setRootY((-0.20*coil + 0.10*push)*A); plantFeet(-0.20-0.04*coil*A, 0.18+0.06*push*A, {width:0.085, footY:[-0.25*push,0]}); }},
+    twist((-0.4*coil + 0.6*push)*A); sw('Hips',AX.y,(-0.3*coil + 0.4*push)*A); setRootY((-0.20*coil + 0.10*push)*A); plantFeet(-0.20-0.04*coil*A, 0.18+0.06*push*A, {width:0.085, footY:[-0.25*push,0]});
+    animRoot.updateMatrixWorld(true); const by=animRoot.position.y;                         // ball tucked at the neck → PUNCHED up-and-forward at ~40° (reachHigh released it too low & level)
+    reachIK(B_RARM, V(B_RARM.s*0.10, by+1.30, 0.08).lerp(V(B_RARM.s*0.05, by+1.74, 0.34), push), V(0,-1,0)); }},
   // A discus turn is generated by the LEGS: a wide base, deeply flexed knees, and the feet pivoting on
   // the circle as the hips wind round ahead of the shoulders.
   {id:'discus', name:'Discus Spin', cat:'Track & Field', type:'stay', dur:1.3, build:(t,P)=>{ const A=P.amp, u=(t/1.3*P.speed)%1;
