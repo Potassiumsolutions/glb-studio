@@ -967,12 +967,12 @@ const QUAD_MOTIONS=[
   // what makes room for the chest to reach the floor.
   {id:'submit', name:'Submissive Crouch', cat:'Social', type:'stay', dur:2.60, build:(t,P)=>{
     const A=P.amp, k=ramp((t/2.60)%1,0.05,0.45)*A;
-    // A submissive crouch is the BODY sinking to the ground with the paws PLANTED and splayed WIDE — the legs
-    // bend to take up the drop (elbows out, hocks out), belly low. Folding the legs by joint angle pulled the
-    // paws UP ("legs pull in, body stays put"); planting the paws and dropping the root reads as the body
-    // actually coming DOWN — which is the part that shows on the retargeted mesh.
-    const LL=qPose({ y:-0.62*k, chest:0.12*k, head:0.24*k, headZ:0.20*k, tail:0.55*k, roll:0.06*k });
-    qFeet({ spread: 0.16*LL*k, fz: 0.05*LL*k, hz: -0.05*LL*k });   // paws stay down + splay wide; legs bend to reach
+    // A submissive crouch is the BODY sinking toward the ground with the paws roughly UNDER it. The root drop
+    // (setRootY, which retargets — the sit lowers by the same means) is what actually lowers the mesh; a WIDE
+    // foot splay let the legs angle outward like a splits so the body stayed up ("legs come in, no drop"), so
+    // the splay is dropped. Paws stay planted close under the body and the legs bend to take the deep drop.
+    const LL=qPose({ y:-0.72*k, chest:0.12*k, head:0.24*k, headZ:0.20*k, tail:0.55*k, roll:0.06*k });
+    qFeet({ spread: 0.03*LL*k, fz: 0.04*LL*k, hz: -0.04*LL*k });   // paws under the body (no wide splay); legs bend as the body sinks
     qLevelGroundedPaws(); }},
   {id:'nuzzle', name:'Nuzzle / Greet', cat:'Social', type:'stay', dur:2.20, build:(t,P)=>{
     const A=P.amp, u=(t/2.20*P.speed)%1, k=bump(u,0.5,0.4), s=Math.sin(TAU*u*2);
