@@ -623,6 +623,7 @@ function quadGaitN(t, P, dur, o){
     qLimbIK(L, _qTgt, 9);
     QIK_GAIN = QIK_GAIN_POSE;
   });
+  qLevelGaitFeet();                 // planted feet point forward / sole flat, fading out through swing
 }
 // ═════ QUADRUPED — stationary poses ══════════════════════════════════════════════════════════════
 // Everything that is not locomotion is the same three steps: stand, MOVE THE BODY, then solve each paw
@@ -665,13 +666,15 @@ function qPawsToFloor(){
 // resting on the ground, re-apply its STANDING world attitude (captured in captureQuadRest): toes forward,
 // sole flat, exactly as when the animal stands, whatever the leg above it is doing. Airborne paws (a tuck,
 // a rear, a swipe) are left alone — only grounded paws are levelled.
-const _qLpP = new THREE.Quaternion(), _qLpE = new THREE.Vector3();
-function levelPaw(L){
+const _qLpP = new THREE.Quaternion(), _qLpE = new THREE.Vector3(), _qLpT = new THREE.Quaternion();
+function levelPaw(L, w){
   const r0 = QUAD_FOOTQ0[L.foot]; if(!r0) return;
   const b = boneByName[L.foot]; if(!b || !b.parent) return;
   b.parent.updateWorldMatrix(true, false);
   b.parent.getWorldQuaternion(_qLpP);
-  b.quaternion.copy(_qLpP.invert().multiply(r0));    // local q that reproduces the standing WORLD attitude
+  _qLpT.copy(_qLpP).invert().multiply(r0);           // local q that reproduces the standing WORLD attitude
+  if(w == null || w >= 1) b.quaternion.copy(_qLpT);
+  else b.quaternion.slerp(_qLpT, Math.max(0, w));    // blend toward level (used to fade a lifting gait foot)
   b.updateWorldMatrix(false, false);
 }
 // Level every paw that is on the ground (within ~2 cm of the floor). Joint-driven folds call this after
@@ -681,6 +684,17 @@ function qLevelGroundedPaws(){
   for(const L of QUAD_LEGS){
     boneByName[L.foot].getWorldPosition(_qLpE);
     if(_qLpE.y <= QUAD_FLOOR + 0.02) levelPaw(L);
+  }
+  animRoot.updateMatrixWorld(true);
+}
+// Gait feet: a PLANTED paw is levelled (toes forward, sole flat), fading out as the foot lifts into swing so
+// there is no pop at toe-off. The same foot lesson the stationary poses use, applied to locomotion.
+function qLevelGaitFeet(){
+  animRoot.updateMatrixWorld(true);
+  for(const L of QUAD_LEGS){
+    boneByName[L.foot].getWorldPosition(_qLpE);
+    const w = clamp(1 - (_qLpE.y - QUAD_FLOOR)/0.05, 0, 1);   // full on the floor → 0 by ~5 cm up
+    if(w > 0.02) levelPaw(L, w);
   }
   animRoot.updateMatrixWorld(true);
 }
@@ -938,16 +952,13 @@ const QUAD_MOTIONS=[
   // what makes room for the chest to reach the floor.
   {id:'submit', name:'Submissive Crouch', cat:'Social', type:'stay', dur:2.60, build:(t,P)=>{
     const A=P.amp, k=ramp((t/2.60)%1,0.05,0.45)*A;
-    qPose({ y:-0.50*k, chest:0.14*k, head:0.24*k, headZ:0.20*k, tail:0.55*k, roll:0.06*k });
-    // All four limbs FOLD — driven from the joints, like the sit. Solving the paws to spots on the floor
-    // instead let the fold happen entirely below the thigh, and the audit measured 6 deg of hip on a
-    // crouch that should have 25+.
-    QUAD_LEGS.forEach(L => {
-      sw(L.hip,  AX.x, (L.front ?  0.30 : -0.70)*k);   // forelimbs fold under, hind femur swings forward
-      sw(L.knee, AX.x, (L.front ?  0.50 :  0.85)*k);
-      sw(L.shin, AX.x, (L.front ?  0.28 :  0.45)*k);
-    });
-    animRoot.updateMatrixWorld(true); qPawsToFloor(); }},
+    // A submissive crouch is the BODY sinking to the ground with the paws PLANTED and splayed WIDE — the legs
+    // bend to take up the drop (elbows out, hocks out), belly low. Folding the legs by joint angle pulled the
+    // paws UP ("legs pull in, body stays put"); planting the paws and dropping the root reads as the body
+    // actually coming DOWN — which is the part that shows on the retargeted mesh.
+    const LL=qPose({ y:-0.62*k, chest:0.12*k, head:0.24*k, headZ:0.20*k, tail:0.55*k, roll:0.06*k });
+    qFeet({ spread: 0.16*LL*k, fz: 0.05*LL*k, hz: -0.05*LL*k });   // paws stay down + splay wide; legs bend to reach
+    qLevelGroundedPaws(); }},
   {id:'nuzzle', name:'Nuzzle / Greet', cat:'Social', type:'stay', dur:2.20, build:(t,P)=>{
     const A=P.amp, u=(t/2.20*P.speed)%1, k=bump(u,0.5,0.4), s=Math.sin(TAU*u*2);
     qIdle(t,P,2.20,{amount:0.3});
@@ -999,7 +1010,8 @@ const QUAD_MOTIONS=[
     quadGaitN(t,P,1.50,{gait:'walk', stride:0.34, lift:0.12, headBob:7, tail:1, bob:0.02});
     // the injured forelimb is carried: it never takes weight, and the head lifts each time it swings
     const A=P.amp, LL=QUAD_LEGLEN();
-    qPaw(QUAD_LEGS[0], 0, 0.30*LL*A, 0.10*LL*A); }},
+    qPaw(QUAD_LEGS[0], 0, 0.30*LL*A, 0.10*LL*A);
+    sw(QUAD_LEGS[0].foot, AX.x, -1.05*A); }},        // the carried paw curls UNDER (tucked back), not out
   {id:'collapse', name:'Collapse', cat:'Action', type:'stay', dur:1.60, build:(t,P)=>{
     const A=P.amp, u=t/1.60, k=ramp(u,0.10,0.60)*A, r=ramp(u,0.35,0.85)*A;
     const LL=qPose({ y:-0.80*k, roll:0.85*r, pitch:0.12*k, chest:0.20*k, head:0.40*k, tail:0.30*k });
