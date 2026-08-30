@@ -2535,7 +2535,7 @@ function reposeCurrent(){                         // re-pose the selected clip i
 function nudgeCam(dYawDeg, dElev){               // orbit: yaw + camera height, via the existing sliders
   const yEl=$('#camYaw'), eEl=$('#camY');
   yEl.value=clampN(parseFloat(yEl.value)+dYawDeg, -180, 180);
-  eEl.value=clampN(parseFloat(eEl.value)+dElev, -1, 1.5);
+  eEl.value=clampN(parseFloat(eEl.value)+dElev, parseFloat(eEl.min), parseFloat(eEl.max));   // full slider range (−1..3.5), not the old 1.5 cap
   const c=clips[selIndex]; if(c&&c.cam&&c.cam.custom){ c.cam.yaw=parseFloat(yEl.value); c.cam.camY=parseFloat(eEl.value); if(activeRoot) frameObject(activeRoot,c); }
   yEl.dispatchEvent(new Event('input'));         // updates labels + reframes globals + renders
 }
@@ -2554,7 +2554,7 @@ function zoomCam(step){                           // dolly in / out via the fram
 // Free-look: tumble the whole view (Alt + right-drag) — the character stays exactly where/what it is.
 function freeView(dx, dy){
   viewYaw   = clampN(viewYaw   + dx*0.005, -Math.PI, Math.PI);
-  viewPitch = clampN(viewPitch - dy*0.005, -1.4, 1.4);
+  viewPitch = clampN(viewPitch - dy*0.005, -1.55, 1.55);   // ~±89°: nearly overhead / underneath (Top-view button = exact straight-down)
   orbitCamera(0); renderFrame();
 }
 // Free-look dolly (Alt + wheel): move the camera nearer/farther without re-framing the character.
