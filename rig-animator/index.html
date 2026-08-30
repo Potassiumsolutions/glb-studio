@@ -437,14 +437,15 @@ function qLimbIK(L, target, iters){
 }
 // Rest paw positions, captured standing — every paw target below is expressed relative to these, so a
 // motion says "a stride ahead of where this paw stands" rather than carrying absolute numbers.
-const QUAD_PAW0 = {}, QUAD_REACH = {};
+const QUAD_PAW0 = {}, QUAD_REACH = {}, QUAD_FOOTQ0 = {};
 const _qTgt = new THREE.Vector3();
 function captureQuadRest(){
   if(!boneByName['frontleg2']) return;
   qstand();                                          // capture them STANDING — that is the pose targets are relative to
-  const p = new THREE.Vector3(), a = new THREE.Vector3(), b = new THREE.Vector3();
+  const p = new THREE.Vector3(), a = new THREE.Vector3(), b = new THREE.Vector3(), fq = new THREE.Quaternion();
   for(const L of QUAD_LEGS){
     boneByName[L.foot].getWorldPosition(p); QUAD_PAW0[L.foot] = p.clone();
+    boneByName[L.foot].getWorldQuaternion(fq); QUAD_FOOTQ0[L.foot] = fq.clone();   // the paw's STANDING world attitude — toes fwd, sole flat
     // How far this limb can actually reach — the sum of its segments. A paw target beyond it is not a
     // pose, it is a request the animal cannot answer, and the solver pays for it by lifting the paw.
     let sum = 0;
@@ -659,6 +660,30 @@ function qPawsToFloor(){
     qLimbIK(L, _qTgt, 6);
   }
 }
+// FOOT ATTITUDE for the quad: qPaw/qLimbIK solve where the paw IS, never which way it POINTS, so a folded
+// leg leaves the paw aimed wherever the chain happens to end — toes up, sole turned sideways. For any paw
+// resting on the ground, re-apply its STANDING world attitude (captured in captureQuadRest): toes forward,
+// sole flat, exactly as when the animal stands, whatever the leg above it is doing. Airborne paws (a tuck,
+// a rear, a swipe) are left alone — only grounded paws are levelled.
+const _qLpP = new THREE.Quaternion(), _qLpE = new THREE.Vector3();
+function levelPaw(L){
+  const r0 = QUAD_FOOTQ0[L.foot]; if(!r0) return;
+  const b = boneByName[L.foot]; if(!b || !b.parent) return;
+  b.parent.updateWorldMatrix(true, false);
+  b.parent.getWorldQuaternion(_qLpP);
+  b.quaternion.copy(_qLpP.invert().multiply(r0));    // local q that reproduces the standing WORLD attitude
+  b.updateWorldMatrix(false, false);
+}
+// Level every paw that is on the ground (within ~2 cm of the floor). Joint-driven folds call this after
+// they place the limbs, so planted feet always point forward and sit flat.
+function qLevelGroundedPaws(){
+  animRoot.updateMatrixWorld(true);
+  for(const L of QUAD_LEGS){
+    boneByName[L.foot].getWorldPosition(_qLpE);
+    if(_qLpE.y <= QUAD_FLOOR + 0.02) levelPaw(L);
+  }
+  animRoot.updateMatrixWorld(true);
+}
 // Solve one paw to its standing spot plus a world-space offset (metres).
 const _qFix = new THREE.Vector3();
 function qPaw(L, dx, dy, dz){
@@ -672,6 +697,7 @@ function qPaw(L, dx, dy, dz){
     _qTgt.y += (QUAD_FLOOR - _qFix.y);
     qLimbIK(L, _qTgt);
   }
+  if(_qTgt.y <= QUAD_FLOOR + 0.02) levelPaw(L);      // paw resting on the ground → point it the standing way
 }
 // Plant every paw, with optional per-end offsets — the base of every standing pose.
 function qFeet(o){
@@ -685,19 +711,23 @@ function qFeet(o){
 // makes small corrections and the tail is never quite still.
 // Sitting, as one shape both the sit and the stand-up run through. k = 0 standing, 1 fully sat.
 function quadSit(k){
-  const LL = qPose({ y:-0.32*k, chest:-0.34*k, head:0.12*k, tail:0.30*k });
-  // A sit is a big HIND-limb fold: the femur swings forward under the body, the stifle closes to about
-  // 90 deg and the hock follows it down until the rump reaches the ground. Driving that from the JOINTS is
-  // the only way the hip actually moves — solving the hind paw to a spot on the floor let the whole fold
-  // happen below the thigh, and the audit measured 4 deg of hip where a sitting dog has 60-90.
+  // A sit is a SEAT, not a sink: the rump drops while the FRONT stays tall, so the spine rises from the
+  // seated pelvis to the shoulders. Nose-up pitch (pitch + = nose down) does that; the forelimbs stay as
+  // vertical struts. The old version had no pitch and a hard forward femur tuck, so the body just sank flat
+  // and the hind paw curled up under the belly — it read as lying down.
+  const LL = qPose({ y:-0.30*k, pitch:-0.20*k, chest:-0.10*k, head:0.20*k, tail:0.34*k });
+  // The HIND fold, from the joints: the stifle closes hard and the hock follows, but the femur only EASES
+  // forward (not a full tuck), so the hock and metatarsus settle back onto the ground behind the rump
+  // instead of lifting the paw forward under the body.
   QUAD_LEGS.forEach(L => {
     if(L.front){ qPaw(L, 0, 0, 0.02*LL*k); return; }
-    sw(L.hip,  AX.x, -1.00*k);      // femur forward, under the body
-    sw(L.knee, AX.x,  1.15*k);      // stifle closes
-    sw(L.shin, AX.x,  0.60*k);      // hock follows
+    sw(L.hip,  AX.x, -0.55*k);      // femur eases forward/down — moderate, not a full tuck
+    sw(L.knee, AX.x,  1.10*k);      // stifle closes
+    sw(L.shin, AX.x,  0.45*k);      // hock follows down to the ground
   });
   animRoot.updateMatrixWorld(true);
-  qPawsToFloor();                   // lift the PAW back to the floor, not the whole animal
+  qPawsToFloor();                   // seat the hind PAWS on the floor, not by lifting the whole animal
+  qLevelGroundedPaws();             // and point the seated paws forward / sole flat
   return LL;
 }
 function qIdle(t, P, dur, o){
@@ -828,8 +858,12 @@ const QUAD_MOTIONS=[
   // The play bow / downward stretch: forelimbs slide forward and the chest drops to the ground while the
   // hindquarters stay up. It is the same shape whether a dog is inviting play or a cat is stretching.
   {id:'stretch', name:'Stretch (play bow)', cat:'Posture', type:'stay', dur:2.40, build:(t,P)=>{
-    const A=P.amp, k=bump((t/2.40)%1,0.5,0.42)*A, LL=qPose({ pitch:0.55*k, chest:-0.20*k, head:-0.30*k, tail:-0.42*k });
-    QUAD_LEGS.forEach(L => L.front ? qPaw(L,0,0,0.55*LL*k) : qPaw(L, 0, 0, -0.10*LL*k)); }},
+    // Play bow: the front end BOWS to the ground (nose-down pitch drops the shoulders over the forefeet)
+    // while the rump stays up. The forelegs stay EXTENDED forward — the old version drove the paws 0.55
+    // forward, past this short foreleg's reach, so they folded instead of sliding out. A deeper bow + a
+    // reachable forward slide gives an extended play bow, and the grounded paws point forward (levelPaw).
+    const A=P.amp, k=bump((t/2.40)%1,0.5,0.42)*A, LL=qPose({ pitch:0.72*k, chest:-0.10*k, head:-0.30*k, tail:-0.42*k });
+    QUAD_LEGS.forEach(L => L.front ? qPaw(L,0,0,0.28*LL*k) : qPaw(L, 0, 0, -0.10*LL*k)); }},
   {id:'shake', name:'Shake Off', cat:'Posture', type:'stay', dur:1.20, build:(t,P)=>{
     const A=P.amp, u=(t/1.20*P.speed)%1, env=bump(u,0.5,0.45), w=Math.sin(TAU*u*6);
     const LL=qPose({ roll: w*0.30*env*A, chestY: -w*0.28*env*A, headY: w*0.55*env*A, tailY: -w*0.6*env*A, y:-0.04*env });
@@ -865,10 +899,18 @@ const QUAD_MOTIONS=[
       if(!L.front){ qPaw(L,0,0,-0.05*LL); return; }
       const p=(u + (L.side==='R'?0.5:0))%1;
       const rake = p<0.5, k = rake ? smooth(p*2) : smooth((p-0.5)*2);
-      const z = rake ? (0.36 - 0.52*k) : (-0.16 + 0.52*k);      // back along the ground, then forward in the air
-      const y = rake ? 0 : 0.34*Math.sin(Math.PI*(p-0.5)*2);
-      qPaw(L, 0, y*LL*A, z*LL*A);
-    }); }},
+      // JOINT-DRIVEN, not a paw target: this foreleg has ~7% slack, so solving the paw to a far-forward spot
+      // just collapses the leg into a curl (the "pawing at the air" the old version did). Instead drive the
+      // shoulder to sweep a LOW paw back through the power stroke, then flex the elbow to lift it clear and
+      // carry it forward again — the same shape the gait's stance→swing uses, exaggerated into a scoop.
+      const fwd  = rake ? (0.42 - 0.78*k) : (-0.36 + 0.78*k);              // shoulder: reach fwd → rake back → reach fwd
+      const flex = rake ? (0.08 + 0.06*k) : (0.18 + 0.55*Math.sin(Math.PI*k)); // elbow: scrapes low, then lifts clear
+      const scoop= rake ? (0.12 + 0.30*k) : (0.42*(1-k));                  // carpus: digs into the dirt on the stroke
+      sw(L.hip,  AX.x, -fwd*A);
+      sw(L.knee, AX.x,  flex*A);
+      sw(L.shin, AX.x,  scoop*A);
+    });
+    animRoot.updateMatrixWorld(true); qPawsToFloor(); qLevelGroundedPaws(); }},   // keep a scooping paw off the floor, and point planted paws forward
 
   // ——— Social ———
   {id:'tailwag', name:'Tail Wag', cat:'Social', type:'stay', dur:0.70, build:(t,P)=>{
@@ -1065,19 +1107,40 @@ function birdBeat(t, P, dur, o){
 function tuckLegs(k){
   BIRD_LEGS.forEach(L => { sw(L[0], AX.x, -0.95*k); sw(L[1], AX.x, -0.55*k); sw(L[2], AX.x, -0.45*k); });
 }
+// ── Flight-travel engine ─────────────────────────────────────────────────────────────────────────
+// Flight is a VELOCITY along a flight path: an airspeed V carried at a path angle γ (climb +, descent −).
+// Forward = V·cosγ, vertical = V·sinγ. This is the physics; a mode only has to name its speed and angle.
+// The travel is baked into the ROOT as NET translation that ramps 0→(V·dur) across the clip (prog = t/dur,
+// unwrapped by speed so a looping beat covers ground once per loop). bakeClip zeroes the root each frame and
+// records whatever build() leaves, so this becomes a real root-position track — and the Stitcher travels a
+// clip by its baked netXZ/netY directly (no in-place synthesis when netXZ ≥ ~0.2). +Z is the bird's forward
+// (its nose-down pitch is +X, which tips +Z toward the ground); +Y is up. Poses are never touched here —
+// this only moves the root, so it adds travel to a good-looking beat without changing how the beat looks.
+//   flightTravel(prog, A, {spd, deg, dur})      steady velocity: derive fwd/up from airspeed + path angle
+//   flightTravel(prog, A, {fwd, up})            net fwd/up (rig units) given directly, e.g. keyed to a ramp
+// This is the reusable primitive a prompt-driven motion uses to get its through-space travel for free.
+function flightTravel(prog, A, o){
+  let fwd = o.fwd || 0, up = (o.up != null ? o.up : 0);
+  if(o.spd != null){ const g = (o.deg || 0)*Math.PI/180; fwd = o.spd*Math.cos(g)*o.dur; up = o.spd*Math.sin(g)*o.dur; }
+  animRoot.position.z += fwd*prog*A;             // forward, along the bird's facing (+Z)
+  if(up) animRoot.position.y += up*prog*A;        // adds to the beat's absolute height (does not overwrite it)
+}
 // ---- Bird helpers ----
 const BIRD_FLIGHT_MOTIONS=[
   // ——— Flight ———
   // Wingbeat frequency is what separates these: a cruise beat is slow and shallow, a climb is fast and
   // deep, a hover is faster still and almost vertical. Gliding is the same wing held out and NOT beating.
   {id:'flap', name:'Flap (cruise)', cat:'Flight', type:'move', dur:0.80, build:(t,P)=>{
-    resetPose(); birdBeat(t,P,0.80,{elev:0.80, fold:0.50, twist:0.28, bodyPitch:0.05, rise:0.010}); tuckLegs(0.75); }},
+    resetPose(); birdBeat(t,P,0.80,{elev:0.80, fold:0.50, twist:0.28, bodyPitch:0.05, rise:0.010}); tuckLegs(0.75);
+    flightTravel(t/0.80, P.amp, {spd:1.35, deg:0, dur:0.80}); }},          // level cruise, forward
   {id:'climb', name:'Climbing Beat', cat:'Flight', type:'move', dur:0.55, build:(t,P)=>{
-    resetPose(); birdBeat(t,P,0.55,{elev:1.05, fold:0.60, twist:0.38, pitch:-0.22, bodyPitch:0.08, rise:0.016, tail:-0.10}); tuckLegs(0.8); }},
-  {id:'glide', name:'Glide', cat:'Flight', type:'stay', dur:2.60, build:(t,P)=>{
+    resetPose(); birdBeat(t,P,0.55,{elev:1.05, fold:0.60, twist:0.38, pitch:-0.22, bodyPitch:0.08, rise:0.016, tail:-0.10}); tuckLegs(0.8);
+    flightTravel(t/0.55, P.amp, {spd:1.30, deg:24, dur:0.55}); }},         // climbing out: forward AND up
+  {id:'glide', name:'Glide', cat:'Flight', type:'move', dur:2.60, build:(t,P)=>{
     resetPose(); const A=P.amp, u=(t/2.60*P.speed)%1, air=Math.sin(TAU*u);
     for(let wi=0;wi<2;wi++) wingPose(wi, (0.10 + air*0.05)*A, 0.05*A, -0.10*A);   // held out, barely moving
-    sw(BIRD_BODY,AX.x,-0.05*A); BIRD_TAIL.forEach(tb=>sw(tb,AX.x,0.06*A)); tuckLegs(0.7); }},
+    sw(BIRD_BODY,AX.x,-0.05*A); BIRD_TAIL.forEach(tb=>sw(tb,AX.x,0.06*A)); tuckLegs(0.7);
+    flightTravel(t/2.60, A, {spd:1.35, deg:-7, dur:2.60}); }},             // shallow glide: mostly forward, sinking slowly
   // Soaring: the same held wing, banked into a turn, with the tail steering. A circling bird is banked the
   // whole way round rather than flapping.
   {id:'soar', name:'Soar (circling)', cat:'Flight', type:'stay', dur:4.00, build:(t,P)=>{
@@ -1094,12 +1157,14 @@ const BIRD_FLIGHT_MOTIONS=[
     resetPose(); const A=P.amp, u=t/1.00, leap=ramp(u,0.02,0.22), climb=ramp(u,0.18,0.9);
     birdBeat(t,P,0.42,{elev:(0.75+0.45*climb), fold:0.55, twist:0.40, pitch:-0.30*climb, bodyPitch:0.07});
     tuckLegs(0.15 + 0.75*climb);
-    setRootY((0.28*leap + 0.55*climb)*A); }},
-  {id:'dive', name:'Dive (stoop)', cat:'Flight', type:'stay', dur:1.60, build:(t,P)=>{
+    setRootY((0.28*leap + 0.55*climb)*A);
+    flightTravel(1, A, {fwd:0.95*climb}); }},                              // pulls forward as it climbs out (keeps the leap's height)
+  {id:'dive', name:'Dive (stoop)', cat:'Flight', type:'move', dur:1.60, build:(t,P)=>{
     resetPose(); const A=P.amp, u=t/1.60, k=ramp(u,0.05,0.55);
     for(let wi=0;wi<2;wi++) wingPose(wi, (-0.10 - 0.25*k)*A, (0.30 + 0.60*k)*A, 0.25*k*A);  // swept back into a dart
     sw(BIRD_BODY,AX.x,(0.55 + 0.55*k)*A); BIRD_TAIL.forEach(tb=>sw(tb,AX.x,-0.10*k*A)); tuckLegs(0.95);
-    setRootY(-0.55*k*A); }},
+    setRootY(-0.55*k*A);
+    flightTravel(1, A, {fwd:1.5*k}); }},                                   // darts forward as it plummets (keeps the existing descent)
   // The flare: the bird pitches nose-up, spreads and cups the wings to kill speed, and swings the feet
   // forward to take the perch — the wings go on beating right through it.
   {id:'land', name:'Land (flare)', cat:'Flight', type:'move', dur:1.20, build:(t,P)=>{
