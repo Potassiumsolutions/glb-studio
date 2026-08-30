@@ -624,6 +624,15 @@ function quadGaitN(t, P, dur, o){
     QIK_GAIN = QIK_GAIN_POSE;
   });
   qLevelGaitFeet();                 // planted feet point forward / sole flat, fading out through swing
+  // Carry the body FORWARD through the scene: net +Z per cycle, baked into the root, so the Stitcher travels
+  // the gait FOR REAL. An in-place gait clip only advances if the Stitcher DETECTS it as locomotion, and a
+  // gait with a suspension phase (canter/gallop/bound) fails that test (too airborne) → it stayed on the
+  // spot. `stride` is the per-cycle distance in leg-lengths (already passed per gait; backup runs in reverse,
+  // pivot is not a gait caller so it turns in place). Pure root translation → the planted paws ride with it.
+  // A suspension gait (canter/gallop/bound) covers extra ground while airborne that no foot-sweep measures,
+  // so its `flight` amount boosts the reach; walking gaits get none. This rig's head is at −Z (measured:
+  // head z −0.236 vs tail −0.130), so FORWARD is −Z — the opposite of the bird, whose beak is +Z.
+  animRoot.position.z -= (o.stride ?? 0.5) * 3.4 * (1 + (o.flight || 0)*6) * LL * (t/dur) * (o.dir < 0 ? -1 : 1) * A;
 }
 // ═════ QUADRUPED — stationary poses ══════════════════════════════════════════════════════════════
 // Everything that is not locomotion is the same three steps: stand, MOVE THE BODY, then solve each paw
