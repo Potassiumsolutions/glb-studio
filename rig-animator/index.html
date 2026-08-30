@@ -249,12 +249,17 @@ const COL = name=> name.startsWith('R_')||name.startsWith('Right') ? 0xe0894b
 // "Up", expressed in animRoot's OWN frame. For the biped and the bird that is plain +Y; for the quad the
 // rig is stored rotated, so lifting the body means moving along −Z of its own frame.
 const UP_LOCAL = new THREE.Vector3(0,1,0);
+// World-forward (−Z, the way the quad's head points; measured) expressed in the animRoot frame. The quad is
+// stood up by a +90° X orient, so animRoot's own Z axis is actually UP (UP_LOCAL) — translating raw .position.z
+// launched the dog into the air. Travel must go along FWD_LOCAL, the way setRootY goes along UP_LOCAL.
+const FWD_LOCAL = new THREE.Vector3(0,0,-1);
 function buildRig(tpl, orient, ground){
   if(rigRoot){ scene.remove(rigRoot); }
   boneByName={}; boneList=[]; restLocalQ={}; restLocalP={}; restWorldQ={};
   rigRoot=new THREE.Group();
   if(orient) rigRoot.quaternion.copy(orient); else rigRoot.quaternion.identity();
   UP_LOCAL.set(0,1,0).applyQuaternion(rigRoot.quaternion.clone().invert()).normalize();
+  FWD_LOCAL.set(0,0,-1).applyQuaternion(rigRoot.quaternion.clone().invert()).normalize();
   animRoot=new THREE.Group(); rigRoot.add(animRoot);
   // 1) bones
   for(const b of tpl){
@@ -630,9 +635,10 @@ function quadGaitN(t, P, dur, o){
   // spot. `stride` is the per-cycle distance in leg-lengths (already passed per gait; backup runs in reverse,
   // pivot is not a gait caller so it turns in place). Pure root translation → the planted paws ride with it.
   // A suspension gait (canter/gallop/bound) covers extra ground while airborne that no foot-sweep measures,
-  // so its `flight` amount boosts the reach; walking gaits get none. This rig's head is at −Z (measured:
-  // head z −0.236 vs tail −0.130), so FORWARD is −Z — the opposite of the bird, whose beak is +Z.
-  animRoot.position.z -= (o.stride ?? 0.5) * 3.4 * (1 + (o.flight || 0)*6) * LL * (t/dur) * (o.dir < 0 ? -1 : 1) * A;
+  // so its `flight` amount boosts the reach; walking gaits get none. Translate along FWD_LOCAL (world −Z, the
+  // head direction) — NOT raw .position.z, which is UP for this stood-up rig and launched the dog skyward.
+  animRoot.position.addScaledVector(FWD_LOCAL,
+    (o.stride ?? 0.5) * 3.4 * (1 + (o.flight || 0)*6) * LL * (t/dur) * (o.dir < 0 ? -1 : 1) * A);
 }
 // ═════ QUADRUPED — stationary poses ══════════════════════════════════════════════════════════════
 // Everything that is not locomotion is the same three steps: stand, MOVE THE BODY, then solve each paw
