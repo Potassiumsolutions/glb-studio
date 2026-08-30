@@ -506,7 +506,11 @@ function qWarp(pct, duty){ const st = duty*100; return pct < st ? (pct/st)*60 : 
 // [AVMA21]: shoulder ~37 elbow ~54 carpus (wide ROM, ~100) | hip ~37 stifle ~39 hock ~58. The hind distal
 // (hock) is deliberately restrained — see QIK_GAIN_FIX_HIND — so the planting correction does not over-swing
 // the tarsus. Lower drives sink the paw; higher stiffen the limb.
-const Q_FRONT = { hip:0.85, knee:3.80, lower:0.55 };
+// Front bend REBALANCED toward the carpus: the elbow sits high on the foreleg (the longest segment is above
+// it), so flexing mostly there broke the leg high and left the long forearm+foot hanging straight below it
+// ("the wrist bends too far up the leg"). Shifting flexion down to the carpus articulates the leg near the
+// ground so the segment below the bend is short, like a real dog's wrist.
+const Q_FRONT = { hip:0.85, knee:2.90, lower:1.30 };
 const Q_HIND  = { hip:0.88, knee:2.00, lower:0.30 };
 // Stride is a fraction of the animal's own leg length, so it scales with the rig instead of being metres.
 const QUAD_LEGLEN = () => { const a = QUAD_PAW0['frontleg2'], b = boneByName['frontleg'];
