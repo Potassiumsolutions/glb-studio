@@ -1145,7 +1145,7 @@ function drawClipCaption(c){ const cfg=titleCfg(); if(!cfg.capOn) return; const 
 // ---------- Branded start / end card — shown on EVERY export ----------
 const BRAND_SEC = 1.0;                                    // seconds each branded card holds (half of the original 2.6s)
 function brandOn(){ return true; }   // public build: branded start/end cards are MANDATORY
-function brandFrames(fps){ return brandOn()?Math.max(1, Math.round(BRAND_SEC*fps)):0; }
+function brandFrames(fps){ return (rendering && brandOn())?Math.max(1, Math.round(BRAND_SEC*fps)):0; }  // credit cards are added ONLY in the exported video, never in preview
 function drawBrandCard(textAlpha){
   ovResize(); const g=ovCtx, W=ovCanvas.width, H=ovCanvas.height; g.clearRect(0,0,W,H);
   const grad=g.createLinearGradient(0,0,0,H); grad.addColorStop(0,'#141a24'); grad.addColorStop(1,'#05070b');
