@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How GLB Studio Compares</title>
+<meta name="description" content="How KSOL Designs GLB Studio compares to Mixamo, Blender, AI model generators and video-mocap tools — an honest look at where a free, private, in-browser character-to-video pipeline fits.">
+<style>
+  :root{
+    --navy:#0c1122; --navy2:#1a2440; --panel:#ffffff; --ink:#1f2430; --mut:#5b6472;
+    --line:#e6e8ee; --gold:#d4a017; --goldl:#f2d27a; --good:#1f7a4d; --bg:#f6f7fb;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--ink);background:var(--bg);line-height:1.55;-webkit-font-smoothing:antialiased}
+  a{color:inherit}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+
+  /* hero */
+  .hero{background:linear-gradient(165deg,#141d38,#0a0f1e);color:#eef2fb;padding:46px 0 40px}
+  .brand{display:flex;align-items:center;gap:14px;margin-bottom:26px}
+  .tile{position:relative;width:52px;height:52px;border-radius:12px;flex:0 0 auto;
+    background:linear-gradient(160deg,#2b3140,#1a1f2b);border:2px solid var(--gold)}
+  .tile .n{position:absolute;top:4px;left:6px;font-size:10px;font-weight:600;opacity:.85}
+  .tile .k{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:800}
+  .tile .m{position:absolute;bottom:4px;left:0;right:0;text-align:center;font-size:7.5px;opacity:.8}
+  .brand b{font-size:17px;font-weight:700;letter-spacing:.2px}
+  .brand span{display:block;font-size:12.5px;color:#9fb0cc;font-weight:500}
+  .hero h1{margin:.1em 0 .3em;font-size:clamp(28px,5vw,44px);line-height:1.08;letter-spacing:-.5px}
+  .hero .lede{font-size:clamp(15px,2.4vw,19px);color:#c7d2e8;max-width:44ch}
+  .cta{display:flex;flex-wrap:wrap;gap:12px;margin-top:26px}
+  .btn{display:inline-flex;align-items:center;gap:8px;text-decoration:none;font-weight:700;font-size:15px;
+    padding:12px 20px;border-radius:11px;border:1px solid transparent;transition:filter .12s,transform .12s}
+  .btn:hover{filter:brightness(1.05);transform:translateY(-1px)}
+  .btn.gold{background:var(--gold);color:#241c00}
+  .btn.ghost{background:rgba(255,255,255,.08);color:#eef2fb;border-color:rgba(255,255,255,.22)}
+
+  /* sections */
+  section{padding:44px 0}
+  .kicker{font-size:12px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;color:var(--gold)}
+  h2{font-size:clamp(22px,3.5vw,30px);margin:.15em 0 .5em;letter-spacing:-.3px}
+  .verdict{background:#fff;border:1px solid var(--line);border-left:5px solid var(--gold);
+    border-radius:14px;padding:22px 24px;box-shadow:0 1px 2px rgba(20,25,40,.04);font-size:17px}
+  .verdict b{color:var(--navy)}
+
+  /* table */
+  .tscroll{overflow-x:auto;border:1px solid var(--line);border-radius:14px;background:#fff;
+    box-shadow:0 1px 2px rgba(20,25,40,.04)}
+  table{border-collapse:collapse;width:100%;min-width:760px;font-size:14.5px}
+  th,td{padding:12px 14px;text-align:center;border-bottom:1px solid var(--line)}
+  thead th{position:sticky;top:0;background:#f2f4f9;font-size:13px;color:var(--mut);font-weight:700;
+    border-bottom:2px solid var(--line)}
+  tbody th{text-align:left;font-weight:600;color:var(--ink);white-space:nowrap}
+  .us{background:linear-gradient(180deg,#fbf4dd,#fff7e6)}
+  thead .us{background:linear-gradient(180deg,#fdeec2,#f7e2a8);color:#5a4300;
+    border-bottom:2px solid var(--gold)}
+  .yes{color:var(--good);font-weight:800}
+  .no{color:#b8384a;font-weight:800}
+  .part{color:#b07a10;font-weight:700}
+  td small,th small{display:block;color:var(--mut);font-weight:500;font-size:11.5px;margin-top:2px}
+
+  /* two-up */
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:22px;
+    box-shadow:0 1px 2px rgba(20,25,40,.04)}
+  .card h3{margin:0 0 12px;font-size:18px}
+  .card ul{margin:0;padding-left:0;list-style:none}
+  .card li{position:relative;padding:7px 0 7px 28px;border-top:1px dashed var(--line)}
+  .card li:first-child{border-top:0}
+  .card li::before{position:absolute;left:0;top:7px;font-weight:800}
+  .win li::before{content:"✔";color:var(--good)}
+  .else li::before{content:"→";color:var(--gold)}
+  .card li b{color:var(--navy)}
+
+  /* cta band */
+  .band{background:linear-gradient(165deg,#141d38,#0a0f1e);color:#eef2fb;border-radius:18px;
+    padding:34px;text-align:center;margin:8px 0}
+  .band h2{color:#fff;margin-top:0}
+  .band p{color:#c7d2e8;max-width:52ch;margin:0 auto 22px}
+
+  footer{padding:30px 0 44px;color:var(--mut);font-size:13.5px;text-align:center;border-top:1px solid var(--line)}
+  footer a{color:var(--ink);text-decoration:none;font-weight:600}
+  footer a:hover{color:var(--gold)}
+  .disc{max-width:70ch;margin:14px auto 0;font-size:12.5px;color:var(--mut);opacity:.9}
+
+  @media(max-width:640px){
+    .cols{grid-template-columns:1fr}
+    section{padding:34px 0}
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="brand">
+      <div class="tile" aria-hidden="true"><span class="n">19</span><span class="k">K</span><span class="m">39.0983</span></div>
+      <div><b>KSOL Designs GLB Studio</b><span>Rig → Animate → Stitch, free in your browser</span></div>
+    </div>
+    <h1>How GLB Studio compares</h1>
+    <p class="lede">An honest look at where a free, private, all-in-one-browser character-to-video pipeline fits among the tools people usually reach for.</p>
+    <div class="cta">
+      <a class="btn gold" href="https://potassiumsolutions.github.io/glb-studio/">▶ Open the app</a>
+      <a class="btn ghost" href="https://github.com/Potassiumsolutions/glb-studio">View on GitHub</a>
+    </div>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <div class="kicker">The short version</div>
+    <h2>Nimble specialist, not the biggest hammer</h2>
+    <div class="verdict">
+      In the whole world of 3D animation, the desktop giants (Blender, game engines) out-muscle any browser tool,
+      and <b>Mixamo</b>’s huge motion-capture library beats a procedural one for lifelike <i>human</i> motion.
+      But in <b>its own lane</b> — free, no account, runs entirely in your browser, nothing uploaded, and it takes a
+      character <b>all the way to a finished MP4</b> with 3D scenes and props… <b>including four-legged and winged
+      characters</b> — there isn’t really another tool doing all of that in one place. That combination is close to
+      one of a kind.
+    </div>
+  </div>
+</section>
+
+<section style="padding-top:6px">
+  <div class="wrap">
+    <div class="kicker">Feature by feature</div>
+    <h2>GLB Studio vs. the usual suspects</h2>
+    <div class="tscroll">
+      <table>
+        <thead>
+          <tr>
+            <th style="text-align:left">&nbsp;</th>
+            <th class="us">GLB&nbsp;Studio</th>
+            <th>Mixamo<small>Adobe</small></th>
+            <th>Blender<small>+ add-ons</small></th>
+            <th>AI generators<small>Meshy · Tripo</small></th>
+            <th>Video mocap<small>Plask · DeepMotion</small></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><th>Free &amp; no account</th>
+            <td class="us"><span class="yes">✔</span></td>
+            <td><span class="part">Free</span><small>Adobe login</small></td>
+            <td><span class="yes">✔</span></td>
+            <td><span class="no">Credits</span></td>
+            <td><span class="no">Sub</span></td></tr>
+          <tr><th>Runs in the browser</th>
+            <td class="us"><span class="yes">✔</span></td>
+            <td><span class="yes">✔</span></td>
+            <td><span class="no">Desktop</span></td>
+            <td><span class="yes">✔</span></td>
+            <td><span class="yes">✔</span></td></tr>
+          <tr><th>Private — nothing uploaded</th>
+            <td class="us"><span class="yes">✔</span><small>100% local</small></td>
+            <td><span class="no">Cloud</span></td>
+            <td><span class="yes">✔</span></td>
+            <td><span class="no">Cloud</span></td>
+            <td><span class="no">Cloud</span></td></tr>
+          <tr><th>Auto-rig &amp; auto-skin</th>
+            <td class="us"><span class="yes">✔</span></td>
+            <td><span class="yes">✔</span><small>humanoid</small></td>
+            <td><span class="part">Manual</span></td>
+            <td><span class="part">Some</span></td>
+            <td><span class="part">n/a</span></td></tr>
+          <tr><th>Four-legged &amp; winged characters</th>
+            <td class="us"><span class="yes">✔</span><small>quadruped · bird</small></td>
+            <td><span class="no">Human only</span></td>
+            <td><span class="part">Manual</span></td>
+            <td><span class="part">Varies</span></td>
+            <td><span class="no">Human only</span></td></tr>
+          <tr><th>Built-in motion library</th>
+            <td class="us"><span class="yes">✔</span><small>original, growing</small></td>
+            <td><span class="yes">✔✔</span><small>large mocap</small></td>
+            <td><span class="no">None</span></td>
+            <td><span class="part">Small</span></td>
+            <td><span class="part">Your captures</span></td></tr>
+          <tr><th>3D scenes, props &amp; camera</th>
+            <td class="us"><span class="yes">✔</span></td>
+            <td><span class="no">—</span></td>
+            <td><span class="yes">✔✔</span></td>
+            <td><span class="no">—</span></td>
+            <td><span class="no">—</span></td></tr>
+          <tr><th>Exports a finished video</th>
+            <td class="us"><span class="yes">✔</span><small>MP4 + GLB</small></td>
+            <td><span class="no">Clips only</span></td>
+            <td><span class="yes">✔</span><small>expert · slow</small></td>
+            <td><span class="no">—</span></td>
+            <td><span class="part">Limited</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section style="padding-top:6px">
+  <div class="wrap">
+    <div class="cols">
+      <div class="card win">
+        <h3>Where GLB Studio wins</h3>
+        <ul>
+          <li><b>The whole pipeline in one place</b> — rig → animate → composite → export. Most tools do a single slice.</li>
+          <li><b>Animals.</b> Quadruped and bird rigs, not just humanoids — a genuine gap in the field.</li>
+          <li><b>Private &amp; frictionless</b> — no upload, no account, no install. Your model never leaves your device.</li>
+          <li><b>An original library you can actually reuse</b> — procedurally generated, free to distribute in your own work.</li>
+        </ul>
+      </div>
+      <div class="card else">
+        <h3>When to reach for something else</h3>
+        <ul>
+          <li><b>You need lifelike human mocap at volume</b> → <b>Mixamo</b>’s library is the benchmark.</li>
+          <li><b>You want total control and film-grade renders</b> → <b>Blender</b> or a game engine.</li>
+          <li><b>You’re starting from a video performance</b> → a <b>video-mocap</b> tool captures it.</li>
+          <li><b>You need the 3D model itself generated</b> → an <b>AI generator</b>, then bring it here to animate.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section style="padding-top:6px">
+  <div class="wrap">
+    <div class="band">
+      <h2>Try the pipeline yourself</h2>
+      <p>Drop in a character, pick some motions, set a scene, and export a video — free, in your browser, with nothing uploaded.</p>
+      <a class="btn gold" href="https://potassiumsolutions.github.io/glb-studio/">▶ Open GLB Studio</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <a href="https://www.ksoldesigns.com">www.ksoldesigns.com</a> &nbsp;·&nbsp;
+    <a href="https://github.com/Potassiumsolutions/glb-studio">GitHub</a> &nbsp;·&nbsp;
+    <a href="https://www.patreon.com/KsolDesigns">Patreon</a>
+    <p class="disc">Comparison reflects publicly available information and general product categories as of 2026; every tool
+      here is good at what it’s built for, and their features change over time. Spotted something out of date?
+      Corrections are welcome via a GitHub issue. Product names belong to their respective owners.</p>
+    <p style="margin:.4em 0 0">© 2026 Paul A.T. Ramey · KSOL Designs</p>
+  </div>
+</footer>
+
+</body>
+</html>

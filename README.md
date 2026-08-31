@@ -27,6 +27,8 @@ Everything runs **client-side** — nothing is uploaded, no account, no cloud.
 
 **Live:** **https://potassiumsolutions.github.io/glb-studio/**
 
+**How it compares:** [GLB Studio vs. the field →](https://potassiumsolutions.github.io/glb-studio/compare.html)
+
 **Or run it locally** (needs a tiny static server so the tools share one origin):
 
 ```bash
