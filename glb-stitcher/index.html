@@ -5107,7 +5107,8 @@ async function loadSampleModel(s){
 }
 async function renderSampleCard(){
   const card=$('#sampleCard'); if(!card) return;
-  let ok=false; try{ const r=await fetch(SAMPLE_DIR+encodeURIComponent(SAMPLE_CHARS[0].file),{method:'HEAD'}); ok=r.ok; }catch(e){}
+  // probe the tiny README, not the big GLBs — a HEAD on a large static file gets ERR_ABORTED on some hosts
+  let ok=false; try{ const r=await fetch(SAMPLE_DIR+'README.txt',{cache:'no-store'}); ok=r.ok; }catch(e){}
   if(!ok){ card.style.display='none'; return; }
   const host=$('#sampleModels'); host.innerHTML='';
   for(const s of SAMPLE_CHARS){
