@@ -1,5 +1,11 @@
 # KSOL Designs GLB Studio
 
+[![▶ Live](https://img.shields.io/badge/%E2%96%B6_Live-glb--studio-d4a017)](https://potassiumsolutions.github.io/glb-studio/)
+[![Stars](https://img.shields.io/github/stars/Potassiumsolutions/glb-studio?style=flat)](https://github.com/Potassiumsolutions/glb-studio/stargazers)
+[![Last commit](https://img.shields.io/github/last-commit/Potassiumsolutions/glb-studio)](https://github.com/Potassiumsolutions/glb-studio/commits/main)
+[![Visits](https://hits.sh/github.com/Potassiumsolutions/glb-studio.svg?label=visits)](https://hits.sh/github.com/Potassiumsolutions/glb-studio/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
+
 **Turn an AI-generated 3D character into a finished animated video — free, in your browser, on your own machine.**
 
 A small suite of three tools that share one library, so a character you rig or a
