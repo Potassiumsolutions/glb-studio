@@ -19,7 +19,7 @@ Everything runs **client-side** — nothing is uploaded, no account, no cloud.
 
 ## ▶ Try it
 
-**Live:** _add your GitHub Pages URL here after enabling Pages_
+**Live:** **https://potassiumsolutions.github.io/glb-studio/**
 
 **Or run it locally** (needs a tiny static server so the tools share one origin):
 
