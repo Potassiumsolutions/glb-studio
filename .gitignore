@@ -14,3 +14,6 @@ node_modules/
 .DS_Store
 Thumbs.db
 scratchpad/
+
+# stray local reference docs
+*.docx

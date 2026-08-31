@@ -598,7 +598,8 @@
 
     <div class="card">
       <h2>🎬 Titles &amp; captions</h2>
-      <label class="toggle" style="margin-top:0"><input type="checkbox" id="introOn"> Intro title card</label>
+      <div class="hint" style="margin:2px 0 0;text-transform:none;letter-spacing:0">Every export opens and closes with a 1-second <b>KSOL / GLB Studio</b> credit.</div>
+      <label class="toggle"><input type="checkbox" id="introOn"> Intro title card</label>
       <input type="text" id="introTitle" class="tc-in" placeholder="Title (e.g. Dragon's Journey)">
       <input type="text" id="introSub" class="tc-in" placeholder="Subtitle (optional)">
       <label class="toggle"><input type="checkbox" id="outroOn"> Outro / end card</label>
@@ -883,7 +884,7 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 
 const $ = s => document.querySelector(s);
-const APP_NAME='GLB Stitcher', APP_VERSION='1.1.0', APP_BUILD='2026-08-27';   // version shown in About + footer
+const APP_NAME='GLB Stitcher', APP_VERSION='1.1.7', APP_BUILD='2026-08-30';   // version shown in About + footer
 // Bump APP_BUILD whenever the app or the bundled motion library changes. It is printed to the console and
 // shown in the footer so "am I running the current version?" can be answered by looking, not by guessing —
 // a stale browser tab kept an old build alive twice while the files on disk were already up to date.
@@ -993,12 +994,25 @@ let envHeightImg=null, envHeightSize=256, envLastGS=null;   // CPU height field 
 // ---------- Props: stationary textured models placed around the scene ----------
 const propGroup = new THREE.Group(); scene.add(propGroup);
 let props=[], propSel=null;
-// Preview-only selection outline around the highlighted prop (hidden while rendering/previewing so it never lands in the video).
-const propSelBox = new THREE.BoxHelper(new THREE.Object3D(), 0x5b9dff); propSelBox.visible=false;
-propSelBox.material.depthTest=false; propSelBox.material.transparent=true; propSelBox.renderOrder=999; scene.add(propSelBox);
-function updatePropSelBox(){ const sp=props.find(p=>p.id===propSel);
-  const show = !!sp && !rendering && !previewing;
-  propSelBox.visible=show; if(show){ propSelBox.setFromObject(sp.wrap); } }
+// Multi-selection: propSelSet holds the ids of ALL selected props; propSel is the PRIMARY (last-picked) one,
+// kept for the code that only cares about a single object (gizmo target, right-drag spin, model-vs-prop logic).
+const propSelSet = new Set();
+function setSingleSel(id){ propSelSet.clear(); if(id!=null) propSelSet.add(id); propSel=id; }
+function toggleSel(id){ if(propSelSet.has(id)){ propSelSet.delete(id); if(propSel===id) propSel=[...propSelSet].pop()??null; }
+                        else { propSelSet.add(id); propSel=id; } }
+function selectAllPropsSel(){ propSelSet.clear(); for(const p of props) propSelSet.add(p.id); propSel = props.length?props[props.length-1].id:null; }
+function clearSel(){ propSelSet.clear(); propSel=null; }
+function selProps(){ return props.filter(p=>propSelSet.has(p.id)); }
+// Preview-only selection outlines — one box per selected prop, primary brighter (hidden while rendering/previewing so none land in the video).
+const propSelBoxPool=[];
+function getSelBox(i){ if(propSelBoxPool[i]) return propSelBoxPool[i];
+  const b=new THREE.BoxHelper(new THREE.Object3D(), 0x5b9dff); b.material.depthTest=false; b.material.transparent=true; b.renderOrder=999; b.visible=false; scene.add(b);
+  propSelBoxPool[i]=b; return b; }
+function updatePropSelBox(){
+  const sel = (!rendering && !previewing) ? props.filter(p=>propSelSet.has(p.id)) : [];
+  for(const b of propSelBoxPool) b.visible=false;
+  sel.forEach((p,i)=>{ const b=getSelBox(i); b.visible=true; b.setFromObject(p.wrap); b.material.color.setHex(p.id===propSel?0x8ec3ff:0x5b9dff); });
+}
 
 // ---------- Build helpers: floor + wall grids and snapping (preview-only aids, never rendered) ----------
 const GRID_EXTENT=80;            // how far the floor grid reaches (world units, covers the default corridor)
@@ -1122,6 +1136,33 @@ function drawCaption(text, pos, sizePct){
   ovPaint();
 }
 function drawClipCaption(c){ const cfg=titleCfg(); if(!cfg.capOn) return; const txt=((c&&c.caption)||'').trim(); if(txt) drawCaption(txt, cfg.capPos, cfg.capSize); }
+// ---------- Branded start / end card — shown on EVERY export ----------
+const BRAND_SEC = 1.0;                                    // seconds each branded card holds (half of the original 2.6s)
+function brandOn(){ return true; }   // public build: branded start/end cards are MANDATORY
+function brandFrames(fps){ return brandOn()?Math.max(1, Math.round(BRAND_SEC*fps)):0; }
+function drawBrandCard(textAlpha){
+  ovResize(); const g=ovCtx, W=ovCanvas.width, H=ovCanvas.height; g.clearRect(0,0,W,H);
+  const grad=g.createLinearGradient(0,0,0,H); grad.addColorStop(0,'#141a24'); grad.addColorStop(1,'#05070b');
+  g.fillStyle=grad; g.fillRect(0,0,W,H);                  // opaque backdrop
+  g.globalAlpha=Math.max(0,Math.min(1,textAlpha));
+  // KSOL periodic-tile logo mark
+  const tile=Math.round(H*0.22), tx=W/2-tile/2, ty=H*0.17, r=tile*0.13;
+  g.beginPath(); g.roundRect(tx,ty,tile,tile,r);
+  g.fillStyle='rgba(18,28,42,0.75)'; g.fill();
+  g.lineWidth=Math.max(2,tile*0.04); g.strokeStyle='#8fd0ff'; g.stroke();
+  g.fillStyle='#e9f2fb'; g.textBaseline='top';
+  g.textAlign='left';   g.font=`600 ${Math.round(tile*0.15)}px "Segoe UI",system-ui,Arial`; g.fillText('19', tx+tile*0.13, ty+tile*0.11);
+  g.textAlign='center'; g.font=`800 ${Math.round(tile*0.5)}px "Segoe UI",system-ui,Arial`;  g.fillText('K', W/2, ty+tile*0.28);
+  g.font=`400 ${Math.round(tile*0.11)}px "Segoe UI",system-ui,Arial`; g.fillStyle='#aeb9c9'; g.fillText('39.0983', W/2, ty+tile*0.82);
+  // credit block
+  g.textAlign='center';
+  let y=ty+tile+H*0.055;
+  g.fillStyle='#8ea0b6'; g.font=`400 ${Math.round(H*0.032)}px "Segoe UI",system-ui,Arial`; g.fillText('Created with', W/2, y); y+=H*0.048;
+  g.fillStyle='#f4f7fb'; g.font=`800 ${Math.round(H*0.068)}px "Segoe UI",system-ui,Arial`; g.fillText('GLB Studio', W/2, y); y+=H*0.088;
+  g.fillStyle='#cdd6e2'; g.font=`500 ${Math.round(H*0.036)}px "Segoe UI",system-ui,Arial`; g.fillText('Paul A.T. Ramey · KSOL Designs', W/2, y); y+=H*0.056;
+  g.fillStyle='#8fd0ff'; g.font=`600 ${Math.round(H*0.034)}px "Segoe UI",system-ui,Arial`; g.fillText('ksoldesigns.com', W/2, y);
+  g.globalAlpha=1; ovPaint();
+}
 
 const loader = new GLTFLoader();
 const clock = new THREE.Clock();
@@ -1301,9 +1342,16 @@ function applyScenery(type){
 }
 // manualPhase = distance scrolled by the speed slider; travelX/Z = how far the camera followed the character
 function updateScenery(manualPhase, travelX, travelZ){
+  // Scroll the backdrop by how far the character moved ACROSS THE VIEW, not just its world-X. A quadruped
+  // travels along Z (it faces −Z), so keying the scroll off travelX alone left the world sliding the wrong
+  // way. Project the travel onto the camera's RIGHT axis → correct for any facing/camera angle, and identical
+  // to the old behaviour for the default camera (which faces −Z, so right = +X and travelH == travelX).
+  const _cwd=new THREE.Vector3(); camera.getWorldDirection(_cwd); _cwd.y=0;
+  let _rx=1, _rz=0; if(_cwd.lengthSq()>1e-6){ _cwd.normalize(); _rx=-_cwd.z; _rz=_cwd.x; }  // right = forward × up
+  const travelH = travelX*_rx + travelZ*_rz;
   if(runnerOn()){   // endless side-scroll: keep the strip around the character, scroll the wall+floor textures
     runnerGroup.position.x = (camState&&camState.pivotX)||0;
-    const off = manualPhase*0.12 + travelX*0.5;
+    const off = manualPhase*0.12 + travelH*0.5;
     for(const s of [SURF.runFloor, SURF.runWall]){ if(!s.tex) continue;
       s.tex.offset.x=off; if(s.normalTex) s.normalTex.offset.x=off; if(s.roughTex) s.roughTex.offset.x=off; }
     return;
@@ -1315,11 +1363,11 @@ function updateScenery(manualPhase, travelX, travelZ){
   }
   if(scenery==='none' || !sceneryTex || !scenerySpec){
     // no procedural scenery → pan an uploaded photo background instead (fake forward motion)
-    if(bgTexture){ bgScrollX = (manualPhase*0.12 + travelX*0.5); buildBgMatrix(); }
+    if(bgTexture){ bgScrollX = (manualPhase*0.12 + travelH*0.5); buildBgMatrix(); }
     return;
   }
-  const P=scenerySpec.parallax, amt=(manualPhase*0.2 + travelX*0.5)*P;
-  if(scenerySpec.ground){ sceneryTex.offset.set(manualPhase*0.1, 0); }
+  const P=scenerySpec.parallax, amt=(manualPhase*0.2 + travelH*0.5)*P;
+  if(scenerySpec.ground){ sceneryTex.offset.set(manualPhase*0.1 - travelH*0.35, 0); }   // ground now follows real travel (projected), not just the manual slider
   else if(scenerySpec.axis==='y'){ sceneryTex.offset.set(0, amt); }        // climb scrolls vertically
   else { sceneryTex.offset.set(-amt, 0); }                                 // backdrops/walls scroll horizontally
   if(sceneryNormalTex) sceneryNormalTex.offset.copy(sceneryTex.offset);
@@ -2095,7 +2143,7 @@ function loadProp(file){
     pushUndo();
     const p={ id:'pr'+Date.now().toString(36)+Math.floor(Math.random()*1e4), name:(file.name||'prop').replace(/\.(glb|gltf)$/i,''),
               wrap, scale:Math.max(0.05, 2.5/nativeH), rotY:0, x:0, z:0, lift:0, obId:null, walkable:false };   // default ~2.5u tall so it's visible
-    props.push(p); propSel=p.id; updatePropTransform(p); renderPropList(); renderFrame();
+    props.push(p); setSingleSel(p.id); updatePropTransform(p); renderPropList(); renderFrame();
     setStatus('Added prop: '+p.name+' — drag it in the preview to place it');
   }, undefined, ()=>setStatus('Could not load prop: '+(file.name||'')));
 }
@@ -2115,35 +2163,52 @@ function putCharacterOn(p){
   else { startOffset.x=p.x; startOffset.z=p.z; refreshView(); }
   setStatus('Placed the character on '+p.name+(p.walkable?'':' — tick “Characters can stand on this” so it rests on top'));
 }
-function deleteProp(id){ const i=props.findIndex(p=>p.id===id); if(i<0) return; pushUndo(); propGroup.remove(props[i].wrap); props.splice(i,1); if(propSel===id) propSel=null; renderPropList(); renderFrame(); }
+function deleteProp(id){ const i=props.findIndex(p=>p.id===id); if(i<0) return; pushUndo(); propGroup.remove(props[i].wrap); props.splice(i,1);
+  propSelSet.delete(id); if(propSel===id) propSel=[...propSelSet].pop()??null; renderPropList(); renderFrame(); }
+// Delete several selected props in one undo step.
+function deleteProps(list){ if(!list||!list.length) return; pushUndo();
+  for(const p of list){ const i=props.findIndex(x=>x.id===p.id); if(i>=0){ propGroup.remove(props[i].wrap); props.splice(i,1); } propSelSet.delete(p.id); }
+  propSel = propSelSet.size ? [...propSelSet].pop() : null; renderPropList(); renderFrame(); }
 function clearAllProps(){ if(!props.length) return; if(!confirm('Remove all '+props.length+' props & obstacles from the scene?')) return;
-  pushUndo(); for(const p of props) propGroup.remove(p.wrap); props.length=0; propSel=null; renderPropList(); renderFrame(); setStatus('Cleared all props & obstacles (Ctrl+Z to undo)'); }
+  pushUndo(); for(const p of props) propGroup.remove(p.wrap); props.length=0; clearSel(); renderPropList(); renderFrame(); setStatus('Cleared all props & obstacles (Ctrl+Z to undo)'); }
 function selectedProp(){ return props.find(p=>p.id===propSel)||null; }
 function newPropId(pref){ return pref+Date.now().toString(36)+Math.floor(Math.random()*1e4); }
-// Clipboard for copy/paste. For built-in obstacles we remember the obId (rebuilt fresh); for loaded GLBs we keep a cloned Object3D.
+// Clipboard for copy/paste — an ARRAY of descriptors (so a whole multi-selection copies as a group). For built-in
+// obstacles we remember the obId (rebuilt fresh); for loaded GLBs we keep a cloned Object3D.
 let propClipboard=null;
 let lastClipKind=null;   // 'prop' | 'node' — which clipboard Ctrl+V should paste on the main page
-function copyProp(p){ if(!p) return; propClipboard={ obId:p.obId||null, name:p.name, scale:p.scale, rotY:p.rotY, lift:p.lift||0,
-    x:p.x, z:p.z, clone:p.obId?null:p.wrap.children[0].clone(true) };
-  setStatus('Copied '+p.name); }
-// Rebuild a prop from a clipboard descriptor at an offset; returns the new prop (selected).
-function spawnFromDesc(c, dx, dz){
+function descOfProp(p){ return { obId:p.obId||null, name:p.name, scale:p.scale, rotY:p.rotY, lift:p.lift||0,
+    x:p.x, z:p.z, clone:p.obId?null:p.wrap.children[0].clone(true) }; }
+function copyProps(list){ if(!list||!list.length) return; propClipboard=list.map(descOfProp);
+  setStatus('Copied '+list.length+' prop'+(list.length>1?'s':'')); }
+// Rebuild a prop from a clipboard descriptor at an offset; returns the new prop. `quiet` skips per-item select/render
+// so a batch paste can select + render once at the end.
+function spawnFromDesc(c, dx, dz, quiet){
   let np;
   if(c.obId){ np=spawnObstacle(c.obId, c.x+dx, c.z+dz, c.rotY); if(!np) return null; }
   else { const wrap=new THREE.Group(); wrap.add(c.clone.clone(true)); propGroup.add(wrap);
          np={ id:newPropId('pr'), name:c.name, obId:null, wrap, scale:c.scale, rotY:c.rotY, x:c.x+dx, z:c.z+dz, lift:c.lift||0 };
          props.push(np); }
   np.scale=c.scale; np.rotY=c.rotY; np.lift=c.lift||0; updatePropTransform(np);
-  propSel=np.id; renderPropList(); renderFrame(); return np;
+  if(!quiet){ setSingleSel(np.id); renderPropList(); renderFrame(); }
+  return np;
 }
-function pasteProp(){ if(!propClipboard) return; pushUndo(); const np=spawnFromDesc(propClipboard, 1.2, 1.2);
-  if(np){ propClipboard.x=np.x; propClipboard.z=np.z; setStatus('Pasted '+np.name+' — drag to place'); } }   // cascade repeated pastes
-function duplicateProp(p){ if(!p) return; pushUndo();   // Ctrl+D — clone in place without touching the copy/paste clipboard
-  const desc={ obId:p.obId||null, name:p.name, scale:p.scale, rotY:p.rotY, lift:p.lift||0, x:p.x, z:p.z, clone:p.obId?null:p.wrap.children[0].clone(true) };
-  const np=spawnFromDesc(desc, 1.2, 1.2); if(np) setStatus('Duplicated '+np.name); }
+// Paste the whole clipboard as a group, keeping its relative layout, and select the pasted copies. Repeated
+// pastes cascade (the stored descriptors bump each time) so you can Ctrl+V, Ctrl+V, Ctrl+V to stamp a row.
+function pasteProps(){ if(!propClipboard||!propClipboard.length) return; pushUndo();
+  const D=1.2, spawned=[];
+  for(const c of propClipboard){ const np=spawnFromDesc(c, D, D, true); if(np) spawned.push(np); }
+  for(const c of propClipboard){ c.x+=D; c.z+=D; }
+  if(spawned.length){ propSelSet.clear(); for(const np of spawned) propSelSet.add(np.id); propSel=spawned[spawned.length-1].id;
+    renderPropList(); renderFrame(); setStatus('Pasted '+spawned.length+' prop'+(spawned.length>1?'s':'')+' — drag to place'); } }
+// Ctrl+D — duplicate every selected prop in place (own copy, does not touch the copy/paste clipboard).
+function duplicateProps(list){ if(!list||!list.length) return; pushUndo(); const spawned=[];
+  for(const p of list){ const np=spawnFromDesc(descOfProp(p), 1.2, 1.2, true); if(np) spawned.push(np); }
+  if(spawned.length){ propSelSet.clear(); for(const np of spawned) propSelSet.add(np.id); propSel=spawned[spawned.length-1].id;
+    renderPropList(); renderFrame(); setStatus('Duplicated '+spawned.length+' prop'+(spawned.length>1?'s':'')); } }
 function nudgePropLift(p, dy){ if(!p) return; p.lift=Math.max(0, +(p.lift||0)+dy); updatePropTransform(p); renderPropList(); renderFrame(); }
 // ----- Undo / redo for scene edits (add / delete / move / clear / paste). Snapshots rebuild props from descriptors. -----
-function clearPropsSilent(){ for(const p of props) propGroup.remove(p.wrap); props.length=0; propSel=null; }
+function clearPropsSilent(){ for(const p of props) propGroup.remove(p.wrap); props.length=0; clearSel(); }
 function snapshotScene(){ return props.map(p=>({ obId:p.obId||null, name:p.name, x:p.x, z:p.z, scale:p.scale, rotY:p.rotY, lift:p.lift||0, walkable:!!p.walkable, clone:p.obId?null:p.wrap.children[0].clone(true) })); }
 function restoreScene(snap){ clearPropsSilent();
   for(const d of snap){ let np;
@@ -2175,10 +2240,11 @@ function renderPropList(){
   const clr=document.createElement('button'); clr.className='btn sm ghost'; clr.textContent='Clear all'; clr.style.cssText='padding:4px 10px;font-size:12px';
   clr.onclick=clearAllProps; head.appendChild(clr); host.appendChild(head);
   const tip=document.createElement('div'); tip.className='hint'; tip.style.cssText='margin:-3px 0 8px;text-transform:none;letter-spacing:0';
-  tip.innerHTML='Select one, then <b>Ctrl+C/V</b> copy·paste · <b>Ctrl+D</b> duplicate · <b>Del</b> remove · <b>PgUp/PgDn</b> raise/lower.';
+  tip.innerHTML='Click to select · <b>Ctrl+click</b> multi-select · <b>Ctrl+A</b> all · then <b>Ctrl+C/X/V</b> copy·cut·paste · <b>Ctrl+D</b> duplicate · <b>Del</b> remove · <b>PgUp/PgDn</b> raise/lower.';
   host.appendChild(tip);
   for(const p of props){
-    const row=document.createElement('div'); row.style.cssText='background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px;margin-bottom:6px'+(p.id===propSel?';box-shadow:0 0 0 2px rgba(91,157,255,.35) inset':'');
+    const isSel=propSelSet.has(p.id);
+    const row=document.createElement('div'); row.style.cssText='background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px;margin-bottom:6px'+(isSel?';box-shadow:0 0 0 2px rgba(91,157,255,'+(p.id===propSel?'.6':'.35')+') inset':'');
     row.innerHTML=`<div style="display:flex;align-items:center;gap:8px">
         <b style="flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name}</b>
         <span data-del style="cursor:pointer;color:var(--muted);font-size:13px" title="Remove">✕</span></div>
@@ -2187,7 +2253,7 @@ function renderPropList(){
       <div class="range-row"><span style="font-size:10px;color:var(--muted);width:34px">Lift</span><input type="range" data-lift min="0" max="12" step="0.05" value="${p.lift||0}"></div>
       <label class="ck" style="margin-top:5px;font-size:10px;color:var(--muted)"><input type="checkbox" data-walk ${p.walkable?'checked':''} style="margin:0"> 🧍 Characters can stand on this</label>
       <button data-puton class="btn sm ghost" style="margin-top:5px;padding:3px 8px;font-size:10px;width:100%">🧍 Put character on top</button>`;
-    row.onclick=()=>{ propSel=p.id; renderPropList(); };
+    row.onclick=(e)=>{ if(e.ctrlKey||e.metaKey) toggleSel(p.id); else setSingleSel(p.id); renderPropList(); renderFrame(); };
     row.querySelector('[data-del]').onclick=(e)=>{ e.stopPropagation(); deleteProp(p.id); };
     row.querySelector('[data-puton]').onclick=(e)=>{ e.stopPropagation(); putCharacterOn(p); };
     row.querySelector('[data-sc]').oninput=(e)=>{ p.scale=parseFloat(e.target.value); updatePropTransform(p); renderFrame(); };
@@ -2394,7 +2460,7 @@ function addObstacle(id){
   const px=(camState&&camState.pivotX)||0; let p, snapped=false;
   if(id==='sidewalk'){ const wz=wallZ(); snapped=wz!=null; p=spawnObstacle(id, px, snapped?wz+0.85:-2.5); }   // back edge flush to the wall
   else { const off=((obSpawn++)%6)*1.6-4; p=spawnObstacle(id, px+off, 1.5); }   // stagger so they don't stack
-  if(!p) return; propSel=p.id; renderPropList(); renderFrame();
+  if(!p) return; setSingleSel(p.id); renderPropList(); renderFrame();
   setStatus(snapped ? 'Added sidewalk against the wall — drag to fine-tune' : 'Added obstacle: '+p.name+' — drag it in the preview to place it');
 }
 // Theme packs — drop a matched, pre-arranged group in one click
@@ -2416,7 +2482,7 @@ function addObstacleSet(id){
   pushUndo();
   const px=(camState&&camState.pivotX)||0, n=set.items.length, gap=2.6, start=px-(n-1)*gap/2;
   let last=null; set.items.forEach((it,i)=>{ const p=spawnObstacle(it, start+i*gap, (i%2?1:-1)*0.6); if(p) last=p; });
-  if(last) propSel=last.id; renderPropList(); renderFrame();
+  if(last) setSingleSel(last.id); renderPropList(); renderFrame();
   setStatus('Added "'+set.name+'" pack — drag the pieces to arrange your course');
 }
 function buildObstacleGrid(){ const host=$('#obstacleGrid'); if(!host) return; host.innerHTML='';
@@ -2472,7 +2538,7 @@ function applySceneTheme(id){
   const front=items.filter(i=>i!=='sidewalk'), n=front.length, gap=2.8, start=px-(n-1)*gap/2;
   if(items.includes('sidewalk')){ const p=spawnObstacle('sidewalk', px, wz!=null?wz+0.85:-2.5); if(p) last=p; }
   front.forEach((it,i)=>{ const z=(wz!=null?wz+2.4:0.6)+(i%2?0.7:0); const p=spawnObstacle(it, start+i*gap, z); if(p) last=p; });
-  if(last) propSel=last.id;
+  if(last) setSingleSel(last.id);
   renderPropList(); refreshView();
   setStatus('Built the "'+th.name+'" scene — drag pieces to arrange');
 }
@@ -2498,6 +2564,7 @@ $('#skeleton').addEventListener('change', ()=>{ updateSkeleton(); updateConnecto
 // using the middle mouse button) switches the drag to the CAMERA (orbit / pan). Wheel = zoom.
 const _ray=new THREE.Raycaster(), _plane=new THREE.Plane(new THREE.Vector3(0,1,0),0), _hit=new THREE.Vector3();
 let heading=0;                                 // sequence model spin (radians about the vertical / Y axis)
+let renderRotCarry=0;                           // accumulated heading from earlier clips' net yaw (turn-in-place), applied during render/preview only
 let tiltX=0, tiltZ=0;                           // sequence model pitch (X) / roll (Z) for the rotate gizmo
 let previewSel=new Set();                       // characters selected in the preview (show-all multi-select)
 const canvasEl=renderer.domElement;
@@ -2704,6 +2771,19 @@ function updateSelRing(){
     ring.scale.setScalar((REF_H*(ch.relativeScale||1))*0.5*1.25);
   });
 }
+let modelRing=null;
+// Ground ring under the rigged model when IT is the selected object — i.e. no prop is selected — in sequence
+// mode. A ground ring (not a BoxHelper) because these rigs' bones are in CENTIMETRES, so Box3.setFromObject
+// follows the bones and balloons ~100× (useless for a character). Mirrors the prop selection outline.
+function updateModelRing(){
+  const ch = charOf(clips[selIndex]);
+  const show = !isEnsemble() && !propSel && !!activeRoot && !!ch && !rendering && !previewing;
+  if(!modelRing) modelRing=makeRing();
+  modelRing.visible=show;
+  if(show){ modelRing.material.color.set(ch.color||0x5b9dff); modelRing.material.opacity=0.9;
+    modelRing.position.set(startOffset.x, 0.02, startOffset.z);
+    modelRing.scale.setScalar((REF_H*(ch.relativeScale||1))*0.5*1.3); }
+}
 // ---------- 3D flow connectors: ground arrows between consecutive clips' characters (skeleton mode) ----------
 let connGroup=null, connSegs=[];
 function updateConnectors(){
@@ -2832,28 +2912,29 @@ window.addEventListener('keydown', e=>{
   const t=(e.target&&e.target.tagName)||''; if(/^(INPUT|TEXTAREA|SELECT)$/.test(t)) return;
   // ----- Selected-prop shortcuts (standard Windows keys). Node editor owns Ctrl-combos while it's open. -----
   const nodeOpen=$('#nodeEditor') && $('#nodeEditor').classList.contains('show');
-  const sp=selectedProp();
-  // On the MAIN page the same standard keys act on the selected PROP if one is picked, otherwise on the
+  const selPs=selProps();                 // every currently-selected prop (multi-select aware)
+  // On the MAIN page the same standard keys act on the selected PROP(s) if any are picked, otherwise on the
   // selected timeline CLIP (movement). While the node editor is open it owns these — handled in its own
   // listener. `nodeSelIds/deleteSelectedNodes/pasteClipObjs/nodeClipboard` are the shared clip clipboard.
   if((e.ctrlKey||e.metaKey) && !nodeOpen){
     const k=e.key.toLowerCase();
     if(k==='z'){ if(e.shiftKey) redoScene(); else undoScene(); e.preventDefault(); return; }   // Ctrl+Z undo, Ctrl+Shift+Z redo
     if(k==='y'){ redoScene(); e.preventDefault(); return; }                                      // Ctrl+Y redo
-    if(k==='c'){ if(sp){ copyProp(sp); lastClipKind='prop'; e.preventDefault(); }
+    if(k==='a'){ if(props.length){ selectAllPropsSel(); renderPropList(); renderFrame(); setStatus('Selected all '+props.length+' props'); e.preventDefault(); return; } }  // Ctrl+A select every prop
+    if(k==='c'){ if(selPs.length){ copyProps(selPs); lastClipKind='prop'; e.preventDefault(); }
                  else if(clips[selIndex]){ nodeClipboard=[clips[selIndex]]; lastClipKind='node'; setStatus('Movement copied'); e.preventDefault(); } return; }
-    if(k==='x'){ if(sp){ copyProp(sp); deleteProp(sp.id); lastClipKind='prop'; setStatus('Cut '+sp.name); e.preventDefault(); }
+    if(k==='x'){ if(selPs.length){ copyProps(selPs); deleteProps(selPs); lastClipKind='prop'; setStatus('Cut '+selPs.length+' prop'+(selPs.length>1?'s':'')); e.preventDefault(); }
                  else if(clips[selIndex]){ const c=clips[selIndex]; c._char=characters.find(ch=>ch.id===c.charId)||null; nodeClipboard=[c]; lastClipKind='node'; deleteSelectedNodes([c.id]); setStatus('Movement cut'); e.preventDefault(); } return; }
     if(k==='v'){ if(lastClipKind==='node' && nodeClipboard.length){ pasteClipObjs(nodeClipboard); e.preventDefault(); }
-                 else if(propClipboard){ pasteProp(); e.preventDefault(); }
+                 else if(propClipboard && propClipboard.length){ pasteProps(); e.preventDefault(); }
                  else if(nodeClipboard.length){ pasteClipObjs(nodeClipboard); e.preventDefault(); } return; }
-    if(k==='d'){ if(sp){ duplicateProp(sp); e.preventDefault(); }
+    if(k==='d'){ if(selPs.length){ duplicateProps(selPs); e.preventDefault(); }
                  else if(clips[selIndex]){ duplicateClips([clips[selIndex].id]); e.preventDefault(); } return; }
   }
-  if(sp && (e.key==='Delete')){ deleteProp(sp.id); setStatus('Deleted prop'); e.preventDefault(); return; }
+  if(selPs.length && (e.key==='Delete')){ deleteProps(selPs); setStatus('Deleted '+selPs.length+' prop'+(selPs.length>1?'s':'')); e.preventDefault(); return; }
   if(!nodeOpen && e.key==='Delete' && clips[selIndex]){ deleteSelectedNodes([clips[selIndex].id]); e.preventDefault(); return; }   // Delete the selected timeline movement
-  if(sp && (e.key==='PageUp'||e.key==='PageDown')){   // raise/lower a selected prop (stages grow taller)
-    nudgePropLift(sp, (e.key==='PageUp'?1:-1)*(e.shiftKey?0.5:0.15)); e.preventDefault(); return; }
+  if(selPs.length && (e.key==='PageUp'||e.key==='PageDown')){   // raise/lower every selected prop (stages grow taller)
+    const dy=(e.key==='PageUp'?1:-1)*(e.shiftKey?0.5:0.15); for(const p of selPs) nudgePropLift(p, dy); e.preventDefault(); return; }
   if(e.key==='m'||e.key==='M'){ if(clips.length) toggleGizmo(); return; }
   if(e.key==='r'||e.key==='R'){ if(clips.length) setGizmoMode((gizmoOn && gizmoMode==='rotate') ? 'move' : 'rotate'); return; }
   if(e.code==='Space'||e.key==='Alt'){ camKey=true; setCursor(); if(e.code==='Space') e.preventDefault(); }
@@ -2873,10 +2954,21 @@ canvasEl.addEventListener('pointerdown', e=>{
   }
   if(e.button===0 && !camKey && !e.altKey){              // grab a prop (works with or without a character loaded)
     const pr=pickProp(e);
-    if(pr){ propSel=pr.id; renderPropList(); drag.preMove=snapshotScene(); drag.active=true; drag.mode='prop-move'; drag.prop=pr; drag.id=e.pointerId;
+    if(pr){
+      if(e.ctrlKey||e.metaKey){ toggleSel(pr.id); renderPropList(); renderFrame(); e.preventDefault(); return; }   // Ctrl+click adds/removes from the multi-selection (no drag)
+      if(!propSelSet.has(pr.id)) setSingleSel(pr.id); else propSel=pr.id;   // unselected → select just it; already in the group → keep the group so a drag moves them together
+      renderPropList(); drag.preMove=snapshotScene(); drag.active=true; drag.mode='prop-move'; drag.prop=pr; drag.id=e.pointerId;
       drag.startX=e.clientX; drag.startY=e.clientY; drag.moved=false;
+      drag.propStartX=pr.x; drag.propStartZ=pr.z; drag.groupStart=selProps().map(p=>({p, x:p.x, z:p.z}));   // group-move: remember each selected prop's start pos
       try{ canvasEl.setPointerCapture(e.pointerId); }catch(_){}
       canvasEl.style.cursor='grabbing'; e.preventDefault(); return; }
+  }
+  if(e.button===2 && !camKey && !e.altKey){            // right-drag rotates the SELECTED prop (with or without a character loaded)
+    const sp=selectedProp();
+    if(sp){ drag.prop=sp; drag.preMove=snapshotScene(); drag.active=true; drag.mode='prop-spin'; drag.id=e.pointerId;
+      drag.startX=e.clientX; drag.startY=e.clientY; drag.x=e.clientX; drag.moved=false;
+      try{ canvasEl.setPointerCapture(e.pointerId); }catch(_){}
+      canvasEl.style.cursor='ew-resize'; e.preventDefault(); return; }
   }
   if(!clips.length) return;
   if(e.button===0 && !camKey && !e.altKey){             // click a flow connector to cut/reorder that link
@@ -2898,12 +2990,16 @@ window.addEventListener('pointermove', e=>{
   if(!drag.active) return;
   const dx=e.clientX-drag.x, dy=e.clientY-drag.y;
   if(Math.abs(e.clientX-drag.startX)+Math.abs(e.clientY-drag.startY) > 3) drag.moved=true;
-  if(drag.mode==='prop-move'){ const gp=groundHit(e); if(gp && drag.prop){ const sn=snapPropPos(drag.prop, gp.x, gp.z); drag.prop.x=sn.x; drag.prop.z=sn.z; updatePropTransform(drag.prop); renderFrame(); } }
+  if(drag.mode==='prop-move'){ const gp=groundHit(e); if(gp && drag.prop){ const sn=snapPropPos(drag.prop, gp.x, gp.z);
+      const gdx=sn.x-drag.propStartX, gdz=sn.z-drag.propStartZ;   // move the whole selection rigidly by the dragged prop's delta
+      const grp=(drag.groupStart&&drag.groupStart.length)?drag.groupStart:[{p:drag.prop, x:drag.propStartX, z:drag.propStartZ}];
+      for(const g of grp){ g.p.x=g.x+gdx; g.p.z=g.z+gdz; updatePropTransform(g.p); } renderFrame(); } }
   else if(drag.mode==='gizmo'){ axisDragMove(e); }
   else if(drag.mode==='ring'){ ringDragMove(e); }
-  else if(drag.mode==='move'){ if(drag.moved){ if(drag.pickChar && isEnsemble()) selectCharacter(drag.pickChar,false), drag.pickChar=null; moveModel(e); } }
+  else if(drag.mode==='move'){ if(drag.moved){ if(drag.pickChar && isEnsemble()) selectCharacter(drag.pickChar,false), drag.pickChar=null; if(!isEnsemble() && propSel){ clearSel(); renderPropList(); } moveModel(e); } }
   else if(drag.mode==='select'){ /* Move tool armed: only arrows move things; a plain drag just selects on release */ }
   else if(drag.mode==='model-spin'){ spinModel(dx); drag.x=e.clientX; }
+  else if(drag.mode==='prop-spin'){ if(drag.prop){ drag.prop.rotY += dx*0.012; updatePropTransform(drag.prop); renderFrame(); } drag.x=e.clientX; }
   else if(drag.mode==='cam-orbit'){ nudgeCam(dx*0.4, -dy*0.005); drag.x=e.clientX; drag.y=e.clientY; }
   else if(drag.mode==='cam-pan'){ panCam(dy); drag.y=e.clientY; }
   else if(drag.mode==='view-free'){ freeView(dx, dy); drag.x=e.clientX; drag.y=e.clientY; }
@@ -2911,11 +3007,13 @@ window.addEventListener('pointermove', e=>{
 window.addEventListener('pointerup', e=>{
   if(!drag.active) return; drag.active=false; gizmoDrag=null;
   if(drag.mode==='prop-move' && drag.preMove){ if(drag.moved){ undoStack.push(drag.preMove); if(undoStack.length>40) undoStack.shift(); redoStack.length=0; } drag.preMove=null; }
+  if(drag.mode==='prop-spin' && drag.preMove){ if(drag.moved){ undoStack.push(drag.preMove); if(undoStack.length>40) undoStack.shift(); redoStack.length=0; } drag.preMove=null; renderPropList(); }
   if((drag.mode==='move'||drag.mode==='select') && !drag.moved){
     if(isEnsemble()){
       selectCharacter(drag.pickChar, drag.additive);    // a click (no drag) selects / shift-adds the character
-    } else if(clickedModel(e)){                          // sequence: click the model → quick-tools popup
-      const ch=charOf(clips[selIndex]); if(ch) showCharPopup(ch);
+    } else if(clickedModel(e)){                          // sequence: click the model → selects it (deselects any prop) + quick-tools popup
+      if(propSel){ clearSel(); renderPropList(); }      // model becomes the selected object → its highlight ring shows, right-drag spins it
+      const ch=charOf(clips[selIndex]); if(ch) showCharPopup(ch); renderFrame();
     } else if(!charPopPinned){ hideCharPopup(); }
   }
   try{ canvasEl.releasePointerCapture(e.pointerId); }catch(_){}
@@ -3260,17 +3358,20 @@ function titleCfg(){ const q=id=>document.getElementById(id), on=id=>{const e=q(
 function introFrames(fps){ const c=titleCfg(); return c.introOn?Math.max(1,Math.round(c.introSec*fps)):0; }
 function outroFrames(fps){ const c=titleCfg(); return c.outroOn?Math.max(1,Math.round(c.outroSec*fps)):0; }
 function baseTotalFrames(fps,loops,hold){ return isEnsemble()?ensembleTotalFrames(fps):calcTotalFrames(fps,loops,hold); }
-function showTotalFrames(fps,loops,hold){ return introFrames(fps)+baseTotalFrames(fps,loops,hold)+outroFrames(fps); }
+function showTotalFrames(fps,loops,hold){ return 2*brandFrames(fps)+introFrames(fps)+baseTotalFrames(fps,loops,hold)+outroFrames(fps); }
 function cardTextAlpha(f,total,fps){ const fade=Math.min(Math.floor(total/3),Math.max(1,Math.round(0.4*fps)));
   if(f<fade) return (f+1)/(fade+1); if(f>=total-fade) return (total-f)/(fade+1); return 1; }
 // Prepends the intro card, runs the clip producer (with captions baked inside), then appends the outro card.
 async function runShow(fps,loops,hold,spin,trans, emit, abort){
   let gi=0; const cfg=titleCfg();
+  const bF=brandFrames(fps);
+  for(let f=0; f<bF && !abort(); f++){ drawBrandCard(cardTextAlpha(f,bF,fps)); await emit(gi++); }   // branded START (always)
   const inF=introFrames(fps);
   for(let f=0; f<inF && !abort(); f++){ renderFrame(); drawTitleCard(cardTextAlpha(f,inF,fps), cfg.introTitle, cfg.introSub); await emit(gi++); }
   if(!abort()) await runProducer(fps,loops,hold,spin,trans, async()=>{ await emit(gi++); }, abort);
   const outF=outroFrames(fps);
   for(let f=0; f<outF && !abort(); f++){ renderFrame(); drawTitleCard(cardTextAlpha(f,outF,fps), cfg.outroText, ''); await emit(gi++); }
+  for(let f=0; f<bF && !abort(); f++){ drawBrandCard(cardTextAlpha(f,bF,fps)); await emit(gi++); }   // branded END (always)
 }
 $('#ensemble').addEventListener('change', ()=>{ ensembleRoots=new Set(); $('#showAll')?.classList.toggle('on', $('#ensemble').checked); refreshView(); });
 $('#sceneLen').addEventListener('change', ()=>{ renderTimeline(); if(isEnsemble()) refreshView(); });
@@ -3411,9 +3512,24 @@ function computeTravel(c){
   c.action.reset(); c.action.play();     // action must be running for setTime to pose the skeleton
   const n=Math.max(1,Math.round(c.duration*TRAVEL_FPS)); const raw=[];
   // also track how far the feet sweep relative to the hips (stride) → used to synthesize forward advance for in-place walks/runs
-  let feet=[]; c.root.traverse(o=>{ if(o.isBone && /foot|toe|ankle|ball/i.test(o.name)) feet.push(o); });
+  // Foot bones: biped uses foot/toe/ankle/ball; the QUADRUPED's paws are frontleg2/backleg2 (and R_) — without
+  // matching those, quads measured ZERO stride, never got a synthetic advance, and so never travelled at all.
+  let feet=[]; c.root.traverse(o=>{ if(o.isBone && /foot|toe|ankle|ball|leg2$/i.test(o.name)) feet.push(o); });
+  if(feet.length<2){ feet=[]; c.root.traverse(o=>{ if(o.isBone) feet.push(o); }); }   // fallback: any rig we don't name
   const fr=feet.map(()=>({mnx:1e9,mxx:-1e9,mnz:1e9,mxz:-1e9}));
+  // also capture the body's net YAW over the clip (a turn-in-place bakes a 180° here): the Hips' forward vector,
+  // projected to XZ, at the first vs last frame → carried between clips in produceFrames so linked turns spin on.
+  // Body yaw is measured from a big WORLD-HORIZONTAL vector (head → tail), NOT the Hips quaternion: this rig is
+  // stored "stood-up", so world-Y is a non-Y axis in the Hips' own frame and reading yaw off the quaternion is
+  // wrong. head−tail lies along the body and rotates cleanly in XZ as the dog turns about the world vertical.
+  let _headB=null, _tailB=null; c.root.traverse(o=>{ if(o.isBone){
+    if(!_headB && /^head$/i.test(o.name)) _headB=o;
+    if(!_tailB && /^(tailstart|tail3|tail)$/i.test(o.name)) _tailB=o; } });
+  const _hw=new THREE.Vector3(), _tw=new THREE.Vector3(); const yaws=[];
+  const bodyYaw=()=>{ if(!_headB||!_tailB) return 0; _headB.getWorldPosition(_hw); _tailB.getWorldPosition(_tw);
+    return Math.atan2(_hw.x-_tw.x, _hw.z-_tw.z); };
   for(let f=0; f<=n; f++){ c.mixer.setTime(Math.min(c.duration,f/TRAVEL_FPS)); c.root.updateMatrixWorld(true);
+    yaws.push(bodyYaw());
     const w=new THREE.Vector3(); c.hips.getWorldPosition(w); raw.push({x:w.x,y:w.y,z:w.z});
     feet.forEach((b,i)=>{ const fw=new THREE.Vector3(); b.getWorldPosition(fw); const x=fw.x-w.x, z=fw.z-w.z;
       fr[i].mnx=Math.min(fr[i].mnx,x); fr[i].mxx=Math.max(fr[i].mxx,x); fr[i].mnz=Math.min(fr[i].mnz,z); fr[i].mxz=Math.max(fr[i].mxz,z); }); }
@@ -3432,17 +3548,55 @@ function computeTravel(c){
   // Stash the raw stride + in-place-ness; the synthetic-advance decision is finalized in finalizeAdvance()
   // once the locomotion flag (c.scroll) is known, so flips/jumps that also stride in place don't advance.
   let stride=0; for(const r of fr) stride=Math.max(stride, Math.hypot(r.mxx-r.mnx, r.mxz-r.mnz));
-  c._strideDist=stride; c._realNetXZ=Math.hypot(out[out.length-1].x, out[out.length-1].z);
+  // Stride is sampled in the model's NATIVE frame (scale reset to 1). A biped is ~2u tall natively, but the
+  // quadruped's native scale is ~0.01, so its stride comes out ~200× smaller and failed the fixed 0.15 threshold
+  // in finalizeAdvance → quads never advanced. Normalise stride by the rig's native height so the threshold is
+  // scale-free; the advance MAGNITUDE still uses the native stride (it gets multiplied by the display scale later).
+  const nb=new THREE.Box3().setFromObject(c.root); const nativeH=(nb.max.y-nb.min.y)||1;
+  c._strideDist=stride; c._strideN=stride/nativeH;
+  c._realNetXZ=Math.hypot(out[out.length-1].x, out[out.length-1].z); c._realNetXZN=c._realNetXZ/nativeH;
   c._realNetY=Math.abs(out[out.length-1].y||0); c.advance=0; c.fall=0;
+  // net body yaw over the clip (a turn-in-place bakes ~±180°; a normal walk ~0). Carried between clips in
+  // produceFrames (carry.rot) so linking several turns spins the character right round. Take the PEAK shortest-arc
+  // deviation across all frames — robust to the teleport-reset frame the exporter appends at the very end.
+  { const y0=yaws[0]||0; let best=0;
+    for(const y of yaws){ let d=y-y0; while(d>Math.PI)d-=2*Math.PI; while(d<-Math.PI)d+=2*Math.PI; if(Math.abs(d)>Math.abs(best)) best=d; }
+    c._netRotY = Math.abs(best)<0.12 ? 0 : best; }   // ignore tiny yaw wobble from ordinary gaits
+  // (The synthetic-advance DIRECTION is decided by rig type in finalizeAdvance — quad −Z, biped/bird +Z. An
+  // attempt to measure it here from head/tail bones inverted the sign and moon-walked the dog; removed.)
   c.mixer.setTime(0); c.root.position.copy(savedP); c.root.scale.copy(savedS); c.root.rotation.copy(savedR);
 }
 // Backward-facing locomotion (walk/run backward, reverse, moonwalk) → advance in reverse (−Z) instead of forward.
 const BACK_RE=/back(ward)?s?\b|reverse|retreat|moonwalk/i;
 const FALL_RE=/fall(s|ing)?|plummet|sky.?dive|free.?fall|nose.?dive/i;   // substring (names use underscores: "..._Fall_...")
+// A quadruped rig (Meshy's, and our Character Rigger's — same skeleton) FACES −Z: its head/chest sit at −Z
+// (measured: head z ≈ −0.24 vs tail ≈ −0.13). A biped/bird faces +Z. The synthetic forward advance below is
+// authored as +Z, so on a quad it must be flipped or an in-place walk skates the dog TAIL-FIRST (the ground
+// then scrolls the wrong way — "walks backwards"). Detected from the rig's own bones so it self-corrects for
+// any quad, Meshy-exported or ours, with no manual toggle.
+function isQuadRig(c){ let q=false; if(c&&c.root) c.root.traverse(o=>{ if(o.isBone && /^(R_)?frontleg$/.test(o.name||'')) q=true; }); return q; }
 // Only real locomotion advances (strides in place); falls that flail in place get a synthetic descent instead.
 function finalizeAdvance(c){
-  c.advance = (c.scroll && (c._realNetXZ||0) < 0.2 && (c._strideDist||0) > 0.15)
-    ? c._strideDist * 1.4 * (BACK_RE.test(c.name||'') ? -1 : 1) : 0;
+  // A TURN-IN-PLACE (significant net yaw) carries its own rotation, not a forward stride — its stepping feet must
+  // NOT trigger a synthetic forward advance, or the dog would drift across the floor while turning.
+  if(Math.abs(c._netRotY||0) > 0.5){ c.advance=0; c.fall=0; return; }
+  // Forward advance direction = +Z for every loaded rig (quad/biped/bird all face +Z in the Stitcher's display
+  // frame). This session's earlier detours — a per-rig-type −Z for quads, then a head/tail `_fwdZ` measurement —
+  // BOTH got the quad's sign wrong (dog skated backward); the user watching the app confirmed +Z is the correct
+  // travel direction. The "moving backwards" they saw was actually the advance being too WEAK (see the factor
+  // below), not the wrong way. Backward-named clips still reverse via BACK_RE.
+  const fwd = 1;
+  // Locomotion that strides in place → synthetic forward advance. Accept EITHER the native stride (bipeds are
+  // ~metre/cm-scale, unchanged behaviour) OR the scale-normalised stride (quads load at ~0.01 native scale, so
+  // their native stride is tiny and needs the normalised test). The in-place test stays on native netXZ, which
+  // already reads correctly for both (tiny for an in-place clip, large for one that really travels).
+  // Advance MAGNITUDE: strideDist × a per-rig factor. The quad's stride detector (paw-bone sweep) under-measures
+  // its true stride, so at the biped's 1.4 the planted paws SLID BACKWARD ~0.8u per step = the dog moonwalked
+  // (user: "moving backwards / wrong vs the scenery"). A foot-slip sweep found the grip point (planted-paw drift
+  // ≈ 0) at ~2× → factor 2.8 for quads; bipeds stay at 1.4. This is a magnitude fix, not a direction one.
+  const advF = isQuadRig(c) ? 2.8 : 1.4;
+  c.advance = (c.scroll && (c._realNetXZ||0) < 0.2 && ((c._strideDist||0) > 0.15 || (c._strideN||0) > 0.15))
+    ? c._strideDist * advF * (BACK_RE.test(c.name||'') ? -1 : 1) * fwd : 0;
   // in-place fall (flutters but doesn't descend) → make it fall downward; skip if it already has real descent
   c.fall = (FALL_RE.test(c.name||'') && (c._realNetY||0) < 0.3) ? 1 : 0;
 }
@@ -3512,6 +3666,17 @@ function placeCharacter(c, D){
   c.root.updateMatrixWorld(true);
 }
 
+// Attach a sound file to ONE clip (decoded to an AudioBuffer; mixed in at export, trimmed to the clip length).
+function pickClipAudio(c){
+  const inp=document.createElement('input'); inp.type='file'; inp.accept='audio/*';
+  inp.onchange=async()=>{ const f=inp.files&&inp.files[0]; if(!f) return;
+    setStatus('Decoding '+f.name+' …');
+    try{ const ac=new (window.AudioContext||window.webkitAudioContext)();
+      c.audio=await ac.decodeAudioData(await f.arrayBuffer()); c.audioName=f.name; ac.close();
+      setStatus(`Added sound to clip: ${f.name} · ${c.audio.duration.toFixed(1)}s`); renderList();
+    }catch(e){ console.error(e); setStatus('Could not decode audio: '+f.name); } };
+  inp.click();
+}
 function renderList(){
   const ul=$('#glbList'); ul.innerHTML='';
   clips.forEach((c,i)=>{
@@ -3524,6 +3689,7 @@ function renderList(){
         <span class="dur">${dur}</span>
         <span class="mv spd ${clipSpeed(c)!==1?'on':''} ${c.spdExp?'exp':''}" data-spd title="Playback speed for this clip — click to open the speed slider (slow-mo / fast-forward). Shift-click to step up quickly.">${fmtSpeed(clipSpeed(c))}</span>
         <span class="mv ${(c.caption||'').trim()?'on':''}" data-cap title="Caption for this clip (lower-third). Enable captions in the Titles & captions panel.">💬</span>
+        <span class="mv ${c.audio?'on':''}" data-aud title="Add a sound for this clip — trimmed to the clip's length, played over any global music.">🔊</span>
         <span class="mv ${c.cam.custom?'on':''}" data-cam title="Per-clip camera">🎥</span>
         <span class="mv ${c.scroll!==false?'on':''}" data-scroll title="Background scrolls during this clip (fake forward motion) — toggle off for stationary moves like a tantrum">🏃</span>
         <span class="mv" data-dup title="Duplicate into flow">⧉</span>
@@ -3539,6 +3705,7 @@ function renderList(){
       if(e.shiftKey){ cycleSpeed(c,false); renderList(); renderTimeline(); }   // quick shift-click still cycles
       else { c.spdExp=!c.spdExp; renderList(); } };
     ctl('[data-cap]',()=>{ c.capExp=!c.capExp; renderList(); });
+    ctl('[data-aud]',()=>{ c.audExp=!c.audExp; renderList(); });
     ctl('[data-dup]',()=>duplicateClip(i));
     ctl('.x',()=>{ clips.splice(i,1); selIndex=Math.max(0,selIndex-(i<=selIndex?1:0)); cleanupCharacters(); recomputeAllNorm(); computeSharedFrame(); renderCharacters(); renderList(); showClip(selIndex); updateReady(); });
     if(c.cam.exp){
@@ -3587,6 +3754,17 @@ function renderList(){
       inp.onchange=()=>{ renderList(); };            // refresh the 💬 lit state after editing
       inp.onclick=e=>e.stopPropagation();
       li.appendChild(ce);
+    }
+    if(c.audExp){
+      const ae=document.createElement('div'); ae.className='capedit';
+      const btn=`<button data-pick style="background:var(--panel,#0e1218);border:1px solid var(--line,#252c37);color:var(--text);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;white-space:nowrap">${c.audio?'Replace…':'Add sound file…'}</button>`;
+      ae.innerHTML = `<div style="display:flex;align-items:center;gap:8px">${btn}${ c.audio
+        ? `<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:var(--muted)">🔊 ${c.audioName||'sound'} · ${c.audio.duration.toFixed(1)}s</span><span class="x" data-clr title="Remove this clip's sound">✕</span>`
+        : `<span style="flex:1;font-size:12px;color:var(--muted)">mp3 / wav / m4a — trimmed to this clip's on-screen length</span>` }</div>`;
+      ae.querySelector('[data-pick]').onclick=e=>{ e.stopPropagation(); pickClipAudio(c); };
+      const clr=ae.querySelector('[data-clr]'); if(clr) clr.onclick=e=>{ e.stopPropagation(); c.audio=null; c.audioName=''; renderList(); };
+      ae.onclick=e=>e.stopPropagation();
+      li.appendChild(ae);
     }
     ul.appendChild(li);
   });
@@ -3953,7 +4131,10 @@ function groundClip(root, clip){
   // model orientation: sequence uses the globals, ensemble uses the character's own values.
   // Y = heading/spin (about vertical), X = pitch, Z = roll — YXZ order so heading stays intuitive.
   if(clip){ const ch=isEnsemble()?(charOf(clip)||{}):null;
-    root.rotation.set( ch?(ch.tiltX||0):tiltX, ch?(ch.spin||0):heading, ch?(ch.tiltZ||0):tiltZ, 'YXZ'); }
+    // sequence Y-rotation adds renderRotCarry — the heading accumulated from earlier clips that turned in place
+    // (0 outside render/preview, so static display is unchanged).
+    const rc = (rendering||previewing) ? renderRotCarry : 0;   // carried turn only applies mid-render/preview
+    root.rotation.set( ch?(ch.tiltX||0):tiltX, ch?(ch.spin||0):(heading+rc), ch?(ch.tiltZ||0):tiltZ, 'YXZ'); }
   else root.rotation.set(0,0,0);
   // Measure at the origin then place absolutely — these rigs carry a large cm mesh-node offset, so a
   // relative "-=" leaves the figure off-screen. Absolute centering zeroes it (and is a no-op for
@@ -4074,6 +4255,7 @@ function transparentBg(){ const e=$('#transBg'); return e && e.checked; }
 function renderFrame(){
   updateXray();
   updatePropSelBox();
+  updateModelRing();
   updateGrids();
   const trans=transparentBg();
   renderer.setClearAlpha(trans?0:1);
@@ -4101,12 +4283,20 @@ async function produceFrames(fps,loops,hold,spin,trans, emit, abort){
   const advSpeed = parseFloat(($('#advanceSpeed')||{}).value ?? 1);   // forward-advance multiplier for in-place walks/runs
   let frame=0, spinYaw=0, scrollDist=0, scrollX=0, scrollZ=0;   // scrollDist only advances during scroll-enabled clips
   const driftMode=camDriftMode(), driftTotal=Math.max(1,calcTotalFrames(fps,loops,hold)-1);   // cinematic camera drift
-  const carry={x:startOffset.x, z:startOffset.z, y:0};   // first clip begins at the drag anchor; y = accumulated climb
+  const carry={x:startOffset.x, z:startOffset.z, y:0, rot:0};   // first clip begins at the drag anchor; y = climb; rot = heading from earlier turn-in-place clips
+  renderRotCarry=0;
+  // Seam pose-blend: each clip has its OWN skeleton, so switching clips can pop even when the motion matches
+  // (e.g. two walks). Capture the outgoing clip's final bone pose and, for the first few frames of the next clip,
+  // ease its skeleton in from that pose so the motion flows through the join. Cheap (local-quat slerp, same rig).
+  const blendFrames = Math.max(2, Math.round(0.16*fps));   // ~0.16s of easing at the join
+  let prevPose=null;
+  const capturePose=(root)=>{ const m={}; root.traverse(o=>{ if(o.isBone) m[o.name]=o.quaternion.clone(); }); return m; };
+  const blendPose=(root,pose,w)=>{ if(!pose||w<=0)return; root.traverse(o=>{ if(o.isBone && pose[o.name]) o.quaternion.slerp(pose[o.name], w); }); root.updateMatrixWorld(true); };
   for(let ci=0; ci<clips.length; ci++){
     if(abort()) break;
     const doTrans = ci>0 && transFrames>0;
     if(doTrans) snapshotCanvas();          // grab previous clip's final frame
-    const c=clips[ci]; showClip(ci); setPlayingClip(c.id);   // light up the current node/block as playback advances
+    const c=clips[ci]; renderRotCarry=carry.rot; showClip(ci); setPlayingClip(c.id);   // apply carried heading, then light up the current node/block
     const baseTargetY=camState.targetY;   // framed look-at height at clip start
     let baseHipsY=0; if(c.hips){ const _h=new THREE.Vector3(); c.hips.getWorldPosition(_h); baseHipsY=_h.y; }  // grounded Hips ref → vertical follow tracks the REAL hips height (climb/fall + within-clip)
     $('#ovLbl').textContent=`Clip ${ci+1} / ${clips.length}`;
@@ -4118,7 +4308,7 @@ async function produceFrames(fps,loops,hold,spin,trans, emit, abort){
     const FALL_RATE=4;                            // world units/sec an in-place fall descends (× the motion-speed slider)
     const fallPer = (travelling && c.fall) ? FALL_RATE*advSpeed*(c.duration||1) : 0;   // synthetic descent per play (world)
     const netRaw=travelAt(c, netT);
-    const net=rotY({x:netRaw.x, z:netRaw.z + advPer}, heading);   // net horizontal travel + advance, aligned to facing
+    const net=rotY({x:netRaw.x, z:netRaw.z + advPer}, heading+carry.rot);   // net horizontal travel + advance, aligned to the CURRENT facing (incl. carried turns)
     // Only CLIMBING produces a PERSISTENT vertical gain that should carry into the next clip (climb a wall,
     // mantle onto a ledge → chain to climb higher). A sit, a fall, a crouch or a jump lowers/rises WITHIN
     // its own clip (played by the mixer) and recovers by the end — carrying that as a permanent offset would
@@ -4128,6 +4318,8 @@ async function produceFrames(fps,loops,hold,spin,trans, emit, abort){
     const sx=c.root.scale.x, sz=c.root.scale.z, sy=c.root.scale.y;
     let clipFrame=0;
     const render1 = async (D)=>{
+      if(ci>0 && prevPose && clipFrame<blendFrames){   // ease this clip's skeleton in from the previous clip's end pose
+        const x=clipFrame/blendFrames, w=(1-x)*(1-x); blendPose(c.root, prevPose, w); }   // quadratic ease-out weight
       if(c.hips) placeCharacter(c, {x:D.x, z:D.z, y:D.y});   // x/z travel + accumulated climb (D.y) + manual lift
       if(follow){ camState.pivotX=D.x; camState.pivotZ=D.z;
         if(c.hips){ const _h=new THREE.Vector3(); c.hips.getWorldPosition(_h); camState.targetY=baseTargetY+(_h.y-baseHipsY); } }  // pan up a climb / down a fall, keeping the character framed
@@ -4146,7 +4338,7 @@ async function produceFrames(fps,loops,hold,spin,trans, emit, abort){
       if(c.action){ c.action.reset(); c.action.play(); c.mixer.update(0); }
       for(let f=0; f<nFrames && !abort(); f++){
         const t=Math.min(c.duration||1.5, f*dt*spd); const tvRaw=travelAt(c,t);   // real anim time (scaled by speed)
-        const tv=rotY({x:tvRaw.x, z:tvRaw.z + advPer*(t/(c.duration||1))}, heading);  // real travel + forward-advance ramp
+        const tv=rotY({x:tvRaw.x, z:tvRaw.z + advPer*(t/(c.duration||1))}, heading+carry.rot);  // real travel + forward-advance ramp, at the current facing
         // vertical: lift by the climb already completed (carry.y + l·netY; climb comes from the animation, so tv.y
         // is NOT added — would double it) and SUBTRACT the synthetic fall descent (completed loops + within-loop ramp).
         const fallAt = l*fallPer + fallPer*(t/(c.duration||1));
@@ -4161,6 +4353,8 @@ async function produceFrames(fps,loops,hold,spin,trans, emit, abort){
     const hFrames=Math.round(hold*fps);
     for(let f=0; f<hFrames && !abort(); f++){ await render1(Dhold); }
     if(travelling){ carry.x+=sx*loops*net.x; carry.z+=sz*loops*net.z; carry.y+=sy*loops*netY - loops*fallPer; }   // next clip continues here
+    carry.rot += (c._netRotY||0)*loops;   // a turn-in-place adds its net yaw so the NEXT clip starts already turned (linked turns spin on)
+    prevPose = capturePose(c.root);   // remember this clip's end pose so the next clip can ease in from it (seam smoothing)
   }
 }
 function calcTotalFrames(fps,loops,hold){
@@ -4186,6 +4380,12 @@ async function doScrub(frac){
   finally{ previewing=false; }
 }
 $('#scrub').addEventListener('input', ()=>{ if(!realPreview && !rendering) requestScrub(parseInt($('#scrub').value)/1000); });
+// Click anywhere on the scrub track → jump the playhead straight to that spot.
+// (Native range inputs in Chrome only step toward a track click instead of jumping, so map the click X ourselves.)
+$('#scrub').addEventListener('pointerdown', (e)=>{ if(realPreview || rendering) return;
+  const el=$('#scrub'), r=el.getBoundingClientRect(); if(!r.width) return;
+  const frac=Math.max(0, Math.min(1, (e.clientX-r.left)/r.width));
+  el.value=Math.round(frac*1000); requestScrub(frac); });
 
 // ---------- Preview ----------
 let previewLoop=false;
@@ -4254,22 +4454,52 @@ async function pickVideoCodec(w,h,fps){
   for(const cc of c){ try{ if((await VideoEncoder.isConfigSupported({codec:cc,width:w,height:h,bitrate:4000000,framerate:fps})).supported) return cc; }catch(e){} }
   return 'avc1.640028';
 }
-async function audioSupported(){
-  if(typeof AudioEncoder==='undefined') return false;
-  try{ return (await AudioEncoder.isConfigSupported({codec:'mp4a.40.2',sampleRate:audioBuffer.sampleRate,numberOfChannels:Math.min(2,audioBuffer.numberOfChannels),bitrate:128000})).supported; }catch(e){ return false; }
+async function audioSupported(buf){
+  if(typeof AudioEncoder==='undefined' || !buf) return false;
+  try{ return (await AudioEncoder.isConfigSupported({codec:'mp4a.40.2',sampleRate:buf.sampleRate,numberOfChannels:Math.min(2,buf.numberOfChannels),bitrate:128000})).supported; }catch(e){ return false; }
 }
-async function encodeAudioInto(muxer, seconds){
-  const sr=audioBuffer.sampleRate, ch=Math.min(2,audioBuffer.numberOfChannels);
+// Mix the OPTIONAL global music track PLUS every clip's own sound into one buffer the length of the whole
+// export. Each per-clip sound is placed at that clip's start time in the finished video and TRIMMED to the
+// clip's on-screen length (the "chop to the motion length"); the global track sits underneath (loop/volume
+// from panel 4). OfflineAudioContext does the resample + mix + trim for us. Returns null if there is no audio.
+async function buildMixedAudio(fps,loops,hold, seconds){
+  const anyClip=clips.some(c=>c.audio);
+  if(!audioBuffer && !anyClip) return null;
+  const SR=48000, ch=2, len=Math.max(1,Math.ceil(seconds*SR));
+  const octx=new OfflineAudioContext(ch, len, SR);
+  if(audioBuffer){                                              // global background music
+    const src=octx.createBufferSource(); src.buffer=audioBuffer;
+    if(($('#aFit')||{}).value==='loop') src.loop=true;
+    const g=octx.createGain(); g.gain.value=parseFloat(($('#aVol')||{}).value)||1;
+    src.connect(g).connect(octx.destination); src.start(0);
+  }
+  const contentStart=(brandFrames(fps)+introFrames(fps))/fps;   // clips begin after the branded card + intro
+  if(isEnsemble()){                                             // all characters play together → sounds start together
+    for(const c of clips){ if(!c.audio) continue; const src=octx.createBufferSource(); src.buffer=c.audio;
+      src.connect(octx.destination); try{ src.start(contentStart, 0, Math.max(0.01, Math.min(c.audio.duration, seconds-contentStart))); }catch(e){} }
+  } else {
+    let frame=brandFrames(fps)+introFrames(fps);
+    for(const c of clips){
+      const clipF=Math.max(1,Math.round(effDur(c)*fps))*loops + Math.round(hold*fps);
+      if(c.audio){ const src=octx.createBufferSource(); src.buffer=c.audio; src.connect(octx.destination);
+        try{ src.start(frame/fps, 0, Math.min(c.audio.duration, clipF/fps)); }catch(e){} }
+      frame+=clipF;
+    }
+  }
+  return await octx.startRendering();
+}
+async function encodeAudioInto(muxer, seconds, buf){
+  const sr=buf.sampleRate, ch=Math.min(2,buf.numberOfChannels);
   const enc=new AudioEncoder({ output:(chunk,meta)=>muxer.addAudioChunk(chunk,meta), error:e=>console.error('audio',e) });
   enc.configure({ codec:'mp4a.40.2', sampleRate:sr, numberOfChannels:ch, bitrate:128000 });
-  const total=Math.ceil(seconds*sr), vol=parseFloat($('#aVol').value), loop=$('#aFit').value==='loop';
-  const srcCh=[]; for(let c=0;c<ch;c++) srcCh.push(audioBuffer.getChannelData(Math.min(c,audioBuffer.numberOfChannels-1)));
+  const total=Math.ceil(seconds*sr);                            // buf is already the full length, mixed + volume-applied
+  const srcCh=[]; for(let c=0;c<ch;c++) srcCh.push(buf.getChannelData(Math.min(c,buf.numberOfChannels-1)));
   const block=Math.floor(sr/10); let pos=0;
   while(pos<total){
     const n=Math.min(block,total-pos);
     const data=new Float32Array(n*ch);
     for(let c=0;c<ch;c++){ const src=srcCh[c], L=src.length;
-      for(let i=0;i<n;i++){ const gi=pos+i; let s = gi<L? src[gi] : (loop? src[gi%L] : 0); data[c*n+i]=s*vol; } }
+      for(let i=0;i<n;i++){ const gi=pos+i; data[c*n+i]= gi<L? src[gi] : 0; } }
     const ad=new AudioData({ format:'f32-planar', sampleRate:sr, numberOfFrames:n, numberOfChannels:ch, timestamp:Math.round(pos/sr*1e6), data });
     enc.encode(ad); ad.close(); pos+=n;
     if(enc.encodeQueueSize>8) await new Promise(r=>{ const chk=()=>enc.encodeQueueSize<=4?r():setTimeout(chk,4); chk(); });
@@ -4281,9 +4511,10 @@ async function encodeAudioInto(muxer, seconds){
 async function renderWebCodecs(fps,loops,hold,spin,trans,totalFrames){
   const { Muxer, ArrayBufferTarget } = await import('https://cdn.jsdelivr.net/npm/mp4-muxer@5/+esm');
   const codec=await pickVideoCodec(outW,outH,fps);
-  const withAudio = audioBuffer && await audioSupported();
+  const mix = await buildMixedAudio(fps,loops,hold, totalFrames/fps);   // global music + per-clip sounds
+  const withAudio = mix && await audioSupported(mix);
   const muxCfg={ target:new ArrayBufferTarget(), video:{ codec:'avc', width:outW, height:outH, frameRate:fps }, fastStart:'in-memory' };
-  if(withAudio) muxCfg.audio={ codec:'aac', sampleRate:audioBuffer.sampleRate, numberOfChannels:Math.min(2,audioBuffer.numberOfChannels) };
+  if(withAudio) muxCfg.audio={ codec:'aac', sampleRate:mix.sampleRate, numberOfChannels:Math.min(2,mix.numberOfChannels) };
   const muxer=new Muxer(muxCfg);
   let encErr=null;
   const encoder=new VideoEncoder({ output:(chunk,meta)=>muxer.addVideoChunk(chunk,meta), error:e=>{encErr=e;console.error('video',e);} });
@@ -4301,7 +4532,7 @@ async function renderWebCodecs(fps,loops,hold,spin,trans,totalFrames){
   }, ()=>cancelRender);
   if(cancelRender){ try{encoder.close();}catch(e){} return null; }
   await encoder.flush(); encoder.close();
-  if(withAudio){ $('#ovLbl').textContent='Adding audio…'; await encodeAudioInto(muxer, totalFrames/fps); }
+  if(withAudio){ $('#ovLbl').textContent='Adding audio…'; await encodeAudioInto(muxer, totalFrames/fps, mix); }
   muxer.finalize();
   return new Blob([muxer.target.buffer],{type:'video/mp4'});
 }
@@ -4311,12 +4542,12 @@ async function renderMediaRecorder(fps,loops,hold,spin,trans,totalFrames){
   const stream=renderer.domElement.captureStream(0);
   const track=stream.getVideoTracks()[0];
   let ac=null;
-  if(audioBuffer){
+  const mix = await buildMixedAudio(fps,loops,hold, totalFrames/fps);   // global music + per-clip sounds (volume baked in)
+  if(mix){
     ac=new (window.AudioContext||window.webkitAudioContext)();
     const dest=ac.createMediaStreamDestination();
-    const src=ac.createBufferSource(); src.buffer=fittedAudioBuffer(ac, totalFrames/fps);
-    const g=ac.createGain(); g.gain.value=parseFloat($('#aVol').value);
-    src.connect(g); g.connect(dest);
+    const src=ac.createBufferSource(); src.buffer=mix;
+    src.connect(dest);
     dest.stream.getAudioTracks().forEach(t=>stream.addTrack(t));
     src.start();
   }
@@ -4481,12 +4712,13 @@ async function mlFetchClip(id){
 
 // --- skeleton helpers (ported from the GLB Motion Library retargeter) ---
 function mlBoneList(root){ const b=[]; root.traverse(o=>{ if(o.isBone) b.push(o); }); return b; }
+// Bone-local rest. VALID ONLY BEFORE ANYTHING POSES THE SKELETON — see `c.restPose`, captured at load
+// time, which is what mlSetRig actually uses.
 function mlCaptureRest(root){ const rest={}; for(const b of mlBoneList(root)) rest[b.name]={p:b.position.toArray(), q:b.quaternion.toArray()}; return rest; }
 function mlLegLength(root){ root.updateMatrixWorld(true); const hips=findHips(root); if(!hips) return 1;
   const hw=new THREE.Vector3(); hips.getWorldPosition(hw); let minY=1e9;
   for(const b of mlBoneList(root)){ const w=new THREE.Vector3(); b.getWorldPosition(w); minY=Math.min(minY,w.y); }
   return Math.max(0.05, hw.y-minY); }
-
 // Set the character every motion is retargeted onto.
 // The rest pose is whatever the character looked like BEFORE anything animated it — that is what a
 // retarget maps onto. Reading the bones live is wrong the moment the character has been posed, and some
@@ -4530,14 +4762,11 @@ function retargetMotion(motion, rig){
   const ratio=posScale;
   // ROOT translation needs its OWN scale. A bone's position track is a fixed skeleton offset and scales
   // with overall build (posScale). But the ROOT track is the body travelling through space — how far the
-  // hips can drop into a squat, or rise in a jump — and that is governed by LEG LENGTH, not by the summed
-  // size of every bone. The two diverge on any character with unusual proportions: a short-legged/
-  // long-armed rig measured posScale 0.98 while its legs were only 0.82 as long, so a 42 cm sit was
-  // retargeted as 41 cm onto legs that can only fold ~35 cm — the motions then sat at heights differing by
-  // 5.6 cm and the character visibly popped when switching between them. Scaling the root by hip height
-  // instead holds every motion at a consistent height on any build.
-  // Measured against a short-legged rig: summed-build 21.3 cm spread with feet 8.1 cm THROUGH the floor;
-  // hip-height 12.8 cm and no penetration; leg-length 11.7 cm and the safest clearance. So: leg length.
+  // hips drop into a squat, or rise in a jump — and that is governed by LEG LENGTH, not by the summed size
+  // of every bone. They diverge on unusual proportions: a short-legged/long-armed rig measured posScale
+  // 0.98 while its legs were only 0.82 as long, so a 42 cm sit retargeted as 41 cm onto legs that fold
+  // ~35 cm. Measured across 146 ground motions on that rig: summed-build gave a 21.3 cm height spread with
+  // feet 8.1 cm THROUGH the floor; hip-height 12.8 cm; leg-length 11.7 cm and the safest clearance.
   const legLen = r => ['LeftLeg','LeftFoot','RightLeg','RightFoot']
     .reduce((s,b)=> s + (r[b]&&r[b].p ? Math.hypot(r[b].p[0],r[b].p[1],r[b].p[2]) : 0), 0);
   const sLeg=legLen(srcRest), tLeg=legLen(tgtRest);
@@ -4562,8 +4791,8 @@ function retargetMotion(motion, rig){
       tracks.push(new THREE.QuaternionKeyframeTrack(t.name, t.times.slice(), v));
     } else if(prop==='position'){
       const sp=(srcRest[bone]&&srcRest[bone].p)||[0,0,0], tp=(tgtRest[bone]&&tgtRest[bone].p)||[0,0,0];
-      const ps = (bone===rootBone) ? rootScale : posScale;   // body travel scales by leg length, bone offsets by build
       const v=t.values.slice();
+      const ps = (bone===rootBone) ? rootScale : posScale;   // body travel scales by leg length, bone offsets by build
       for(let i=0;i<v.length;i+=3){ v[i]=tp[0]+(v[i]-sp[0])*ps; v[i+1]=tp[1]+(v[i+1]-sp[1])*ps; v[i+2]=tp[2]+(v[i+2]-sp[2])*ps; }
       tracks.push(new THREE.VectorKeyframeTrack(t.name, t.times.slice(), v));
     } // scale tracks ignored (keep target's bone scales)
@@ -4855,6 +5084,8 @@ async function renderStudioLibrary(){
 // mlLoadIndex is idempotent (guards on libIndex) so calling it first guarantees the file motions
 // are loaded before we append the studio ones — avoids the race where it would overwrite libIndex.
 async function studioRefresh(){ await mlLoadIndex(); await studioMergeMotions(); renderMotionLib(); renderStudioLibrary(); }
+
+
 studioRefresh();
 if(window.StudioLib) StudioLib.onChange(studioRefresh);
 
