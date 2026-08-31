@@ -1187,7 +1187,7 @@ function cycleSpeed(c,down){ const cur=clipSpeed(c); let i=SPEED_STEPS.indexOf(c
   i=down?Math.max(0,i-1):Math.min(SPEED_STEPS.length-1,i+1); c.speed=SPEED_STEPS[i]; }
 let outW=1920, outH=1080;
 let previewing=false, rendering=false, cancelRender=false, realPreview=false;
-let activeRoot=null, selIndex=0;
+let activeRoot=null, selIndex=0, selUIHidden=false;   // Esc hides the location ring/gizmo; any click reselects
 
 // ---------- Sizing ----------
 function applySize(){
@@ -2724,6 +2724,7 @@ function pickCharacter(e){
 }
 function selectCharacter(ch, additive){
   if(!ch) { if(!additive){ previewSel.clear(); } if(!charPopPinned) hideCharPopup(); updateGizmo(); return; }
+  selUIHidden=false;                          // a real selection brings the ring/gizmo back
   if(additive){ if(previewSel.has(ch.id)) previewSel.delete(ch.id); else previewSel.add(ch.id); }
   else previewSel=new Set([ch.id]);
   const firstClip=charClips(ch)[0]; if(firstClip){ selIndex=clips.indexOf(firstClip); }
@@ -2733,7 +2734,7 @@ function selectCharacter(ch, additive){
 function updateGizmo(){
   if(!moveGizmo) buildGizmo();
   const a=selAnchor();
-  const show = gizmoOn && !!a && !rendering && !previewing;
+  const show = gizmoOn && !!a && !rendering && !previewing && !selUIHidden;
   moveGizmo.visible = show && gizmoMode==='move';
   rotGizmo.visible  = show && gizmoMode==='rotate';
   if(show){ const sc=(camState.radius||1)*1.3;
@@ -2784,7 +2785,7 @@ let modelRing=null;
 // follows the bones and balloons ~100× (useless for a character). Mirrors the prop selection outline.
 function updateModelRing(){
   const ch = charOf(clips[selIndex]);
-  const show = !isEnsemble() && !propSel && !!activeRoot && !!ch && !rendering && !previewing;
+  const show = !isEnsemble() && !propSel && !!activeRoot && !!ch && !rendering && !previewing && !selUIHidden;
   if(!modelRing) modelRing=makeRing();
   modelRing.visible=show;
   if(show){ modelRing.material.color.set(ch.color||0x5b9dff); modelRing.material.opacity=0.9;
@@ -2917,6 +2918,10 @@ function toggleGizmo(on){
 
 window.addEventListener('keydown', e=>{
   const t=(e.target&&e.target.tagName)||''; if(/^(INPUT|TEXTAREA|SELECT)$/.test(t)) return;
+  if(e.key==='Escape'){                       // deselect: hide the location ring / gizmo without touching the camera
+    selUIHidden=true; clearSel(); if(typeof hideCharPopup==='function') hideCharPopup();
+    updateModelRing&&updateModelRing(); updateGizmo&&updateGizmo(); renderPropList&&renderPropList(); renderFrame();
+    e.preventDefault(); return; }
   // ----- Selected-prop shortcuts (standard Windows keys). Node editor owns Ctrl-combos while it's open. -----
   const nodeOpen=$('#nodeEditor') && $('#nodeEditor').classList.contains('show');
   const selPs=selProps();                 // every currently-selected prop (multi-select aware)
@@ -3293,6 +3298,23 @@ function syncEnsembleRoots(show){
   ensembleRoots=show;
 }
 let lastEnsembleT=0;                              // remember the current playhead so Show-all refreshes don't snap to frame 0
+// How far THIS character has travelled by time t: sum each played clip's forward advance (in travel mode),
+// then rotate the total by the character's own heading (ch.spin) — so a bird headed one way and a person
+// headed another each move off in THEIR own direction instead of marching in place.
+function ensembleTravelAt(sc, t){
+  const modeSel=($('#motionMode')&&$('#motionMode').value)||'travel';
+  if(modeSel!=='travel' || !sc.clips.length || sc.sum<=0) return {x:0,z:0};
+  const advSpeed=parseFloat(($('#advanceSpeed')||{}).value ?? 1);
+  const scaleX=(sc.clips[0].root && sc.clips[0].root.scale.x) || 1;   // advance is pre-scale, like the single-char path
+  let fwd=0, rem=t, i=0, guard=0;
+  while(rem>1e-6 && guard++<200000){
+    const c=sc.clips[i%sc.clips.length], d=sc.durs[i%sc.durs.length];
+    const use=Math.min(rem,d);
+    if(c.advance) fwd += c.advance*advSpeed*(d>0?use/d:0);   // forward distance accrued so far in this clip
+    rem-=use; i++;
+  }
+  return rotY({x:0, z:fwd*scaleX}, (sc.ch.spin||0));
+}
 function poseEnsembleAt(t){
   lastEnsembleT=t;
   const show=new Set();
@@ -3300,7 +3322,8 @@ function poseEnsembleAt(t){
     const {clip,lt}=pickEnsembleClip(sc,t);
     if(clip.action){ clip.action.reset(); clip.action.play(); clip.mixer.setTime(Math.min(clip.duration||lt, lt*clipSpeed(clip))); }
     groundClip(clip.root, clip);
-    if(clip.hips) placeCharacter(clip, sc.ch.stagePos);
+    const sp=sc.ch.stagePos||{x:0,z:0}, tv=ensembleTravelAt(sc,t);   // each character walks/flies off in its own heading
+    if(clip.hips) placeCharacter(clip, {x:sp.x+tv.x, y:sp.y||0, z:sp.z+tv.z});
     show.add(clip.root);
   }
   if(activeRoot && !show.has(activeRoot) && activeRoot.parent) scene.remove(activeRoot);
@@ -3713,7 +3736,7 @@ function renderList(){
         <span class="mv" data-dup title="Duplicate into flow">⧉</span>
         <span class="mv" data-up>▲</span><span class="mv" data-dn>▼</span>
         <span class="x">✕</span></div>`;
-    li.querySelector('.hd').onclick=()=>{ selIndex=i; showClip(i); renderList(); };
+    li.querySelector('.hd').onclick=()=>{ selUIHidden=false; selIndex=i; showClip(i); renderList(); };
     const ctl=(sel,fn)=>{ li.querySelector(sel).onclick=e=>{ e.stopPropagation(); fn(); }; };
     ctl('[data-up]',()=>move(i,-1));
     ctl('[data-dn]',()=>move(i,1));
@@ -3822,7 +3845,7 @@ function renderTimeline(){
       b.innerHTML=`<span class="tl-acts"><span data-dup title="Duplicate">⧉</span><span class="del" data-del title="Delete">✕</span></span>
         <span class="tl-nm" title="${c.name}"><span class="tl-idx">${ci+1}</span>${c.name}</span>
         <span class="tl-dur">${dur}${clipSpeed(c)!==1?' · '+fmtSpeed(clipSpeed(c)):''}${c.cam.custom?' · 🎥':''}</span>`;
-      b.onclick=e=>{ if(e.target.closest('.tl-acts')) return; selIndex=gi; activeCharId=c.charId;
+      b.onclick=e=>{ if(e.target.closest('.tl-acts')) return; selUIHidden=false; selIndex=gi; activeCharId=c.charId;
         renderList(); renderCharacters(); renderTimeline(); if($('#nodeEditor').classList.contains('show')) renderNodes();
         seekPreviewToClip(c); };   // jump the playhead to this clip's start (continues playing if it was playing)
       b.querySelector('[data-dup]').onclick=e=>{ e.stopPropagation(); duplicateClip(gi); };
@@ -4228,8 +4251,11 @@ $('#advanceSpeed').addEventListener('input', ()=>{ $('#advSpeedVal').textContent
     $('#shadowStrVal').textContent=parseFloat($('#shadowStr').value).toFixed(2);
     syncLights(); syncShadow();
     const c=clips[selIndex];
-    if(activeRoot && !(c&&c.cam.custom)) frameObject(activeRoot,c);
-    if(activeRoot && c && c.hips) placeCharacter(c, startOffset);   // keep the character where it was dragged (frameObject re-centres to origin)
+    if(isEnsemble()){ frameEnsemble(); }                            // ensemble: rebuild the camera from the sliders (yaw/height/zoom/vpos)
+    else {
+      if(activeRoot && !(c&&c.cam.custom)) frameObject(activeRoot,c);
+      if(activeRoot && c && c.hips) placeCharacter(c, startOffset);   // keep the character where it was dragged (frameObject re-centres to origin)
+    }
     positionReliefWall();
     renderFrame();
   });
@@ -4331,8 +4357,12 @@ async function produceFrames(fps,loops,hold,spin,trans, emit, abort){
     // mantle onto a ledge → chain to climb higher). A sit, a fall, a crouch or a jump lowers/rises WITHIN
     // its own clip (played by the mixer) and recovers by the end — carrying that as a permanent offset would
     // drop every following clip underground (a sit-on-chair left the next motion 42 cm below the floor).
-    const vClimb=CLIMB_RE.test(c.name||'');
-    const netY=vClimb ? (netRaw.y||0) : 0;        // net vertical travel — carried between clips/loops for climbs only
+    // Carry vertical for wall/ladder climbs AND for bird flight ascents/dives — those genuinely change altitude
+    // and should stack when chained (take off + climb keeps rising; a dive keeps dropping). Kept name-based
+    // (not net-Y-based) on purpose: a sit / crouch also ends lower, and carrying THAT would drop the next clip
+    // underground. Glide is deliberately excluded — it keeps the altitude a prior climb gave it and moves forward.
+    const vClimb=CLIMB_RE.test(c.name||'') || /\b(take[\s-]?off|climbing|ascend|ascent|dive|stoop)\b/i.test(c.name||'');
+    const netY=vClimb ? (netRaw.y||0) : 0;        // net vertical travel carried between clips/loops
     const sx=c.root.scale.x, sz=c.root.scale.z, sy=c.root.scale.y;
     let clipFrame=0;
     const render1 = async (D)=>{
