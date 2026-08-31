@@ -3605,11 +3605,15 @@ function finalizeAdvance(c){
   const advF = isQuadRig(c) ? 2.8 : 1.4;
   c.advance = (c.scroll && (c._realNetXZ||0) < 0.2 && ((c._strideDist||0) > 0.15 || (c._strideN||0) > 0.15))
     ? c._strideDist * advF * (BACK_RE.test(c.name||'') ? -1 : 1) * fwd : 0;
-  // Rolling-scenery scroll DIRECTION (for the flat backdrop): forward = +1, backward-named = −1, and a
-  // sideways shuffle/strafe scrolls OPPOSITE for left vs right — so 3 lefts then 3 rights net out instead
-  // of the world sliding the same way the whole time.
-  { const nm=c.name||''; let s = BACK_RE.test(nm) ? -1 : 1;
-    if(/shuffle|strafe|side.?step/i.test(nm)) s = /\bleft\b/i.test(nm) ? -1 : /\bright\b/i.test(nm) ? 1 : s;
+  // Rolling-scenery scroll DIRECTION (for the flat backdrop): forward = +1, backward-named = −1 (treadmill
+  // convention, heading-agnostic). A sideways shuffle/strafe instead gets a real LOCAL move vector so its
+  // scroll can be projected through the character's heading + the camera — turn the model and the scroll
+  // follows. (At the default facing this projects to ±1, matching the treadmill, so nothing changes until
+  // you actually rotate.)
+  { const nm=c.name||''; let s = BACK_RE.test(nm) ? -1 : 1; c.moveDir=null;
+    if(/shuffle|strafe|side.?step/i.test(nm)){
+      if(/\bleft\b/i.test(nm)){ s=-1; c.moveDir={x:-1,z:0}; }
+      else if(/\bright\b/i.test(nm)){ s=1; c.moveDir={x:1,z:0}; } }
     c.scrollSign = s; }
   // in-place fall (flutters but doesn't descend) → make it fall downward; skip if it already has real descent
   c.fall = (FALL_RE.test(c.name||'') && (c._realNetY||0) < 0.3) ? 1 : 0;
@@ -4340,7 +4344,14 @@ async function produceFrames(fps,loops,hold,spin,trans, emit, abort){
       if(spin||follow||driftMode!=='off'){ let sY=0; if(spin){ spinYaw+=dt*0.4; sY=spinYaw; }
         applyRenderDrift(driftMode, frame/driftTotal, sY); }
       if(reliefWall.visible) positionReliefWall();
-      if(c.scroll!==false) scrollDist += manualScroll*dt*(c.scrollSign||1);   // background moves only while THIS clip has scroll on; sign = its travel direction (fwd/back/left/right)
+      if(c.scroll!==false){                                 // background moves only while THIS clip has scroll on
+        if(c.moveDir){                                       // sideways strafe → scroll follows the model's facing + the camera
+          const w=rotY(c.moveDir, heading+carry.rot);        // local move dir → world dir (incl. manual spin + carried turns)
+          const _cwd=new THREE.Vector3(); camera.getWorldDirection(_cwd); _cwd.y=0;
+          let rx=1,rz=0; if(_cwd.lengthSq()>1e-6){ _cwd.normalize(); rx=-_cwd.z; rz=_cwd.x; }   // camera RIGHT axis
+          scrollDist += manualScroll*dt*(w.x*rx + w.z*rz);   // = motion projected across the view
+        } else scrollDist += manualScroll*dt*(c.scrollSign||1);   // fwd/back treadmill (heading-agnostic)
+      }
       updateScenery(scrollDist, follow?D.x:0, follow?D.z:0);
       renderFrame();
       if(doTrans && clipFrame<transFrames) renderOverlay(1-(clipFrame+1)/transFrames);
