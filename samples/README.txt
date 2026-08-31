@@ -1,8 +1,9 @@
 Sample characters — GLB Studio
 ==============================
 
-Three ready-to-use rigged characters so you can try the tools right away:
+Four ready-to-use rigged characters so you can try the tools right away:
 
+  • Human (biped).glb      — a two-legged (biped) rig
   • Dog (quadruped).glb    — a four-legged (quadruped) rig
   • Bird - perched.glb     — a bird rig, wings folded
   • Bird - in flight.glb   — a bird rig, wings spread
