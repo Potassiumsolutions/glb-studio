@@ -303,6 +303,12 @@
       <div class="hint">Ordered by the number in each name (clip_01, clip_02 …). Click a clip to view it · ▲▼ reorders · 🎥 gives that clip its own camera. The viewer shows one clip at a time — press <b>Preview playback</b> or Render to see them stitched together.</div>
     </div>
 
+    <div class="card" id="sampleCard" style="display:none">
+      <h2>⬇ Sample characters</h2>
+      <div class="hint" style="margin:0 0 8px">No rigged character yet? Load one of these ready-made rigs straight from the app, then pick motions in the panel below. (Or rig your own textured model in <b>🧍 Rig</b>.)</div>
+      <div id="sampleModels"></div>
+    </div>
+
     <div class="card" id="studioCard" style="display:none">
       <h2>◆ Studio Library</h2>
       <div class="hint" style="margin:0 0 8px">Rigged characters from <b>🧍 Rig</b> and motions from <b>🐾 Animate</b> land here automatically. Load a character as a base clip; its skeleton's motions appear in the retarget panel below.</div>
@@ -5082,6 +5088,41 @@ async function renderStudioLibrary(){
     host.appendChild(row);
   }
 }
+// ---------- Bundled sample characters — load a ready-made rig straight from its URL ----------
+// The public build ships these under ../samples/ ; we probe for them and only show the card when
+// they're actually reachable, so a standalone/dev copy without the folder just hides it.
+const SAMPLE_DIR='../samples/';
+const SAMPLE_CHARS=[
+  {name:'Human',            file:'Human (biped).glb',    skeleton:'biped',      icon:'🧍'},
+  {name:'Dog',              file:'Dog (quadruped).glb',  skeleton:'quadruped',  icon:'🐾'},
+  {name:'Bird — perched',   file:'Bird - perched.glb',   skeleton:'bird',       icon:'🐦'},
+  {name:'Bird — in flight', file:'Bird - in flight.glb', skeleton:'bird',       icon:'🐦'},
+];
+async function loadSampleModel(s){
+  const url=SAMPLE_DIR+encodeURIComponent(s.file);
+  setStatus('Loading sample: '+s.name+'…');
+  let blob; try{ const r=await fetch(url); if(!r.ok) throw 0; blob=await r.blob(); }
+  catch(e){ setStatus('Could not load sample “'+s.name+'” (not found at '+url+')'); return; }
+  await addGLBs([ new File([blob], s.file, {type:'model/gltf-binary'}) ]);
+}
+async function renderSampleCard(){
+  const card=$('#sampleCard'); if(!card) return;
+  let ok=false; try{ const r=await fetch(SAMPLE_DIR+encodeURIComponent(SAMPLE_CHARS[0].file),{method:'HEAD'}); ok=r.ok; }catch(e){}
+  if(!ok){ card.style.display='none'; return; }
+  const host=$('#sampleModels'); host.innerHTML='';
+  for(const s of SAMPLE_CHARS){
+    const row=document.createElement('div'); row.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:6px';
+    row.innerHTML=`<span style="font-size:16px">${s.icon}</span>`
+      +`<div style="flex:1;min-width:0"><div style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.name}</div>`
+      +`<div class="hint" style="margin:0">${s.skeleton}</div></div>`
+      +`<button class="btn sm" style="width:auto;flex:none;padding:4px 14px;font-size:12px">Load</button>`;
+    row.querySelector('button').onclick=()=>loadSampleModel(s);
+    host.appendChild(row);
+  }
+  card.style.display='block';
+}
+renderSampleCard();
+
 // mlLoadIndex is idempotent (guards on libIndex) so calling it first guarantees the file motions
 // are loaded before we append the studio ones — avoids the race where it would overwrite libIndex.
 async function studioRefresh(){ await mlLoadIndex(); await studioMergeMotions(); renderMotionLib(); renderStudioLibrary(); }
