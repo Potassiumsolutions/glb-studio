@@ -240,5 +240,17 @@
   </div>
 </footer>
 
+<script>
+/* When embedded in an iframe (e.g. on the GoDaddy site), report our height to the parent
+   so the frame can resize to fit — no inner scrollbar, works on any screen width. */
+(function(){
+  if (window.parent === window) return;            // only when framed
+  function h(){ return Math.max(document.body.scrollHeight, document.documentElement.scrollHeight); }
+  function send(){ try{ parent.postMessage({ glbcmpHeight: h() }, '*'); }catch(e){} }
+  window.addEventListener('load', send);
+  window.addEventListener('resize', send);
+  var n = 0, t = setInterval(function(){ send(); if(++n > 12) clearInterval(t); }, 350); // catch late reflow
+})();
+</script>
 </body>
 </html>
