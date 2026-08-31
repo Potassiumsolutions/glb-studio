@@ -68,6 +68,16 @@ auto-retarget whatever you add.
 
 ---
 
+## Sample characters
+
+No rigged character yet? The [`samples/`](samples/) folder has three ready to try — a
+**dog** (quadruped) and two **bird** poses (**perched** / **in flight**). Drag any of them
+onto the character drop area in **🎬 Stitch** and the matching motions retarget onto them.
+Or rig your own textured model in **🧍 Rig** — it works the same way. See
+[`samples/README.txt`](samples/README.txt).
+
+---
+
 ## Tech
 
 - Pure client-side HTML/JS. [three.js](https://threejs.org) + [mp4-muxer](https://github.com/Vanilagy/mp4-muxer) loaded from a CDN; everything else is local.
