@@ -3345,8 +3345,9 @@ async function produceFramesEnsemble(fps, emit, abort){
   for(let f=0; f<total && !abort(); f++){
     const t=f/fps;
     let moving=true;
-    if(mainSc){ const {clip}=pickEnsembleClip(mainSc,t); moving = clip && clip.scroll!==false; }
-    if(moving) scrollDist += manual*dt;            // scroll only while the main character is in a moving clip
+    let sSign=1;
+    if(mainSc){ const {clip}=pickEnsembleClip(mainSc,t); moving = clip && clip.scroll!==false; if(clip) sSign=clip.scrollSign||1; }
+    if(moving) scrollDist += manual*dt*sSign;       // scroll only while the main character is in a moving clip; sign = its direction
     poseEnsembleAt(t); updateScenery(scrollDist, 0, 0);
     if(driftMode!=='off') applyRenderDrift(driftMode, f/Math.max(1,total-1), 0);
     renderFrame(); await emit(f);
@@ -3604,6 +3605,12 @@ function finalizeAdvance(c){
   const advF = isQuadRig(c) ? 2.8 : 1.4;
   c.advance = (c.scroll && (c._realNetXZ||0) < 0.2 && ((c._strideDist||0) > 0.15 || (c._strideN||0) > 0.15))
     ? c._strideDist * advF * (BACK_RE.test(c.name||'') ? -1 : 1) * fwd : 0;
+  // Rolling-scenery scroll DIRECTION (for the flat backdrop): forward = +1, backward-named = −1, and a
+  // sideways shuffle/strafe scrolls OPPOSITE for left vs right — so 3 lefts then 3 rights net out instead
+  // of the world sliding the same way the whole time.
+  { const nm=c.name||''; let s = BACK_RE.test(nm) ? -1 : 1;
+    if(/shuffle|strafe|side.?step/i.test(nm)) s = /\bleft\b/i.test(nm) ? -1 : /\bright\b/i.test(nm) ? 1 : s;
+    c.scrollSign = s; }
   // in-place fall (flutters but doesn't descend) → make it fall downward; skip if it already has real descent
   c.fall = (FALL_RE.test(c.name||'') && (c._realNetY||0) < 0.3) ? 1 : 0;
 }
@@ -4333,7 +4340,7 @@ async function produceFrames(fps,loops,hold,spin,trans, emit, abort){
       if(spin||follow||driftMode!=='off'){ let sY=0; if(spin){ spinYaw+=dt*0.4; sY=spinYaw; }
         applyRenderDrift(driftMode, frame/driftTotal, sY); }
       if(reliefWall.visible) positionReliefWall();
-      if(c.scroll!==false) scrollDist += manualScroll*dt;   // background moves only while THIS clip has scroll on
+      if(c.scroll!==false) scrollDist += manualScroll*dt*(c.scrollSign||1);   // background moves only while THIS clip has scroll on; sign = its travel direction (fwd/back/left/right)
       updateScenery(scrollDist, follow?D.x:0, follow?D.z:0);
       renderFrame();
       if(doTrans && clipFrame<transFrames) renderOverlay(1-(clipFrame+1)/transFrames);
