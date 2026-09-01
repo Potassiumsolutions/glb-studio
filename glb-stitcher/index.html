@@ -330,6 +330,8 @@
       </div>
       <div class="drop" id="propDrop" style="padding:10px">Drop a prop <b>.glb</b><br><span class="hint" style="margin:0">or click to browse</span></div>
       <input type="file" id="propInput" accept=".glb,model/gltf-binary" hidden>
+      <div class="hint" style="margin:8px 0 3px;font-size:10px">or pick a built-in weapon:</div>
+      <div id="propPresets" class="propchips"></div>
       <div id="propControls" style="margin-top:8px"></div>
     </div>
 
@@ -3319,6 +3321,15 @@ function renderPropCard(){
 }
 if($('#propChar')) $('#propChar').onchange=()=>renderPropCard();
 if($('#propDrop')) wireDrop($('#propDrop'), $('#propInput'), loadPropFiles);
+// Built-in weapon presets: fetch a bundled .glb from ./props/ and equip it on the selected character.
+const BUILTIN_PROPS=[['sword','Sword'],['cutlass','Cutlass'],['bow','Bow'],['staff','Staff'],['shield','Shield'],['rifle','Rifle'],['pistol','Pistol'],['spear','Spear'],['axe','Axe']];
+async function equipBuiltin(name){ const ch=selectedPropChar(); if(!ch){ setStatus('Add a character first, then pick a prop'); return; }
+  try{ const res=await fetch('props/'+name+'.glb'); if(!res.ok) throw 0; const buf=await res.arrayBuffer();
+    await loadPropFiles([new File([buf], name+'.glb', {type:'model/gltf-binary'})]); }
+  catch(e){ setStatus('Built-in prop “'+name+'” not found'); } }
+(function(){ const el=$('#propPresets'); if(!el) return;
+  el.innerHTML=BUILTIN_PROPS.map(([n,l])=>`<button type="button" data-prop="${n}">${l}</button>`).join('');
+  el.querySelectorAll('button').forEach(b=>b.onclick=()=>equipBuiltin(b.dataset.prop)); })();
 
 const isEnsemble=()=>$('#ensemble')&&$('#ensemble').checked;
 function refreshView(){ applyCharProps(); if(!clips.length){ renderFrame(); return; } if(isEnsemble()) showEnsemble(); else showClip(selIndex); }
@@ -4776,6 +4787,9 @@ mlStyle.textContent=`
 .mlbtools{display:none;gap:6px;margin-top:6px;align-items:center}
 .mlbtools button{font-size:10px;padding:2px 9px;border-radius:10px;border:1px solid var(--line,#252c37);background:var(--panel2,#161b23);color:var(--muted,#8a97a8);cursor:pointer}
 .mlbtools button:hover{color:var(--fg,#e7edf5)}
+.propchips{display:flex;flex-wrap:wrap;gap:5px}
+.propchips button{font-size:11px;padding:3px 9px;border-radius:12px;border:1px solid var(--line,#252c37);background:var(--panel2,#161b23);color:var(--muted,#8a97a8);cursor:pointer}
+.propchips button:hover{color:var(--fg,#e7edf5);border-color:var(--accent2,#38d39f)}
 .ml-seqchip{display:flex;align-items:center;gap:6px;background:var(--panel,#12161d);border:1px solid var(--line,#252c37);border-radius:14px;padding:3px 8px 3px 10px;font-size:11px}
 .ml-seqchip .n{color:var(--muted,#8a97a8)}
 .ml-seqchip .x{cursor:pointer;color:var(--muted,#8a97a8)}
