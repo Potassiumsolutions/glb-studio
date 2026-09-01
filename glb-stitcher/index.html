@@ -150,6 +150,11 @@
   .held-pop .hp-title{flex:1;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11.5px}
   .held-pop .hp-x{cursor:pointer;color:var(--muted);font-size:13px;padding:1px 4px;border-radius:5px}
   .held-pop .hp-x:hover{color:var(--text);background:var(--panel2)}
+  /* Sidebar tabs — group the cards into Cast / Motion / Scene / Export */
+  .sidebar-tabs{display:flex;gap:3px;position:sticky;top:0;z-index:6;background:var(--bg,#0e1116);padding:2px 0 8px}
+  .sidebar-tabs button{flex:1;font-size:12px;padding:7px 3px;border:1px solid var(--line);background:var(--panel2);color:var(--muted);cursor:pointer;border-radius:8px}
+  .sidebar-tabs button:hover{color:var(--text)}
+  .sidebar-tabs button.on{background:var(--panel);color:var(--text);font-weight:600;border-color:var(--accent)}
   .node-hint{position:absolute;left:12px;bottom:12px;right:12px;font-size:11px;color:var(--muted);pointer-events:none}
   .node-marquee{position:absolute;border:1px solid var(--accent);background:rgba(91,157,255,.14);border-radius:2px;pointer-events:none;z-index:7}
   .scrubber{display:flex;align-items:center;gap:10px;padding:8px 12px 2px}
@@ -3387,6 +3392,22 @@ if($('#hpX')) $('#hpX').addEventListener('click', hideHeldPropPop);
     let nx=e.clientX-d.ox, ny=e.clientY-d.oy; nx=Math.max(2,Math.min(nx,wr.width-40)); ny=Math.max(2,Math.min(ny,wr.height-24));
     pop.style.left=nx+'px'; pop.style.top=ny+'px'; pop.style.right='auto'; });
   head.addEventListener('pointerup', e=>{ d=null; try{head.releasePointerCapture(e.pointerId);}catch(_){}; }); })();
+// Sidebar tabs: tag each card by its heading and show only the active group's cards (persisted).
+(function(){
+  const sb=document.querySelector('.sidebar'); if(!sb) return;
+  const cards=[...sb.querySelectorAll(':scope > .card')]; if(!cards.length) return;
+  const MAP=[['Motion library','motion'],['Scenery','scene'],['Scene &','scene'],['Props (scenery','scene'],['Audio','export'],['Titles','export'],['Output','export']];
+  cards.forEach(card=>{ const h=card.querySelector('h2'), t=h?h.textContent:''; let tab='cast'; for(const [k,v] of MAP){ if(t.indexOf(k)>=0){ tab=v; break; } } card.dataset.tab=tab; });
+  const TABS=[['cast','Cast'],['motion','Motion'],['scene','Scene'],['export','Export']];
+  const bar=document.createElement('div'); bar.className='sidebar-tabs';
+  bar.innerHTML=TABS.map(([id,l])=>`<button type="button" data-t="${id}">${l}</button>`).join('');
+  sb.insertBefore(bar, sb.firstChild);
+  function setTab(t){ cards.forEach(c=>{ c.style.display=(c.dataset.tab===t)?'':'none'; });
+    bar.querySelectorAll('button').forEach(b=>b.classList.toggle('on', b.dataset.t===t)); try{ localStorage.setItem('sbTab',t); }catch(_){} }
+  bar.querySelectorAll('button').forEach(b=>b.onclick=()=>setTab(b.dataset.t));
+  let init='cast'; try{ init=localStorage.getItem('sbTab')||'cast'; }catch(_){} if(!TABS.some(x=>x[0]===init)) init='cast';
+  setTab(init);
+})();
 if($('#propChar')) $('#propChar').onchange=()=>renderPropCard();
 if($('#propDrop')) wireDrop($('#propDrop'), $('#propInput'), loadPropFiles);
 // Built-in weapon presets: fetch a bundled .glb from ./props/ and equip it on the selected character.
