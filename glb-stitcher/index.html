@@ -3263,7 +3263,22 @@ function renderCharacters(){
 const _propHand=/hand|wrist|palm/i;
 function charClipRoots(ch){ return clips.filter(c=>c.charId===ch.id && c.root).map(c=>c.root); }
 function charBoneNames(ch){ const r=charClipRoots(ch)[0], out=[]; if(r) r.traverse(o=>{ if(o.isBone) out.push(o.name); }); return out; }
-function propDefaultScale(src){ const s=new THREE.Box3().setFromObject(src).getSize(new THREE.Vector3()); const m=Math.max(s.x,s.y,s.z)||1; return +(0.6/m).toFixed(4); }
+// Fit the prop to its TRUE modelled size relative to the character. The prop is a child of the hand bone,
+// whose WORLD scale varies wildly per rig (some skeletons are normalised way up), so a fixed local scale
+// gave a character-sized sword on one rig and a tiny one on another. Instead: measure the character's world
+// height H and the hand bone's world scale S, and set the local scale so a prop modelled at real-world metres
+// keeps that size scaled to a human-height (~1.75 m) character — sword→~1 m, pistol→~0.25 m, on any rig.
+// The prop's own dimensions cancel out, so this works for user props too (as long as they're modelled to scale).
+function fitPropScale(ch){
+  const pr=ch.prop; if(!pr) return;
+  const c=clips.find(x=>x.charId===ch.id && x.root);
+  if(!c){ pr.scale=1; return; }                               // no clip root yet → neutral; re-fit on next equip
+  const root=c.root; root.updateMatrixWorld(true);
+  const H=(renderBox(root).getSize(new THREE.Vector3()).y)||1; // character world height (prop not attached yet)
+  const bone=root.getObjectByName(pr.bone); let S=1;
+  if(bone){ const s=new THREE.Vector3(); bone.matrixWorld.decompose(new THREE.Vector3(), new THREE.Quaternion(), s); S=(Math.abs(s.x)+Math.abs(s.y)+Math.abs(s.z))/3||1; }
+  pr.scale=Math.max(0.0005, +(H/(1.75*S)).toFixed(5));         // H and S both scale with the rig → ratio is stable
+}
 function applyCharProps(){
   for(const ch of characters){
     const pr=ch.prop;
@@ -3291,7 +3306,8 @@ async function loadPropFiles(files){
     const url=URL.createObjectURL(f); const gltf=await loader.loadAsync(url); URL.revokeObjectURL(url);
     const bones=charBoneNames(ch);
     const bone=bones.find(n=>/righthand/i.test(n)) || bones.find(n=>_propHand.test(n)) || bones[0] || 'RightHand';
-    ch.prop={ name:f.name, src:gltf.scene, bone, pos:[0,0,0], rot:[0,0,0], scale:propDefaultScale(gltf.scene) };
+    ch.prop={ name:f.name, src:gltf.scene, bone, pos:[0,0,0], rot:[0,0,0], scale:1 };
+    fitPropScale(ch);                                          // size it to the character before attaching
     applyCharProps(); renderPropCard(); refreshView(); setStatus('Equipped '+f.name+' to '+ch.name);
   }catch(e){ console.error(e); setStatus('Failed to load prop: '+f.name); }
 }
