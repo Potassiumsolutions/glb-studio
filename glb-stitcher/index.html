@@ -150,6 +150,7 @@
   .held-pop .hp-title{flex:1;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11.5px}
   .held-pop .hp-x{cursor:pointer;color:var(--muted);font-size:13px;padding:1px 4px;border-radius:5px}
   .held-pop .hp-x:hover{color:var(--text);background:var(--panel2)}
+  .held-pop .btn.on{background:var(--accent);color:#00142e;border-color:var(--accent);font-weight:600}
   /* Sidebar tabs — group the cards into Cast / Motion / Scene / Export */
   .sidebar-tabs{display:flex;gap:3px;position:sticky;top:0;z-index:6;background:var(--bg,#0e1116);padding:2px 0 8px}
   .sidebar-tabs button{flex:1;font-size:12px;padding:7px 3px;border:1px solid var(--line);background:var(--panel2);color:var(--muted);cursor:pointer;border-radius:8px}
@@ -340,8 +341,8 @@
         <span class="hint" style="margin:0">Equip</span>
         <select id="propChar" style="flex:1;background:var(--panel2,#161b23);border:1px solid var(--line,#252c37);color:inherit;border-radius:6px;padding:5px 6px;font-size:12px"></select>
       </div>
-      <div class="drop" id="propDrop" style="padding:10px">Drop a prop <b>.glb</b><br><span class="hint" style="margin:0">or click to browse</span></div>
-      <input type="file" id="propInput" accept=".glb,model/gltf-binary" hidden>
+      <div class="drop" id="heldPropDrop" style="padding:10px">Drop a prop <b>.glb</b><br><span class="hint" style="margin:0">or click to browse</span></div>
+      <input type="file" id="heldPropInput" accept=".glb,model/gltf-binary" hidden>
       <div class="hint" style="margin:8px 0 3px;font-size:10px">or pick a built-in weapon:</div>
       <div id="propPresets" class="propchips"></div>
       <div id="propControls" style="margin-top:8px"></div>
@@ -2988,6 +2989,7 @@ window.addEventListener('blur', ()=>{ camKey=false; setCursor(); });
 canvasEl.addEventListener('contextmenu', e=>e.preventDefault());   // free up the right button for spin/pan
 canvasEl.addEventListener('pointerdown', e=>{
   if(rendering) return;
+  _lastPtr={x:e.clientX, y:e.clientY};                    // remember where the click was (for popups)
   const ax = clips.length ? gizmoPick(e) : null;         // Move / Rotate tool: grab a handle first
   if(ax){
     const ok = gizmoMode==='rotate' ? startRingDrag(ax, e) : startAxisDrag(ax, e);
@@ -3054,6 +3056,7 @@ window.addEventListener('pointermove', e=>{
 window.addEventListener('pointerup', e=>{
   if(!drag.active) return; drag.active=false; gizmoDrag=null;
   if(drag.mode==='prop-move' && drag.preMove){ if(drag.moved){ undoStack.push(drag.preMove); if(undoStack.length>40) undoStack.shift(); redoStack.length=0; } drag.preMove=null; }
+  if(drag.mode==='prop-move' && !drag.moved && drag.prop){ openObjPop('sceneprop', drag.prop, e.clientX, e.clientY); }   // click (no drag) a scene prop → editor popup
   if(drag.mode==='prop-spin' && drag.preMove){ if(drag.moved){ undoStack.push(drag.preMove); if(undoStack.length>40) undoStack.shift(); redoStack.length=0; } drag.preMove=null; renderPropList(); }
   if((drag.mode==='move'||drag.mode==='select') && !drag.moved){
     if(isEnsemble()){
@@ -3096,13 +3099,8 @@ function syncCharPop(){
   $('#cpRotate')?.classList.toggle('on', gizmoOn && gizmoMode==='rotate');
   $('#cpPin')?.classList.toggle('on', charPopPinned);
 }
-function showCharPopup(ch){
-  if(!ch) return; charPopChar=ch;
-  $('#cpDot').style.background=ch.color||'#5b9dff';
-  $('#cpName').textContent=ch.name||'Character';
-  const sc=ch.relativeScale||1; $('#cpSize').value=sc; $('#cpSizeVal').textContent=sc.toFixed(2)+'×';
-  $('#cpMain').classList.toggle('on', mainCharId===ch.id);
-  syncCharPop(); $('#charPop').classList.add('show');
+function showCharPopup(ch){   // now routes through the unified movable popup (openObjPop)
+  if(!ch) return; charPopChar=ch; openObjPop('char', ch, _lastPtr.x, _lastPtr.y);
 }
 function hideCharPopup(){ $('#charPop').classList.remove('show'); }
 $('#cpMove').addEventListener('click', ()=>setGizmoMode('move'));
@@ -3373,18 +3371,58 @@ function pickHeldProp(e){
   for(const ch of characters){ const c=clips.find(x=>x.charId===ch.id && x.root && x.root.userData.__prop===o); if(c) return ch; }
   return null;
 }
-function openHeldPropPop(ch, x, y){
-  if(!ch||!ch.prop) return;
-  const sel=$('#propChar'); if(sel && characters.some(c=>c.id===ch.id)){ sel.value=ch.id; renderPropCard(); }   // keep side card in sync
-  $('#hpTitle').textContent='⚔ '+ch.prop.name;
-  buildPropControls($('#hpBody'), ch);
-  const pop=$('#heldPropPop'); pop.classList.add('show');
-  const wr=wrap.getBoundingClientRect();
-  let px=(x-wr.left)+14, py=(y-wr.top)+8;
-  px=Math.max(6, Math.min(px, wr.width-224)); py=Math.max(6, Math.min(py, wr.height-60));
-  pop.style.left=px+'px'; pop.style.top=py+'px'; pop.style.right='auto';
+// ===== Unified object editor popup: ONE movable popup for any clicked object (character / weapon / scene prop) =====
+let _lastPtr={x:200,y:200};
+function popAt(x,y){ const pop=$('#heldPropPop'); pop.classList.add('show'); const wr=wrap.getBoundingClientRect();
+  let px=(x-wr.left)+14, py=(y-wr.top)+8; px=Math.max(6,Math.min(px,wr.width-226)); py=Math.max(6,Math.min(py,wr.height-70));
+  pop.style.left=px+'px'; pop.style.top=py+'px'; pop.style.right='auto'; }
+function openObjPop(kind, ref, x, y){
+  const body=$('#hpBody'), title=$('#hpTitle'); if(!body) return;
+  if(kind==='weapon'){ const ch=ref; if(!ch||!ch.prop) return; const sel=$('#propChar'); if(sel && characters.some(c=>c.id===ch.id)){ sel.value=ch.id; renderPropCard(); }
+    title.textContent='⚔ '+ch.prop.name; buildPropControls(body, ch); }
+  else if(kind==='char'){ const ch=ref; if(!ch) return; title.innerHTML='<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:'+(ch.color||'#5b9dff')+';margin-right:5px"></span>'+(ch.name||'Character'); buildCharControls(body, ch); }
+  else if(kind==='sceneprop'){ const p=ref; if(!p) return; title.textContent='🌳 '+(p.name||'Prop'); buildScenePropControls(body, p); }
+  else return;
+  popAt(x!=null?x:_lastPtr.x, y!=null?y:_lastPtr.y);
 }
+function openHeldPropPop(ch,x,y){ openObjPop('weapon', ch, x, y); }
 function hideHeldPropPop(){ const p=$('#heldPropPop'); if(p) p.classList.remove('show'); }
+const hideObjPop=hideHeldPropPop;
+// Character tools in the popup — delegate to the existing gizmo / size / main handlers.
+function buildCharControls(box, ch){
+  if(!box||!ch) return; const sc=(ch.relativeScale||1);
+  box.innerHTML=
+     `<div class="row" style="gap:6px;margin-bottom:6px"><button type="button" class="btn ghost" data-k="move" style="flex:1;padding:6px;font-size:12px">✥ Move</button><button type="button" class="btn ghost" data-k="rot" style="flex:1;padding:6px;font-size:12px">⟳ Rotate</button></div>`
+    +`<div class="row" style="gap:6px;margin-bottom:6px"><button type="button" class="btn ghost" data-k="upright" style="flex:1;padding:6px;font-size:12px">⟲ Upright</button><button type="button" class="btn ghost" data-k="main" style="flex:1;padding:6px;font-size:12px">★ Main</button></div>`
+    +`<label class="hint" style="display:block;margin:2px 0;font-size:11px">Size <span class="v" data-k="szv">${sc.toFixed(2)}×</span></label>`
+    +`<input type="range" data-k="sz" min="0.3" max="3" step="0.05" value="${sc}" style="width:100%">`;
+  const q=s=>box.querySelector(s);
+  const sync=()=>{ q('[data-k="move"]').classList.toggle('on', gizmoOn&&gizmoMode==='move'); q('[data-k="rot"]').classList.toggle('on', gizmoOn&&gizmoMode==='rotate'); q('[data-k="main"]').classList.toggle('on', mainCharId===ch.id); };
+  q('[data-k="move"]').onclick=()=>{ setGizmoMode('move'); sync(); };
+  q('[data-k="rot"]').onclick=()=>{ setGizmoMode('rotate'); sync(); };
+  q('[data-k="upright"]').onclick=()=>resetRotation();
+  q('[data-k="main"]').onclick=()=>{ mainCharId=ch.id; renderCharacters(); refreshView(); sync(); };
+  const sz=q('[data-k="sz"]'); sz.oninput=()=>{ ch.relativeScale=parseFloat(sz.value); q('[data-k="szv"]').textContent=ch.relativeScale.toFixed(2)+'×'; recomputeAllNorm(); computeSharedFrame(); refreshView(); renderCharacters(); };
+  sync();
+}
+// Scene-prop tools in the popup.
+function buildScenePropControls(box, p){
+  if(!box||!p) return;
+  const sld=(lab,k,min,max,step,val,fmt)=>`<label class="hint" style="display:flex;align-items:center;gap:6px;margin:2px 0;font-size:11px"><span style="width:42px">${lab}</span><input type="range" data-k="${k}" min="${min}" max="${max}" step="${step}" value="${val}" style="flex:1"><span class="v" style="width:44px;text-align:right">${fmt?fmt(val):(+val).toFixed(2)}</span></label>`;
+  box.innerHTML=
+     `<div class="row" style="gap:6px;align-items:center;margin-bottom:6px"><span style="flex:1;font-size:12px">🌳 ${p.name}</span><button class="btn ghost" data-k="del" style="width:auto;padding:3px 10px;font-size:11px">Remove</button></div>`
+    +sld('scale','sc',0.1,6,0.05,p.scale)
+    +sld('rot Y','ry',-180,180,1,Math.round((p.rotY||0)*180/Math.PI),v=>Math.round(v)+'°')
+    +sld('lift','lf',0,3,0.02,p.lift||0)
+    +`<label class="hint" style="display:flex;align-items:center;gap:6px;margin:5px 0;font-size:11px"><input type="checkbox" data-k="walk" ${p.walkable?'checked':''}> characters can stand on this</label>`
+    +`<button type="button" class="btn ghost" data-k="puton" style="width:100%;padding:6px;font-size:11px">Put character on top</button>`;
+  const q=s=>box.querySelector(s);
+  const bind=(k,setter,fmt)=>{ const el=q(`[data-k="${k}"]`); el.oninput=()=>{ const v=parseFloat(el.value); setter(v); const vv=el.parentElement.querySelector('.v'); if(vv) vv.textContent=fmt?fmt(v):(+v).toFixed(2); updatePropTransform(p); renderFrame(); }; };
+  bind('sc',v=>p.scale=v); bind('ry',v=>p.rotY=v*Math.PI/180,v=>Math.round(v)+'°'); bind('lf',v=>p.lift=v);
+  q('[data-k="walk"]').onchange=e=>{ p.walkable=e.target.checked; };
+  q('[data-k="puton"]').onclick=()=>putCharacterOn(p);
+  q('[data-k="del"]').onclick=()=>{ deleteProp(p.id); hideObjPop(); };
+}
 if($('#hpX')) $('#hpX').addEventListener('click', hideHeldPropPop);
 (function(){ const head=$('#hpHead'), pop=$('#heldPropPop'); if(!head||!pop) return; let d=null;
   head.addEventListener('pointerdown', e=>{ if(e.target.id==='hpX') return; d={ox:e.clientX-pop.offsetLeft, oy:e.clientY-pop.offsetTop}; try{head.setPointerCapture(e.pointerId);}catch(_){}; e.preventDefault(); });
@@ -3409,7 +3447,7 @@ if($('#hpX')) $('#hpX').addEventListener('click', hideHeldPropPop);
   setTab(init);
 })();
 if($('#propChar')) $('#propChar').onchange=()=>renderPropCard();
-if($('#propDrop')) wireDrop($('#propDrop'), $('#propInput'), loadPropFiles);
+if($('#heldPropDrop')) wireDrop($('#heldPropDrop'), $('#heldPropInput'), loadPropFiles);
 // Built-in weapon presets: fetch a bundled .glb from ./props/ and equip it on the selected character.
 const BUILTIN_PROPS=[['sword','Sword'],['cutlass','Cutlass'],['bow','Bow'],['staff','Staff'],['shield','Shield'],['rifle','Rifle'],['pistol','Pistol'],['spear','Spear'],['axe','Axe']];
 async function equipBuiltin(name){ const ch=selectedPropChar(); if(!ch){ setStatus('Add a character first, then pick a prop'); return; }
