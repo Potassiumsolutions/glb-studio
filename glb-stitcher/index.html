@@ -321,6 +321,18 @@
       <div class="hint">GLBs are auto-grouped by skeleton — clips of the same character share a color. Set each character's <b>relative size</b> here; reassign a clip to another character from its 🎥 panel.</div>
     </div>
 
+    <div class="card" id="heldPropCard">
+      <h2>Held Prop</h2>
+      <div class="hint" style="margin:0 0 8px">Attach a small .glb (sword, bow, staff) to a hand — it follows the character through every motion. One prop per character; tune the fit below.</div>
+      <div class="row" style="gap:6px;align-items:center;margin-bottom:6px">
+        <span class="hint" style="margin:0">Equip</span>
+        <select id="propChar" style="flex:1;background:var(--panel2,#161b23);border:1px solid var(--line,#252c37);color:inherit;border-radius:6px;padding:5px 6px;font-size:12px"></select>
+      </div>
+      <div class="drop" id="propDrop" style="padding:10px">Drop a prop <b>.glb</b><br><span class="hint" style="margin:0">or click to browse</span></div>
+      <input type="file" id="propInput" accept=".glb,model/gltf-binary" hidden>
+      <div id="propControls" style="margin-top:8px"></div>
+    </div>
+
     <div class="card">
       <h2>Motion library (retarget)</h2>
       <div class="hint" id="mlRig" style="margin:0 0 8px">Load one rigged character, then click any motion to drop it in as a clip on that character.</div>
@@ -3240,9 +3252,76 @@ function renderCharacters(){
       recomputeAllNorm(); computeSharedFrame(); refreshView(); };
     el.appendChild(row);
   });
+  if(typeof renderPropCard==='function') renderPropCard();
 }
+// ---------- Held props: a small .glb parented to a character's hand bone, so it follows every motion ----------
+// One prop per character (ch.prop = {name, src, bone, pos[3], rot[3]rad, scale}). We clone the prop onto the
+// hand bone of EACH of that character's clip roots; the bones are animated by the mixer, so the prop rides
+// along with no per-frame work. applyCharProps() is idempotent (keyed on the config) — cheap to call often.
+const _propHand=/hand|wrist|palm/i;
+function charClipRoots(ch){ return clips.filter(c=>c.charId===ch.id && c.root).map(c=>c.root); }
+function charBoneNames(ch){ const r=charClipRoots(ch)[0], out=[]; if(r) r.traverse(o=>{ if(o.isBone) out.push(o.name); }); return out; }
+function propDefaultScale(src){ const s=new THREE.Box3().setFromObject(src).getSize(new THREE.Vector3()); const m=Math.max(s.x,s.y,s.z)||1; return +(0.6/m).toFixed(4); }
+function applyCharProps(){
+  for(const ch of characters){
+    const pr=ch.prop;
+    for(const c of clips){
+      if(c.charId!==ch.id || !c.root) continue;
+      const root=c.root, cur=root.userData.__prop;
+      if(!pr){ if(cur){ cur.removeFromParent(); root.userData.__prop=null; root.userData.__propKey=''; } continue; }
+      const key=[pr.name,pr.bone,pr.pos.join(','),pr.rot.join(','),pr.scale].join('|');
+      if(cur && root.userData.__propKey===key) continue;              // already up to date
+      if(cur) cur.removeFromParent();
+      const bone=root.getObjectByName(pr.bone); if(!bone){ root.userData.__prop=null; continue; }
+      const inst=pr.src.clone(true);
+      inst.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.receiveShadow=false; o.frustumCulled=false; } });
+      inst.position.fromArray(pr.pos); inst.rotation.set(pr.rot[0],pr.rot[1],pr.rot[2]); inst.scale.setScalar(pr.scale);
+      bone.add(inst); root.userData.__prop=inst; root.userData.__propKey=key;
+    }
+  }
+}
+function selectedPropChar(){ const s=$('#propChar'), id=s&&s.value; return characters.find(c=>c.id===id) || activeChar() || characters[0] || null; }
+async function loadPropFiles(files){
+  const f=[...files].find(x=>/\.glb$/i.test(x.name)); if(!f){ setStatus('Drop a .glb prop file'); return; }
+  const ch=selectedPropChar(); if(!ch){ setStatus('Add a character first, then equip a prop'); return; }
+  setStatus('Loading prop '+f.name+' …');
+  try{
+    const url=URL.createObjectURL(f); const gltf=await loader.loadAsync(url); URL.revokeObjectURL(url);
+    const bones=charBoneNames(ch);
+    const bone=bones.find(n=>/righthand/i.test(n)) || bones.find(n=>_propHand.test(n)) || bones[0] || 'RightHand';
+    ch.prop={ name:f.name, src:gltf.scene, bone, pos:[0,0,0], rot:[0,0,0], scale:propDefaultScale(gltf.scene) };
+    applyCharProps(); renderPropCard(); refreshView(); setStatus('Equipped '+f.name+' to '+ch.name);
+  }catch(e){ console.error(e); setStatus('Failed to load prop: '+f.name); }
+}
+function renderPropCard(){
+  const sel=$('#propChar'); if(!sel) return;
+  const prev=sel.value, box=$('#propControls');
+  if(!characters.length){ sel.innerHTML='<option>— add a character —</option>'; box.innerHTML=''; return; }
+  sel.innerHTML=characters.map(ch=>`<option value="${ch.id}">${ch.name}${ch.prop?' ⚔':''}</option>`).join('');
+  sel.value = characters.some(c=>c.id===prev)?prev:((activeChar()&&activeChar().id)||characters[0].id);
+  const ch=selectedPropChar();
+  if(!ch || !ch.prop){ box.innerHTML='<div class="hint" style="margin:0">No prop on this character yet — drop a .glb above.</div>'; return; }
+  const pr=ch.prop, bones=charBoneNames(ch), deg=r=>Math.round(r*180/Math.PI);
+  const opts=(bones.length?bones:[pr.bone]).map(n=>`<option ${n===pr.bone?'selected':''}>${n}</option>`).join('');
+  const sld=(lab,id,min,max,step,val)=>`<label class="hint" style="display:flex;align-items:center;gap:6px;margin:2px 0;font-size:11px"><span style="width:34px">${lab}</span><input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${val}" style="flex:1"><span class="v" style="width:44px;text-align:right">${val}</span></label>`;
+  box.innerHTML=
+     `<div class="row" style="gap:6px;align-items:center;margin-bottom:6px"><span style="flex:1;font-size:12px">⚔ ${pr.name}</span><button class="btn ghost" id="propRemove" style="width:auto;padding:3px 10px;font-size:11px">Remove</button></div>`
+    +`<div class="row" style="gap:6px;align-items:center;margin-bottom:4px"><span class="hint" style="margin:0">Hand</span><select id="propBone" style="flex:1;background:var(--panel2,#161b23);border:1px solid var(--line,#252c37);color:inherit;border-radius:6px;padding:4px 6px;font-size:12px">${opts}</select></div>`
+    +sld('pos X','pPX',-0.5,0.5,0.005,pr.pos[0])+sld('pos Y','pPY',-0.5,0.5,0.005,pr.pos[1])+sld('pos Z','pPZ',-0.5,0.5,0.005,pr.pos[2])
+    +sld('rot X','pRX',-180,180,1,deg(pr.rot[0]))+sld('rot Y','pRY',-180,180,1,deg(pr.rot[1]))+sld('rot Z','pRZ',-180,180,1,deg(pr.rot[2]))
+    +sld('scale','pSC',0.01,3,0.01,pr.scale);
+  $('#propBone').onchange=e=>{ pr.bone=e.target.value; applyCharProps(); refreshView(); };
+  const bind=(id,setter)=>{ const el=$('#'+id); el.oninput=()=>{ setter(parseFloat(el.value)); el.parentElement.querySelector('.v').textContent=el.value; applyCharProps(); refreshView(); }; };
+  bind('pPX',v=>pr.pos[0]=v); bind('pPY',v=>pr.pos[1]=v); bind('pPZ',v=>pr.pos[2]=v);
+  bind('pRX',v=>pr.rot[0]=v*Math.PI/180); bind('pRY',v=>pr.rot[1]=v*Math.PI/180); bind('pRZ',v=>pr.rot[2]=v*Math.PI/180);
+  bind('pSC',v=>pr.scale=v);
+  $('#propRemove').onclick=()=>{ ch.prop=null; applyCharProps(); renderPropCard(); refreshView(); };
+}
+if($('#propChar')) $('#propChar').onchange=()=>renderPropCard();
+if($('#propDrop')) wireDrop($('#propDrop'), $('#propInput'), loadPropFiles);
+
 const isEnsemble=()=>$('#ensemble')&&$('#ensemble').checked;
-function refreshView(){ if(!clips.length){ renderFrame(); return; } if(isEnsemble()) showEnsemble(); else showClip(selIndex); }
+function refreshView(){ applyCharProps(); if(!clips.length){ renderFrame(); return; } if(isEnsemble()) showEnsemble(); else showClip(selIndex); }
 
 // ---------- Ensemble (multiple characters on stage at once) ----------
 let ensembleRoots=new Set();
