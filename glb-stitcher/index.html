@@ -3403,6 +3403,33 @@ function buildCharControls(box, ch){
   q('[data-k="upright"]').onclick=()=>resetRotation();
   q('[data-k="main"]').onclick=()=>{ mainCharId=ch.id; renderCharacters(); refreshView(); sync(); };
   const sz=q('[data-k="sz"]'); sz.oninput=()=>{ ch.relativeScale=parseFloat(sz.value); q('[data-k="szv"]').textContent=ch.relativeScale.toFixed(2)+'×'; recomputeAllNorm(); computeSharedFrame(); refreshView(); renderCharacters(); };
+  // ---- Mount / stack: ride this character on another (rider parents to the mount's saddle bone) ----
+  const others=characters.filter(c=>c.id!==ch.id);
+  if(others.length){
+    const m=ch.mountedOn;
+    let html=`<div style="border-top:1px solid var(--line);margin-top:8px;padding-top:7px"><label class="hint" style="display:block;margin:0 0 3px;font-size:11px">🐴 Ride on</label>`
+      +`<select data-k="mount" style="width:100%;background:var(--panel2);border:1px solid var(--line);color:inherit;border-radius:6px;padding:4px 6px;font-size:12px"><option value="">— none (on the ground) —</option>`
+      +others.map(o=>`<option value="${o.id}" ${m&&m.charId===o.id?'selected':''}>${o.name}</option>`).join('')+`</select>`;
+    if(m){
+      if(!isEnsemble()) html+=`<div class="hint" style="margin:5px 0 0;font-size:10px;color:var(--accent)">Turn on “Ensemble” (top bar) to see them together.</div>`;
+      const mountCh=characters.find(c=>c.id===m.charId), bones=mountCh?charBoneNames(mountCh):[];
+      const bopts=(bones.length?bones:[m.bone||'Spine']).map(n=>`<option ${n===m.bone?'selected':''}>${n}</option>`).join('');
+      const sld=(lab,k,min,max,step,val)=>`<label class="hint" style="display:flex;align-items:center;gap:6px;margin:2px 0;font-size:11px"><span style="width:40px">${lab}</span><input type="range" data-k="${k}" min="${min}" max="${max}" step="${step}" value="${val}" style="flex:1"><span class="v" style="width:40px;text-align:right">${(+val).toFixed(2)}</span></label>`;
+      html+=`<label class="hint" style="display:flex;align-items:center;gap:6px;margin:5px 0 2px;font-size:11px"><span style="width:40px">seat</span><select data-k="mbone" style="flex:1;background:var(--panel2);border:1px solid var(--line);color:inherit;border-radius:6px;padding:3px 5px;font-size:11px">${bopts}</select></label>`
+        +sld('up','mUp',-0.5,1.2,0.02,m.pos[1])+sld('fwd','mFwd',-0.8,0.8,0.02,m.pos[2])+sld('side','mSide',-0.5,0.5,0.02,m.pos[0])+sld('turn','mYaw',-180,180,1,Math.round((m.rot[1]||0)*180/Math.PI));
+    }
+    html+=`</div>`;
+    box.insertAdjacentHTML('beforeend', html);
+    q('[data-k="mount"]').onchange=e=>{ const id=e.target.value;
+      if(!id) delete ch.mountedOn; else ch.mountedOn={charId:id, bone:null, pos:[0,0.25,0], rot:[0,0,0]};
+      if(!isEnsemble() && id){ const ec=$('#ensemble'); if(ec && !ec.checked){ ec.checked=true; ec.dispatchEvent(new Event('change')); } }
+      refreshView(); openObjPop('char', ch, _lastPtr.x, _lastPtr.y); };
+    if(m){
+      const mb=q('[data-k="mbone"]'); if(mb) mb.onchange=ev=>{ ch.mountedOn.bone=ev.target.value; refreshView(); };
+      const mbind=(k,setter)=>{ const el=q(`[data-k="${k}"]`); if(!el) return; el.oninput=()=>{ setter(parseFloat(el.value)); const vv=el.parentElement.querySelector('.v'); if(vv) vv.textContent=parseFloat(el.value).toFixed(2); refreshView(); }; };
+      mbind('mUp',v=>ch.mountedOn.pos[1]=v); mbind('mFwd',v=>ch.mountedOn.pos[2]=v); mbind('mSide',v=>ch.mountedOn.pos[0]=v); mbind('mYaw',v=>ch.mountedOn.rot[1]=v*Math.PI/180);
+    }
+  }
   sync();
 }
 // Scene-prop tools in the popup.
@@ -3533,19 +3560,41 @@ function ensembleTravelAt(sc, t){
   }
   return rotY({x:0, z:fwd*scaleX}, (sc.ch.spin||0));
 }
+let _shownRoot={};   // charId → the clip root currently on stage (for mounts)
 function poseEnsembleAt(t){
   lastEnsembleT=t;
-  const show=new Set();
+  const show=new Set(); _shownRoot={};
   for(const sc of ensembleSchedule()){
     const {clip,lt}=pickEnsembleClip(sc,t);
     if(clip.action){ clip.action.reset(); clip.action.play(); clip.mixer.setTime(Math.min(clip.duration||lt, lt*clipSpeed(clip))); }
     groundClip(clip.root, clip);
     const sp=sc.ch.stagePos||{x:0,z:0}, tv=ensembleTravelAt(sc,t);   // each character walks/flies off in its own heading
     if(clip.hips) placeCharacter(clip, {x:sp.x+tv.x, y:sp.y||0, z:sp.z+tv.z});
-    show.add(clip.root);
+    show.add(clip.root); _shownRoot[sc.ch.id]=clip.root;
   }
+  applyMounts();                         // riders ride their mount's saddle bone (runs AFTER placement, overrides it)
   if(activeRoot && !show.has(activeRoot) && activeRoot.parent) scene.remove(activeRoot);
   syncEnsembleRoots(show);
+}
+// A rider's root is snapped onto its mount's saddle bone each frame — the rider keeps playing its own
+// (astride) motion while the mount's animation carries it. Position offset is rotated by the mount's heading
+// so "forward in the saddle" stays forward as the mount turns.
+const _mtP=new THREE.Vector3(), _mtQ=new THREE.Quaternion(), _mtS=new THREE.Vector3(), _mtE=new THREE.Euler();
+function saddleBoneName(mountRoot){ for(const n of ['saddle','Spine1','Spine01','Spine','spine02','spine','Chest','chest','Hips','hips']){ if(mountRoot.getObjectByName(n)) return n; } return null; }
+function applyMounts(){
+  for(const ch of characters){
+    const m=ch.mountedOn; if(!m) continue;
+    const rider=_shownRoot[ch.id], mount=_shownRoot[m.charId]; if(!rider||!mount) continue;
+    mount.updateMatrixWorld(true);
+    const bn=m.bone||saddleBoneName(mount); const bone=bn?mount.getObjectByName(bn):null; if(!bone) continue;
+    bone.matrixWorld.decompose(_mtP,_mtQ,_mtS);
+    _mtE.setFromQuaternion(mount.getWorldQuaternion(_mtQ),'YXZ'); const yaw=_mtE.y + (m.rot?m.rot[1]:0);
+    const off=m.pos||[0,0,0];
+    const cos=Math.cos(yaw), sin=Math.sin(yaw);                       // rotate the seat offset into the mount's heading
+    rider.position.set(_mtP.x + off[0]*cos + off[2]*sin, _mtP.y + off[1], _mtP.z - off[0]*sin + off[2]*cos);
+    rider.rotation.set(0, yaw, 0);
+    rider.updateMatrixWorld(true);
+  }
 }
 function showEnsemble(){
   if(activeRoot && activeRoot.parent){ scene.remove(activeRoot); } activeRoot=null;
@@ -5173,7 +5222,7 @@ const CAT_SUPER={
   'Combat & Reactions':['Boxing','Fencing','Combat','Reactions','Martial Arts','Aim','Aim & Ranged','Ranged','Action','Pirate','Swashbuckling','Stealth','Swordplay','Melee'],
   'Sports':['Football','Track & Field','Sports','Basketball','Athletics','Fitness','Yoga'],
   'Expression':['Dancing','Gestures','Emotes','Social','Music','Cheer','Celebration'],
-  'Everyday':['Household','Work','Feeding','Posture','Perched','Idle','Ground','Sitting','Everyday','Injured','Weary'],
+  'Everyday':['Household','Work','Feeding','Posture','Perched','Idle','Ground','Sitting','Everyday','Injured','Weary','Mounted'],
   'Fantasy & Magic':['Magic','Spellcasting'],
 };
 const SUPER_ORDER=['Locomotion','Combat & Reactions','Sports','Expression','Everyday','Fantasy & Magic','Other'];
