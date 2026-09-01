@@ -340,6 +340,7 @@
         <span class="hint" id="mlCount" style="margin-left:auto"></span>
       </div>
       <div id="mlCatBar" class="mlcats"></div>
+      <div id="mlBrowseTools" class="mlbtools"><span class="hint" style="font-size:10px;margin-right:2px">sections:</span><button type="button" id="mlCollapseAllBtn">collapse all</button><button type="button" id="mlExpandAllBtn">expand all</button></div>
       <div id="mlList" style="max-height:280px;overflow-y:auto;margin-top:8px;border:1px solid var(--line,#252c37);border-radius:8px"></div>
       <label class="mlchk" style="margin-top:8px;font-size:12px"><input type="checkbox" id="mlSeqMode"> Build a sequence — queue motions that flow together, add them all at once</label>
       <div id="mlSeqWrap" style="display:none;margin-top:6px">
@@ -4685,6 +4686,17 @@ mlStyle.textContent=`
 .ml-grp .car{color:var(--accent2,#38d39f);font-size:10px;width:10px;flex:none}
 .ml-grp .gnm{flex:1}
 .ml-grp .gct{color:var(--muted,#8a97a8);font-weight:400}
+.ml-super{display:flex;align-items:center;gap:7px;padding:7px 10px;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--accent2,#38d39f);background:var(--panel,#12161d);border-top:2px solid var(--line,#252c37);cursor:pointer;position:sticky;top:0;z-index:2;user-select:none}
+.ml-super:first-child{border-top:none}
+.ml-super:hover{background:var(--panel2,#161b23)}
+.ml-super .car{font-size:10px;width:10px;flex:none}
+.ml-super .snm{flex:1}
+.ml-super .sct{color:var(--muted,#8a97a8);font-weight:400;font-size:10px;letter-spacing:0;text-transform:none}
+.ml-grp.sub{padding-left:22px;text-transform:none;font-weight:500;letter-spacing:0;position:static}
+.ml-grp.sub .gnm{color:var(--muted,#a9b6c6)}
+.mlbtools{display:none;gap:6px;margin-top:6px;align-items:center}
+.mlbtools button{font-size:10px;padding:2px 9px;border-radius:10px;border:1px solid var(--line,#252c37);background:var(--panel2,#161b23);color:var(--muted,#8a97a8);cursor:pointer}
+.mlbtools button:hover{color:var(--fg,#e7edf5)}
 .ml-seqchip{display:flex;align-items:center;gap:6px;background:var(--panel,#12161d);border:1px solid var(--line,#252c37);border-radius:14px;padding:3px 8px 3px 10px;font-size:11px}
 .ml-seqchip .n{color:var(--muted,#8a97a8)}
 .ml-seqchip .x{cursor:pointer;color:var(--muted,#8a97a8)}
@@ -4934,6 +4946,25 @@ async function addSequenceToTimeline(){
 let mlCat='all';
 let mlCollapsed=(()=>{ try{ return new Set(JSON.parse(localStorage.getItem('mlCollapsed')||'[]')); }catch(e){ return new Set(); } })();
 function mlSaveCollapsed(){ try{ localStorage.setItem('mlCollapsed', JSON.stringify([...mlCollapsed])); }catch(e){} }
+// Super-groups cluster the many categories into a handful of top-level sections in the browse list, so the
+// list stays scannable no matter how many categories exist. A category not listed here falls under "Other".
+const CAT_SUPER={
+  'Locomotion':['Walking','Running','Jumping','Climbing','Locomotion','Flight','Swimming','Parkour','Movement'],
+  'Combat & Reactions':['Boxing','Fencing','Combat','Reactions','Martial Arts','Aim','Aim & Ranged','Ranged','Action','Pirate','Swashbuckling','Stealth'],
+  'Sports':['Football','Track & Field','Sports','Basketball','Athletics','Fitness','Yoga'],
+  'Expression':['Dancing','Gestures','Emotes','Social','Music','Cheer','Celebration'],
+  'Everyday':['Household','Work','Feeding','Posture','Perched','Idle','Ground','Sitting','Everyday','Injured','Weary'],
+  'Fantasy & Magic':['Magic','Spellcasting'],
+};
+const SUPER_ORDER=['Locomotion','Combat & Reactions','Sports','Expression','Everyday','Fantasy & Magic','Other'];
+const _catToSuper={}; for(const s in CAT_SUPER) for(const c of CAT_SUPER[s]) _catToSuper[c.toLowerCase()]=s;
+const catSuper=c=> _catToSuper[(c||'').toLowerCase()] || 'Other';
+let mlSuperCollapsed=(()=>{ try{ return new Set(JSON.parse(localStorage.getItem('mlSuperCollapsed')||'[]')); }catch(e){ return new Set(); } })();
+function mlSaveSuper(){ try{ localStorage.setItem('mlSuperCollapsed', JSON.stringify([...mlSuperCollapsed])); }catch(e){} }
+function mlCollapseAll(){ if(!libIndex) return; const rigSig=(libRig&&libRig.sig)||null; const s=new Set();
+  for(const m of libIndex){ if(!rigSig||m.sig===rigSig) s.add(catSuper(m.cat||'Other')); } mlSuperCollapsed=s; mlSaveSuper(); renderMotionLib(); }
+function mlExpandAll(){ mlSuperCollapsed=new Set(); mlCollapsed=new Set(); mlSaveSuper(); mlSaveCollapsed(); renderMotionLib(); }
+{ const _cb=$('#mlCollapseAllBtn'), _eb=$('#mlExpandAllBtn'); if(_cb) _cb.onclick=mlCollapseAll; if(_eb) _eb.onclick=mlExpandAll; }
 // One motion row (shared by the grouped browse list and the flow-ranked sequence list).
 function mlRow(m, flows){
   const row=document.createElement('div'); row.className='ml-mot'; row.title=(mlSeqOn()?'Queue “':'Add “')+m.name+'”';
@@ -4981,20 +5012,35 @@ function renderMotionLib(){
     if(rows.length>400){ const dv=document.createElement('div'); dv.className='hint'; dv.style.padding='6px 10px'; dv.textContent='+'+(rows.length-400)+' more — refine your search'; el.appendChild(dv); }
     return;
   }
-  // ---- browse mode: grouped by category, collapsible (a search or a picked chip forces groups open) ----
+  // ---- browse mode: categories clustered under collapsible SUPER-GROUPS; each category collapsible too.
+  //      A search or a picked chip narrows to a flat category list (no super layer needed then). ----
   const rows = (mlCat==='all') ? base : base.filter(m=>(m.cat||'Other')===mlCat);
   $('#mlCount').textContent=rows.length+' / '+libIndex.length;
   const order=[], groups={};
   for(const m of rows){ const c=m.cat||'Other'; if(!groups[c]){ groups[c]=[]; order.push(c); } groups[c].push(m); }
-  const forceOpen = !!q || mlCat!=='all';                      // don't hide anything the user is actively narrowing to
+  const tools=$('#mlBrowseTools'); if(tools) tools.style.display=(mlCat==='all' && !q && order.length>1)?'flex':'none';
   el.innerHTML=''; const frag=document.createDocumentFragment();
-  for(const c of order){
-    const items=groups[c], collapsed = !forceOpen && mlCollapsed.has(c);
-    const hd=document.createElement('div'); hd.className='ml-grp';
+  const catHeader=(c, sub)=>{
+    const items=groups[c], collapsed = mlCollapsed.has(c);
+    const hd=document.createElement('div'); hd.className='ml-grp'+(sub?' sub':'');
     hd.innerHTML=`<span class="car">${collapsed?'▸':'▾'}</span><span class="gnm">${c}</span><span class="gct">${items.length}</span>`;
     hd.onclick=()=>{ if(mlCollapsed.has(c)) mlCollapsed.delete(c); else mlCollapsed.add(c); mlSaveCollapsed(); renderMotionLib(); };
     frag.appendChild(hd);
     if(!collapsed) for(const m of items) frag.appendChild(mlRow(m,false));
+  };
+  if(mlCat==='all' && !q){
+    // cluster categories under their super-group (super order, then authoring order within)
+    const bySuper={}; for(const c of order){ const s=catSuper(c); (bySuper[s]=bySuper[s]||[]).push(c); }
+    for(const s of SUPER_ORDER.filter(s=>bySuper[s])){
+      const cats=bySuper[s], tot=cats.reduce((n,c)=>n+groups[c].length,0), sc=mlSuperCollapsed.has(s);
+      const sh=document.createElement('div'); sh.className='ml-super';
+      sh.innerHTML=`<span class="car">${sc?'▸':'▾'}</span><span class="snm">${s}</span><span class="sct">${cats.length} ${cats.length>1?'cats':'cat'} · ${tot}</span>`;
+      sh.onclick=()=>{ if(mlSuperCollapsed.has(s)) mlSuperCollapsed.delete(s); else mlSuperCollapsed.add(s); mlSaveSuper(); renderMotionLib(); };
+      frag.appendChild(sh);
+      if(!sc) for(const c of cats) catHeader(c, true);
+    }
+  } else {
+    for(const c of order) catHeader(c, false);                 // filtered / searching → flat category list
   }
   el.appendChild(frag);
   if(!order.length){ const dv=document.createElement('div'); dv.className='hint'; dv.style.padding='8px 10px'; dv.textContent='No motions match.'; el.appendChild(dv); }
