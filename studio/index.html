@@ -163,7 +163,9 @@
   function show(tool){
     if(!TOOLS[tool]) tool='stitch';
     tabs.forEach(t=>t.classList.toggle('on', t.dataset.tool===tool));
-    frame.src = TOOLS[tool];
+    // Cache-bust the tool document: Pages serves it with max-age=600, and an iframe navigation happily takes the
+    // cached copy, so a freshly deployed tool could sit unseen for ten minutes (longer when retried inside that window).
+    frame.src = TOOLS[tool] + '?b=' + Math.floor(Date.now()/60000);
     location.hash = tool;
   }
   tabs.forEach(t=>t.addEventListener('click', ()=>show(t.dataset.tool)));

@@ -922,7 +922,7 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 
 const $ = s => document.querySelector(s);
-const APP_NAME='GLB Stitcher', APP_VERSION='1.2.1', APP_BUILD='2026-09-03';   // version shown in About + footer
+const APP_NAME='GLB Stitcher', APP_VERSION='1.2.2', APP_BUILD='2026-09-03';   // version shown in About + footer
 // Bump APP_BUILD whenever the app or the bundled motion library changes. It is printed to the console and
 // shown in the footer so "am I running the current version?" can be answered by looking, not by guessing —
 // a stale browser tab kept an old build alive twice while the files on disk were already up to date.
@@ -3436,7 +3436,7 @@ function buildPropControls(box, ch){
     +sld('rot X','rx',-180,180,1,deg(pr.rot[0]))+sld('rot Y','ry',-180,180,1,deg(pr.rot[1]))+sld('rot Z','rz',-180,180,1,deg(pr.rot[2]))
     +sld('scale','sc',0.01,3,0.01,pr.scale)
     +(()=>{ const r=charClipRoots(ch)[0]; if(!r) return ''; const e=new THREE.Euler().setFromQuaternion(handAimQ(r, pr.bone)); const d=[e.x,e.y,e.z].map(v=>Math.round(v*180/Math.PI));
-        return '<div class="hint" style="margin:4px 0 0;font-size:10.5px" title="Measured from this character's bind pose: the rotation that aims the prop's haft down the hand bone's finger axis. The sliders above are offsets on top of it.">Rig hand frame auto-aim: '+d.join('°, ')+'°</div>'; })();
+        return '<div class="hint" style="margin:4px 0 0;font-size:10.5px" title="Measured from the bind pose of this character: the rotation that aims the haft of the prop down the finger axis of the hand bone. The sliders above are offsets on top of it.">Rig hand frame auto-aim: '+d.join('°, ')+'°</div>'; })();
   const q=s=>box.querySelector(s);
   q('[data-k="bone"]').onchange=e=>{ pr.bone=e.target.value; applyCharProps(); refreshView(); };
   const bind=(k,setter)=>{ const el=q(`[data-k="${k}"]`); el.oninput=()=>{ setter(parseFloat(el.value)); el.parentElement.querySelector('.v').textContent=el.value; applyCharProps(); refreshView(); }; };
@@ -5675,6 +5675,13 @@ if(_mb&&_am){
   document.addEventListener('click', ()=>{ _am.hidden=true; });
 }
 // version stamps (About badge + copyright year + sidebar footer)
+(async()=>{ try{
+  if(!/^https?:/.test(location.protocol)) return;
+  const key='stitchVerChecked:'+APP_VERSION; if(sessionStorage.getItem(key)) return; sessionStorage.setItem(key,'1');
+  const r=await fetch(location.pathname, {cache:'no-cache'}); if(!r.ok) return;
+  const m=(await r.text()).match(/APP_VERSION='([0-9.]+)'/); if(!m) return;
+  if(m[1]!==APP_VERSION){ setStatus('A newer GLB Stitcher (v'+m[1]+') is available — reloading…'); setTimeout(()=>location.reload(), 600); }
+}catch(e){} })();
 { const v=$('#aboutVer'); if(v) v.textContent='v'+APP_VERSION+' · '+APP_BUILD;
   const y=$('#aboutYear'); if(y) y.textContent=String(new Date().getFullYear());
   const f=document.querySelector('.foot'); if(f) f.innerHTML=`Runs entirely in your browser · nothing uploaded · <b>${APP_NAME} v${APP_VERSION}</b> · build ${APP_BUILD} · KSOL Designs`; }
