@@ -922,7 +922,7 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 
 const $ = s => document.querySelector(s);
-const APP_NAME='GLB Stitcher', APP_VERSION='1.3.1', APP_BUILD='2026-09-03';   // version shown in About + footer
+const APP_NAME='GLB Stitcher', APP_VERSION='1.3.2', APP_BUILD='2026-09-03';   // version shown in About + footer
 // Bump APP_BUILD whenever the app or the bundled motion library changes. It is printed to the console and
 // shown in the footer so "am I running the current version?" can be answered by looking, not by guessing —
 // a stale browser tab kept an old build alive twice while the files on disk were already up to date.
@@ -3307,6 +3307,9 @@ function fitPropScale(ch){
   const bone=root.getObjectByName(pr.bone); let S=1;
   if(bone){ const s=new THREE.Vector3(); bone.matrixWorld.decompose(new THREE.Vector3(), new THREE.Quaternion(), s); S=(Math.abs(s.x)+Math.abs(s.y)+Math.abs(s.z))/3||1; }
   pr.scale=Math.max(0.0005, +(H/(1.75*S)).toFixed(5));         // H and S both scale with the rig → ratio is stable
+  // The hand bone sits at the WRIST, but a gripped haft runs through the middle of the palm — on a fresh equip start
+  // the prop ~7 cm down the finger axis (hand-local +Y on this rig family), scaled to the character. Slider-tweakable.
+  if(pr._fresh){ pr.pos=[0, +(0.07*(H/1.75)/S).toFixed(4), 0]; pr._fresh=false; }
 }
 // The held-prop instance is TAGGED (userData.__heldProp) so it survives skeletonClone / clone(true): a retargeted
 // library motion clones the character's rig WITH the weapon still parented to the hand bone, and Object3D.copy
@@ -3447,7 +3450,7 @@ async function loadPropFiles(files){
     const bones=charBoneNames(ch);
     const wantLeft=(gripOf({name:f.name}).hand==='left');
     const bone=(wantLeft ? bones.find(n=>/lefthand/i.test(n)) : bones.find(n=>/righthand/i.test(n))) || bones.find(n=>_propHand.test(n)) || bones[0] || (wantLeft?'LeftHand':'RightHand');
-    ch.prop={ name:f.name, src:gltf.scene, bone, pos:[0,0,0], rot:[0,0,0], scale:1 };
+    ch.prop={ name:f.name, src:gltf.scene, bone, pos:[0,0,0], rot:[0,0,0], scale:1, _fresh:true };
     fitPropScale(ch);                                          // size it to the character before attaching
     applyCharProps(); renderPropCard(); refreshView(); setStatus('Equipped '+f.name+' to '+ch.name);
   }catch(e){ console.error(e); setStatus('Failed to load prop: '+f.name); }
@@ -3469,7 +3472,7 @@ function buildPropControls(box, ch){
   const opts=(bones.length?bones:[pr.bone]).map(n=>`<option ${n===pr.bone?'selected':''}>${n}</option>`).join('');
   const sld=(lab,k,min,max,step,val)=>`<label class="hint" style="display:flex;align-items:center;gap:6px;margin:2px 0;font-size:11px"><span style="width:34px">${lab}</span><input type="range" data-k="${k}" min="${min}" max="${max}" step="${step}" value="${val}" style="flex:1"><span class="v" style="width:44px;text-align:right">${val}</span></label>`;
   box.innerHTML=
-     `<div class="row" style="gap:6px;align-items:center;margin-bottom:6px"><span style="flex:1;font-size:12px">⚔ ${pr.name}</span><button class="btn ghost" data-k="remove" title="Remove this weapon (or click it in the view and press Delete)" style="width:auto;padding:3px 10px;font-size:11px">Remove</button></div>`
+     `<div class="row" style="gap:6px;align-items:center;margin-bottom:6px"><span style="flex:1;font-size:12px">⚔ ${pr.name}</span><button class="btn ghost" data-k="flip" title="Flip the prop end for end (head to the other side of the fist)" style="width:auto;padding:3px 8px;font-size:11px">⇅ Flip</button><button class="btn ghost" data-k="remove" title="Remove this weapon (or click it in the view and press Delete)" style="width:auto;padding:3px 10px;font-size:11px">Remove</button></div>`
     +`<div class="row" style="gap:6px;align-items:center;margin-bottom:4px"><span class="hint" style="margin:0">Hand</span><select data-k="bone" style="flex:1;background:var(--panel2,#161b23);border:1px solid var(--line,#252c37);color:inherit;border-radius:6px;padding:4px 6px;font-size:12px">${opts}</select></div>`
     +sld('pos X','px',-0.5,0.5,0.005,pr.pos[0])+sld('pos Y','py',-0.5,0.5,0.005,pr.pos[1])+sld('pos Z','pz',-0.5,0.5,0.005,pr.pos[2])
     +sld('rot X','rx',-180,180,1,deg(pr.rot[0]))+sld('rot Y','ry',-180,180,1,deg(pr.rot[1]))+sld('rot Z','rz',-180,180,1,deg(pr.rot[2]))
@@ -3483,6 +3486,7 @@ function buildPropControls(box, ch){
   bind('rx',v=>pr.rot[0]=v*Math.PI/180); bind('ry',v=>pr.rot[1]=v*Math.PI/180); bind('rz',v=>pr.rot[2]=v*Math.PI/180);
   bind('sc',v=>pr.scale=v);
   q('[data-k="remove"]').onclick=()=>removeWeapon(ch);
+  q('[data-k="flip"]').onclick=()=>{ let r=pr.rot[0]+Math.PI; if(r>Math.PI) r-=2*Math.PI; pr.rot[0]=+r.toFixed(4); applyCharProps(); renderPropCard(); const hb=$('#hpBody'); if(hb && hb.contains(box)) buildPropControls(hb, ch); refreshView(); };
 }
 // Click a HELD weapon prop in the 3D view → a movable editor popup at the cursor.
 function pickHeldProp(e){
