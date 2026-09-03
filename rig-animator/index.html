@@ -1926,6 +1926,17 @@ function handRoll(Ar, roll){
   ha.quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(localAxis, roll));
   ha.updateMatrixWorld(true);
 }
+// Wrist DEVIATION (ulnar/radial): rotate the hand about its own palm-normal (local Z) axis, swinging the fingers
+// and whatever they grip within the plane of the palm. handRoll() is the twist about the forearm; this is the
+// other wrist degree of freedom. It is what puts an axe's haft AHEAD of the forearm at impact (the "snap") and
+// behind it at the top of the windup (the cock) — without it the tool is a rigid extension of the forearm and,
+// with the forearms pointing forward-down at impact, the edge can only ever point up-forward or down-back.
+//   Sign: positive = fingers swing toward the thumb side for the right hand; the left is mirrored (× -Ar.s).
+function handDev(Ar, a){
+  if(!a) return; const ha=boneByName[Ar.hand]; if(!ha) return;
+  ha.quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,0,1), a*(-Ar.s)));
+  ha.updateMatrixWorld(true);
+}
 const lerpDir=(a,b,t)=>a.clone().lerp(b,t);
 // A throw, a swing and a block are defined by where the HAND goes, not by shoulder angles — pose them as
 // shoulder/elbow numbers and you get a push every time. `pathAt` reads a world-space hand path as
@@ -3220,9 +3231,15 @@ const BIPED_MOTIONS=[
     twist((-0.4*wind + 0.6*swing)*A); sw('Hips',AX.y,(-0.2*wind+0.3*swing)*A); legF(B_LLEG,0.25*swing*A); leanF(0.1*swing*A); }},
   {id:'chopdown', name:'Overhead Chop', cat:'Combat', type:'stay', dur:0.9, build:(t,P)=>{ const A=P.amp, u=(t/0.9*P.speed)%1, up=ramp(u,0,0.45), down=ramp(u,0.45,0.7);
     fightStance(A,{dropKnee:0.55*down, rearHeel:-0.22*down, lean:-0.12*up+0.42*down, turn:0.12});
-    const raise=V(0.0,1.78,-0.05), impact=V(0.0,0.85,0.5);   // both hands on the sword: raise overhead → chop down to the front
+    const raise=V(0.0,1.78,-0.05), impact=V(0.0,1.02,0.52);   // both hands on the weapon: raise overhead → chop down to the front (hands finish at hip height so a vertical haft lands the head at an opponent's hip, not the shins)
     const h=lerpDir(lerpDir(V(0,1.1,0.3),raise,up),impact,down);
-    shaft(h, h.clone().addScaledVector(V(0,1.32,0.05).sub(h).normalize(),0.10), V(0,0.2,1)); }},   // right hand up the haft, left a hand-width down it toward the body (one shared point crossed the wrists)
+    // The elbow pole SWINGS with the arm (forward at the top → down-back at impact). A pole fixed in world
+    // ("forward") means elbows in front of the hands at the top but ABOVE the arm at impact, i.e. a 180° roll of
+    // the upper arm through the strike — which turned the blade sideways mid-swing and backward on landing.
+    shaft(h, h.clone().addScaledVector(V(0,1.32,0.05).sub(h).normalize(),0.10), V(0, 0.2-1.0*down, 1-1.3*down));   // right hand up the haft, left a hand-width down it toward the body
+    // Wrist: cocked back at the top (head hangs behind), snapped through at impact so the haft stands near
+    // vertical and the EDGE faces the target — the forearms alone leave the haft 45° short of that.
+    const wr=(-0.4*up + 1.3*down)*A; handDev(B_RARM, wr); handDev(B_LARM, wr); }},
   // Bracing behind a shield: the whole body gets LOW and small behind it, the lead shoulder drives into
   // the shield, and the rear leg posts back to take the impact — a bracing action, not an arm pose.
   // A shield is also CARRIED, not gestured: the forearm lies across the chest with the elbow tucked in
@@ -3330,7 +3347,8 @@ const BIPED_MOTIONS=[
     leanF((-0.15*up+0.5*down)*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.3*down*A));
     const raise=V(0.0,1.75,-0.05), impact=V(0.0,0.72,0.5);   // both hands on the axe: overhead → chop down to the block
     const h=u<0.45 ? lerpDir(V(0,1.1,0.35),raise,up) : lerpDir(raise,impact,down);
-    shaft(h, h.clone().addScaledVector(V(0,1.32,0.05).sub(h).normalize(),0.10), V(0,0.2,1)); }},   // spaced two-handed grip (see chopdown)
+    shaft(h, h.clone().addScaledVector(V(0,1.32,0.05).sub(h).normalize(),0.10), V(0, 0.2-1.0*down, 1-1.3*down));   // spaced grip + pole that swings with the arm (see chopdown)
+    const wr=(-0.4*up + 1.3*down)*A; handDev(B_RARM, wr); handDev(B_LARM, wr); }},
   // Safe lifting technique: squat DOWN to the load with the back near-neutral, then drive up with the legs.
   // The crate stays close to the body and rises with the hips rather than being hauled by the back.
   {id:'liftcrate', name:'Lift Crate', cat:'Work', type:'stay', dur:1.6, build:(t,P)=>{ bstand(); const A=P.amp, u=t/1.6,
