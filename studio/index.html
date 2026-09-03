@@ -169,6 +169,15 @@
   tabs.forEach(t=>t.addEventListener('click', ()=>show(t.dataset.tool)));
   show((location.hash||'#stitch').slice(1));
 
+  // ---- open counter (once per browser session, only on the live site) ----
+  // Shown on ksoldesigns.com via https://ksol-counter.ksoldesigns.workers.dev/badge/glb-studio.svg
+  try{
+    if(location.hostname==="potassiumsolutions.github.io" && !sessionStorage.getItem("ksolHit")){
+      sessionStorage.setItem("ksolHit","1");
+      fetch("https://ksol-counter.ksoldesigns.workers.dev/hit/glb-studio",{mode:"cors",keepalive:true}).catch(()=>{});
+    }
+  }catch(e){}
+
   // ---- library indicator + drawer ----
   const drawer = document.getElementById('drawer');
   document.getElementById('libBtn').addEventListener('click', ()=>drawer.classList.toggle('open'));
