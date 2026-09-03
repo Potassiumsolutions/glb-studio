@@ -922,7 +922,7 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 
 const $ = s => document.querySelector(s);
-const APP_NAME='GLB Stitcher', APP_VERSION='1.1.7', APP_BUILD='2026-08-30';   // version shown in About + footer
+const APP_NAME='GLB Stitcher', APP_VERSION='1.1.8', APP_BUILD='2026-09-02';   // version shown in About + footer
 // Bump APP_BUILD whenever the app or the bundled motion library changes. It is printed to the console and
 // shown in the footer so "am I running the current version?" can be answered by looking, not by guessing —
 // a stale browser tab kept an old build alive twice while the files on disk were already up to date.
@@ -2951,12 +2951,22 @@ function toggleGizmo(on){
 window.addEventListener('keydown', e=>{
   const t=(e.target&&e.target.tagName)||''; if(/^(INPUT|TEXTAREA|SELECT)$/.test(t)) return;
   if(e.key==='Escape'){                       // deselect: hide the location ring / gizmo without touching the camera
-    selUIHidden=true; clearSel(); if(typeof hideCharPopup==='function') hideCharPopup();
+    selUIHidden=true; clearSel(); if(typeof hideCharPopup==='function') hideCharPopup(); selectWeapon(null); hideHeldPropPop();
     updateModelRing&&updateModelRing(); updateGizmo&&updateGizmo(); renderPropList&&renderPropList(); renderFrame();
     e.preventDefault(); return; }
   // ----- Selected-prop shortcuts (standard Windows keys). Node editor owns Ctrl-combos while it's open. -----
   const nodeOpen=$('#nodeEditor') && $('#nodeEditor').classList.contains('show');
   const selPs=selProps();                 // every currently-selected prop (multi-select aware)
+  // A held WEAPON selected in the preview (click it) takes the standard keys first: Delete removes it,
+  // Ctrl+C / Ctrl+X copy it, and Ctrl+V pastes the copied weapon onto the selected / active character.
+  const wch=weaponSelChar();
+  if(wch && !nodeOpen){
+    if(e.key==='Delete'||e.key==='Backspace'){ removeWeapon(wch); e.preventDefault(); return; }
+    if(e.ctrlKey||e.metaKey){ const k=e.key.toLowerCase();
+      if(k==='c'){ copyWeapon(wch); e.preventDefault(); return; }
+      if(k==='x'){ copyWeapon(wch); removeWeapon(wch); setStatus('Cut '+weaponClipboard.name+' — select a character and Ctrl+V'); e.preventDefault(); return; } }
+  }
+  if((e.ctrlKey||e.metaKey) && !nodeOpen && e.key.toLowerCase()==='v' && weaponClipboard && lastClipKind==='weapon'){ pasteWeapon(); e.preventDefault(); return; }
   // On the MAIN page the same standard keys act on the selected PROP(s) if any are picked, otherwise on the
   // selected timeline CLIP (movement). While the node editor is open it owns these — handled in its own
   // listener. `nodeSelIds/deleteSelectedNodes/pasteClipObjs/nodeClipboard` are the shared clip clipboard.
@@ -2999,7 +3009,8 @@ canvasEl.addEventListener('pointerdown', e=>{
   }
   if(e.button===0 && !camKey && !e.altKey){              // click a HELD weapon prop → open its movable editor popup
     const hpch=pickHeldProp(e);
-    if(hpch){ openHeldPropPop(hpch, e.clientX, e.clientY); e.preventDefault(); return; }
+    if(hpch){ selectWeapon(hpch); openHeldPropPop(hpch, e.clientX, e.clientY); e.preventDefault(); return; }
+    if(weaponSel) selectWeapon(null);                     // clicked elsewhere → drop the weapon highlight
   }
   if(e.button===0 && !camKey && !e.altKey){              // grab a scene prop (works with or without a character loaded)
     const pr=pickProp(e);
@@ -3297,24 +3308,60 @@ function fitPropScale(ch){
   if(bone){ const s=new THREE.Vector3(); bone.matrixWorld.decompose(new THREE.Vector3(), new THREE.Quaternion(), s); S=(Math.abs(s.x)+Math.abs(s.y)+Math.abs(s.z))/3||1; }
   pr.scale=Math.max(0.0005, +(H/(1.75*S)).toFixed(5));         // H and S both scale with the rig → ratio is stable
 }
+// The held-prop instance is TAGGED (userData.__heldProp) so it survives skeletonClone / clone(true): a retargeted
+// library motion clones the character's rig WITH the weapon still parented to the hand bone, and Object3D.copy
+// JSON-round-trips userData, so a bare object reference kept in userData became a dead JSON blob on every
+// clone ("cur.removeFromParent is not a function" → Remove silently stopped working once a motion had been added).
+// Instances are now found by tag and per-root bookkeeping lives in a WeakMap that clones can't corrupt.
+const _heldInst=new WeakMap();                   // root → {inst,key}
+function heldPropInsts(root){ const out=[]; root.traverse(o=>{ if(o.userData&&o.userData.__heldProp) out.push(o); }); return out; }
+function heldPropOf(root){ if(!root) return null; const rec=_heldInst.get(root); if(rec&&rec.inst&&rec.inst.parent) return rec.inst; return heldPropInsts(root)[0]||null; }
+function stripHeldProps(root){ for(const o of heldPropInsts(root)) o.removeFromParent(); _heldInst.delete(root); }
 function applyCharProps(){
   for(const ch of characters){
     const pr=ch.prop;
     for(const c of clips){
       if(c.charId!==ch.id || !c.root) continue;
-      const root=c.root, cur=root.userData.__prop;
-      if(!pr){ if(cur){ cur.removeFromParent(); root.userData.__prop=null; root.userData.__propKey=''; } continue; }
+      const root=c.root;
+      if(!pr){ stripHeldProps(root); continue; }
       const key=[pr.name,pr.bone,pr.pos.join(','),pr.rot.join(','),pr.scale].join('|');
-      if(cur && root.userData.__propKey===key) continue;              // already up to date
-      if(cur) cur.removeFromParent();
-      const bone=root.getObjectByName(pr.bone); if(!bone){ root.userData.__prop=null; continue; }
-      const inst=pr.src.clone(true);
+      const rec=_heldInst.get(root);
+      if(rec && rec.key===key && rec.inst.parent) continue;              // already up to date
+      stripHeldProps(root);                                              // also clears any clone-inherited copies
+      const bone=root.getObjectByName(pr.bone); if(!bone) continue;
+      const inst=pr.src.clone(true); inst.name='__heldProp'; inst.userData.__heldProp=1;
       inst.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.receiveShadow=false; o.frustumCulled=false; } });
       inst.position.fromArray(pr.pos); inst.rotation.set(pr.rot[0],pr.rot[1],pr.rot[2]); inst.scale.setScalar(pr.scale);
-      bone.add(inst); root.userData.__prop=inst; root.userData.__propKey=key;
+      bone.add(inst); _heldInst.set(root,{inst,key});
     }
   }
+  syncWeaponHighlight();
 }
+// ---- Weapon selection in the preview: click a held weapon → gold highlight; Delete / Ctrl+C / Ctrl+X / Ctrl+V act on it ----
+let weaponSel=null, weaponClipboard=null; const _weaponHi=[];
+function weaponSelChar(){ const ch=characters.find(c=>c.id===weaponSel); return (ch&&ch.prop)?ch:null; }
+function syncWeaponHighlight(){
+  for(const h of _weaponHi){ if(h.mat.emissive){ h.mat.emissive.copy(h.em); h.mat.emissiveIntensity=h.ei; } } _weaponHi.length=0;
+  const ch=weaponSelChar(); if(!ch) return;
+  const seen=new Set();
+  for(const c of clips){ if(c.charId!==ch.id||!c.root) continue; const inst=heldPropOf(c.root); if(!inst) continue;
+    inst.traverse(o=>{ if(!o.isMesh||!o.material) return; for(const m of [].concat(o.material)){ if(!m.emissive||seen.has(m)) continue; seen.add(m);
+      _weaponHi.push({mat:m, em:m.emissive.clone(), ei:m.emissiveIntensity}); m.emissive.setHex(0xffb830); m.emissiveIntensity=0.55; } }); }
+}
+function selectWeapon(ch){ const id=(ch&&ch.prop)?ch.id:null; if(weaponSel===id && !id) return; weaponSel=id; syncWeaponHighlight(); renderFrame();
+  if(id) setStatus('⚔ '+ch.prop.name+' selected — Delete removes it · Ctrl+C / Ctrl+X copy · Ctrl+V pastes onto the selected character'); }
+function removeWeapon(ch){ if(!ch||!ch.prop) return; const n=ch.prop.name; ch.prop=null; if(weaponSel===ch.id) weaponSel=null;
+  applyCharProps(); renderPropCard(); refreshView(); hideHeldPropPop(); setStatus('Removed '+n+' from '+ch.name); }
+function copyWeapon(ch){ if(!ch||!ch.prop) return; const p=ch.prop;
+  weaponClipboard={name:p.name, src:p.src, bone:p.bone, pos:[...p.pos], rot:[...p.rot], scale:p.scale, fromId:ch.id}; lastClipKind='weapon'; setStatus('Copied '+p.name+' — select a character and Ctrl+V'); }
+function pasteWeapon(){ if(!weaponClipboard) return false;
+  const ch=selectedChars()[0]||charOf(clips[selIndex])||selectedPropChar(); if(!ch){ setStatus('Add a character first, then paste'); return true; }
+  const w=weaponClipboard, bones=charBoneNames(ch);
+  const bone=bones.includes(w.bone)?w.bone:(bones.find(n=>/righthand/i.test(n))||bones.find(n=>_propHand.test(n))||bones[0]||w.bone);
+  ch.prop={name:w.name, src:w.src, bone, pos:[...w.pos], rot:[...w.rot], scale:w.scale};
+  if(ch.id!==w.fromId) fitPropScale(ch);                       // a different rig → re-fit the size to that character
+  const sel=$('#propChar'); if(sel) sel.value=ch.id;
+  applyCharProps(); renderPropCard(); refreshView(); selectWeapon(ch); setStatus('Pasted '+w.name+' onto '+ch.name); return true; }
 function selectedPropChar(){ const s=$('#propChar'), id=s&&s.value; return characters.find(c=>c.id===id) || activeChar() || characters[0] || null; }
 async function loadPropFiles(files){
   const f=[...files].find(x=>/\.glb$/i.test(x.name)); if(!f){ setStatus('Drop a .glb prop file'); return; }
@@ -3346,7 +3393,7 @@ function buildPropControls(box, ch){
   const opts=(bones.length?bones:[pr.bone]).map(n=>`<option ${n===pr.bone?'selected':''}>${n}</option>`).join('');
   const sld=(lab,k,min,max,step,val)=>`<label class="hint" style="display:flex;align-items:center;gap:6px;margin:2px 0;font-size:11px"><span style="width:34px">${lab}</span><input type="range" data-k="${k}" min="${min}" max="${max}" step="${step}" value="${val}" style="flex:1"><span class="v" style="width:44px;text-align:right">${val}</span></label>`;
   box.innerHTML=
-     `<div class="row" style="gap:6px;align-items:center;margin-bottom:6px"><span style="flex:1;font-size:12px">⚔ ${pr.name}</span><button class="btn ghost" data-k="remove" style="width:auto;padding:3px 10px;font-size:11px">Remove</button></div>`
+     `<div class="row" style="gap:6px;align-items:center;margin-bottom:6px"><span style="flex:1;font-size:12px">⚔ ${pr.name}</span><button class="btn ghost" data-k="remove" title="Remove this weapon (or click it in the view and press Delete)" style="width:auto;padding:3px 10px;font-size:11px">Remove</button></div>`
     +`<div class="row" style="gap:6px;align-items:center;margin-bottom:4px"><span class="hint" style="margin:0">Hand</span><select data-k="bone" style="flex:1;background:var(--panel2,#161b23);border:1px solid var(--line,#252c37);color:inherit;border-radius:6px;padding:4px 6px;font-size:12px">${opts}</select></div>`
     +sld('pos X','px',-0.5,0.5,0.005,pr.pos[0])+sld('pos Y','py',-0.5,0.5,0.005,pr.pos[1])+sld('pos Z','pz',-0.5,0.5,0.005,pr.pos[2])
     +sld('rot X','rx',-180,180,1,deg(pr.rot[0]))+sld('rot Y','ry',-180,180,1,deg(pr.rot[1]))+sld('rot Z','rz',-180,180,1,deg(pr.rot[2]))
@@ -3357,18 +3404,18 @@ function buildPropControls(box, ch){
   bind('px',v=>pr.pos[0]=v); bind('py',v=>pr.pos[1]=v); bind('pz',v=>pr.pos[2]=v);
   bind('rx',v=>pr.rot[0]=v*Math.PI/180); bind('ry',v=>pr.rot[1]=v*Math.PI/180); bind('rz',v=>pr.rot[2]=v*Math.PI/180);
   bind('sc',v=>pr.scale=v);
-  q('[data-k="remove"]').onclick=()=>{ ch.prop=null; applyCharProps(); renderPropCard(); refreshView(); hideHeldPropPop(); };
+  q('[data-k="remove"]').onclick=()=>removeWeapon(ch);
 }
 // Click a HELD weapon prop in the 3D view → a movable editor popup at the cursor.
 function pickHeldProp(e){
   const roots = isEnsemble()? [...ensembleRoots] : (activeRoot?[activeRoot]:[]);
-  const props = roots.map(r=>r&&r.userData.__prop).filter(Boolean); if(!props.length) return null;
+  const props = roots.map(r=>heldPropOf(r)).filter(Boolean); if(!props.length) return null;
   const rect=canvasEl.getBoundingClientRect();
   const nx=((e.clientX-rect.left)/rect.width)*2-1, ny=-((e.clientY-rect.top)/rect.height)*2+1;
   _ray.setFromCamera({x:nx,y:ny}, camera);
   const hits=_ray.intersectObjects(props, true); if(!hits.length) return null;
   let o=hits[0].object; while(o && !props.includes(o)) o=o.parent; if(!o) return null;
-  for(const ch of characters){ const c=clips.find(x=>x.charId===ch.id && x.root && x.root.userData.__prop===o); if(c) return ch; }
+  for(const ch of characters){ const c=clips.find(x=>x.charId===ch.id && x.root && heldPropOf(x.root)===o); if(c) return ch; }
   return null;
 }
 // ===== Unified object editor popup: ONE movable popup for any clicked object (character / weapon / scene prop) =====
@@ -3478,14 +3525,16 @@ if($('#heldPropDrop')) wireDrop($('#heldPropDrop'), $('#heldPropInput'), loadPro
 // Built-in weapon presets: fetch a bundled .glb from ./props/ and equip it on the selected character.
 const BUILTIN_PROPS=[['sword','Sword'],['cutlass','Cutlass'],['bow','Bow'],['staff','Staff'],['shield','Shield'],['rifle','Rifle'],['pistol','Pistol'],['spear','Spear'],['axe','Axe']];
 async function equipBuiltin(name){ const ch=selectedPropChar(); if(!ch){ setStatus('Add a character first, then pick a prop'); return; }
-  try{ const res=await fetch('props/'+name+'.glb'); if(!res.ok) throw 0; const buf=await res.arrayBuffer();
+  try{ const res=await fetch('props/'+name+'.glb',{cache:'no-cache'}); if(!res.ok) throw 0; /* no-cache = revalidate, so a redeployed prop never shows stale */ const buf=await res.arrayBuffer();
     await loadPropFiles([new File([buf], name+'.glb', {type:'model/gltf-binary'})]); }
-  catch(e){ setStatus('Built-in prop “'+name+'” not found'); } }
+  catch(e){ console.warn('built-in prop load failed:', name, String(e&&(e.stack||e.message||e))); setStatus('Built-in prop “'+name+'” not found'); } }
 (function(){ const el=$('#propPresets'); if(!el) return;
   el.innerHTML=BUILTIN_PROPS.map(([n,l])=>`<button type="button" data-prop="${n}">${l}</button>`).join('');
   el.querySelectorAll('button').forEach(b=>b.onclick=()=>equipBuiltin(b.dataset.prop)); })();
 
 const isEnsemble=()=>$('#ensemble')&&$('#ensemble').checked;
+// Dev hook for headless / in-browser verification (module scope is otherwise unreachable from the console).
+window.__dbg={ get clips(){return clips}, get characters(){return characters}, get scene(){return scene}, get camera(){return camera}, get canvas(){return canvasEl}, heldPropOf, get weaponSel(){return weaponSel}, get weaponClipboard(){return weaponClipboard} };
 function refreshView(){ applyCharProps(); if(!clips.length){ renderFrame(); return; } if(isEnsemble()) showEnsemble(); else showClip(selIndex); }
 
 // ---------- Ensemble (multiple characters on stage at once) ----------
