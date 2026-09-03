@@ -4157,10 +4157,14 @@ const BIPED_MOTIONS=[
     fightStance(A,{turn:0.35, knee:0.42, lead:0.16, rear:-0.18, lean:0.10});
     reachIK(B_RARM, V(0.14,1.08+br,0.30), V(0.2,-1,0.2)); reachIK(B_LARM, V(0.02,1.02+br,0.34), V(0,-1,0.2));   // two hands on the hilt, ready
     sw(B_HEAD,AX.y,0.2*A); }},
-  {id:'swchop', name:'Overhead Chop', cat:'Swordplay', type:'stay', dur:0.9, build:(t,P)=>{ const A=P.amp, u=(t/0.9*P.speed)%1, wind=eio(clamp(u/0.4,0,1)), strike=eio(clamp((u-0.4)/0.4,0,1));
+  {id:'swchop', name:'Overhead Sword Chop', cat:'Swordplay', type:'stay', dur:0.9, build:(t,P)=>{ const A=P.amp, u=(t/0.9*P.speed)%1, wind=eio(clamp(u/0.4,0,1)), strike=eio(clamp((u-0.4)/0.4,0,1));
     fightStance(A,{turn:0.2, knee:0.34, dropKnee:0.24*strike, lead:0.16, rear:-0.18, rearHeel:-0.24*strike, z:0.06*strike*A, lean:0.22*strike});
-    const rp=V(0.10,1.25,0.20).lerp(V(0.06,1.92,-0.08),wind).lerp(V(0.04,0.80,0.48),strike);      // rest → overhead → down out front
-    reachIK(B_RARM, rp, V(0,1,-0.3)); reachIK(B_LARM, rp.clone().add(V(-0.10,-0.05,-0.04)), V(0,1,-0.3));   // two-handed
+    const rp=V(0.10,1.25,0.20).lerp(V(0.06,1.92,-0.08),wind).lerp(V(0.04,1.00,0.50),strike);      // rest → overhead → down out front (hands finish at hip height: the blade stands vertical below them)
+    // Pole SWINGS with the arm (forward at the top → down-back at impact) and the wrists cock then snap, exactly as
+    // the axe chops: a fixed 'up-back' pole was parallel to the overhead reach and rolled the arm through the strike.
+    const pole=V(0, 0.2-1.0*strike, 1-1.3*strike);
+    reachIK(B_RARM, rp, pole); reachIK(B_LARM, rp.clone().add(V(-0.10,-0.05,-0.04)), pole);   // two-handed
+    const wr=(-0.4*wind + 1.3*strike)*A; handDev(B_RARM, wr); handDev(B_LARM, wr);
     twist(-0.18*strike*A); sw(B_HEAD,AX.x,0.15*strike*A); }},
   {id:'swslashd', name:'Diagonal Slash', cat:'Swordplay', type:'stay', dur:0.8, build:(t,P)=>{ const A=P.amp, u=(t/0.8*P.speed)%1, wind=eio(clamp(u/0.35,0,1)), cut=eio(clamp((u-0.35)/0.4,0,1));
     fightStance(A,{turn:0.3, knee:0.34, dropKnee:0.15*cut, lead:0.16, rear:-0.18, rearHeel:-0.2*cut, z:0.05*cut*A, lean:0.15*cut});

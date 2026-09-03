@@ -922,7 +922,7 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 
 const $ = s => document.querySelector(s);
-const APP_NAME='GLB Stitcher', APP_VERSION='1.1.8', APP_BUILD='2026-09-02';   // version shown in About + footer
+const APP_NAME='GLB Stitcher', APP_VERSION='1.1.9', APP_BUILD='2026-09-03';   // version shown in About + footer
 // Bump APP_BUILD whenever the app or the bundled motion library changes. It is printed to the console and
 // shown in the footer so "am I running the current version?" can be answered by looking, not by guessing —
 // a stale browser tab kept an old build alive twice while the files on disk were already up to date.
@@ -5080,7 +5080,7 @@ async function mlLoadIndex(){
   if(libIndex) return true;
   await mlDetectSources();
   try{
-    const r=await fetch(mlDir()+'/index.json'); if(!r.ok) throw 0;
+    const r=await fetch(mlDir()+'/index.json',{cache:'no-cache'}); if(!r.ok) throw 0;   /* revalidate: Pages caches 10 min, and this runs after load so a hard refresh never reached it */
     const j=await r.json();
     libIndex=j.motions; libSkeletons=j.skeletons||{}; mlLibSig=Object.keys(libSkeletons)[0]||null;
     renderMlSourceBar();
@@ -5092,7 +5092,7 @@ async function mlLoadIndex(){
 }
 async function mlFetchClip(id){
   if(mlClipCache.has(id)) return mlClipCache.get(id);
-  const r=await fetch(mlDir()+'/m/'+id+'.json'); const j=await r.json(); mlClipCache.set(id,j); return j;
+  const r=await fetch(mlDir()+'/m/'+id+'.json',{cache:'no-cache'}); const j=await r.json();   /* revalidate (see mlLoadIndex) */ mlClipCache.set(id,j); return j;
 }
 
 // --- skeleton helpers (ported from the GLB Motion Library retargeter) ---
@@ -5223,7 +5223,7 @@ async function addMotionClip(meta){
 
 // ---- Sequence flow: rank motions by how well their start pose matches a reference end pose ----
 let libPoses=null;
-async function mlLoadPoses(){ if(libPoses) return libPoses; try{ const r=await fetch(mlDir()+'/poses.json'); if(r.ok) libPoses=await r.json(); }catch(e){} return libPoses; }
+async function mlLoadPoses(){ if(libPoses) return libPoses; try{ const r=await fetch(mlDir()+'/poses.json',{cache:'no-cache'}); if(r.ok) libPoses=await r.json(); }catch(e){} return libPoses; }
 function quatAngle(a,ai,b,bi){ let d=a[ai]*b[bi]+a[ai+1]*b[bi+1]+a[ai+2]*b[bi+2]+a[ai+3]*b[bi+3]; d=Math.min(1,Math.abs(d)); return 2*Math.acos(d); }
 function poseDist(vecA, vecB){ const n=Math.min(vecA.length,vecB.length)/4; if(!n) return 9; let s=0; for(let i=0;i<n;i++) s+=quatAngle(vecA,i*4,vecB,i*4); return s/n; }  // mean bone angle (rad)
 const FLOW_MAX=0.35;   // mean angle below this ≈ little/no pop between clips
