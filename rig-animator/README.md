@@ -71,3 +71,15 @@ spine/neck limits) and `physics.mjs` (joint limits, feet through/above the floor
 
 Verify: `bake.mjs --ids …` → `bodyclip.mjs <lib> ids` → `flipscan.mjs <baseline> <lib> ids.txt` → `coherence.mjs <lib> ids`
 → `physics.mjs --ids …` → `shoot.mjs --montage --ids …` and look.
+
+### Props and the one-command gate (added later on 2026-09-03)
+
+- **Held props.** A motion that holds something must orient the hand(s) round it: one hand → `handFrame(Ar, {fingers|thumb: shaftDir, palm})`;
+  two hands → `twoHandGrip(kind, along)` AFTER both reachIKs (and before a `handDev` wrist snap — snap the lead hand, then
+  re-align both with `twoHandGrip(kind, handDir(B_RARM, V(0,1,0)))`). `kind` = the Stitcher's grip: `'handshake'` (sword: blade along
+  the fingers), `'power'` (axe/bat/club: haft toward the pinky), `'thumb'` (staff/spear/bow). `handsAway(bias)` = the direction a
+  held tool points (out from the chest through the hands), `handsAxis()` = right hand → left hand. The audit's prop map
+  (`bodyclip.mjs` PROP_MAP) says which prop, hand axis and length each motion is checked with — add new prop motions to it.
+- **Gate.** `node tools/verify/verify.mjs --ids <id,…>` bakes and runs every audit (body, prop, grip, flip, coil, spine, limits)
+  and prints PASS/FAIL with a hint per failure; `--json out.json` for a generator loop; `--all --no-bake` for the library.
+  The jump reference is the deployed library in `D:\Claude\glb-studio` (override with `--ref`).

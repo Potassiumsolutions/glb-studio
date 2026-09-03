@@ -1978,6 +1978,40 @@ function handFrame(Ar, o){
   ha.quaternion.copy(_hfP.invert().multiply(_hfQ));
   ha.updateMatrixWorld(true);
 }
+// ── Two-handed props: orient BOTH hands round ONE shaft so the prop reads as gripped by both hands (the Stitcher attaches a
+// prop to one hand; if the other hand's grip axis points elsewhere that hand floats beside the haft — the prop audit
+// measured 45-90° between the two hands on every two-handed weapon). kind = the Stitcher's grip type for the prop:
+// 'handshake' (sword: blade along the fingers), 'power' (axe/bat/club: haft toward the PINKY side), 'thumb' (staff/spear:
+// shaft along the thumb line). `along` = world direction from the hands toward the prop's business end; palms face each
+// other across the shaft. Call AFTER both reachIKs and BEFORE any wrist snap (handDev), so the snap rides on the grip.
+const _thM=new THREE.Vector3(), _thC=new THREE.Vector3();
+function handsAway(bias){ animRoot.updateMatrixWorld(false); boneByName[B_LARM.hand].getWorldPosition(_thM); boneByName[B_RARM.hand].getWorldPosition(_thC); _thM.add(_thC).multiplyScalar(0.5);
+  boneByName['Spine02'].getWorldPosition(_thC); const d=_thM.clone().sub(_thC); if(bias) d.add(bias); return d.normalize(); }   // from the chest out through the hands (+ an authored bias): where a held tool points
+function handsAxis(){ animRoot.updateMatrixWorld(false); boneByName[B_LARM.hand].getWorldPosition(_thM); boneByName[B_RARM.hand].getWorldPosition(_thC); return _thM.clone().sub(_thC).normalize(); }   // right hand → left hand
+const _hdQ=new THREE.Quaternion(), _haQ=new THREE.Quaternion(), _haP=new THREE.Quaternion(), _haR=new THREE.Quaternion();
+function handDir(Ar, local){ animRoot.updateMatrixWorld(false); boneByName[Ar.hand].getWorldQuaternion(_hdQ); return local.clone().applyQuaternion(_hdQ).normalize(); }   // world direction of a hand's local axis (fingers +Y, thumb −Z, pinky +Z)
+// Rotate a hand by the SHORTEST arc that brings one of its local axes onto a world direction, keeping the roll the arm solve
+// gave it (twist-stable) — no palm reference, so nothing can go null or switch mid-swing.
+function handAlign(Ar, local, dir){
+  const b=boneByName[Ar.hand]; if(!b) return; animRoot.updateMatrixWorld(false); b.getWorldQuaternion(_haQ);
+  const cur=local.clone().applyQuaternion(_haQ).normalize(), tgt=dir.clone().normalize();
+  _haR.setFromUnitVectors(cur, tgt); _haR.multiply(_haQ);                          // new world orientation
+  b.parent.getWorldQuaternion(_haP); b.quaternion.copy(_haP.invert().multiply(_haR)); b.updateMatrixWorld(true);
+}
+const GRIP_AXIS={ handshake:V(0,1,0), thumb:V(0,0,-1), power:V(0,0,1) };            // hand axis the prop runs along, per grip type (power: haft toward the PINKY)
+const _tgE=new THREE.Vector3(), _tgH=new THREE.Vector3();
+function twoHandGrip(kind, along){
+  const d=along.clone().normalize();
+  for(const Ar of [B_LARM,B_RARM]){
+    const pc=handDir(Ar, V(-Ar.s,0,0));                                             // the hand's CURRENT palm normal (from the arm's twist-stable roll)
+    const p=pc.clone().addScaledVector(d, -pc.dot(d)); const l=p.length();            // projected off the shaft → continuous with the pose
+    if(l<0.5){ animRoot.updateMatrixWorld(false); boneByName[Ar.fore].getWorldPosition(_tgE); boneByName[Ar.hand].getWorldPosition(_tgH);   // palm normal along the shaft: fade the forearm cross in
+      const f=_tgH.clone().sub(_tgE).normalize(); p.addScaledVector(new THREE.Vector3().crossVectors(d,f).multiplyScalar(-Ar.s), (0.5-l)*2); }
+    { const l2=p.length(); if(l2<0.2) p.addScaledVector(V(1,0,0).addScaledVector(d,-d.x).normalize(), (0.2-l2)*5*(-Ar.s)); }   // last resort (vertical shaft + straight-up arms): lateral, faded in
+    p.normalize();
+    if(kind==='handshake') handFrame(Ar,{fingers:d, palm:p}); else if(kind==='thumb') handFrame(Ar,{thumb:d, palm:p}); else handFrame(Ar,{thumb:d.clone().negate(), palm:p});
+  }
+}
 const lerpDir=(a,b,t)=>a.clone().lerp(b,t);
 // A throw, a swing and a block are defined by where the HAND goes, not by shoulder angles — pose them as
 // shoulder/elbow numbers and you get a push every time. `pathAt` reads a world-space hand path as
@@ -3440,7 +3474,8 @@ const BIPED_MOTIONS=[
     reachIK(B_RARM, h, poleOf(B_RARM)); reachIK(B_LARM, hL, poleOf(B_LARM));
     // Wrist: cocked back at the top (head hangs behind), snapped through at impact so the haft stands near
     // vertical and the EDGE faces the target — the forearms alone leave the haft 45° short of that.
-    const wr=(-0.5*up + 0.25*down)*A; handDev(B_RARM, wr); handDev(B_LARM, wr); }},   // deviation: cocked back at the top, snapped ~30° through at impact (anatomical range)
+    twoHandGrip('power', handsAway(V(0,-0.4,0)));                                                                  // both fists on the haft, head out from the body (up-back over the shoulder at the top, down-forward at impact)
+    const wr=(-0.5*up + 0.25*down)*A; handDev(B_RARM, wr); twoHandGrip('power', handDir(B_RARM, V(0,0,1))); }},   // deviation on the lead hand: cocked back at the top, snapped ~30° through at impact; then BOTH fists re-aligned to the haft
   // Bracing behind a shield: the whole body gets LOW and small behind it, the lead shoulder drives into
   // the shield, and the rear leg posts back to take the impact — a bracing action, not an arm pose.
   // A shield is also CARRIED, not gestured: the forearm lies across the chest with the elbow tucked in
@@ -3554,7 +3589,8 @@ const BIPED_MOTIONS=[
     const poleOf=Ar=>V(Ar.s*1.0, -0.15, 0.10);   // elbows straight out the whole swing (see chopdown)
     const hL=h.clone().addScaledVector(V(0,1.32,0.05).sub(h).normalize(),0.10);
     reachIK(B_RARM, h, poleOf(B_RARM)); reachIK(B_LARM, hL, poleOf(B_LARM));
-    const wr=(-0.5*up + 0.25*down)*A; handDev(B_RARM, wr); handDev(B_LARM, wr); }},   // deviation: cocked back at the top, snapped ~30° through at impact (anatomical range)
+    twoHandGrip('power', handsAway(V(0,-0.4,0)));                                                                  // both fists on the haft, head out from the body (up-back over the shoulder at the top, down-forward at impact)
+    const wr=(-0.5*up + 0.25*down)*A; handDev(B_RARM, wr); twoHandGrip('power', handDir(B_RARM, V(0,0,1))); }},   // deviation on the lead hand: cocked back at the top, snapped ~30° through at impact; then BOTH fists re-aligned to the haft
   // Safe lifting technique: squat DOWN to the load with the back near-neutral, then drive up with the legs.
   // The crate stays close to the body and rises with the hips rather than being hauled by the back.
   {id:'liftcrate', name:'Lift Crate', cat:'Work', type:'stay', dur:1.6, build:(t,P)=>{ bstand(); const A=P.amp, u=t/1.6,
@@ -3660,7 +3696,8 @@ const BIPED_MOTIONS=[
     // the downswing sweeps out and forward past the trail hip, the finish is above the lead shoulder.
     const addr=chestV(0.02,0.60,0.45), top=chestV(-0.30,1.66,0.20), fin=chestV(0.30,1.74,0.26);
     const g=orbitAt([[0,addr],[0.22,chestV(-0.32,1.05,0.40)],[0.45,top],[0.55,chestV(-0.36,1.12,0.38)],[0.65,addr],[0.78,chestV(0.34,1.15,0.38)],[0.9,fin],[1,fin]], u, {arms:[B_LARM,B_RARM]});   // orbitAt: both shoulders' reach lines kept clear of the chest
-    grip(g, V(0,-0.4,-1)); }},   // pole back-down: the hands hang straight BELOW the shoulders at address and impact, so a 'down' pole was parallel to the reach and the bend plane flipped through impact
+    grip(g, V(0,-0.4,-1));
+    twoHandGrip('power', handsAway(V(0,-0.9,0))); }},                                               // both fists on the grip, shaft down-and-out to the ball (level over the shoulder at the top)   // pole back-down: the hands hang straight BELOW the shoulders at address and impact, so a 'down' pole was parallel to the reach and the bend plane flipped through impact
   // A bat swing is a rotation off a STRIDE: the front foot steps toward the pitch, the hips clear, the
   // rear heel releases, and the hands come last.
   {id:'batswing', name:'Bat Swing', cat:'Sports', type:'stay', dur:0.9, build:(t,P)=>{ const A=P.amp, u=(t/0.9*P.speed)%1, load=ramp(u,0,0.35), swing=ramp(u,0.35,0.65);
@@ -3674,7 +3711,8 @@ const BIPED_MOTIONS=[
     // …and they go OUT past the trail shoulder on the way back and again on the way forward: every straight
     // segment between the front and the cocked position runs right under the shoulder joint.
     const outR=chestV(-0.36,1.22,0.32), mid=chestV(-0.12,1.16,0.44);
-    grip(orbitAt([[0,chestV(-0.05,1.15,0.30)],[0.18,outR],[0.35,cock],[0.46,chestV(-0.36,1.22,0.34)],[0.56,mid],[0.65,contact],[1.0,follow]], u, {arms:[B_LARM,B_RARM]}), V(0,-1,0)); }},   // orbitAt: the lead arm's reach line is kept in FRONT of the chest through the load   // pole straight DOWN: the hands pass through down-forward at contact, and a pole the hand path crosses flips the bend plane (bat spun 144° in one frame)
+    grip(orbitAt([[0,chestV(-0.05,1.15,0.30)],[0.18,outR],[0.35,cock],[0.46,chestV(-0.36,1.22,0.34)],[0.56,mid],[0.65,contact],[1.0,follow]], u, {arms:[B_LARM,B_RARM]}), V(0,-1,0));
+    twoHandGrip('power', handsAway(V(0,0.25,0))); }},                                               // both fists stacked on the bat, barrel out from the body (up over the shoulder at the cock, out front at contact)   // orbitAt: the lead arm's reach line is kept in FRONT of the chest through the load   // pole straight DOWN: the hands pass through down-forward at contact, and a pole the hand path crosses flips the bend plane (bat spun 144° in one frame)
   // A pitch is: balance on the back leg with the lead knee driven up, then STRIDE toward the plate while
   // the hips open, the trunk follows and the arm lags and whips over last. The stride is most of it — the
   // old version kicked a leg but the body never went anywhere.
@@ -3919,6 +3957,7 @@ const BIPED_MOTIONS=[
     const k=0.5+0.5*Math.sin(TAU*u);
     reachIK(B_LARM, orbitLerp(V(-0.04,1.30,0.52), V(-0.04,1.30,0.58), k, {arms:[B_LARM]}), V(0,-1,0.2));                       // front hand out along the shaft
     reachIK(B_RARM, orbitLerp(bodyV(-0.18,1.04,-0.06), bodyV(-0.18,1.04,-0.10), k, {arms:[B_RARM]}), V(-0.3,-1,-0.2));           // rear hand at the RIGHT hip (it was authored on the left side, forearm across the chest)
+    twoHandGrip('thumb', handsAxis());                                                               // shaft runs from the rear (right) hand through the front (left) hand: both thumb lines along it
     sw(B_HEAD,AX.y,0.2*A); }},
   {id:'aimcrossbow', name:'Crossbow — Aim', cat:'Aim', type:'stay', dur:1.1, build:(t,P)=>{ const A=P.amp, u=(t/1.1*P.speed)%1, fire=bump(u,0.55,0.1);
     fightStance(A,{turn:0.4, knee:0.28, lead:0.14, rear:-0.17, lean:0.05});
@@ -3945,7 +3984,7 @@ const BIPED_MOTIONS=[
     sw(B_HEAD,AX.y,0.14*A); sw(B_HEAD,AX.x,0.1*A); leanF(0.12*k*A); }},
   {id:'aimlowready', name:'Low Ready (scan)', cat:'Aim', type:'stay', dur:1.8, build:(t,P)=>{ const A=P.amp, ph=TAU*(t/1.8)*P.speed, scan=Math.sin(ph);
     fightStance(A,{turn:0.3, knee:0.28, lead:0.14, rear:-0.16, lean:0.08});
-    reachIK(B_RARM, V(0.08,1.10,0.22), V(0.2,-1,-0.2));                       // weapon held low-ready, muzzle down-forward
+    reachIK(B_RARM, V(-0.12,1.08,0.20), V(-0.3,-1,-0.2));                     // weapon held low-ready, muzzle down-forward; trigger hand on the RIGHT (the stock ran through the chest from a left-of-centre grip)
     reachIK(B_LARM, V(-0.02,1.05,0.42), V(0,-1,0.3));
     handFrame(B_RARM, {fingers:V(0,-0.6,0.8), palm:V(1,0,0)}); handFrame(B_LARM, {thumb:V(0,-0.5,0.85), palm:V(-0.5,0.7,0.3)});   // muzzle down-forward
     sw('Spine02',AX.y,scan*0.12*A); sw(B_HEAD,AX.y,scan*0.3*A); }},
@@ -4388,7 +4427,8 @@ const BIPED_MOTIONS=[
     // the axe chops: a fixed 'up-back' pole was parallel to the overhead reach and rolled the arm through the strike.
     const pole=V(0, 0.2-1.0*strike, 1-1.3*strike);
     reachIK(B_RARM, rp, pole); reachIK(B_LARM, rp.clone().add(V(-0.10,-0.05,-0.04)), pole);   // two-handed
-    const wr=(-0.4*wind + 1.3*strike)*A; handDev(B_RARM, wr); handDev(B_LARM, wr);
+    twoHandGrip('handshake', handsAway(V(0,0.2,0)));                                                // both fists round the hilt, blade out from the body (up at the top, forward-down at the strike)
+    const wr=(-0.4*wind + 1.3*strike)*A; handDev(B_RARM, wr); twoHandGrip('handshake', handDir(B_RARM, V(0,1,0)));   // wrist cock/snap on the lead hand, then BOTH hands re-aligned to the snapped blade (a mirrored snap on each hand drove them 89° apart)
     twist(-0.18*strike*A); sw(B_HEAD,AX.x,0.15*strike*A); }},
   {id:'swslashd', name:'Diagonal Slash', cat:'Swordplay', type:'stay', dur:0.8, build:(t,P)=>{ const A=P.amp, u=(t/0.8*P.speed)%1, wind=eio(clamp(u/0.35,0,1)), cut=eio(clamp((u-0.35)/0.4,0,1));
     fightStance(A,{turn:0.3, knee:0.34, dropKnee:0.15*cut, lead:0.16, rear:-0.18, rearHeel:-0.2*cut, z:0.05*cut*A, lean:0.15*cut});
@@ -4399,6 +4439,7 @@ const BIPED_MOTIONS=[
     fightStance(A,{turn:0.3, knee:0.36, lead:0.16, rear:-0.18, rearHeel:-0.2*cut, z:0.05*cut*A, lean:0.1*cut});
     const rp=orbitAt([[0,V(0.10,1.28,0.25)],[0.35,V(-0.30,1.30,0.05)],[0.75,V(0.36,1.26,0.44)],[1,V(0.36,1.26,0.44)]], u, {arms:[B_LARM,B_RARM]});   // level sweep right → left, orbiting the torso for BOTH shoulders (the lead upper arm crossed the chest at the wind)
     reachIK(B_RARM, rp, V(0,-1,0.2)); reachIK(B_LARM, handClear(rp.clone().add(V(-0.10,-0.02,-0.04)),[B_LARM],{shoulderR:0.25}), V(0,-1,0.2));   // two-handed
+    { const d=handsAway(); d.y*=0.3; twoHandGrip('handshake', d); }                                 // both fists round the hilt, blade LEVEL and out from the body
     sw('Hips',AX.y,(-0.2*wind +0.4*cut)*A); twist((-0.25*wind+0.35*cut)*A); }},   // body coils RIGHT with the wind-up, opens LEFT with the cut (was inverted)
   {id:'swthrust', name:'Lunging Stab', cat:'Swordplay', type:'stay', dur:0.8, build:(t,P)=>{ const A=P.amp, u=(t/0.8*P.speed)%1, chamber=ramp(u,0,0.35), stab=bump(u,0.55,0.35);
     fightStance(A,{turn:0.3, knee:0.34, dropKnee:0.3*stab, lead:0.16+0.3*stab, rear:-0.2, rearHeel:-0.35*stab, z:0.25*stab*A, lean:0.25*stab});
@@ -4407,15 +4448,18 @@ const BIPED_MOTIONS=[
   {id:'swblockh', name:'High Block', cat:'Swordplay', type:'stay', dur:1.0, build:(t,P)=>{ const A=P.amp, u=(t/1.0*P.speed)%1, up=eio(clamp(u/0.3,0,1)), press=Math.sin(TAU*u*3)*0.02*up;
     fightStance(A,{turn:0.1, knee:0.4, dropKnee:0.15*up, lean:-0.05*up});
     reachIK(B_RARM, V(0.20,1.72+press,0.15), V(0,-1,0.2)); reachIK(B_LARM, V(-0.20,1.72+press,0.15), V(0,-1,0.2));   // blade level overhead, catching a strike
+    twoHandGrip('handshake', handsAxis());                                                           // both hands along the level blade
     sw(B_HEAD,AX.x,-0.1*up*A); }},
   {id:'swblocks', name:'Side Parry', cat:'Swordplay', type:'stay', dur:0.9, build:(t,P)=>{ const A=P.amp, par=Math.sin(Math.PI*clamp((t/0.9*P.speed)%1/0.7,0,1));
     fightStance(A,{turn:0.3, knee:0.4, lean:0.05});
     const c=V(0.08,1.35,0.40), side=V(-0.28,1.42,0.32);
     reachIK(B_RARM, c.clone().lerp(side,par), V(0,-1,0.2)); reachIK(B_LARM, c.clone().lerp(side,par).add(V(-0.08,-0.10,-0.04)), V(0,-1,0.2));   // deflect across to the left
+    twoHandGrip('handshake', V(0,1,0.15));                                                          // blade held vertical, both fists round the hilt
     twist(-0.2*par*A); sw(B_HEAD,AX.y,-0.1*par*A); }},
   {id:'swclash', name:'Blade Clash', cat:'Swordplay', type:'stay', dur:1.6, build:(t,P)=>{ const A=P.amp, str=0.5+0.5*Math.sin(TAU*(t/1.6)*P.speed);
     fightStance(A,{turn:0.2, knee:0.5, dropKnee:0.15, lean:0.25+0.05*str, z:0.05*A});
     reachIK(B_RARM, V(0.10,1.45,0.42+0.03*str), V(0,-1,0.2)); reachIK(B_LARM, V(-0.06,1.40,0.44+0.03*str), V(0,-1,0.2));   // blades locked, straining push
+    twoHandGrip('handshake', V(0,0.5,0.85));                                                        // both fists round the hilt, blade forward-up into the bind
     BIPED_SPINE.forEach(s=>sw(s,AX.x,0.05*A)); sw(B_HEAD,AX.x,-0.05*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.06*str*A)); }},
   {id:'swbash', name:'Pommel Bash', cat:'Swordplay', type:'stay', dur:0.8, build:(t,P)=>{ const A=P.amp, u=(t/0.8*P.speed)%1, wind=ramp(u,0,0.35), bash=bump(u,0.55,0.3);
     fightStance(A,{turn:0.3+0.3*bash, knee:0.36, lead:0.14+0.2*bash, rear:-0.2, z:0.12*bash*A, lean:0.2*bash});
