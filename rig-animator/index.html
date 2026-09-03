@@ -1887,6 +1887,17 @@ function aim(boneName, childName, dir){
   b.updateMatrixWorld(true);
 }
 const V=(x,y,z)=>new THREE.Vector3(x,y,z);
+// ── Body-frame targets. reachIK/grip/shaft targets are WORLD points, which is right when the body only blades a
+// little (a guard stays put while the stance turns) and for aiming at something in the world. But a motion that
+// SPINS the hips (sw('Hips',AX.y,…)) leaves a world-space hand behind: the body rotates underneath a fixed hand
+// and the arm winds through the torso (the Spinning Slash's sword stood still while the character turned).
+// bodyYaw() reads the hips' current facing; bodyV() authors a target in the body's frame (x=left, z=forward as
+// the character now faces) and returns the world point. Use it for any motion with a large hip yaw.
+const _byF=new THREE.Vector3(), _byQ=new THREE.Quaternion();
+function bodyYaw(){ const h=boneByName['Hips']; if(!h) return 0; animRoot.updateMatrixWorld(false); h.getWorldQuaternion(_byQ);
+  const rest=restWorldQ['Hips']; if(rest) _byQ.multiply(rest.clone().invert());             // yaw ON TOP of the rest facing
+  _byF.set(0,0,1).applyQuaternion(_byQ); return Math.atan2(_byF.x, _byF.z); }
+function bodyV(x,y,z){ const v=(x&&x.isVector3)?x.clone():new THREE.Vector3(x,y,z); return v.applyAxisAngle(AX.y, bodyYaw()); }
 // Point a foot along a world direction AND control its ROLL about its own long axis.
 // `aim()` only constrains direction — the roll is left to whatever the leg chain happened to accumulate.
 // For arms that is harmless, but a foot has a sole: measured on a retargeted character, both feet sat at a
@@ -1975,8 +1986,61 @@ function pathAt(keys, u){
 function setArm(Ar,upper,fore){ aim(Ar.arm,Ar.fore,upper); aim(Ar.fore,Ar.hand,fore); }   // orient upper arm then forearm
 // 2-bone inverse kinematics — place the HAND at an exact world point (elbow solved by cosine rule).
 // `pole` biases which way the elbow bends (default down). This is the core "put the hand here" primitive.
+// ── Body volume (biped). The torso is an elliptic cylinder along the Hips→neck line in the BODY frame: half-width
+// 0.17 (left-right), half-depth 0.11 (front-back) centred 3 cm ahead of the spine, plus a head sphere. Nothing the
+// solver places may sit inside it: a hand target inside is pushed out to the surface (+3 cm), and an elbow that the
+// pole would put inside the chest is rotated clear. This is the physics guard that stops "arm through the body".
+const _bvA=new THREE.Vector3(), _bvB=new THREE.Vector3(), _bvQ=new THREE.Quaternion(), _bvY=new THREE.Vector3(), _bvZ=new THREE.Vector3(), _bvX=new THREE.Vector3(), _bvH=new THREE.Vector3(), _bvR=new THREE.Vector3();
+const BODY_HW=0.17, BODY_HD=0.11, BODY_FWD=0.03, HEAD_R=0.11;
+function bodyFrame(){                                         // recomputed per call — the pose changes every frame
+  const hips=boneByName['Hips'], neck=boneByName['neck']||boneByName['Spine02'], head=boneByName['Head']; if(!hips||!neck) return null;
+  animRoot.updateMatrixWorld(false); hips.getWorldPosition(_bvA); neck.getWorldPosition(_bvB); if(head) head.getWorldPosition(_bvH); else _bvH.copy(_bvB);
+  _bvY.copy(_bvB).sub(_bvA); const L=_bvY.length()||1; _bvY.divideScalar(L);
+  hips.getWorldQuaternion(_bvQ); _bvZ.set(0,0,1).applyQuaternion(_bvQ); _bvZ.addScaledVector(_bvY, -_bvZ.dot(_bvY)).normalize();
+  _bvX.crossVectors(_bvY, _bvZ).normalize();
+  return {A:_bvA, y:_bvY, x:_bvX, z:_bvZ, L, head:_bvH};
+}
+// signed "inside-ness" of a world point: >0 = inside the torso ellipse by that many metres (approx), 0 = clear
+function bodyPen(p, bf, shrink){ shrink=shrink||0; if(!bf) return 0;
+  _bvR.copy(p).sub(bf.A); const y=_bvR.dot(bf.y); let pen=0;
+  if(y>-0.02 && y<bf.L+0.04){ const ex=_bvR.dot(bf.x)/(BODY_HW-shrink), ez=(_bvR.dot(bf.z)-BODY_FWD)/(BODY_HD-shrink); const rr=Math.sqrt(ex*ex+ez*ez); if(rr<1) pen=(1-rr)*Math.min(BODY_HW,BODY_HD); }
+  const dh=p.distanceTo(bf.head); if(dh<HEAD_R) pen=Math.max(pen, HEAD_R-dh);
+  return pen;
+}
+// push a world point out of the torso ellipse / head sphere, radially, to the surface plus a margin
+function bodyClear(p, margin){ margin=margin??0.03; const bf=bodyFrame(); if(!bf) return p; const out=p.clone();
+  _bvR.copy(out).sub(bf.A); const y=_bvR.dot(bf.y);
+  if(y>-0.02 && y<bf.L+0.04){ const lx=_bvR.dot(bf.x), lz=_bvR.dot(bf.z)-BODY_FWD; const ex=lx/BODY_HW, ez=lz/BODY_HD; const rr=Math.sqrt(ex*ex+ez*ez);
+    if(rr<1){ const k=(rr<1e-4)?0:1/rr; const nx=(rr<1e-4?0:ex*k), nz=(rr<1e-4?1:ez*k);            // radial direction on the unit ellipse
+      const tx=nx*BODY_HW, tz=nz*BODY_HD; const mag=Math.sqrt(tx*tx+tz*tz)||1;                       // surface point in local xz
+      out.copy(bf.A).addScaledVector(bf.y, y).addScaledVector(bf.x, tx+nx*margin*BODY_HW/mag*3).addScaledVector(bf.z, BODY_FWD+tz+nz*margin*BODY_HD/mag*3); } }
+  const dh=out.distanceTo(bf.head); if(dh<HEAD_R+margin){ const d=out.clone().sub(bf.head); if(d.lengthSq()<1e-8) d.set(0,0,1); d.normalize(); out.copy(bf.head).addScaledVector(d, HEAD_R+margin); }
+  return out;
+}
 const _ikS=new THREE.Vector3(),_ikE=new THREE.Vector3(),_ikH=new THREE.Vector3(),_ikT=new THREE.Vector3();
+// Forearm-segment guard: a clear hand and a clear elbow can still leave the forearm cutting a chord through the
+// chest (a hand reaching across the body). After each solve, sample the elbow→hand segment; if it is inside, push
+// the hand target outward — radially from the spine at the deepest sample — and solve again (≤4 passes).
+const _sgE=new THREE.Vector3(), _sgH=new THREE.Vector3(), _sgP=new THREE.Vector3(), _sgR=new THREE.Vector3();
 function reachIK(Ar, target, pole){
+  if(!(Ar===B_LARM || Ar===B_RARM)){ _reachIKCore(Ar, target, pole); return; }
+  let tgt=bodyClear(target);                                                    // a hand can be ON the body, never IN it
+  for(let pass=0; pass<5; pass++){
+    _reachIKCore(Ar, tgt, pole);
+    if(pass===4) break;
+    const bf=bodyFrame(); if(!bf) break;
+    animRoot.updateMatrixWorld(false); boneByName[Ar.fore].getWorldPosition(_sgE); boneByName[Ar.hand].getWorldPosition(_sgH);
+    let worst=0, wp=null;
+    for(let k=1;k<=9;k++){ _sgP.copy(_sgE).lerp(_sgH, k/10); const pen=bodyPen(_sgP, bf, 0.01); if(pen>worst){ worst=pen; wp=_sgP.clone(); } }
+    if(worst<0.012 || !wp) break;
+    _sgR.copy(wp).sub(bf.A); _sgR.addScaledVector(bf.y, -_sgR.dot(bf.y));       // radial from the spine line at that height
+    const lx=_sgR.dot(bf.x), lz=_sgR.dot(bf.z)-BODY_FWD;                        // ellipse-space direction (front-back is the short axis, so it wins)
+    _sgR.set(0,0,0).addScaledVector(bf.x, lx/(BODY_HW*BODY_HW)).addScaledVector(bf.z, lz/(BODY_HD*BODY_HD));
+    if(_sgR.lengthSq()<1e-8) _sgR.copy(bf.z); _sgR.normalize();
+    tgt=tgt.clone().addScaledVector(_sgR, worst+0.03);
+  }
+}
+function _reachIKCore(Ar, target, pole){
   animRoot.updateMatrixWorld(false);
   boneByName[Ar.arm].getWorldPosition(_ikS); boneByName[Ar.fore].getWorldPosition(_ikE); boneByName[Ar.hand].getWorldPosition(_ikH);
   const L1=_ikS.distanceTo(_ikE), L2=_ikE.distanceTo(_ikH);
@@ -1992,6 +2056,14 @@ function reachIK(Ar, target, pole){
   if(pl<0.3){ const fb=new THREE.Vector3(0,0,1); fb.sub(dir.clone().multiplyScalar(fb.dot(dir)));
     if(fb.lengthSq()<0.05){ fb.set(0,1,0).sub(dir.clone().multiplyScalar(dir.y)); } fb.normalize(); pv.addScaledVector(fb, 0.3-pl); }
   pv.normalize();
+  // Elbow clearance: the bend plane the pole asks for may put the elbow inside the chest (a trigger hand held
+  // across the body, a bat cocked over the shoulder). Try the requested plane first, then rotate it about the
+  // reach line in growing steps, keeping the first elbow position that is clear of the torso and head.
+  if(Ar===B_LARM || Ar===B_RARM){ const bf=bodyFrame(); if(bf){
+    const pen=p=>{ const e=_ikS.clone().addScaledVector(dir.clone().multiplyScalar(cosA).add(p.clone().multiplyScalar(sinA)).normalize(), L1); return bodyPen(e, bf, 0.02); };
+    let best=pv.clone(), bestPen=pen(pv);
+    if(bestPen>0.005){ for(const deg of [20,-20,40,-40,60,-60,80,-80,100,-100]){ const cand=pv.clone().applyAxisAngle(dir, deg*Math.PI/180); const q=pen(cand); if(q<bestPen){ best=cand; bestPen=q; } if(q<=0.005) break; } pv.copy(best); }
+  } }
   const bendN=new THREE.Vector3().crossVectors(pv, dir).normalize();   // normal of the bend plane (elbow lies in span(dir,pole)) — exact even with the arm straight
   const elbowDir=dir.clone().multiplyScalar(cosA).add(pv.multiplyScalar(sinA)).normalize();
   aim(Ar.arm, Ar.fore, elbowDir);
@@ -3255,7 +3327,7 @@ const BIPED_MOTIONS=[
   {id:'chopdown', name:'Overhead Chop', cat:'Combat', type:'stay', dur:0.9, build:(t,P)=>{ const A=P.amp, u=(t/0.9*P.speed)%1, up=ramp(u,0,0.45), down=ramp(u,0.45,0.7);
     fightStance(A,{dropKnee:0.55*down, rearHeel:-0.22*down, lean:-0.12*up+0.42*down, turn:0.12});
     const raise=V(0.0,1.60,-0.30), impact=V(0.0,1.18,0.36);   // POWER grip (haft across the fists, head on the pinky side): at the top the hands are BEHIND the head with the forearms folded back so the head stands up over the shoulders; at impact the hands are in front of the chest with the elbows bent and the forearms level, so the head hangs straight down
-    const h=lerpDir(lerpDir(V(0,1.1,0.3),raise,up),impact,down);
+    const h=up<1 ? pathAt([[0,V(0,1.1,0.3)],[0.55,V(0,1.82,0.18)],[1,raise]], up) : lerpDir(raise,impact,down);   // up in front of the face, OVER the head, then behind it — a straight line runs through the head
     // The elbow pole SWINGS with the arm (forward at the top → down-back at impact). A pole fixed in world
     // ("forward") means elbows in front of the hands at the top but ABOVE the arm at impact, i.e. a 180° roll of
     // the upper arm through the strike — which turned the blade sideways mid-swing and backward on landing.
@@ -3375,7 +3447,7 @@ const BIPED_MOTIONS=[
   {id:'chopwood', name:'Chop Wood', cat:'Work', type:'stay', dur:0.9, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/0.9*P.speed)%1, up=ramp(u,0,0.45), down=ramp(u,0.45,0.65);
     leanF((-0.15*up+0.5*down)*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.3*down*A));
     const raise=V(0.0,1.60,-0.30), impact=V(0.0,1.12,0.36);   // POWER grip (head on the pinky side): hands folded behind the head at the top, in front of the stomach with level forearms at impact so the head hangs straight down onto the block
-    const h=u<0.45 ? lerpDir(V(0,1.1,0.35),raise,up) : lerpDir(raise,impact,down);
+    const h=u<0.45 ? pathAt([[0,V(0,1.1,0.35)],[0.55,V(0,1.82,0.18)],[1,raise]], up) : lerpDir(raise,impact,down);   // arc over the head (see chopdown)
     const poleOf=Ar=>V(Ar.s*1.0, -0.15, 0.10);   // elbows straight out the whole swing (see chopdown)
     const hL=h.clone().addScaledVector(V(0,1.32,0.05).sub(h).normalize(),0.10);
     reachIK(B_RARM, h, poleOf(B_RARM)); reachIK(B_LARM, hL, poleOf(B_LARM));
@@ -3726,7 +3798,7 @@ const BIPED_MOTIONS=[
     sw(B_HEAD,AX.y,0.12*A); sw(B_HEAD,AX.x,0.05*A); twist(-0.05*A); }},
   {id:'aimrifle', name:'Rifle — Aim & Fire', cat:'Aim', type:'stay', dur:1.1, build:(t,P)=>{ const A=P.amp, u=(t/1.1*P.speed)%1, fire=bump(u,0.55,0.1);
     fightStance(A,{turn:0.45, knee:0.30, lead:0.14, rear:-0.18, lean:0.06});
-    reachIK(B_RARM, V(0.10,1.44,0.10-0.04*fire), V(0.2,-1,-0.3));             // stock at the shoulder
+    reachIK(B_RARM, V(-0.10,1.42,0.16-0.04*fire), V(0.2,-1,-0.3));            // stock at the RIGHT shoulder (was authored left of centre → elbow inside the chest)
     reachIK(B_LARM, V(0.02,1.40,0.52), V(0,-1,0.3));                          // fore-grip out along the barrel
     handFrame(B_RARM, {fingers:V(0,0,1), palm:V(1,0,0)}); handFrame(B_LARM, {thumb:V(0.1,0.2,1), palm:V(-0.5,0.85,0)});   // trigger hand: barrel along the fingers; support hand cradles the forestock from below
     sw(B_RARM.sh,AX.x,-0.1*A); sw(B_HEAD,AX.y,0.15*A); sw(B_HEAD,AX.x,0.08*A); leanF(0.06*A); if(fire>0.1) twist(-0.06*fire*A); }},
@@ -3746,7 +3818,7 @@ const BIPED_MOTIONS=[
   {id:'aimcrossbow', name:'Crossbow — Aim', cat:'Aim', type:'stay', dur:1.1, build:(t,P)=>{ const A=P.amp, u=(t/1.1*P.speed)%1, fire=bump(u,0.55,0.1);
     fightStance(A,{turn:0.4, knee:0.28, lead:0.14, rear:-0.17, lean:0.05});
     reachIK(B_LARM, V(-0.02,1.42,0.50), V(0,-1,0.3));                         // forward hand holds the stock out
-    reachIK(B_RARM, V(0.10,1.40,0.16-0.03*fire), V(0.2,-1,-0.2));             // trigger hand at the cheek
+    reachIK(B_RARM, V(-0.08,1.38,0.20-0.03*fire), V(0.2,-1,-0.2));            // trigger hand in front of the right shoulder
     handFrame(B_RARM, {fingers:V(0,0,1), palm:V(1,0,0)}); handFrame(B_LARM, {thumb:V(0.1,0.2,1), palm:V(-0.5,0.85,0)});
     sw(B_HEAD,AX.y,0.15*A); sw(B_HEAD,AX.x,0.06*A); }},
   {id:'aimholster', name:'Draw & Holster', cat:'Aim', type:'stay', dur:1.4, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.4*P.speed)%1;
@@ -3759,7 +3831,7 @@ const BIPED_MOTIONS=[
     setRootY(-0.32*k*A); animRoot.position.z -= 0.06*k*A;                     // drop to the right knee
     legF(B_RLEG,-0.1*k*A); kneeB(B_RLEG,1.7*k*A); legF(B_LLEG,0.5*k*A); kneeB(B_LLEG,1.1*k*A);
     plantFeet(0.22*k*A,-0.10*A,{width:0.12, footY:[-0.02,-0.28*k]});
-    reachIK(B_RARM, V(0.10,1.16,0.12), V(0.2,-1,-0.2));                       // stock at shoulder (lowered by the kneel)
+    reachIK(B_RARM, V(-0.10,1.14,0.18), V(0.2,-1,-0.2));                      // stock at the RIGHT shoulder (lowered by the kneel)
     reachIK(B_LARM, V(0.02,1.12,0.50), V(0,-1,0.3));                          // fore-grip forward over the knee
     handFrame(B_RARM, {fingers:V(0,0,1), palm:V(1,0,0)}); handFrame(B_LARM, {thumb:V(0.1,0.2,1), palm:V(-0.5,0.85,0)});
     sw(B_HEAD,AX.y,0.14*A); sw(B_HEAD,AX.x,0.1*A); leanF(0.12*k*A); }},
@@ -4238,7 +4310,7 @@ const BIPED_MOTIONS=[
     reachF(B_LARM,0.3,A); elb(B_LARM,1.4*A); twist((-0.2*wind+0.4*bash)*A); sw('Spine02',AX.y,0.3*bash*A); }},
   {id:'swspin', name:'Spinning Slash', cat:'Swordplay', type:'stay', dur:1.2, netTurn:TAU, build:(t,P)=>{ bstand(); const A=P.amp, g=Math.min(1,(t/1.2)*P.speed);
     sw('Hips',AX.y, TAU*g*A);                                     // full 360° spin
-    reachIK(B_RARM, V(0.36,1.30,0.28), V(0,-1,0.2));              // blade held out, sweeping a level arc
+    reachIK(B_RARM, bodyV(0.36,1.30,0.28), bodyV(0,-1,0.2));      // blade held out, sweeping a level arc — target and pole in the BODY frame so the arm turns with the spin
     armO(B_LARM,0.6*A); armF(B_LARM,-0.1*A);
     [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.2*A)); leanF(0.08*A); setRootY(-0.05*A); }},
   // ═════ MOUNTED / RIDING ══════════════════════════════════════════════════════════════════════════
@@ -4308,12 +4380,33 @@ function frame(){
   renderer.render(scene,camera); requestAnimationFrame(frame);
 }
 
+// ── Post-build arm clearance. reachIK guards its own targets and elbows, but arms posed by the angle helpers
+// (armF / armO / elb, gait arm swing) have no such guard, so a hand swung straight back for a baton or an off arm
+// pulled across the chest could run its forearm through the torso. After every build, sample each forearm and
+// upper arm against the body volume and, while inside, raise that arm outward (frontal-plane abduction) in 5°
+// steps — the body-blocking that a real arm does by itself.
+const _acE=new THREE.Vector3(), _acH=new THREE.Vector3(), _acS=new THREE.Vector3(), _acP=new THREE.Vector3();
+function armClearance(){
+  if(!boneByName['RightArm'] || !boneByName['Hips']) return;                    // biped only
+  for(const Ar of [B_LARM, B_RARM]){
+    for(let step=0; step<8; step++){
+      const bf=bodyFrame(); if(!bf) return;
+      animRoot.updateMatrixWorld(false);
+      boneByName[Ar.arm].getWorldPosition(_acS); boneByName[Ar.fore].getWorldPosition(_acE); boneByName[Ar.hand].getWorldPosition(_acH);
+      let pen=0;
+      for(let k=1;k<=9;k++){ _acP.copy(_acE).lerp(_acH,k/10); pen=Math.max(pen, bodyPen(_acP, bf, 0.01)); }
+      for(let k=2;k<=9;k++){ _acP.copy(_acS).lerp(_acE,k/10); pen=Math.max(pen, bodyPen(_acP, bf, 0.04)); }
+      if(pen<0.015) break;
+      armO(Ar, 0.087);                                                            // 5° further out to the side
+    }
+  }
+}
 // ===== Bake to an AnimationClip (library format) =====
 const BAKE_FPS=30;
 function bakeClip(m, D, params){
   const n=Math.max(2,Math.round(D*BAKE_FPS)); const times=[]; for(let i=0;i<n;i++) times.push(i/BAKE_FPS);
   const q={}; for(const bn of boneList) q[bn]=[]; const root=[];
-  for(let i=0;i<n;i++){ setRootY(0); animRoot.position.set(0,0,0); m.build(times[i], params); animRoot.updateMatrixWorld(false);
+  for(let i=0;i<n;i++){ setRootY(0); animRoot.position.set(0,0,0); m.build(times[i], params); armClearance(); animRoot.updateMatrixWorld(false);
     for(const bn of boneList){ const b=boneByName[bn]; q[bn].push(b.quaternion.x,b.quaternion.y,b.quaternion.z,b.quaternion.w); }
     root.push(animRoot.position.x, animRoot.position.y, animRoot.position.z);
   }
@@ -4349,7 +4442,7 @@ function skeletonEntry(){
   return { sig:names.join('|'), boneNames:boneList.slice(), rest };
 }
 function poseSig(m, D, params){
-  const grab=t=>{ setRootY(0); m.build(t,params); animRoot.updateMatrixWorld(false);
+  const grab=t=>{ setRootY(0); m.build(t,params); armClearance(); animRoot.updateMatrixWorld(false);
     const a=[]; for(const bn of boneList){ const b=boneByName[bn]; a.push(b.quaternion.x,b.quaternion.y,b.quaternion.z,b.quaternion.w); } return a; };
   const s=grab(0), e=grab(D); resetPose(); return {s,e};
 }
