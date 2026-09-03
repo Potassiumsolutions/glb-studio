@@ -922,7 +922,7 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 
 const $ = s => document.querySelector(s);
-const APP_NAME='GLB Stitcher', APP_VERSION='1.1.9', APP_BUILD='2026-09-03';   // version shown in About + footer
+const APP_NAME='GLB Stitcher', APP_VERSION='1.2.0', APP_BUILD='2026-09-03';   // version shown in About + footer
 // Bump APP_BUILD whenever the app or the bundled motion library changes. It is printed to the console and
 // shown in the footer so "am I running the current version?" can be answered by looking, not by guessing —
 // a stale browser tab kept an old build alive twice while the files on disk were already up to date.
@@ -3523,10 +3523,13 @@ if($('#hpX')) $('#hpX').addEventListener('click', hideHeldPropPop);
 if($('#propChar')) $('#propChar').onchange=()=>renderPropCard();
 if($('#heldPropDrop')) wireDrop($('#heldPropDrop'), $('#heldPropInput'), loadPropFiles);
 // Built-in weapon presets: fetch a bundled .glb from ./props/ and equip it on the selected character.
-const BUILTIN_PROPS=[['sword','Sword'],['cutlass','Cutlass'],['bow','Bow'],['staff','Staff'],['shield','Shield'],['rifle','Rifle'],['pistol','Pistol'],['spear','Spear'],['axe','Axe']];
+// [file, label, defaults] — defaults.rot (degrees) pre-sets the attach rotation so the prop lines up with a standard rigged hand
+const BUILTIN_PROPS=[['sword','Sword'],['cutlass','Cutlass'],['bow','Bow'],['staff','Staff'],['shield','Shield'],['rifle','Rifle'],['pistol','Pistol'],['spear','Spear'],['axe','Axe',{rot:[-90,0,0]}]];
 async function equipBuiltin(name){ const ch=selectedPropChar(); if(!ch){ setStatus('Add a character first, then pick a prop'); return; }
   try{ const res=await fetch('props/'+name+'.glb',{cache:'no-cache'}); if(!res.ok) throw 0; /* no-cache = revalidate, so a redeployed prop never shows stale */ const buf=await res.arrayBuffer();
-    await loadPropFiles([new File([buf], name+'.glb', {type:'model/gltf-binary'})]); }
+    await loadPropFiles([new File([buf], name+'.glb', {type:'model/gltf-binary'})]);
+    const def=(BUILTIN_PROPS.find(p=>p[0]===name)||[])[2]; const ch2=selectedPropChar();
+    if(def&&def.rot&&ch2&&ch2.prop&&ch2.prop.name===name+'.glb'){ ch2.prop.rot=def.rot.map(v=>v*Math.PI/180); applyCharProps(); renderPropCard(); refreshView(); } }
   catch(e){ console.warn('built-in prop load failed:', name, String(e&&(e.stack||e.message||e))); setStatus('Built-in prop “'+name+'” not found'); } }
 (function(){ const el=$('#propPresets'); if(!el) return;
   el.innerHTML=BUILTIN_PROPS.map(([n,l])=>`<button type="button" data-prop="${n}">${l}</button>`).join('');
@@ -5468,13 +5471,20 @@ async function studioMergeMotions(){
   let recs=[]; try{ recs=await StudioLib.getAllMotions(); }catch(e){ return; }
   if(!libIndex) libIndex=[]; if(!libSkeletons) libSkeletons={}; if(!libPoses) libPoses={};
   libIndex = libIndex.filter(m=>!m.__studio);                 // drop prior studio injections, then re-add fresh
+  const bundled=new Set(libIndex.map(m=>m.id));
+  let shadowed=0;
   for(const rec of recs){
     if(!rec.entry) continue;
+    // A Studio-library record with the SAME id as a bundled motion is an older bake of that exact motion (the id
+    // encodes name + params). It used to shadow the bundled file from memory, so a redeployed motion could never
+    // show for anyone who had once sent it over from Animate. The bundled library wins on a collision.
+    if(bundled.has(rec.entry.id)){ shadowed++; mlClipCache.delete(rec.entry.id); continue; }
     libIndex.push({ ...rec.entry, __studio:true });
     if(rec.sig && rec.skeleton && !libSkeletons[rec.sig]) libSkeletons[rec.sig]=rec.skeleton;   // its skeleton for retarget
     if(rec.clip) mlClipCache.set(rec.entry.id, rec.clip);      // serve clip from memory (no ./library/m fetch)
     if(rec.pose) libPoses[rec.entry.id]=rec.pose;
   }
+  if(shadowed) console.info('Studio library: '+shadowed+' motion(s) skipped — same id as a bundled motion (bundled copy is used)');
 }
 async function loadStudioModel(id){
   const rec=await StudioLib.getModel(id); if(!rec||!rec.glb){ setStatus('Model not found in library'); return; }
