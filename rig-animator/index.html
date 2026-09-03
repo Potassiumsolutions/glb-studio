@@ -1479,7 +1479,7 @@ const leanF=(a)=>BIPED_SPINE.forEach(s=>sw(s,AX.x,a/3));   // +a = lean torso fo
 const leanS=(a)=>BIPED_SPINE.forEach(s=>sw(s,AX.z,a/3));    // +a = lean/bend to the side
 const LEG_ADD=0.11;   // rest thighs splay ~11° outward — adduct back toward vertical (natural stance)
 const SHIN_ADD=0.13;  // rest lower-leg (knee→foot) splays outward too — rotate the shin in so the leg reads straight
-const FOOT_FLAT=-0.82, FOOT_TRACK=0.7;   // rest foot is 45° toe-down; level the sole while planted (+ counter leg swing)
+const FOOT_TRACK=0.7;                    // ankle counter-rotation per rad of leg swing (the old FOOT_FLAT=-0.82 'level the sole' constant was wrong — see footFlex/calibrateSole: the flat sole is MEASURED)
 function bstandBare(){ resetPose(); armO(B_LARM,-1.4); armO(B_RARM,-1.4);
   legO(B_LLEG,-LEG_ADD); legO(B_RLEG,-LEG_ADD);                                   // thighs un-splayed
   sw(B_LLEG.knee,AX.z,-SHIN_ADD*B_LLEG.s); sw(B_RLEG.knee,AX.z,-SHIN_ADD*B_RLEG.s); }   // shins rotated in → straight legs (feet still at rest tiptoe)
@@ -1869,7 +1869,7 @@ function bstand(){
 }
 function footStep(L,lift,swing,A){   // roll one foot for custom ground-step motions: sole flat when planted → stays partly cocked through swing (call after bstandBare)
   const wgt=eio(lramp(lift,0,0.7));                                           // wide, eased → no toe snap
-  sw(L.foot,AX.x, (FOOT_FLAT-swing*FOOT_TRACK*0.55)*(1-wgt) + (FOOT_FLAT*0.55)*wgt); }
+  footFlex(L, swing*FOOT_TRACK*0.55*(1-wgt) - 0.37*wgt); }   // dorsiflexion vs the CALIBRATED flat sole (the old -0.82 'flat' assumed a 45° toe-down rest; the rest is ~6° toe-up, so feet rode 40° toe-up)
 // ===== Anatomical aiming — point a limb SEGMENT along a WORLD direction (physics-based posing) =====
 // Instead of guessing armF/armO constants, we say where each segment should point in world space
 // (derived from the movement's anatomy) and solve the rotation directly.
@@ -1898,6 +1898,13 @@ function bodyYaw(){ const h=boneByName['Hips']; if(!h) return 0; animRoot.update
   const rest=restWorldQ['Hips']; if(rest) _byQ.multiply(rest.clone().invert());             // yaw ON TOP of the rest facing
   _byF.set(0,0,1).applyQuaternion(_byQ); return Math.atan2(_byF.x, _byF.z); }
 function bodyV(x,y,z){ const v=(x&&x.isVector3)?x.clone():new THREE.Vector3(x,y,z); return v.applyAxisAngle(AX.y, bodyYaw()); }
+// chestYaw()/chestV(): the same, in the CHEST's frame (Spine02's rotation on top of its rest). A swing's hands live in
+// front of the CHEST, which coils away from the hips — a world-authored bat/club path turns into an arm through the
+// chest as soon as the coil is right. Author two-handed swing paths with chestV so they turn with the shoulders.
+const _cyF=new THREE.Vector3(), _cyQ=new THREE.Quaternion();
+function chestYaw(){ const c=boneByName['Spine02']; if(!c) return bodyYaw(); animRoot.updateMatrixWorld(false); c.getWorldQuaternion(_cyQ);
+  const rest=restWorldQ['Spine02']; if(rest) _cyQ.multiply(rest.clone().invert()); _cyF.set(0,0,1).applyQuaternion(_cyQ); return Math.atan2(_cyF.x, _cyF.z); }
+function chestV(x,y,z){ const v=(x&&x.isVector3)?x.clone():new THREE.Vector3(x,y,z); return v.applyAxisAngle(AX.y, chestYaw()); }
 // Point a foot along a world direction AND control its ROLL about its own long axis.
 // `aim()` only constrains direction — the roll is left to whatever the leg chain happened to accumulate.
 // For arms that is harmless, but a foot has a sole: measured on a retargeted character, both feet sat at a
@@ -1978,11 +1985,80 @@ const lerpDir=(a,b,t)=>a.clone().lerp(b,t);
 function pathAt(keys, u){
   if(u <= keys[0][0]) return keys[0][1].clone();
   for(let i=1;i<keys.length;i++){
-    if(u <= keys[i][0]){ const a=keys[i-1], b=keys[i], f=smooth((u-a[0])/((b[0]-a[0])||1));
+    if(u <= keys[i][0]){ const a=keys[i-1], b=keys[i], r=(u-a[0])/((b[0]-a[0])||1), f=keys.linear?r:smooth(r);   // keys.linear (orbitPath) = no per-segment easing
       return a[1].clone().lerp(b[1], f); }
   }
   return keys[keys.length-1][1].clone();
 }
+// ── Reach clearance and torso-ORBITING hand paths (biped). Per-frame LIMB guards proved unstable (see PHYS_GUARDS):
+// once a forearm crosses the chest's centre line there is no stable direction to push it, and the correction flips
+// side to side between frames. The stable layer is the hand TARGET / hand PATH. handClear() moves a world point, in the
+// body frame (bodyFrame()), so that
+//   (a) the hand itself is outside the torso ellipse and the head sphere (bodyClear),
+//   (b) the LINE from each named shoulder joint to the hand clears the torso (the audit's upper-arm ellipse): a hand
+//       reaching across the body can only get there IN FRONT of the chest. The side is chosen with a front bias, so the
+//       push never flips front↔back as the hand crosses the centre line, and every amount is faded in smoothly,
+//   (c) optionally the hand keeps ≥ shoulderR from the shoulder joint — a path that passes the joint whips the arm round.
+// It is a continuous function of the pose, so it cannot inject a frame jump. tools/verify/bodyclip.mjs + flipscan.mjs
+// are the acceptance tests.
+//   orbitPath(from, to, {arms, n, u0, u1, shoulderR, margin, lineMargin}) → pathAt keys (linear) that orbit the torso
+//   orbitLerp(from, to, k, o)  → one point of that path (exact, no sampling)     orbitAt(keys, u, o) → pathAt(keys,u), cleared
+//   o.arms = the arm(s) whose shoulder the path must respect: [B_RARM] for a right-hand path, both for a two-hand grip.
+const _hcS=new THREE.Vector3(), _hcT=new THREE.Vector3();
+function handClear(p, arms, o){
+  o=o||{}; const bf=bodyFrame(); if(!bf) return p.clone();
+  const A=bf.A.clone(), Y=bf.y.clone(), L=bf.L;
+  arms=arms||[]; const R=o.shoulderR??0, lineM=o.lineMargin??0.012;                 // margin vs the shrunk ellipse (7 cm half-depth): 3 cm pushed ordinary centre-front grips sideways
+  const HWs=BODY_HW-0.04, HDs=BODY_HD-0.04, lm=lineM/HDs;                             // the audit's upper-arm ellipse (the line stands in for the arm)
+  let out=bodyClear(p, o.margin);                                                     // (a)
+  const sh=[]; for(const Ar of arms){ const b=boneByName[Ar.arm]; if(!b) continue; b.getWorldPosition(_hcS); sh.push({w:_hcS.clone(), s:Ar.s}); }
+  let total=0;                                                                        // reach-line push so far (normalized) — capped: a big correction is a jump
+  for(let it=0; it<3 && sh.length; it++){
+    let moved=false;
+    for(const S of sh){
+      // (b) shoulder→hand line vs the torso, top view, in the ellipse frame at the HAND's height, over the torso's band only
+      _hcT.copy(out).sub(A); const hy=_hcT.dot(Y); const fr=bf.at(clamp(hy,0,L)); const X=fr.x.clone(), Z=fr.z.clone();
+      const h={x:_hcT.dot(X), y:hy, z:_hcT.dot(Z)}; _hcT.copy(S.w).sub(A); const sl={x:_hcT.dot(X), y:_hcT.dot(Y), z:_hcT.dot(Z)};
+      const sy=sl.y, dy=h.y-sy, y0=-0.02, y1=L+0.04; let t0=0, t1=1;
+      if(Math.abs(dy)>1e-6){ const ta=(y0-sy)/dy, tb=(y1-sy)/dy; t0=Math.max(0,Math.min(ta,tb)); t1=Math.min(1,Math.max(ta,tb)); }
+      else if(sy<y0||sy>y1){ t0=1; t1=0; }
+      if(t1>t0+1e-3 && total<1.0){
+        const sx=sl.x/HWs, sz=(sl.z-BODY_FWD)/HDs, hx=h.x/HWs, hz=(h.z-BODY_FWD)/HDs, dx=hx-sx, dz=hz-sz, dd=dx*dx+dz*dz;
+        if(dd>1e-6){
+          let tc=-(sx*dx+sz*dz)/dd; tc=Math.max(t0,Math.min(t1,tc));                       // closest point of the (clipped) line to the spine
+          const dist=Math.hypot(sx+dx*tc, sz+dz*tc);
+          const gate=clamp((tc-0.15)/0.15,0,1)*clamp((1+lm-dist)/0.3,0,1);                // fades in: near the shoulder it cannot be fixed by moving the hand
+          if(o.trace) o.trace.push({s:S.s, it, tc:+tc.toFixed(2), dist:+dist.toFixed(2), gate:+gate.toFixed(2), t0:+t0.toFixed(2), t1:+t1.toFixed(2), h:[+h.x.toFixed(2),+h.y.toFixed(2),+h.z.toFixed(2)], S:[+sl.x.toFixed(2),+sl.y.toFixed(2),+sl.z.toFixed(2)]});
+          if(gate>0){
+            const il=1/Math.sqrt(dd), nx=-dz*il, nz=dx*il;                                 // ⊥ to the line; the other side is -n
+            const w=smooth((nz + 0.35*nx*S.s + 0.2)/0.4);                                  // front bias (S.s: +1 left arm, own side +x), BLENDED across the switch — no jump
+            const cap=Math.min(0.5, 1.0-total);
+            const d1=Math.min(cap, ((1+lm) - (sx*nx+sz*nz))/tc), d2=Math.min(cap, ((1+lm) + (sx*nx+sz*nz))/tc);   // push along +n / along -n
+            const d=(w*Math.max(0,d1) - (1-w)*Math.max(0,d2))*gate;                        // signed, along n
+            if(o.trace) Object.assign(o.trace[o.trace.length-1], {n:[+nx.toFixed(2),+nz.toFixed(2)], w:+w.toFixed(2), d:+d.toFixed(2)});
+            if(Math.abs(d)>1e-4){ total+=Math.abs(d); out=A.clone().addScaledVector(X,(hx+d*nx)*HWs).addScaledVector(Y,h.y).addScaledVector(Z,(hz+d*nz)*HDs+BODY_FWD); moved=true; }
+          }
+        }
+      }
+      // (c) stay outside a sphere round the shoulder joint
+      if(R>0){ const dv=out.clone().sub(S.w), dl=dv.length(); if(dl<R){ if(dl<1e-6) dv.copy(bf.z2); else dv.divideScalar(dl); out=S.w.clone().addScaledVector(dv,R); moved=true; } }
+    }
+    if(moved) out=bodyClear(out, o.margin); else break;
+  }
+  return out;
+}
+// The shoulder sphere applies to the TRANSIT of a path and fades to nothing at its ends (a hand may finish at the ear,
+// the cheek or on the other shoulder — those are the author's points; the sphere stops the path from passing THROUGH the joint).
+const orbitBell=k=>clamp(Math.min(k,1-k)/0.25,0,1);
+const _oeS=new THREE.Vector3();
+function orbitEndFade(pts, arms){                                   // 1 = ends are well clear of every named shoulder; → 0 as an end comes within 0.15 m of one
+  let near=1e9; for(const Ar of arms||[]){ const b=boneByName[Ar.arm]; if(!b) continue; b.getWorldPosition(_oeS); for(const p of pts) near=Math.min(near, p.distanceTo(_oeS)); }
+  return clamp((near-0.15)/0.12, 0, 1); }
+function orbitPath(from, to, o){ o=o||{}; const n=o.n??12, u0=o.u0??0, u1=o.u1??1, R=(o.shoulderR??0.25)*orbitEndFade([from,to], o.arms);
+  const keys=[]; for(let i=0;i<=n;i++){ const k=i/n; keys.push([u0+(u1-u0)*k, handClear(from.clone().lerp(to,k), o.arms||[], {shoulderR:R*orbitBell(k), margin:o.margin, lineMargin:o.lineMargin})]); }
+  keys.linear=true; return keys; }
+function orbitLerp(from, to, k, o){ o=o||{}; return handClear(from.clone().lerp(to,k), o.arms||[], {shoulderR:(o.shoulderR??0.25)*orbitBell(k)*orbitEndFade([from,to], o.arms), margin:o.margin, lineMargin:o.lineMargin}); }
+function orbitAt(keys, u, o){ o=o||{}; return handClear(pathAt(keys,u), o.arms||[], {shoulderR:(o.shoulderR??0.25)*(o.cyclic?1:orbitBell(u))*orbitEndFade(keys.map(k=>k[1]), o.arms), margin:o.margin, lineMargin:o.lineMargin}); }
 function setArm(Ar,upper,fore){ aim(Ar.arm,Ar.fore,upper); aim(Ar.fore,Ar.hand,fore); }   // orient upper arm then forearm
 // 2-bone inverse kinematics — place the HAND at an exact world point (elbow solved by cosine rule).
 // `pole` biases which way the elbow bends (default down). This is the core "put the hand here" primitive.
@@ -1991,30 +2067,40 @@ function setArm(Ar,upper,fore){ aim(Ar.arm,Ar.fore,upper); aim(Ar.fore,Ar.hand,f
 // solver places may sit inside it: a hand target inside is pushed out to the surface (+3 cm), and an elbow that the
 // pole would put inside the chest is rotated clear. This is the physics guard that stops "arm through the body".
 const _bvA=new THREE.Vector3(), _bvB=new THREE.Vector3(), _bvQ=new THREE.Quaternion(), _bvY=new THREE.Vector3(), _bvZ=new THREE.Vector3(), _bvX=new THREE.Vector3(), _bvH=new THREE.Vector3(), _bvR=new THREE.Vector3();
+const _bvQ2=new THREE.Quaternion(), _bvZ2=new THREE.Vector3(), _bvX2=new THREE.Vector3(), _bvZt=new THREE.Vector3(), _bvXt=new THREE.Vector3();
 const BODY_HW=0.17, BODY_HD=0.11, BODY_FWD=0.03, HEAD_R=0.11;
-const PHYS_GUARDS={ targetClear:true, elbow:false, segment:false, armClear:false };   // see note above: per-frame limb guards are OFF (unstable across frames)
+const PHYS_GUARDS={ targetClear:true, reachLine:true, elbow:false, segment:false, armClear:false };   // per-frame LIMB guards are OFF (unstable across frames); the TARGET guards (ellipse + reach line, see handClear) are ON — continuous, so they cannot pop
+// The torso TWISTS: the hips face one way and the chest (Spine02) another, and it is the CHEST's facing that decides
+// what "in front of the chest" means — a golfer's lead arm clears the chest at the top of the backswing only because
+// the chest has turned toward the hands. So the ellipse's orientation is interpolated up the spine from the hips'
+// forward (y=0) to the chest's (y=L): bf.at(y) → {x,z} for that height (shared temporaries — use them at once).
 function bodyFrame(){                                         // recomputed per call — the pose changes every frame
-  const hips=boneByName['Hips'], neck=boneByName['neck']||boneByName['Spine02'], head=boneByName['Head']; if(!hips||!neck) return null;
+  const hips=boneByName['Hips'], neck=boneByName['neck']||boneByName['Spine02'], head=boneByName['Head'], chest=boneByName['Spine02']||neck; if(!hips||!neck) return null;
   animRoot.updateMatrixWorld(false); hips.getWorldPosition(_bvA); neck.getWorldPosition(_bvB); if(head) head.getWorldPosition(_bvH); else _bvH.copy(_bvB);
   _bvY.copy(_bvB).sub(_bvA); const L=_bvY.length()||1; _bvY.divideScalar(L);
   hips.getWorldQuaternion(_bvQ); _bvZ.set(0,0,1).applyQuaternion(_bvQ); _bvZ.addScaledVector(_bvY, -_bvZ.dot(_bvY)).normalize();
   _bvX.crossVectors(_bvY, _bvZ).normalize();
-  return {A:_bvA, y:_bvY, x:_bvX, z:_bvZ, L, head:_bvH};
+  chest.getWorldQuaternion(_bvQ2); const rq=restWorldQ[chest.name]; if(rq) _bvQ2.multiply(rq.clone().invert());   // the chest's rotation on top of its rest, applied to world forward
+  _bvZ2.set(0,0,1).applyQuaternion(_bvQ2); _bvZ2.addScaledVector(_bvY, -_bvZ2.dot(_bvY)); if(_bvZ2.lengthSq()<1e-6) _bvZ2.copy(_bvZ); _bvZ2.normalize();
+  _bvX2.crossVectors(_bvY, _bvZ2).normalize();
+  const bf={A:_bvA, y:_bvY, x:_bvX, z:_bvZ, x2:_bvX2, z2:_bvZ2, L, head:_bvH};
+  bf.at=yy=>{ const k=clamp(yy/L,0,1); _bvZt.copy(_bvZ).lerp(_bvZ2,k); if(_bvZt.lengthSq()<1e-6) _bvZt.copy(_bvZ2); _bvZt.normalize(); _bvXt.crossVectors(_bvY,_bvZt).normalize(); return {x:_bvXt, z:_bvZt}; };
+  return bf;
 }
 // signed "inside-ness" of a world point: >0 = inside the torso ellipse by that many metres (approx), 0 = clear
 function bodyPen(p, bf, shrink){ shrink=shrink||0; if(!bf) return 0;
   _bvR.copy(p).sub(bf.A); const y=_bvR.dot(bf.y); let pen=0;
-  if(y>-0.02 && y<bf.L+0.04){ const ex=_bvR.dot(bf.x)/(BODY_HW-shrink), ez=(_bvR.dot(bf.z)-BODY_FWD)/(BODY_HD-shrink); const rr=Math.sqrt(ex*ex+ez*ez); if(rr<1) pen=(1-rr)*Math.min(BODY_HW,BODY_HD); }
+  if(y>-0.02 && y<bf.L+0.04){ const f=bf.at(y); const ex=_bvR.dot(f.x)/(BODY_HW-shrink), ez=(_bvR.dot(f.z)-BODY_FWD)/(BODY_HD-shrink); const rr=Math.sqrt(ex*ex+ez*ez); if(rr<1) pen=(1-rr)*Math.min(BODY_HW,BODY_HD); }
   const dh=p.distanceTo(bf.head); if(dh<HEAD_R) pen=Math.max(pen, HEAD_R-dh);
   return pen;
 }
 // push a world point out of the torso ellipse / head sphere, radially, to the surface plus a margin
 function bodyClear(p, margin){ margin=margin??0.03; const bf=bodyFrame(); if(!bf) return p; const out=p.clone();
   _bvR.copy(out).sub(bf.A); const y=_bvR.dot(bf.y);
-  if(y>-0.02 && y<bf.L+0.04){ const lx=_bvR.dot(bf.x), lz=_bvR.dot(bf.z)-BODY_FWD; const ex=lx/BODY_HW, ez=lz/BODY_HD; const rr=Math.sqrt(ex*ex+ez*ez);
+  if(y>-0.02 && y<bf.L+0.04){ const f=bf.at(y); const lx=_bvR.dot(f.x), lz=_bvR.dot(f.z)-BODY_FWD; const ex=lx/BODY_HW, ez=lz/BODY_HD; const rr=Math.sqrt(ex*ex+ez*ez);
     if(rr<1){ const k=(rr<1e-4)?0:1/rr; const nx=(rr<1e-4?0:ex*k), nz=(rr<1e-4?1:ez*k);            // radial direction on the unit ellipse
       const tx=nx*BODY_HW, tz=nz*BODY_HD; const mag=Math.sqrt(tx*tx+tz*tz)||1;                       // surface point in local xz
-      out.copy(bf.A).addScaledVector(bf.y, y).addScaledVector(bf.x, tx+nx*margin*BODY_HW/mag*3).addScaledVector(bf.z, BODY_FWD+tz+nz*margin*BODY_HD/mag*3); } }
+      out.copy(bf.A).addScaledVector(bf.y, y).addScaledVector(f.x, tx+nx*margin*BODY_HW/mag*3).addScaledVector(f.z, BODY_FWD+tz+nz*margin*BODY_HD/mag*3); } }
   const dh=out.distanceTo(bf.head); if(dh<HEAD_R+margin){ const d=out.clone().sub(bf.head); if(d.lengthSq()<1e-8) d.set(0,0,1); d.normalize(); out.copy(bf.head).addScaledVector(d, HEAD_R+margin); }
   return out;
 }
@@ -2025,7 +2111,7 @@ const _ikS=new THREE.Vector3(),_ikE=new THREE.Vector3(),_ikH=new THREE.Vector3()
 const _sgE=new THREE.Vector3(), _sgH=new THREE.Vector3(), _sgP=new THREE.Vector3(), _sgR=new THREE.Vector3();
 function reachIK(Ar, target, pole){
   if(!(Ar===B_LARM || Ar===B_RARM)){ _reachIKCore(Ar, target, pole); return; }
-  let tgt=PHYS_GUARDS.targetClear ? bodyClear(target) : target;                 // a hand can be ON the body, never IN it
+  let tgt=PHYS_GUARDS.reachLine ? handClear(target,[Ar],{shoulderR:0}) : (PHYS_GUARDS.targetClear ? bodyClear(target) : target);   // a hand can be ON the body, never IN it — and its reach line stays clear of the chest (DEFAULT for every hand target, so a prompted motion inherits it)
   for(let pass=0; pass<3; pass++){
     _reachIKCore(Ar, tgt, pole);
     if(pass===2 || !PHYS_GUARDS.segment) break;
@@ -2107,7 +2193,7 @@ function flexAxisLocal(Ar){
   const w=new THREE.Vector3().crossVectors(armDir, AX.z); if(w.lengthSq()<1e-6) w.set(-1,0,0); w.normalize();
   v=w.applyQuaternion(q.clone().invert()).normalize(); _flexCache.map[Ar.arm]=v; return v;
 }
-function grip(target, pole){ reachIK(B_LARM, target, pole); reachIK(B_RARM, target, pole); }   // BOTH hands to one point (bat / club / ball)
+function grip(target, pole){ const t=PHYS_GUARDS.reachLine ? handClear(target,[B_LARM,B_RARM],{shoulderR:0}) : target; reachIK(B_LARM, t, pole); reachIK(B_RARM, t, pole); }   // BOTH hands to one point (bat / club / ball) — cleared ONCE for both shoulders so the hands stay together
 function shaft(top, bot, pole){ reachIK(B_RARM, top, pole); reachIK(B_LARM, bot, pole); }        // hands SPACED along a shaft (broom / rake / shovel / rope)
 // Boxing arm configs — world directions, s=Ar.s flips L/R (char faces +Z, +X=left). Elbow down, glove at cheek.
 const BX_GU=s=>V(0.15*s,-0.95,0.12),  BX_GF=s=>V(-0.10*s,0.90,0.35);
@@ -2124,9 +2210,9 @@ function guardArm(Ar){ setArm(Ar, BX_GU(Ar.s), BX_GF(Ar.s)); }
 function boxStance(A, drive, o){
   o=o||{}; drive=drive||0;
   bstand();   // establishes standY so the drop below is measured from standing height
-  const turn=(o.turn??0.40)*A;
+  const turn=-(o.turn??0.40)*A;                        // NEGATIVE = turned to the RIGHT: the lead (left) shoulder points at the opponent (+Y rotation turns the character to its LEFT)
   sw('Hips', AX.y, turn);
-  sw('Spine02', AX.y, turn*0.30);                      // shoulders open slightly more than the hips
+  sw('Spine02', AX.y, turn*0.30);                      // shoulders bladed slightly more than the hips
   const heel=(o.rearHeel??-0.16) - 0.30*drive;         // rear heel lifts further as the punch turns through
   settleKnee((o.knee??0.44)*A, () =>                   // ~25 deg, solved not guessed
     plantFeet((o.lead??0.20)*A, (o.rear??-0.20)*A, {width:0.105, footY:[0, heel]}));
@@ -2303,7 +2389,7 @@ function fightStance(A, o){
 function fenceGuard(A, o){
   o=o||{};
   bstand();
-  const turn=-(o.turn??0.85)*A;                        // bladed, right side leading
+  const turn=(o.turn??0.85)*A;                         // bladed with the RIGHT side leading: POSITIVE = turned to the character's left, right shoulder to the opponent (was inverted)
   sw('Hips', AX.y, turn);
   sw('Spine02', AX.y, -turn*0.30);                     // shoulders squared back a little toward the target
   if(o.z) animRoot.position.z += o.z;
@@ -2322,14 +2408,17 @@ function bipedGait(t,P,dur,o){ o=o||{}; bstandBare();
     const lift=Math.max(0,Math.sin(a+Math.PI*0.6));
     const front=Math.max(0,dir*Math.sin(a));                                   // how far the thigh is out in front (0..1)
     kneeB(L, Math.max(-0.28,(knee0+lift*kneeAmp)*A - front*front*frontKick*A));  // knee straightens (past the rest bend) as the leg reaches forward → leg extends almost full-straight out front
-    let footRot;
+    // Ankle: DORSIFLEXION relative to the CALIBRATED flat sole (footFlex), + = toe up. The old code rotated the foot
+    // -0.82 rad from rest assuming a 45° toe-down rest; the measured rest is ~6° toe-UP, so the feet rode 40-70°
+    // dorsiflexed — heels down, toes in the air — on every motion built here (the physics audit's DORSI+71).
+    let dorsi;
     if(footTuck){ const s=dir*Math.sin(a), c=dir*Math.cos(a);   // sprint ankle
       const land=eio(clamp(Math.max(0,s)*Math.max(0,-c)*2.2,0,1));   // leg forward AND descending → foot planting out in front
       const back=clamp(Math.max(0,-s),0,1);                          // leg behind the body → toe-off
-      footRot = ((-footInline)*(1-land) + (-footFront)*land)*(1-back) + 0.12*back; }   // swing: almost in-line w/ leg (toe clears, no stub) → plant in front: parallel to the ground for grip → behind: toe points out
+      dorsi = -(((-footInline)*(1-land) + (-footFront)*land)*(1-back) + 0.12*back); }   // swing: toe pointed almost in line with the leg (clears, no stub) → plant in front: level for grip → behind: toe-off
     else { const wgt=eio(lramp(lift,0,0.5));                   // walk foot roll: heel-strike→flat in stance, LEVEL (slight toe-up) in swing
-      footRot = (FOOT_FLAT-swing*FOOT_TRACK)*(1-wgt) + (FOOT_FLAT-0.30)*wgt; }   // swing foot dorsiflexed (toe up) to counter the bent shin so the sole reads flatter, not a pointed toe
-    sw(L.foot,AX.x, footRot); });
+      dorsi = swing*FOOT_TRACK*(1-wgt) + 0.30*wgt; }            // swing foot dorsiflexed (toe up) to counter the bent shin so the sole reads flat, not a pointed toe
+    footFlex(L, dorsi); });
   BIPED_ARMS.forEach((Ar,i)=>{ const a=ph+(i?0:Math.PI);
     sw(Ar.sh, AX.x, -dir*Math.sin(a)*armAmp*shDrive*A);         // each shoulder joint swings, carrying its arm → fuller motion
     armF(Ar, dir*Math.sin(a)*armAmp*A); elb(Ar,(elbow0 + elbowAmp*Math.sin(a+0.5))*A); });   // elbow flexes/extends through the swing
@@ -2339,6 +2428,7 @@ function bipedGait(t,P,dur,o){ o=o||{}; bstandBare();
   if(lean) sw('Spine02',AX.x, lean*A);   // lean the whole torso forward rigidly from the waist — shoulder sphere, neck & head ride along in the same relationship as Easy Stroll
   if(bodyTilt&&animRoot) animRoot.rotation.x = bodyTilt*A;   // tilt the ENTIRE rig (hips included) forward about the feet — whole-body sprint lean
   if(bob) setRootY(Math.abs(Math.sin(ph))*bob*A);
+  groundClamp(0);                            // CONTACT decides the height: the lowest sole rests on the floor (the hand-bobbed root floated 7 cm / sank 10 cm)
 }
 // side-step locomotion (dir +1 = travels right / -1 = left)
 // Side-stepping. Abducting the thigh about world Z swung the leg sideways but ALSO rolled the foot with it
@@ -3051,9 +3141,9 @@ const BIPED_MOTIONS=[
     fightStance(A,{knee:0.42, lead:0.12+0.24*follow, rear:-0.24, turn:0.78-1.00*follow,
                    rearHeel:-0.45*follow, z:0.08*follow*A, lean:0.04});
     leanF((-0.12*wind + 0.36*follow)*A);                          // lay back into the cock, then throw through
-    twist((0.55*wind - 0.80*follow)*A);
+    twist((-0.45*wind + 0.80*follow)*A);                          // shoulders close further than the hips in the cock, unwind past them on the follow (was inverted)
     reachIK(B_RARM, pathAt(THROW_ARC,u),  V(-0.5,-1,-0.2));       // elbow stays outside and below the hand
-    reachIK(B_LARM, pathAt(THROW_LEAD,u), V( 0.6,-1, 0.0));
+    reachIK(B_LARM, orbitAt(THROW_LEAD,u,{arms:[B_LARM]}), V( 0.8,-0.3,-0.5));   // lead arm: elbow out-and-back (a 'down' pole was parallel to the reach as the hand dropped past the hip and the bend plane flipped)
     sw(B_HEAD,AX.y,(0.32*wind-0.30*follow)*A); }},
   // Leap up and reach UP-AND-FORWARD to pull in a ball above the head. Hands solved with reachIK to points
   // high and in FRONT (+Z) so the arms can't wind up pointing down or behind; the body leans forward into it.
@@ -3154,14 +3244,17 @@ const BIPED_MOTIONS=[
     fightStance(A,{knee:0.34-0.16*block, lead:0.16+0.32*block, rear:-0.26-0.10*cross,
                    turn:0.85-1.05*follow, rearHeel:-0.35*follow, lean:0.02});
     leanF((-0.34*cross + 0.22*block + 0.40*follow)*A);            // lay back over the rear leg, then hinge
-    twist((0.60*cross - 0.80*follow)*A);
-    reachIK(B_RARM, pathAt(JAV_ARC,u), V(-0.5,-1,-0.2));
-    armF(B_LARM,(1.15*cross - 1.25*follow)*A); armO(B_LARM,-0.55*cross*A); elb(B_LARM,(0.45+0.65*follow)*A);
+    twist((-0.34 - 0.35*cross + 0.95*follow)*A);                  // shoulders stay WITHDRAWN (closed past the hips, cancelling fightStance's squaring) while the arm is back, then rotate through the throw (was inverted)
+    reachIK(B_RARM, orbitAt(JAV_ARC,u,{arms:[B_RARM]}), V(-0.5,-1,-0.2));
+    // Off arm as a hand PATH that orbits the torso: pointed at the target through the cross-overs, pulled in to the
+    // side through the block, then back behind the left hip on the follow (angle-posed it swung through the pelvis)
+    const lh=orbitAt([[0,bodyV(0.24,0.88,0.04)],[0.45,V(0.10,1.42,0.45)],[0.66,bodyV(0.30,1.15,0.15)],[0.85,bodyV(0.26,0.98,-0.18)],[1,bodyV(0.26,0.96,-0.14)]], u, {arms:[B_LARM]});
+    reachIK(B_LARM, lh, bodyV(0.7,-0.7,-0.2));
     sw(B_HEAD,AX.y,(0.30*cross-0.30*follow)*A); }},
   {id:'shotput', name:'Shot Put', cat:'Track & Field', type:'stay', dur:1.1, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.1*P.speed)%1, coil=ramp(u,0,0.5), push=bump(u,0.65,0.25);
-    twist((-0.4*coil + 0.6*push)*A); sw('Hips',AX.y,(-0.3*coil + 0.4*push)*A); setRootY((-0.20*coil + 0.10*push)*A); plantFeet(-0.20-0.04*coil*A, 0.18+0.06*push*A, {width:0.085, footY:[-0.25*push,0]});
+    const open=ramp(u,0.55,0.8); twist((-0.4*coil + 0.7*open)*A); sw('Hips',AX.y,(-0.3*coil + 0.6*open)*A);   // coil right, then open LEFT through the put and STAY open setRootY((-0.20*coil + 0.10*push)*A); plantFeet(-0.20-0.04*coil*A, 0.18+0.06*push*A, {width:0.085, footY:[-0.25*push,0]});
     animRoot.updateMatrixWorld(true); const by=animRoot.position.y;                         // ball tucked at the neck → PUNCHED up-and-forward at ~40° (reachHigh released it too low & level)
-    reachIK(B_RARM, V(B_RARM.s*0.10, by+1.30, 0.08).lerp(V(B_RARM.s*0.05, by+1.74, 0.34), push), V(0,-1,0)); }},
+    reachIK(B_RARM, orbitLerp(chestV(-0.10, by+1.30, 0.10), chestV(-0.06, by+1.72, 0.40), push, {arms:[B_RARM]}), V(-0.9,-0.2,-0.3)); }},   // chest-frame targets turn WITH the coil; elbow out-back (a 'down' pole was anti-parallel to the upward put)
   // A discus turn is generated by the LEGS: a wide base, deeply flexed knees, and the feet pivoting on
   // the circle as the hips wind round ahead of the shoulders.
   {id:'discus', name:'Discus Spin', cat:'Track & Field', type:'stay', dur:1.3, build:(t,P)=>{ const A=P.amp, u=(t/1.3*P.speed)%1;
@@ -3176,7 +3269,11 @@ const BIPED_MOTIONS=[
     setRootY(up*0.7*A); [B_LLEG,B_RLEG].forEach(L=>{ legF(L,up*1.0*A); kneeB(L,up*1.4*A); }); leanF(0.2*plant*A - 0.3*up*A); }},
   {id:'batonpass', name:'Baton Handoff', cat:'Track & Field', type:'move', dur:0.78, build:(t,P)=>{ const A=P.amp;
     gaitRun(t,P,0.78,{duty:0.38,hip:1.0,knee:1.0,lean:0.16,armSwing:40,elbow0:1.40,flight:0.050,pelvisRot:7});
-    armF(B_RARM,-1.2*A); elb(B_RARM,-0.1*A); }},                           // receiving arm back, palm up
+    // receiving arm: straight back and low behind the hip, palm up — a body-frame reach on an orbiting path (angle-posed
+    // on top of the gait's forward swing, its forearm ended up through the pelvis)
+    const bob=0.5+0.5*Math.sin(2*TAU*(t/0.78)*P.speed);
+    reachIK(B_RARM, orbitLerp(bodyV(-0.26,1.00,-0.30), bodyV(-0.25,1.06,-0.33), bob, {arms:[B_RARM]}), bodyV(-0.7,-0.7,0));
+    handFrame(B_RARM, {fingers:bodyV(0,-0.35,-1), palm:V(0,1,0)}); }},
   {id:'finishlean', name:'Finish-Line Lean', cat:'Track & Field', type:'stay', dur:1.0, build:(t,P)=>{ bstand(); const A=P.amp, u=t/1.0, lean=ramp(u,0.3,0.7);
     leanF(0.7*lean*A); [B_LARM,B_RARM].forEach(Ar=>armF(Ar,-1.0*lean*A)); legF(B_RLEG,0.7*lean*A); kneeB(B_RLEG,0.3*A); legF(B_LLEG,-0.4*lean*A); sw(B_HEAD,AX.x,0.2*lean*A); }},
   // —— Dancing ——
@@ -3551,28 +3648,33 @@ const BIPED_MOTIONS=[
     setRootY(-0.045*A);
     animRoot.updateMatrixWorld(true);
     plantFeet(0.0, 0.0, {width:0.165, footY:[0, -0.30*thru]});              // wide base; trail heel releases through impact
-    sw('Hips',AX.y,(0.35*back - 0.75*thru)*A);
-    twist((0.55*back - 1.05*thru)*A);
+    sw('Hips',AX.y,(-0.35*back + 0.75*thru)*A);                              // hips turn RIGHT (away from the target) on the backswing, LEFT through impact — WITH the hands (the signs were inverted: chest against the hands)
+    twist((-0.55*back + 1.05*thru)*A);                                          // shoulders coil further than the hips, then unwind past them
     leanF(0.42*A);
     // both hands grip the club; grip head travels address(low front) → top(high back) → impact(low) → follow(high left)
     // Top of the backswing is ABOVE and behind the trail shoulder and the finish is above the lead one — the old
     // points sat almost ON the shoulder joints, and every straight line between them ran through the shoulder, so
     // the arm whipped round as the hands went past. The hands arc OUT from the body on the way down and up.
-    const addr=V(0.02,0.6,0.42), top=V(-0.30,1.70,-0.20), fin=V(0.28,1.72,-0.10);
-    const g=pathAt([[0,addr],[0.22,V(-0.34,1.10,0.30)],[0.45,top],[0.55,V(-0.32,1.10,0.28)],[0.65,addr],[0.78,V(0.34,1.15,0.30)],[0.9,fin],[1,fin]], u);
+    // Authored in the CHEST frame (chestV): the chest coils ~50° right at the top and ~50° left at the finish, and the
+    // hands stay in front of it — the top is above the trail shoulder with the lead arm lying ACROSS the chest (z≈+0.2),
+    // the downswing sweeps out and forward past the trail hip, the finish is above the lead shoulder.
+    const addr=chestV(0.02,0.60,0.45), top=chestV(-0.30,1.66,0.20), fin=chestV(0.30,1.74,0.26);
+    const g=orbitAt([[0,addr],[0.22,chestV(-0.32,1.05,0.40)],[0.45,top],[0.55,chestV(-0.36,1.12,0.38)],[0.65,addr],[0.78,chestV(0.34,1.15,0.38)],[0.9,fin],[1,fin]], u, {arms:[B_LARM,B_RARM]});   // orbitAt: both shoulders' reach lines kept clear of the chest
     grip(g, V(0,-0.4,-1)); }},   // pole back-down: the hands hang straight BELOW the shoulders at address and impact, so a 'down' pole was parallel to the reach and the bend plane flipped through impact
   // A bat swing is a rotation off a STRIDE: the front foot steps toward the pitch, the hips clear, the
   // rear heel releases, and the hands come last.
   {id:'batswing', name:'Bat Swing', cat:'Sports', type:'stay', dur:0.9, build:(t,P)=>{ const A=P.amp, u=(t/0.9*P.speed)%1, load=ramp(u,0,0.35), swing=ramp(u,0.35,0.65);
     fightStance(A,{knee:0.46, lead:0.14+0.16*swing, rear:-0.20, turn:0.55*load-0.80*swing,
       rearHeel:-0.45*swing, z:0.08*swing*A, lean:0.10});
-    twist((0.6*load - 1.6*swing)*A);
-    const cock=V(-0.40,1.32,-0.30), contact=V(0.06,1.12,0.5), follow=V(0.44,1.28,0.05);  // hands together on the bat: cocked back off the shoulder → contact out front → follow across
+    twist((-0.5*load + 1.4*swing)*A);                                            // shoulders coil RIGHT with the hands, then whip LEFT through contact (was inverted)
+    // CHEST-frame keys (chestV): the chest coils right through the load and whips left through contact; the cocked hands
+    // sit beside and just in front of the trail shoulder, contact is out front, the follow-through is beside the lead shoulder.
+    const cock=chestV(-0.38,1.34,0.12), contact=chestV(0.06,1.12,0.50), follow=chestV(0.44,1.28,0.16);   // hands together on the bat: cocked beside the trail shoulder → contact out front → follow across
     // The hands travel an ARC out in front of the chest (a straight cock→contact line passes within 20 cm of the shoulder, and the arm whipped round as the hands went by)
     // …and they go OUT past the trail shoulder on the way back and again on the way forward: every straight
     // segment between the front and the cocked position runs right under the shoulder joint.
-    const outR=V(-0.38,1.22,0.12), mid=V(-0.12,1.16,0.40);
-    grip(pathAt([[0,V(-0.05,1.15,0.15)],[0.18,outR],[0.35,cock],[0.46,outR.clone().add(V(0,0,0.02))],[0.56,mid],[0.65,contact],[1.0,follow]], u), V(0,-1,0)); }},   // pole straight DOWN: the hands pass through down-forward at contact, and a pole the hand path crosses flips the bend plane (bat spun 144° in one frame)
+    const outR=chestV(-0.36,1.22,0.32), mid=chestV(-0.12,1.16,0.44);
+    grip(orbitAt([[0,chestV(-0.05,1.15,0.30)],[0.18,outR],[0.35,cock],[0.46,chestV(-0.36,1.22,0.34)],[0.56,mid],[0.65,contact],[1.0,follow]], u, {arms:[B_LARM,B_RARM]}), V(0,-1,0)); }},   // orbitAt: the lead arm's reach line is kept in FRONT of the chest through the load   // pole straight DOWN: the hands pass through down-forward at contact, and a pole the hand path crosses flips the bend plane (bat spun 144° in one frame)
   // A pitch is: balance on the back leg with the lead knee driven up, then STRIDE toward the plate while
   // the hips open, the trunk follows and the arm lags and whips over last. The stride is most of it — the
   // old version kicked a leg but the body never went anywhere.
@@ -3580,12 +3682,12 @@ const BIPED_MOTIONS=[
     const u=(t/1.1*P.speed)%1, wind=ramp(u,0,0.4), kick=Math.sin(Math.PI*clamp((u-0.18)/0.38,0,1)), stride=ramp(u,0.42,0.72), rel=bump(u,0.70,0.20);
     bstandBare();
     setRootY(-0.035*A); animRoot.position.z += 0.22*stride*A;
-    sw('Hips',AX.y,(0.55*wind - 0.95*stride)*A);                            // coil closed, then the hips clear
+    sw('Hips',AX.y,(-0.55*wind + 0.95*stride)*A);                           // coil CLOSED (hips turn right, left hip to the plate), then the hips clear left
     animRoot.updateMatrixWorld(true);
-    plantFeet(-0.16, 0.16+0.36*stride*A, {width:0.10, footY:[-0.34*stride, 0]});
+    plantFeet(0.16+0.36*stride*A, -0.16, {width:0.10, footY:[0, -0.34*stride]});   // LEFT foot strides to the plate; the right foot stays on the rubber, heel releasing
     if(kick>0.05 && stride<0.5){ legF(B_LLEG,(kick*1.25)*A); kneeB(B_LLEG,(kick*1.55)*A); footFlex(B_LLEG,-0.25); }
     reachUp(B_RARM,wind*0.6,A); reachHigh(B_RARM,rel,A); elb(B_RARM,(1.35*wind - 1.05*rel)*A); armO(B_RARM,-0.3*rel*A);
-    twist((0.45*wind - 0.7*rel)*A); leanF((0.10+0.32*rel)*A);
+    twist((-0.45*wind + 0.75*ramp(u,0.62,0.85))*A); leanF((0.10+0.32*rel)*A);   // shoulders coil further than the hips, then unwind through the release and STAY open
     groundClamp(0,'up'); }},
   {id:'bowl', name:'Bowl a Roll', cat:'Sports', type:'stay', dur:1.1, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.1*P.speed)%1, back=ramp(u,0,0.45), fwd=ramp(u,0.45,0.75);
     armF(B_RARM,(-1.3*back + 1.6*fwd)*A); elb(B_RARM,0.1*A); legF(B_LLEG,0.5*fwd*A); kneeB(B_LLEG,0.5*fwd*A); leanF(0.4*fwd*A); armO(B_LARM,0.4*A); }},
@@ -3601,7 +3703,7 @@ const BIPED_MOTIONS=[
   {id:'forehand', name:'Tennis Forehand', cat:'Sports', type:'stay', dur:0.9, build:(t,P)=>{ const A=P.amp, u=(t/0.9*P.speed)%1, back=ramp(u,0,0.4), swing=ramp(u,0.4,0.7);
     fightStance(A,{knee:0.44, lead:0.16, rear:-0.20, turn:0.70*back-0.80*swing,
       rearHeel:-0.42*swing, z:0.10*swing*A, lean:0.08});
-    armF(B_RARM,(0.5+0.6*swing)*A); armO(B_RARM,(1.0*back - 0.6*swing)*A); elb(B_RARM,(0.6-0.3*swing)*A); twist((0.5*back - 0.8*swing)*A); sw('Hips',AX.y,(0.2*back-0.4*swing)*A); }},
+    armF(B_RARM,(0.5+0.6*swing)*A); armO(B_RARM,(1.0*back - 0.6*swing)*A); elb(B_RARM,(0.6-0.3*swing)*A); twist((-0.5*back + 0.8*swing)*A); sw('Hips',AX.y,(-0.2*back+0.4*swing)*A); }},   // coil RIGHT with the racket back, open LEFT through the ball (was inverted)
   // A roundhouse travels in a HORIZONTAL arc, which is what the old version got wrong — it swung the leg
   // out and BEHIND. The real mechanics: the support foot PIVOTS so its heel turns toward the target, the
   // pelvis rotates over it and supplies most of the power, the kicking leg chambers with the hip abducted
@@ -3648,13 +3750,13 @@ const BIPED_MOTIONS=[
   {id:'mgsummon', name:'Summon Circle', cat:'Magic', type:'stay', dur:1.6, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.6*P.speed)%1;
     const open=eio(clamp(u/0.5,0,1)), present=eio(clamp((u-0.45)/0.5,0,1));
     leanF(0.14*present*A); setRootY(-0.10*present*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.3*present*A));
-    reachIK(B_LARM, V(-0.34+0.22*present,1.30-0.44*open,0.16+0.20*present), V(0,-1,0.2));   // hands trace out+down
-    reachIK(B_RARM, V( 0.34-0.22*present,1.30-0.44*open,0.16+0.20*present), V(0,-1,0.2));   // then hover over a low circle
+    reachIK(B_LARM, V( 0.34-0.22*present,1.30-0.44*open,0.16+0.20*present), V( 0.9,0.1,0.4));   // hands trace out+down, each on its OWN side (they were authored crossed); elbows bow OUT (a down pole is parallel to this reach)
+    reachIK(B_RARM, V(-0.34+0.22*present,1.30-0.44*open,0.16+0.20*present), V(-0.9,0.1,0.4));  // then hover over a low circle
     handRoll(B_LARM,1.4*present*A); handRoll(B_RARM,-1.4*present*A);             // palms roll to face down
     sw(B_HEAD,AX.x,0.30*present*A); plantFeet(0.05,0.05,{width:0.10}); }},
   {id:'mgward', name:'Ward Shield', cat:'Magic', type:'stay', dur:1.2, build:(t,P)=>{ const A=P.amp, u=(t/1.2*P.speed)%1, up=eio(clamp(u/0.35,0,1));
     fightStance(A,{turn:0.42*up, knee:0.5, dropKnee:0.16*up, rearHeel:-0.20*up, lean:-0.10*up});
-    reachIK(B_LARM, V(-0.10,1.42,0.52*up), V(0,-1,0.2)); handRoll(B_LARM,1.5*up*A);         // lead palm thrust out as a barrier
+    reachIK(B_LARM, orbitLerp(bodyV(0.26,1.02,0.16), V(-0.06,1.42,0.52), up, {arms:[B_LARM]}), V(0.4,-1,0.2)); handRoll(B_LARM,1.5*up*A);   // lead palm from the hip up and out as a barrier, orbiting the torso (a rise from the chest centre put the forearm through it)
     reachF(B_RARM,0.25*up,A); elb(B_RARM,1.5*up*A);                              // rear hand braced at the chest
     sw(B_HEAD,AX.x,-0.10*up*A); setRootY(-0.06*up*A); }},
   {id:'mgstaff', name:'Staff Slam', cat:'Magic', type:'stay', dur:1.3, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.3*P.speed)%1;
@@ -3668,7 +3770,7 @@ const BIPED_MOTIONS=[
   {id:'mgpotion', name:'Drink Potion', cat:'Magic', type:'stay', dur:1.6, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.6*P.speed)%1;
     const raise=eio(clamp(u/0.4,0,1)), drink=bump(u,0.55,0.3), lower=ramp(u,0.75,1);
     animRoot.updateMatrixWorld(true); const H=new THREE.Vector3(); boneByName['Head'].getWorldPosition(H);
-    reachIK(B_RARM, V(0.24,1.0,0.12).lerp(V(H.x+0.02,H.y-0.02,H.z+0.12), raise*(1-lower)), V(0.2,-0.6,0.4));  // vial to the mouth
+    reachIK(B_RARM, orbitLerp(V(-0.24,1.0,0.12), V(H.x-0.02,H.y-0.02,H.z+0.12), raise*(1-lower), {arms:[B_RARM]}), V(-0.4,-0.6,0.4));  // vial to the mouth from the right hip, elbow out (was authored from the left)
     sw(B_HEAD,AX.x,-(0.15+0.25*drink)*A);                                        // head tips back to drink
     armF(B_LARM,0.1*A); idleSway(t,P,1.6); }},
   {id:'mgincant', name:'Incantation', cat:'Magic', type:'stay', dur:2.0, build:(t,P)=>{ bstand(); const A=P.amp, ph=TAU*(t/2.0)*P.speed;
@@ -3678,8 +3780,8 @@ const BIPED_MOTIONS=[
     sw(B_HEAD,AX.x,0.22*A); leanF(0.08*A); idleSway(t,P,2.0); }},
   {id:'mgblast', name:'Blast Recoil', cat:'Magic', type:'stay', dur:1.1, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.1*P.speed)%1;
     const fire=bump(u,0.5,0.2), push=ramp(u,0.5,0.85), rec=ramp(u,0.85,1), reach=eio(clamp((u-0.15)/0.4,0,1));
-    reachIK(B_LARM, V(0,1.25,0.05).lerp(V(0,1.35,0.6),reach).add(V(-0.14,0,0)), V(0,-1,0.3));   // both hands thrust the blast out
-    reachIK(B_RARM, V(0,1.25,0.05).lerp(V(0,1.35,0.6),reach).add(V( 0.14,0,0)), V(0,-1,0.3));
+    reachIK(B_LARM, orbitLerp(V( 0.20,1.20,0.12), V( 0.14,1.35,0.60), reach, {arms:[B_LARM]}), V(0,-1,0.3));   // both hands thrust the blast out, each from its OWN side of the chest (they were authored crossed)
+    reachIK(B_RARM, orbitLerp(V(-0.20,1.20,0.12), V(-0.14,1.35,0.60), reach, {arms:[B_RARM]}), V(0,-1,0.3));
     leanF((-0.10*fire -0.28*push +0.2*rec)*A);                                   // then the recoil shoves the caster back
     setRootY(-0.10*push*A); animRoot.position.z -= 0.18*push*A;
     plantFeet(0.06*A, -0.34*push*A, {width:0.10}); sw(B_HEAD,AX.x,-0.2*push*A); }},
@@ -3733,35 +3835,31 @@ const BIPED_MOTIONS=[
     [B_LARM,B_RARM].forEach(Ar=>armO(Ar,0.7*land*A));                           // arms splay out on the floor
     sw(B_HEAD,AX.x,0.30*land*A); }},                                            // chin toward the chest
   {id:'rxgetup', name:'Get Up (floor)', cat:'Reactions', type:'stay', dur:2.4, build:(t,P)=>{ bstand(); const A=P.amp, u=t/2.4, lerp=(a,b,k)=>a+(b-a)*k;
-    // A real get-up: supine → ROLL to prone → push up to HANDS-AND-KNEES (the "dog") → bring the feet
-    // under → stand. Four eased sub-phases; the pelvis (Hips bone) carries the whole-body orientation.
-    const roll =eio(clamp((u-0.05)/0.22,0,1));   // 0 supine → 1 prone (face down)
-    const allf =eio(clamp((u-0.25)/0.22,0,1));   // 0 prone  → 1 hands-and-knees (hips up, spine level)
-    const feet =eio(clamp((u-0.48)/0.22,0,1));   // 0 dog    → 1 feet tucked under (low crouch)
-    const stand=eio(clamp((u-0.68)/0.32,0,1));   // 0 crouch → 1 upright
-    // Hips orientation: lie flat, roll 180° about the long axis to prone, HOLD it laid-over through the
-    // dog, then unwind pitch+roll to upright as the legs take over and stand.
-    let hipX=-1.55, hipZ=0;
-    hipZ=lerp(hipZ, Math.PI, roll);                                            // log-roll onto the belly
-    hipX=lerp(hipX, 0, stand); hipZ=lerp(hipZ, 0, stand);                      // come upright at the end
-    sw('Hips',AX.x,hipX*A); sw('Hips',AX.z,hipZ*A);
-    // Hip height: floor → tabletop → low crouch → standing.
-    let hy=-0.72; hy=lerp(hy,-0.40,allf); hy=lerp(hy,-0.50,feet); hy=lerp(hy,0,stand);
+    // Supine → SIT UP (the trunk hinges up over the hips, hands pushing on the floor behind) → the feet TUCK under into a
+    // low squat with the hands on the floor ahead → STAND. No roll: the character ends facing the way its feet point,
+    // exactly as it began. (The old version log-rolled to prone and then unwound a 180° roll and an 89° pitch to zero
+    // at the same time, so it stood up THROUGH lying on its side; and its floor-aimed arms cut the tilted torso.)
+    const sit  =eio(clamp((u-0.05)/0.28,0,1));   // 0 supine → 1 sitting up, legs out in front
+    const tuck =eio(clamp((u-0.36)/0.24,0,1));   // 0 sitting → 1 low squat, feet under the hips
+    const stand=eio(clamp((u-0.62)/0.34,0,1));   // 0 squat → 1 upright
+    let hipX=-1.55; hipX=lerp(hipX,-0.30,sit); hipX=lerp(hipX,0.18,tuck); hipX=lerp(hipX,0,stand);   // pelvis: flat on its back → seated → tipped forward over the squat → upright
+    sw('Hips',AX.x,hipX*A);
+    let hy=-0.72; hy=lerp(hy,-0.78,sit); hy=lerp(hy,-0.42,tuck); hy=lerp(hy,0,stand);                // hip height: on the floor → seated → squat → standing
     setRootY(hy*A);
-    // Legs: extended flat → knees tuck UNDER for the dog → feet come under → straighten to stand.
-    [B_LLEG,B_RLEG].forEach(L=>{
-      let kf=0.30; kf=lerp(kf,1.5,allf); kf=lerp(kf,1.2,feet); kf=lerp(kf,0,stand);
-      let hf=0.0;  hf=lerp(hf,1.2,allf); hf=lerp(hf,0.7,feet); hf=lerp(hf,0,stand);
-      kneeB(L,kf*A); legF(L,hf*A); });
-    // Arms: splayed on the floor while supine → come in on the roll → PLANT on the floor for the dog and
-    // crouch (both hands to fixed floor points ahead of the shoulders) → release to the sides on the stand.
-    [B_LARM,B_RARM].forEach(Ar=>armO(Ar,0.7*(1-roll)*(1-allf)*A));
-    const onHands=Math.min(allf, 1-stand);
-    if(onHands>0.02){ animRoot.updateMatrixWorld(true);
-      reachIK(B_LARM, V(-0.18,0.05,0.30), V(0.35,-1,-0.5));
-      reachIK(B_RARM, V( 0.18,0.05,0.30), V(-0.35,-1,-0.5)); }
-    sw(B_HEAD,AX.x,(-0.30*allf*(1-stand))*A);                                   // head up, looking ahead off the floor
-    if(stand>0.05) plantFeet(0.10*(1-stand)*A,0.10*(1-stand)*A,{width:0.10}); }},
+    leanF(((0.20*sit + 0.30*tuck)*(1-stand))*A);                                                     // trunk folds forward over the squat, straightens on the stand
+    animRoot.updateMatrixWorld(true);
+    const zf=lerp(0.80,0.12,tuck);                                                                    // feet: straight out in front on the floor → pulled under the hips (solved by IK for every phase)
+    plantFeet(zf, zf, {width:0.10});
+    // Hands: splayed on the floor (supine) → push on the floor BEHIND the hips for the sit-up → planted AHEAD for the
+    // squat → released to hang. One continuous path per hand (through the current angle-posed hand at both ends), kept
+    // clear of the torso/shoulder by handClear.
+    [B_LARM,B_RARM].forEach(Ar=>armO(Ar,0.7*(1-sit)*A));
+    animRoot.updateMatrixWorld(true);
+    [[B_LARM,1],[B_RARM,-1]].forEach(([Ar,sd])=>{
+      const hc=new THREE.Vector3(); boneByName[Ar.hand].getWorldPosition(hc);
+      const wt=pathAt([[0,hc],[0.30,V(sd*0.30,0.05,-0.22)],[0.58,V(sd*0.24,0.05,0.34)],[0.96,hc],[1,hc]], u);
+      reachIK(Ar, handClear(wt,[Ar],{shoulderR:0.25}), V(sd*0.6,-1,-0.3)); });
+    sw(B_HEAD,AX.x,(-0.35*sit*(1-stand) - 0.25*tuck*(1-stand))*A); }},                             // head up, looking ahead
   {id:'rxdodge', name:'Dodge Back', cat:'Reactions', type:'stay', dur:0.9, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/0.9*P.speed)%1, d=Math.sin(Math.PI*clamp(u/0.7,0,1));
     leanF(-0.5*d*A); animRoot.position.z -= 0.18*d*A; setRootY(-0.06*d*A);       // sharp lean+step back
     sw('Spine02',AX.x,-0.2*d*A); sw(B_HEAD,AX.x,-0.15*d*A);
@@ -3810,7 +3908,7 @@ const BIPED_MOTIONS=[
     sw(B_RARM.sh,AX.x,-0.1*A); sw(B_HEAD,AX.y,0.15*A); sw(B_HEAD,AX.x,0.08*A); leanF(0.06*A); if(fire>0.1) twist(-0.06*fire*A); }},
   {id:'aimreload', name:'Reload', cat:'Aim', type:'stay', dur:1.4, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.4*P.speed)%1;
     reachIK(B_LARM, V(-0.10,1.15,0.34), V(0,-1,0.3));                         // weapon hand held ready-low
-    reachIK(B_RARM, V(0.22,0.98,0.14).lerp(V(-0.06,1.13,0.30), ramp(u,0.35,0.65)), V(0.3,-1,0.2));   // to the belt → insert
+    reachIK(B_RARM, orbitLerp(V(-0.22,0.98,0.14), V(-0.06,1.13,0.30), ramp(u,0.35,0.65), {arms:[B_RARM]}), V(-0.3,-1,0.2));   // to the RIGHT of the belt → insert (was authored from the left side)
     handRoll(B_RARM,0.5*A); sw(B_HEAD,AX.x,0.18*A); leanF(0.06*A); }},
   {id:'aimthrow', name:'Throw Grenade', cat:'Aim', type:'stay', dur:1.0, build:(t,P)=>{ const A=P.amp, u=(t/1.0*P.speed)%1, cock=ramp(u,0,0.4), rel=bump(u,0.55,0.3);
     fightStance(A,{turn:0.3+0.3*rel, knee:0.3, lead:0.15, rear:-0.18, rearHeel:-0.2*rel, z:0.08*rel*A, lean:0.1*rel});
@@ -3818,8 +3916,9 @@ const BIPED_MOTIONS=[
     reachF(B_LARM,0.4,A); twist((-0.2*cock+0.35*rel)*A); }},
   {id:'aimspear', name:'Spear — Ready', cat:'Aim', type:'stay', dur:1.2, build:(t,P)=>{ const A=P.amp, u=(t/1.2*P.speed)%1, sway=Math.sin(TAU*u)*0.03;
     fightStance(A,{turn:0.5, knee:0.34, lead:0.16, rear:-0.20, lean:0.08});
-    reachIK(B_LARM, V(-0.04,1.30,0.55+sway), V(0,-1,0.2));                    // front hand out along the shaft
-    reachIK(B_RARM, V(0.10,1.20,0.10), V(0.2,-1,-0.2));                       // rear hand at the hip
+    const k=0.5+0.5*Math.sin(TAU*u);
+    reachIK(B_LARM, orbitLerp(V(-0.04,1.30,0.52), V(-0.04,1.30,0.58), k, {arms:[B_LARM]}), V(0,-1,0.2));                       // front hand out along the shaft
+    reachIK(B_RARM, orbitLerp(bodyV(-0.18,1.04,-0.06), bodyV(-0.18,1.04,-0.10), k, {arms:[B_RARM]}), V(-0.3,-1,-0.2));           // rear hand at the RIGHT hip (it was authored on the left side, forearm across the chest)
     sw(B_HEAD,AX.y,0.2*A); }},
   {id:'aimcrossbow', name:'Crossbow — Aim', cat:'Aim', type:'stay', dur:1.1, build:(t,P)=>{ const A=P.amp, u=(t/1.1*P.speed)%1, fire=bump(u,0.55,0.1);
     fightStance(A,{turn:0.4, knee:0.28, lead:0.14, rear:-0.17, lean:0.05});
@@ -3829,9 +3928,12 @@ const BIPED_MOTIONS=[
     sw(B_HEAD,AX.y,0.15*A); sw(B_HEAD,AX.x,0.06*A); }},
   {id:'aimholster', name:'Draw & Holster', cat:'Aim', type:'stay', dur:1.4, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.4*P.speed)%1;
     const present=clamp(ramp(u,0.35,0.55)-ramp(u,0.7,0.95),0,1), out=V(0.0,1.40,0.46);
-    reachIK(B_RARM, V(0.20,0.96,0.10).lerp(out, present), V(0.3,-1,0.2));     // draw from the hip → present → holster
+    reachIK(B_RARM, orbitLerp(V(-0.20,0.96,0.08), out, present, {arms:[B_RARM]}), V(-0.3,-1,0.2));     // draw from the RIGHT hip → present → holster (it was authored on the left hip: a cross-draw through the belly)
     handFrame(B_RARM, {fingers:V(0,-0.8,0.6).lerp(V(0,-0.05,1),present).normalize(), palm:V(1,0,0)});   // muzzle down at the hip, forward when presented; palm inward
-    if(present>0.3) reachIK(B_LARM, out.clone().add(V(-0.06,-0.02,-0.02)), V(0,-1,0.3)); else armF(B_LARM,0.1*A);
+    armF(B_LARM,0.1*A); animRoot.updateMatrixWorld(true);                                                 // support hand: hangs, then joins the grip — one continuous blend (the if/else switch popped 82°)
+    { const hc=new THREE.Vector3(); boneByName[B_LARM.hand].getWorldPosition(hc);
+      const join=smooth(clamp((u-0.30)/0.30,0,1))*(1-smooth(clamp((u-0.72)/0.25,0,1)));                  // its OWN timing: 0.42 s up, 0.35 s back (riding `present` joined in 3 frames = 35 cm/frame)
+      reachIK(B_LARM, orbitLerp(hc, out.clone().add(V(-0.06,-0.02,-0.02)), join, {arms:[B_LARM]}), V(0.8,-0.2,-0.5)); }   // pole out-back: never parallel to the reach, hanging or presented
     sw(B_HEAD,AX.y,0.12*present*A); leanF(0.04*present*A); }},
   {id:'aimsnipe', name:'Kneeling Aim', cat:'Aim', type:'stay', dur:1.6, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.6*P.speed)%1, k=eio(clamp(u/0.4,0,1));
     setRootY(-0.32*k*A); animRoot.position.z -= 0.06*k*A;                     // drop to the right knee
@@ -3861,13 +3963,13 @@ const BIPED_MOTIONS=[
   {id:'pirgrog', name:'Swig of Grog', cat:'Pirate', type:'stay', dur:1.8, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.8*P.speed)%1;
     const raise=eio(clamp(u/0.35,0,1)), swig=bump(u,0.55,0.3), wipe=ramp(u,0.75,0.95);
     animRoot.updateMatrixWorld(true); const H=new THREE.Vector3(); boneByName['Head'].getWorldPosition(H);
-    reachIK(B_RARM, V(0.26,1.05,0.12).lerp(V(H.x+0.04,H.y-0.03,H.z+0.14), raise*(1-wipe)), V(0.2,-0.6,0.4));  // tankard up
+    reachIK(B_RARM, orbitLerp(V(-0.26,1.05,0.12), V(H.x-0.02,H.y-0.03,H.z+0.14), raise*(1-wipe), {arms:[B_RARM]}), V(-0.4,-0.6,0.4));  // tankard up from the RIGHT hip, elbow out (was authored from the left hip)
     sw(B_HEAD,AX.x,-(0.15+0.3*swig)*A); armO(B_LARM,0.4*A); elb(B_LARM,0.5*A);
     [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.12*A)); idleSway(t,P,1.8); }},
-  {id:'pirspyglass', name:'Spyglass Scan', cat:'Pirate', type:'stay', dur:2.0, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/2.0*P.speed)%1, raise=eio(clamp(u/0.3,0,1)), scan=Math.sin(TAU*clamp((u-0.3)/0.6,0,1));
+  {id:'pirspyglass', name:'Spyglass Scan', cat:'Pirate', type:'stay', dur:2.0, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/2.0*P.speed)%1, raise=eio(clamp(u/0.45,0,1)), scan=Math.sin(TAU*clamp((u-0.45)/0.5,0,1));
     animRoot.updateMatrixWorld(true); const H=new THREE.Vector3(); boneByName['Head'].getWorldPosition(H);
-    reachIK(B_RARM, V(H.x+0.02,H.y+0.02,H.z+0.30*raise), V(0.2,-0.4,0.6));    // spyglass to the eye
-    reachIK(B_LARM, V(-0.05,1.20,0.34*raise), V(0,-1,0.3));                   // support hand mid-glass
+    reachIK(B_RARM, orbitAt([[0,V(-0.24,1.02,0.14)],[0.5,V(-0.36,1.28,0.32)],[1,V(H.x-0.03,H.y+0.02,H.z+0.24)]], raise, {arms:[B_RARM]}), V(-0.5,-0.4,0.5));   // spyglass from the hip, out and up past the shoulder, to the eye; elbow out
+    reachIK(B_LARM, orbitLerp(V( 0.27,1.00,0.20), V(-0.02,1.42,0.50), raise, {arms:[B_LARM]}), V(0.5,-1,0.3));                 // support hand from beside the hip up to the glass, elbow out (it used to rise from the chest CENTRE — forearm through the torso)
     sw(B_HEAD,AX.y,scan*0.4*A); sw('Spine02',AX.y,scan*0.1*A); leanF(0.05*A); }},
   {id:'pirpegleg', name:'Peg-Leg Swagger', cat:'Pirate', type:'move', dur:1.1, build:(t,P)=>{
     bipedGait(t,P,1.1,{legAmp:0.5, kneeAmp:0.45, armAmp:0.6, bob:0.055, sway:0.10, lean:0.04});
@@ -3885,11 +3987,12 @@ const BIPED_MOTIONS=[
     sw('Spine02',AX.z,Math.sin(ph)*0.06*A); sw(B_HEAD,AX.x,0.25*A); }},       // teeter, head down watching the feet
   {id:'pircannon', name:'Light the Cannon', cat:'Pirate', type:'stay', dur:1.6, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.6*P.speed)%1;
     const reach=eio(clamp(u/0.35,0,1)), cover=ramp(u,0.6,0.8);
-    setRootY((-0.18*reach*(1-cover) -0.08*cover)*A); leanF((0.3*reach*(1-cover) -0.15*cover)*A);
-    [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.4*reach*A));
-    reachIK(B_RARM, V(0.10,0.85+0.6*cover,0.40*(1-cover)+0.05*cover), V(0.2,-1,0.3));      // touch the fuse low → pull back
-    if(cover>0.1){ animRoot.updateMatrixWorld(true); const H=new THREE.Vector3(); boneByName['Head'].getWorldPosition(H);
-      reachIK(B_LARM, V(H.x-0.06,H.y,H.z-0.02), V(0,-0.6,-0.4)); } else armF(B_LARM,0.2*A);   // then cover the ear
+    leanF((0.3*reach*(1-cover) -0.15*cover)*A);
+    settleKnee((0.75*reach*(1-cover) + 0.35*cover)*A, () => plantFeet(0.04, 0.04, {width:0.10}));   // crouch SOLVED from the knees with the feet planted (setRootY + kneeB left the feet 15 cm under the floor)
+    reachIK(B_RARM, V(-0.08-0.08*cover,1.00+0.28*cover,0.26*(1-cover)+0.18*cover), V(-0.3,-1,0.3));    // touch the fuse low → pull back to the chest (pulling it onto the shoulder folded the elbow to 171°); elbow out
+    armF(B_LARM,0.2*A); animRoot.updateMatrixWorld(true);                                     // then cover the LEFT ear — the hand blends up from where it hangs (the if/else switch popped 154°)
+    { const H=new THREE.Vector3(); boneByName['Head'].getWorldPosition(H); const hc=new THREE.Vector3(); boneByName[B_LARM.hand].getWorldPosition(hc);
+      reachIK(B_LARM, orbitLerp(hc, V(H.x+0.16,H.y-0.01,H.z+0.03), smooth(clamp((u-0.44)/0.36,0,1)), {arms:[B_LARM]}), V(0.8,-0.2,-0.5)); }   // hand ON the ear (outside the head sphere), rising over 0.58 s on its own clock (riding `cover` took 5 frames); pole out-back
     sw(B_HEAD,AX.x,(0.2*reach -0.2*cover)*A); animRoot.position.z -= 0.1*cover*A; }},
   {id:'pirdig', name:'Dig for Treasure', cat:'Pirate', type:'stay', dur:1.4, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.4*P.speed)%1, toss=bump(u,0.7,0.25);
     leanF(0.3*A); setRootY(-0.1*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.3*A));
@@ -3898,7 +4001,7 @@ const BIPED_MOTIONS=[
   {id:'pirsalute', name:'Cutlass Salute', cat:'Pirate', type:'stay', dur:1.4, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.4*P.speed)%1;
     const present=eio(clamp(u/0.3,0,1))*(1-ramp(u,0.7,0.95));
     animRoot.updateMatrixWorld(true); const H=new THREE.Vector3(); boneByName['Head'].getWorldPosition(H);
-    reachIK(B_RARM, V(0.10,1.15,0.20).lerp(V(H.x+0.06,H.y+0.05,H.z+0.14), present).lerp(V(0.35,1.0,0.25),ramp(u,0.7,0.95)), V(0.3,-0.5,0.3));  // blade up to the face → sweep down
+    reachIK(B_RARM, orbitLerp(orbitLerp(V(-0.12,1.15,0.20), V(H.x-0.04,H.y+0.05,H.z+0.14), present, {arms:[B_RARM]}), V(-0.38,1.0,0.25), ramp(u,0.7,0.95), {arms:[B_RARM]}), V(-0.3,-0.5,0.3));  // blade up to the face → sweeps down and OUT to the sword side (it swept across to the left)
     handRoll(B_RARM,-0.5*A); armO(B_LARM,0.15*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.08*A)); sw(B_HEAD,AX.x,-0.05*A); }},
   // ═════ FITNESS & YOGA ════════════════════════════════════════════════════════════════════════════
   // Weight-bearing exercise: the body height is SOLVED by planting the feet (plantFeet) rather than faked,
@@ -3951,19 +4054,23 @@ const BIPED_MOTIONS=[
     sw('Hips',AX.x,1.5*inPlank*A);
     setRootY((-0.34*squat*(1-inPlank) -0.42*inPlank +0.03*jump)*A);
     if(inPlank>0.2){ animRoot.position.z += 0.28*inPlank*A; [B_LLEG,B_RLEG].forEach(L=>{ kneeB(L,0.05*A); sw(L.foot,AX.x,0.8*inPlank*A); });
-      animRoot.updateMatrixWorld(true); reachIK(B_LARM,V(-0.16,0.05,0.30),V(0.35,-1,-0.5)); reachIK(B_RARM,V(0.16,0.05,0.30),V(-0.35,-1,-0.5)); }
-    else { leanF(0.3*squat*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.2*A)); if(jump>0.1) [B_LARM,B_RARM].forEach(Ar=>reachUp(Ar,jump,A)); plantFeet(0.02,0.02,{width:0.11}); } }},
+      animRoot.updateMatrixWorld(true); }
+    else { leanF(0.3*squat*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.2*A)); [B_LARM,B_RARM].forEach(Ar=>reachUp(Ar,jump,A)); plantFeet(0.02,0.02,{width:0.11}); }
+    // hands: wherever the arms hang/reach → planted on the floor for the plank, as ONE continuous blend (the switch popped ~45°)
+    animRoot.updateMatrixWorld(true);
+    [[B_LARM,V(0.16,0.05,0.30),V(0.35,-1,-0.5)],[B_RARM,V(-0.16,0.05,0.30),V(-0.35,-1,-0.5)]].forEach(([Ar,fp,pole])=>{ const hc=new THREE.Vector3(); boneByName[Ar.hand].getWorldPosition(hc);
+      reachIK(Ar, orbitLerp(hc, fp, inPlank, {arms:[Ar]}), pole); }); }},
   // ═════ STEALTH & SNEAKING ════════════════════════════════════════════════════════════════════════
   {id:'sneakcreep', name:'Sneak Walk', cat:'Stealth', type:'move', dur:1.8, build:(t,P)=>{
     bipedGait(t,P,1.8,{legAmp:0.4, kneeAmp:0.9, armAmp:0.2, bob:0.01, sway:0.03, lean:0.18, knee0:0.5});
-    const A=P.amp; setRootY(-0.20*A);                                        // crouched low
+    const A=P.amp;                                                           // crouched low — from knee0 (the gait grounds itself; a root offset sank the feet 10 cm)
     [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,0.3*A); elb(Ar,1.0*A); armO(Ar,0.2*A); }); sw(B_HEAD,AX.x,-0.1*A); }},
   {id:'sneaktiptoe', name:'Tiptoe', cat:'Stealth', type:'move', dur:1.5, build:(t,P)=>{
     bipedGait(t,P,1.5,{legAmp:0.3, kneeAmp:0.8, armAmp:0.15, bob:0.02, sway:0.02, footTuck:1, footFront:0.2});
-    const A=P.amp; setRootY(0.03*A);                                         // up on the toes
-    [B_LARM,B_RARM].forEach(Ar=>{ armO(Ar,0.5*A); elb(Ar,0.7*A); }); [B_LLEG,B_RLEG].forEach(L=>sw(L.foot,AX.x,-0.5*A)); sw(B_HEAD,AX.x,-0.05*A); }},
+    const A=P.amp;                                                           // up on the toes: the pointed feet lift the body once re-grounded below
+    [B_LARM,B_RARM].forEach(Ar=>{ armO(Ar,0.5*A); elb(Ar,0.7*A); }); [B_LLEG,B_RLEG].forEach(L=>footFlex(L,-0.45*A)); sw(B_HEAD,AX.x,-0.05*A); groundClamp(0); }},
   {id:'sneakpeek', name:'Peek Around Corner', cat:'Stealth', type:'stay', dur:2.2, build:(t,P)=>{ bstand(); const A=P.amp, peek=Math.sin(Math.PI*clamp((t/2.2*P.speed)%1/0.8,0,1));
-    setRootY(-0.12*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.25*A));
+    settleKnee(0.5*A, () => plantFeet(0.03, 0.03, {width:0.10}));                       // slight crouch, feet planted (were 10 cm under the floor)
     leanS(peek*0.4*A); animRoot.position.x += peek*0.12*A; sw('Spine02',AX.y,peek*0.15*A);   // lean out to peek
     sw(B_HEAD,AX.y,peek*0.2*A); [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,0.2*A); elb(Ar,0.9*A); }); }},
   {id:'sneakfreeze', name:'Freeze & Listen', cat:'Stealth', type:'stay', dur:2.2, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/2.2*P.speed)%1;
@@ -4026,7 +4133,7 @@ const BIPED_MOTIONS=[
     sw(B_HEAD,AX.x,0.15*A); leanF((0.05+0.03*pat)*A); idleSway(t,P,2.0); }},
   {id:'evsip', name:'Sip a Drink', cat:'Everyday', type:'stay', dur:2.2, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/2.2*P.speed)%1, raise=eio(clamp(u/0.35,0,1)), sip=bump(u,0.55,0.25), lower=ramp(u,0.75,0.95);
     animRoot.updateMatrixWorld(true); const H=new THREE.Vector3(); boneByName['Head'].getWorldPosition(H);
-    reachIK(B_RARM, V(0.18,1.10,0.16).lerp(V(H.x+0.02,H.y-0.04,H.z+0.10), raise*(1-lower)), V(0.2,-0.6,0.4));  // cup to the mouth
+    reachIK(B_RARM, orbitLerp(V(-0.18,1.10,0.16), V(H.x-0.02,H.y-0.04,H.z+0.10), raise*(1-lower), {arms:[B_RARM]}), V(-0.4,-0.6,0.4));  // cup to the mouth from the right side, elbow out (was authored from the left)
     sw(B_HEAD,AX.x,-0.08*sip*A); armF(B_LARM,0.05*A); idleSway(t,P,2.2); }},
   {id:'evglance', name:'Glance Over Shoulder', cat:'Everyday', type:'stay', dur:2.0, build:(t,P)=>{ bstand(); const A=P.amp, g=Math.sin(TAU*(t/2.0)*P.speed);
     sw(B_HEAD,AX.y,g*0.7*A); sw(B_NECK,AX.y,g*0.3*A); sw('Spine02',AX.y,g*0.12*A);   // turn head + shoulders to look back
@@ -4113,11 +4220,11 @@ const BIPED_MOTIONS=[
   {id:'injlimp', name:'Limp Walk', cat:'Injured', type:'move', dur:1.4, build:(t,P)=>{
     bipedGait(t,P,1.4,{legAmp:0.35, kneeAmp:0.5, armAmp:0.3, bob:0.05, sway:0.05, lean:0.10});
     const A=P.amp, ph=TAU*(t/1.4)*P.speed;
-    sw('Hips',AX.z,Math.max(0,Math.sin(ph))*0.14*A); setRootY(-Math.max(0,Math.sin(ph))*0.05*A);   // dip hard onto the good leg
-    reachIK(B_RARM, V(0.14,1.02,0.14), V(0.2,-1,0.2)); sw(B_HEAD,AX.x,0.1*A); }},                    // hand braces the sore hip
+    sw('Hips',AX.z,Math.max(0,Math.sin(ph))*0.14*A); kneeB(B_RLEG, Math.max(0,Math.sin(ph))*0.35*A); groundClamp(0);   // the sore right knee gives and the body dips onto it — height from contact, not a root offset
+    reachIK(B_RARM, V(-0.17,1.02,0.10), V(-0.4,-1,0.2)); sw(B_HEAD,AX.x,0.1*A); }},                   // right hand braces the sore RIGHT hip (it was authored on the left hip, forearm across the belly)
   {id:'injhunch', name:'Hunched Shuffle', cat:'Injured', type:'move', dur:1.6, build:(t,P)=>{
     bipedGait(t,P,1.6,{legAmp:0.22, kneeAmp:0.6, armAmp:0.1, bob:0.02, sway:0.03, lean:0.35, knee0:0.3});
-    const A=P.amp; setRootY(-0.16*A); BIPED_SPINE.forEach(s=>sw(s,AX.x,0.12*A));
+    const A=P.amp; BIPED_SPINE.forEach(s=>sw(s,AX.x,0.12*A));                 // hunch from knee0 + the spine (a root offset sank the feet 8 cm)
     [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,0.2*A); elb(Ar,0.5*A); }); sw(B_HEAD,AX.x,0.2*A); }},
   {id:'injcrawl', name:'Crawl', cat:'Injured', type:'stay', dur:1.8, build:(t,P)=>{ bstand(); const A=P.amp, ph=TAU*((t/1.8*P.speed)%1), lr=Math.sin(ph);
     sw('Hips',AX.x,1.4*A); setRootY(-0.45*A); animRoot.position.z += 0.26*A;    // on hands and knees
@@ -4132,13 +4239,13 @@ const BIPED_MOTIONS=[
     reachIK(B_LARM, V(-0.18,0.05,0.40+0.12*Math.max(0,pull)), V(0,-1,0.3)); reachIK(B_RARM, V(0.18,0.05,0.40+0.12*Math.max(0,-pull)), V(0,-1,0.3));  // claw forward
     sw(B_HEAD,AX.x,-0.2*A); }},
   {id:'injbreath', name:'Catch Breath', cat:'Injured', type:'stay', dur:2.0, build:(t,P)=>{ bstand(); const A=P.amp, pant=Math.sin(TAU*(t/0.7)*P.speed);
-    leanF(0.45*A); setRootY(-0.18*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.4*A));      // bent over, hands on knees
+    leanF(0.45*A); settleKnee(0.75*A, () => plantFeet(0.03, 0.03, {width:0.11}));      // bent over, hands on knees — height solved from the bent knees (the feet were 15 cm under the floor)
     reachIK(B_LARM, V(-0.16,0.72,0.30), V(-0.2,-1,0.2)); reachIK(B_RARM, V(0.16,0.72,0.30), V(0.2,-1,0.2));
     BIPED_SPINE.forEach(s=>sw(s,AX.x,0.04*pant*A)); sw(B_HEAD,AX.x,0.2*A); }},
   {id:'injwound', name:'Clutch Wound', cat:'Injured', type:'stay', dur:2.2, build:(t,P)=>{ bstand(); const A=P.amp, w=Math.sin(TAU*(t/2.2)*P.speed);
     leanF(0.2*A); sw('Spine02',AX.z,0.14*A); sw('Hips',AX.z,-0.06*A);           // hunched to one side
     reachIK(B_RARM, V(-0.06,1.10,0.16), V(0.2,-1,0.2)); handRoll(B_RARM,1.0*A);  // hand clamps the gut
-    armO(B_LARM,0.2*A); elb(B_LARM,0.4*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.2*A)); sw(B_HEAD,AX.x,(0.15+0.03*w)*A); setRootY(-0.08*A); }},
+    armO(B_LARM,0.2*A); elb(B_LARM,0.4*A); sw(B_HEAD,AX.x,(0.15+0.03*w)*A); settleKnee(0.4*A, () => plantFeet(0.03, 0.03, {width:0.10})); }},   // slight crouch, feet planted
   {id:'injlean', name:'Exhausted Lean', cat:'Injured', type:'stay', dur:2.6, build:(t,P)=>{ bstand(); const A=P.amp, b=Math.sin(TAU*(t/2.6)*P.speed);
     reachIK(B_RARM, V(0.10,1.55,0.36), V(0.2,-1,0.2)); leanF(0.28*A); animRoot.position.z += 0.05*A;   // forearm braced high on a wall
     armF(B_LARM,0.1*A); sw(B_HEAD,AX.x,0.35*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.15*A)); BIPED_SPINE.forEach(s=>sw(s,AX.x,0.03*b*A)); }},
@@ -4285,14 +4392,14 @@ const BIPED_MOTIONS=[
     twist(-0.18*strike*A); sw(B_HEAD,AX.x,0.15*strike*A); }},
   {id:'swslashd', name:'Diagonal Slash', cat:'Swordplay', type:'stay', dur:0.8, build:(t,P)=>{ const A=P.amp, u=(t/0.8*P.speed)%1, wind=eio(clamp(u/0.35,0,1)), cut=eio(clamp((u-0.35)/0.4,0,1));
     fightStance(A,{turn:0.3, knee:0.34, dropKnee:0.15*cut, lead:0.16, rear:-0.18, rearHeel:-0.2*cut, z:0.05*cut*A, lean:0.15*cut});
-    const rp=V(0.10,1.25,0.25).lerp(V(0.32,1.72,0.08),wind).lerp(V(-0.26,0.85,0.46),cut);          // upper-right → lower-left
-    reachIK(B_RARM, rp, V(0,1,0.2)); armO(B_LARM,0.5*A); armF(B_LARM,-0.2*A);                        // off hand out for balance
-    twist((0.2*wind -0.35*cut)*A); sw('Hips',AX.y,(0.15*wind-0.3*cut)*A); }},
+    const rp=orbitAt([[0,V(0.10,1.25,0.25)],[0.35,V(-0.30,1.70,0.14)],[0.75,V(0.28,0.85,0.46)],[1,V(0.28,0.85,0.46)]], u, {arms:[B_RARM]});   // upper-RIGHT → lower-LEFT (it wound up over the LEFT shoulder: +X is the character's left)
+    reachIK(B_RARM, rp, V(-0.3,0.8,0.2)); armO(B_LARM,0.5*A); armF(B_LARM,-0.2*A);                   // off hand out for balance
+    twist((-0.2*wind +0.35*cut)*A); sw('Hips',AX.y,(-0.15*wind+0.3*cut)*A); }},                     // coil right with the wind-up, open left through the cut (was inverted)
   {id:'swslashh', name:'Horizontal Slash', cat:'Swordplay', type:'stay', dur:0.8, build:(t,P)=>{ const A=P.amp, u=(t/0.8*P.speed)%1, wind=eio(clamp(u/0.35,0,1)), cut=eio(clamp((u-0.35)/0.4,0,1));
     fightStance(A,{turn:0.3, knee:0.36, lead:0.16, rear:-0.18, rearHeel:-0.2*cut, z:0.05*cut*A, lean:0.1*cut});
-    const rp=V(0.10,1.28,0.25).lerp(V(-0.30,1.30,0.05),wind).lerp(V(0.36,1.26,0.44),cut);           // level sweep left → right
-    reachIK(B_RARM, rp, V(0,-1,0.2)); reachIK(B_LARM, rp.clone().add(V(-0.10,-0.02,-0.04)), V(0,-1,0.2));   // two-handed
-    sw('Hips',AX.y,(0.2*wind -0.4*cut)*A); twist((0.2*wind-0.3*cut)*A); }},
+    const rp=orbitAt([[0,V(0.10,1.28,0.25)],[0.35,V(-0.30,1.30,0.05)],[0.75,V(0.36,1.26,0.44)],[1,V(0.36,1.26,0.44)]], u, {arms:[B_LARM,B_RARM]});   // level sweep right → left, orbiting the torso for BOTH shoulders (the lead upper arm crossed the chest at the wind)
+    reachIK(B_RARM, rp, V(0,-1,0.2)); reachIK(B_LARM, handClear(rp.clone().add(V(-0.10,-0.02,-0.04)),[B_LARM],{shoulderR:0.25}), V(0,-1,0.2));   // two-handed
+    sw('Hips',AX.y,(-0.2*wind +0.4*cut)*A); twist((-0.25*wind+0.35*cut)*A); }},   // body coils RIGHT with the wind-up, opens LEFT with the cut (was inverted)
   {id:'swthrust', name:'Lunging Stab', cat:'Swordplay', type:'stay', dur:0.8, build:(t,P)=>{ const A=P.amp, u=(t/0.8*P.speed)%1, chamber=ramp(u,0,0.35), stab=bump(u,0.55,0.35);
     fightStance(A,{turn:0.3, knee:0.34, dropKnee:0.3*stab, lead:0.16+0.3*stab, rear:-0.2, rearHeel:-0.35*stab, z:0.25*stab*A, lean:0.25*stab});
     reachIK(B_RARM, V(-0.05,1.30,0.05).lerp(V(0.05,1.35,0.72),stab), V(0,-1,0.2)); reachF(B_LARM,0.3,A);   // chamber → drive the point forward
@@ -4312,7 +4419,7 @@ const BIPED_MOTIONS=[
     BIPED_SPINE.forEach(s=>sw(s,AX.x,0.05*A)); sw(B_HEAD,AX.x,-0.05*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.06*str*A)); }},
   {id:'swbash', name:'Pommel Bash', cat:'Swordplay', type:'stay', dur:0.8, build:(t,P)=>{ const A=P.amp, u=(t/0.8*P.speed)%1, wind=ramp(u,0,0.35), bash=bump(u,0.55,0.3);
     fightStance(A,{turn:0.3+0.3*bash, knee:0.36, lead:0.14+0.2*bash, rear:-0.2, z:0.12*bash*A, lean:0.2*bash});
-    reachIK(B_RARM, V(0.06,1.30,0.18).lerp(V(0.02,1.28,0.52),bash), V(0.3,-1,-0.2)); handRoll(B_RARM,0.5*A);   // drive the pommel forward
+    reachIK(B_RARM, orbitLerp(V(-0.12,1.24,0.14), V(0.0,1.30,0.52), bash, {arms:[B_RARM]}), V(-0.4,-1,0.1)); handRoll(B_RARM,0.5*A);   // pommel chambered at the right side of the chest, driven forward; elbow OUT (the old pole folded it into the chest)
     reachF(B_LARM,0.3,A); elb(B_LARM,1.4*A); twist((-0.2*wind+0.4*bash)*A); sw('Spine02',AX.y,0.3*bash*A); }},
   {id:'swspin', name:'Spinning Slash', cat:'Swordplay', type:'stay', dur:1.2, netTurn:TAU, build:(t,P)=>{ bstand(); const A=P.amp, g=Math.min(1,(t/1.2)*P.speed);
     sw('Hips',AX.y, TAU*g*A);                                     // full 360° spin
