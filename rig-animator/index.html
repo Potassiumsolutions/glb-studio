@@ -1937,6 +1937,29 @@ function handDev(Ar, a){
   ha.quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0), a*(-Ar.s)));   // about the palm normal (local X on this rig): tips a gripped haft forward/back in the plane of the fingers
   ha.updateMatrixWorld(true);
 }
+// Set a hand's world orientation outright from where its THUMB LINE and PALM should point (a gripped tool's
+// haft runs along the thumb line; a gun barrel runs along the fingers = thumb × palm). On this rig the hand's
+// local axes are: fingers +Y, thumb line −Z (thumb side), palm normal +X on the right hand / −X on the left.
+// Use it AFTER the arm IK: it only rotates the hand about the wrist, so pick directions the forearm can reach.
+//   handFrame(Ar, {thumb:V, palm:V})  or  handFrame(Ar, {fingers:V, palm:V})
+const _hfM = new THREE.Matrix4(), _hfA = new THREE.Matrix4(), _hfQ = new THREE.Quaternion(), _hfP = new THREE.Quaternion();
+function handFrame(Ar, o){
+  const ha = boneByName[Ar.hand]; if(!ha || !o) return;
+  const palmL = new THREE.Vector3(-Ar.s, 0, 0), thumbL = new THREE.Vector3(0, 0, -1), fingL = new THREE.Vector3(0, 1, 0);
+  let a1, a2, b1, b2;
+  const palmW = o.palm.clone().normalize();
+  if(o.thumb){ a1 = thumbL; a2 = palmL; b1 = o.thumb.clone().normalize(); b2 = palmW; }
+  else       { a1 = fingL;  a2 = palmL; b1 = o.fingers.clone().normalize(); b2 = palmW; }
+  b2.sub(b1.clone().multiplyScalar(b2.dot(b1))).normalize();                       // exact orthogonality
+  const a3 = new THREE.Vector3().crossVectors(a1, a2), b3 = new THREE.Vector3().crossVectors(b1, b2);
+  _hfA.makeBasis(a1, a2, a3); _hfM.makeBasis(b1, b2, b3);
+  const R = _hfM.clone().multiply(_hfA.clone().invert());                          // world = R · local
+  _hfQ.setFromRotationMatrix(R);
+  animRoot.updateMatrixWorld(false);
+  ha.parent.getWorldQuaternion(_hfP);
+  ha.quaternion.copy(_hfP.invert().multiply(_hfQ));
+  ha.updateMatrixWorld(true);
+}
 const lerpDir=(a,b,t)=>a.clone().lerp(b,t);
 // A throw, a swing and a block are defined by where the HAND goes, not by shoulder angles — pose them as
 // shoulder/elbow numbers and you get a push every time. `pathAt` reads a world-space hand path as
@@ -3252,6 +3275,7 @@ const BIPED_MOTIONS=[
   {id:'shieldblock', name:'Shield Block', cat:'Combat', type:'stay', dur:0.9, build:(t,P)=>{ const A=P.amp, p=bump((t/0.9*P.speed)%1,0.5,0.45);
     fightStance(A,{knee:0.60, dropKnee:0.22*p, lead:0.18, rear:-0.26-0.06*p, turn:0.42, lean:0.16+0.08*p});
     reachIK(B_LARM, V(-0.02-0.05*p, 1.26+0.11*p, 0.33-0.03*p), V( 0.7,-1,-0.2));   // shield boss, elbow tucked under
+    handFrame(B_LARM, {thumb:V(0.2,1,0), palm:V(0.3,-0.1,-1)});                       // shield fist: handle across the palm, face out of the knuckles
     reachIK(B_RARM, V(-0.21, 1.01, -0.11-0.04*p),              V(-0.4,-1,-0.5));   // sword hand cocked behind the hip
     sw(B_LARM.sh,AX.x,-0.20*p*A);                                                  // lead shoulder into the shield
     sw(B_HEAD,AX.x, 0.22*p*A); sw(B_HEAD,AX.y,-0.12*p*A); }},                      // chin down behind the rim
@@ -3280,6 +3304,7 @@ const BIPED_MOTIONS=[
     reachIK(B_LARM, V(0.04,1.42,0.44), V(0.3,-1,0.2));                       // bow arm locked out on the line
     const start=V(0.02,1.44,0.30), anchor=V(-0.09,1.52,-0.02), after=V(-0.30,1.56,-0.24);
     reachIK(B_RARM, start.clone().lerp(anchor,draw).lerp(after,loose), V(-0.35,0.9,-0.5));
+    handFrame(B_LARM, {thumb:V(0,1,0), palm:V(-0.4,0,0.9)});                   // bow fist vertical, palm toward the target
     sw(B_RARM.sh,AX.z,-0.16*draw*A);                                         // drawing shoulder rides up and back
     sw(B_HEAD,AX.y,(0.55+0.05*draw)*A);                                      // head turns down the arrow
     twist(-0.12*draw*A); }},
@@ -3349,10 +3374,12 @@ const BIPED_MOTIONS=[
     reachUp(B_RARM,up*(1-down),A); reachF(B_RARM,down,A); elb(B_RARM,(0.5+0.5*up-0.4*down)*A); armF(B_LARM,0.4*A); elb(B_LARM,1.0*A); leanF(0.15*down*A); }},
   {id:'chopwood', name:'Chop Wood', cat:'Work', type:'stay', dur:0.9, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/0.9*P.speed)%1, up=ramp(u,0,0.45), down=ramp(u,0.45,0.65);
     leanF((-0.15*up+0.5*down)*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.3*down*A));
-    const raise=V(0.0,1.75,-0.05), impact=V(0.0,0.72,0.5);   // both hands on the axe: overhead → chop down to the block
+    const raise=V(0.0,1.60,-0.30), impact=V(0.0,1.12,0.36);   // POWER grip (head on the pinky side): hands folded behind the head at the top, in front of the stomach with level forearms at impact so the head hangs straight down onto the block
     const h=u<0.45 ? lerpDir(V(0,1.1,0.35),raise,up) : lerpDir(raise,impact,down);
-    shaft(h, h.clone().addScaledVector(V(0,1.32,0.05).sub(h).normalize(),0.10), V(0, 0.2-1.0*down, 1-1.3*down));   // spaced grip + pole that swings with the arm (see chopdown)
-    const wr=(-0.35*up + 0.55*down)*A; handDev(B_RARM, wr); handDev(B_LARM, wr); }},   // deviation: cocked back at the top, snapped ~30° through at impact (anatomical range)
+    const poleOf=Ar=>V(Ar.s*1.0, -0.15, 0.10);   // elbows straight out the whole swing (see chopdown)
+    const hL=h.clone().addScaledVector(V(0,1.32,0.05).sub(h).normalize(),0.10);
+    reachIK(B_RARM, h, poleOf(B_RARM)); reachIK(B_LARM, hL, poleOf(B_LARM));
+    const wr=(-0.5*up + 0.25*down)*A; handDev(B_RARM, wr); handDev(B_LARM, wr); }},   // deviation: cocked back at the top, snapped ~30° through at impact (anatomical range)
   // Safe lifting technique: squat DOWN to the load with the back near-neutral, then drive up with the legs.
   // The crate stays close to the body and rises with the hips rather than being hauled by the back.
   {id:'liftcrate', name:'Lift Crate', cat:'Work', type:'stay', dur:1.6, build:(t,P)=>{ bstand(); const A=P.amp, u=t/1.6,
@@ -3555,8 +3582,9 @@ const BIPED_MOTIONS=[
   {id:'mgstaff', name:'Staff Slam', cat:'Magic', type:'stay', dur:1.3, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.3*P.speed)%1;
     const raise=eio(clamp(u/0.4,0,1)), slam=eio(clamp((u-0.45)/0.25,0,1)), rec=ramp(u,0.75,1), lift=0.22*raise-0.30*slam;
     // both hands grip a VERTICAL staff held in front on one line; it raises, then the butt drives to the floor
-    reachIK(B_RARM, V(0.12,1.30+lift,0.34), V(0.3,-1,0.2)); handRoll(B_RARM,-0.4*A);   // upper hand
-    reachIK(B_LARM, V(0.12,0.98+lift,0.34), V(0.3,-1,0.2)); handRoll(B_LARM,-0.4*A);   // lower hand, same line
+    reachIK(B_RARM, V(0.12,1.30+lift,0.34), V(0.3,-1,0.2));                      // upper hand
+    reachIK(B_LARM, V(0.12,0.98+lift,0.34), V(0.3,-1,0.2));                      // lower hand, same line
+    handFrame(B_RARM, {thumb:V(0,1,0), palm:V(0.8,0,-0.6)}); handFrame(B_LARM, {thumb:V(0,1,0), palm:V(-0.8,0,-0.6)});   // staff vertical in both fists, palms wrapped round it
     setRootY((-0.06*raise -0.22*slam +0.16*rec)*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,(0.15+0.5*slam-0.35*rec)*A));
     leanF((0.05+0.22*slam-0.18*rec)*A); sw(B_HEAD,AX.x,0.18*slam*A); plantFeet(0.06,0.06,{width:0.11}); }},
   {id:'mgpotion', name:'Drink Potion', cat:'Magic', type:'stay', dur:1.6, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.6*P.speed)%1;
@@ -3688,16 +3716,19 @@ const BIPED_MOTIONS=[
     fightStance(A,{knee:0.24, lead:0.15, rear:-0.17, turn:1.05, lean:0.02});
     reachIK(B_LARM, V(0.04,1.42,0.44), V(0.3,-1,0.2));                        // bow arm locked out on the line
     reachIK(B_RARM, V(0.02,1.44,0.30).lerp(V(-0.09,1.52,-0.02),draw).lerp(V(-0.30,1.56,-0.24),loose), V(-0.35,0.9,-0.5));
+    handFrame(B_LARM, {thumb:V(0,1,0), palm:V(-0.4,0,0.9)});                    // bow fist vertical, palm toward the target
     sw(B_RARM.sh,AX.z,-0.16*draw*A); sw(B_HEAD,AX.y,(0.55+0.05*draw)*A); twist(-0.12*draw*A); }},
   {id:'aimpistol', name:'Pistol — Aim & Fire', cat:'Aim', type:'stay', dur:1.0, build:(t,P)=>{ const A=P.amp, u=(t/1.0*P.speed)%1, recoil=bump(u,0.5,0.12);
     fightStance(A,{turn:0.35, knee:0.30, lead:0.12, rear:-0.16, lean:0.04});
     const aimP=V(0.0,1.46-0.08*recoil,0.46), pole=V(0,-1,0.3);
     reachIK(B_RARM, aimP, pole); reachIK(B_LARM, aimP.clone().add(V(-0.06,-0.02,-0.02)), pole);   // two-hand grip, support cups
+    handFrame(B_RARM, {fingers:V(0,-0.05,1), palm:V(1,0,0)}); handFrame(B_LARM, {fingers:V(0,-0.05,1), palm:V(-1,0,0.2)});   // barrel along the fingers, palms facing each other
     sw(B_HEAD,AX.y,0.12*A); sw(B_HEAD,AX.x,0.05*A); twist(-0.05*A); }},
   {id:'aimrifle', name:'Rifle — Aim & Fire', cat:'Aim', type:'stay', dur:1.1, build:(t,P)=>{ const A=P.amp, u=(t/1.1*P.speed)%1, fire=bump(u,0.55,0.1);
     fightStance(A,{turn:0.45, knee:0.30, lead:0.14, rear:-0.18, lean:0.06});
     reachIK(B_RARM, V(0.10,1.44,0.10-0.04*fire), V(0.2,-1,-0.3));             // stock at the shoulder
     reachIK(B_LARM, V(0.02,1.40,0.52), V(0,-1,0.3));                          // fore-grip out along the barrel
+    handFrame(B_RARM, {fingers:V(0,0,1), palm:V(1,0,0)}); handFrame(B_LARM, {thumb:V(0.1,0.2,1), palm:V(-0.5,0.85,0)});   // trigger hand: barrel along the fingers; support hand cradles the forestock from below
     sw(B_RARM.sh,AX.x,-0.1*A); sw(B_HEAD,AX.y,0.15*A); sw(B_HEAD,AX.x,0.08*A); leanF(0.06*A); if(fire>0.1) twist(-0.06*fire*A); }},
   {id:'aimreload', name:'Reload', cat:'Aim', type:'stay', dur:1.4, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.4*P.speed)%1;
     reachIK(B_LARM, V(-0.10,1.15,0.34), V(0,-1,0.3));                         // weapon hand held ready-low
@@ -3716,10 +3747,12 @@ const BIPED_MOTIONS=[
     fightStance(A,{turn:0.4, knee:0.28, lead:0.14, rear:-0.17, lean:0.05});
     reachIK(B_LARM, V(-0.02,1.42,0.50), V(0,-1,0.3));                         // forward hand holds the stock out
     reachIK(B_RARM, V(0.10,1.40,0.16-0.03*fire), V(0.2,-1,-0.2));             // trigger hand at the cheek
+    handFrame(B_RARM, {fingers:V(0,0,1), palm:V(1,0,0)}); handFrame(B_LARM, {thumb:V(0.1,0.2,1), palm:V(-0.5,0.85,0)});
     sw(B_HEAD,AX.y,0.15*A); sw(B_HEAD,AX.x,0.06*A); }},
   {id:'aimholster', name:'Draw & Holster', cat:'Aim', type:'stay', dur:1.4, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.4*P.speed)%1;
     const present=clamp(ramp(u,0.35,0.55)-ramp(u,0.7,0.95),0,1), out=V(0.0,1.40,0.46);
     reachIK(B_RARM, V(0.20,0.96,0.10).lerp(out, present), V(0.3,-1,0.2));     // draw from the hip → present → holster
+    handFrame(B_RARM, {fingers:V(0,-0.8,0.6).lerp(V(0,-0.05,1),present).normalize(), palm:V(1,0,0)});   // muzzle down at the hip, forward when presented; palm inward
     if(present>0.3) reachIK(B_LARM, out.clone().add(V(-0.06,-0.02,-0.02)), V(0,-1,0.3)); else armF(B_LARM,0.1*A);
     sw(B_HEAD,AX.y,0.12*present*A); leanF(0.04*present*A); }},
   {id:'aimsnipe', name:'Kneeling Aim', cat:'Aim', type:'stay', dur:1.6, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.6*P.speed)%1, k=eio(clamp(u/0.4,0,1));
@@ -3728,11 +3761,13 @@ const BIPED_MOTIONS=[
     plantFeet(0.22*k*A,-0.10*A,{width:0.12, footY:[-0.02,-0.28*k]});
     reachIK(B_RARM, V(0.10,1.16,0.12), V(0.2,-1,-0.2));                       // stock at shoulder (lowered by the kneel)
     reachIK(B_LARM, V(0.02,1.12,0.50), V(0,-1,0.3));                          // fore-grip forward over the knee
+    handFrame(B_RARM, {fingers:V(0,0,1), palm:V(1,0,0)}); handFrame(B_LARM, {thumb:V(0.1,0.2,1), palm:V(-0.5,0.85,0)});
     sw(B_HEAD,AX.y,0.14*A); sw(B_HEAD,AX.x,0.1*A); leanF(0.12*k*A); }},
   {id:'aimlowready', name:'Low Ready (scan)', cat:'Aim', type:'stay', dur:1.8, build:(t,P)=>{ const A=P.amp, ph=TAU*(t/1.8)*P.speed, scan=Math.sin(ph);
     fightStance(A,{turn:0.3, knee:0.28, lead:0.14, rear:-0.16, lean:0.08});
     reachIK(B_RARM, V(0.08,1.10,0.22), V(0.2,-1,-0.2));                       // weapon held low-ready, muzzle down-forward
     reachIK(B_LARM, V(-0.02,1.05,0.42), V(0,-1,0.3));
+    handFrame(B_RARM, {fingers:V(0,-0.6,0.8), palm:V(1,0,0)}); handFrame(B_LARM, {thumb:V(0,-0.5,0.85), palm:V(-0.5,0.7,0.3)});   // muzzle down-forward
     sw('Spine02',AX.y,scan*0.12*A); sw(B_HEAD,AX.y,scan*0.3*A); }},
   // ═════ SWASHBUCKLING / PIRATE ════════════════════════════════════════════════════════════════════
   // Boisterous, theatrical, off-balance-on-purpose — a rolling sea-legs swagger runs under most of it.

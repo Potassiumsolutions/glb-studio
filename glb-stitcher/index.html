@@ -922,7 +922,7 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 
 const $ = s => document.querySelector(s);
-const APP_NAME='GLB Stitcher', APP_VERSION='1.3.0', APP_BUILD='2026-09-03';   // version shown in About + footer
+const APP_NAME='GLB Stitcher', APP_VERSION='1.3.1', APP_BUILD='2026-09-03';   // version shown in About + footer
 // Bump APP_BUILD whenever the app or the bundled motion library changes. It is printed to the console and
 // shown in the footer so "am I running the current version?" can be answered by looking, not by guessing —
 // a stale browser tab kept an old build alive twice while the files on disk were already up to date.
@@ -3385,10 +3385,10 @@ const GRIPS = {
   axe:     { along:'pinky',   face:'fingers',  faceAxis:'x' },                       // head on the pinky side, edge leads
   staff:   { along:'thumb',   face:'knuckles', faceAxis:'x' },
   spear:   { along:'thumb',   face:'knuckles', faceAxis:'x' },                       // point on the thumb side
-  bow:     { along:'thumb',   face:'knuckles', faceAxis:'z' },                       // bow vertical in the fist, limbs up/down, belly to the knuckles
+  bow:     { along:'thumb',   face:'knuckles', faceAxis:'z', hand:'left' },          // bow vertical in the LEFT fist, limbs up/down, belly to the knuckles
   pistol:  { along:'thumb',   face:'fingers',  faceAxis:'z' },                       // grip up toward the barrel, barrel along the fingers
   rifle:   { along:'thumb',   face:'fingers',  faceAxis:'z' },
-  shield:  { along:'thumb',   face:'knuckles', faceAxis:'z' },                       // handle across the palm, face out of the knuckles
+  shield:  { along:'thumb',   face:'knuckles', faceAxis:'z', hand:'left' },          // LEFT fist: handle across the palm, face out of the knuckles
 };
 function gripOf(pr){ return (pr && pr.grip) || GRIPS[(pr && pr.name || '').replace(/\.glb$/i,'').toLowerCase()] || GRIP_DEFAULT; }
 function applyCharProps(){
@@ -3445,7 +3445,8 @@ async function loadPropFiles(files){
   try{
     const url=URL.createObjectURL(f); const gltf=await loader.loadAsync(url); URL.revokeObjectURL(url);
     const bones=charBoneNames(ch);
-    const bone=bones.find(n=>/righthand/i.test(n)) || bones.find(n=>_propHand.test(n)) || bones[0] || 'RightHand';
+    const wantLeft=(gripOf({name:f.name}).hand==='left');
+    const bone=(wantLeft ? bones.find(n=>/lefthand/i.test(n)) : bones.find(n=>/righthand/i.test(n))) || bones.find(n=>_propHand.test(n)) || bones[0] || (wantLeft?'LeftHand':'RightHand');
     ch.prop={ name:f.name, src:gltf.scene, bone, pos:[0,0,0], rot:[0,0,0], scale:1 };
     fitPropScale(ch);                                          // size it to the character before attaching
     applyCharProps(); renderPropCard(); refreshView(); setStatus('Equipped '+f.name+' to '+ch.name);
