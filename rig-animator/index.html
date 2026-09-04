@@ -2059,6 +2059,19 @@ const _ffH=new THREE.Vector3();
 function footFollow(L, x, z, lift, dorsi){ animRoot.updateMatrixWorld(false); boneByName['Hips'].getWorldPosition(_ffH);
   const t=bodyV(x,0,z); t.x+=_ffH.x; t.z+=_ffH.z; t.y=GROUND_ANKLE+(lift||0);
   legIK(L, t, bodyV(0,0,1)); footAim(L, footDirYaw(L, dorsi||0, bodyYaw()), 0); }
+// Landing without a switch: the feet blend from wherever the airborne pose put them onto planted world points as `w`
+// goes 0 → 1 (tie w to the body's height or the tuck, so take-off and landing both fade). A hard if/else between an
+// angle-posed flight and plantFeet slid the feet 10-30 cm on the landing frame.
+const _lfC=new THREE.Vector3();
+function landFeet(w, zL, zR, o){ o=o||{}; w=clamp(w,0,1); if(w<=0) return; const width=o.width??0.085;
+  [[B_LLEG,zL],[B_RLEG,zR]].forEach(([L,z])=>{ animRoot.updateMatrixWorld(false); boneByName[L.foot].getWorldPosition(_lfC);
+    const tgt=V(L.s*width, GROUND_ANKLE, z); legIK(L, _lfC.clone().lerp(tgt, w), AX.z);
+    footAim(L, footDir(L, (o.dorsiAir||0)*(1-w) + (o.dorsi||0)*w, 0), 0); }); }
+// Cross-legged sitting, k = 0 standing → 1 seated: the ankles CROSS in front (left over right, the upper one 9 cm up), the
+// knees splay out (pole) — the shins stack instead of passing through each other, and the knees fold ~140°, not 165°.
+function crossLegs(k){ k=clamp(k,0,1); const z=0.02+0.26*k, x=0.08-0.22*k;
+  legIK(B_LLEG, V( x, GROUND_ANKLE+0.14*k, z+0.04*k), V( 0.8,0,0.4)); legIK(B_RLEG, V(-x, GROUND_ANKLE, z), V(-0.8,0,0.4));
+  [B_LLEG,B_RLEG].forEach(L=>footAim(L, footDir(L, 0.45*k, 0), 0)); }   // toes softly pointed (footDir: + = toe up on this axis? measured: +0.45 reads as 25° plantarflexion)
 const lerpDir=(a,b,t)=>a.clone().lerp(b,t);
 // A throw, a swing and a block are defined by where the HAND goes, not by shoulder angles — pose them as
 // shoulder/elbow numbers and you get a push every time. `pathAt` reads a world-space hand path as
@@ -2995,9 +3008,9 @@ const BIPED_MOTIONS=[
     const sp=j.air?Math.sin(Math.PI*j.s):0;
     setRootY(j.y*A); leanF((0.06+j.crouch*0.30+j.land*0.28)*A);
     [B_LARM,B_RARM].forEach(Ar=>{ armO(Ar,(0.25+sp*1.15)*A); armF(Ar,(-0.5*j.crouch)*A); });
-    if(j.flight){ legF(B_LLEG,sp*1.05*A); legF(B_RLEG,-sp*0.85*A);
-      [B_LLEG,B_RLEG].forEach(L=>{ kneeB(L,(0.35-0.3*sp)*A); footFlex(L,-0.55); }); }   // pointed toes (dancer's line), body-relative
-    else plantFeet(0.02,0.02,{width:0.080}); }},
+    legF(B_LLEG,sp*1.05*A); legF(B_RLEG,-sp*0.85*A);
+    [B_LLEG,B_RLEG].forEach(L=>{ kneeB(L,(0.35-0.3*sp)*A); footFlex(L,-0.55*Math.min(1,j.y/0.08)); });   // pointed toes (dancer's line) in the air
+    landFeet(1-smooth(clamp(j.y/0.08,0,1)), 0.02, 0.02, {width:0.080, dorsiAir:-0.55}); }},          // feet blend onto the floor as the body comes down (a switch slid them 30 cm)
   // Box jump: the landing is HIGHER than the take-off — the feet come down on the box, so the whole body
   // finishes elevated in a deep absorbed squat rather than returning to the floor.
   {id:'boxjump', name:'Box Jump', cat:'Jumping', type:'stay', dur:1.2, build:(t,P)=>{ bstand(); const A=P.amp; const u=t/1.2;
@@ -3086,11 +3099,8 @@ const BIPED_MOTIONS=[
     leanF((0.16*crouch + 0.10*absorb - 0.05*push)*A);      // torso folds to load, stands tall to launch
     setRootY(cy*A);                                        // COM trajectory — crouch dip, 1" arc, landing absorb
     animRoot.updateMatrixWorld(true);
-    if(!feetUp){                                           // GROUND CONTACT — feet stay planted, knees take the crouch
-      plantFeet(0, 0, {footY: -(0.32*anklePush + 0.28*landToe)*A});  // gentle toe-down at push-off and at touchdown
-    } else {                                               // FLIGHT — feet leave the floor, soft knee, toes lightly pointed
-      [B_LLEG,B_RLEG].forEach(L=>{ kneeB(L,0.28*A); legF(L,-0.05*A); footAim(L, footDir(L,-0.15*A), 0); });
-    }
+    [B_LLEG,B_RLEG].forEach(L=>{ kneeB(L,0.28*A); legF(L,-0.05*A); });                  // flight pose: soft knee
+    landFeet(1-smooth(clamp((cy-dTo)/0.018,0,1)), 0, 0, {width:0.078, dorsiAir:-0.15*A, dorsi:-(0.32*anklePush + 0.28*landToe)*A});   // planted while the body is low, freed only through the 1" arc — BLENDED (a switch slid the feet 25 cm)
     // ── UPPER BODY — a boxer's bounce is a WHOLE-body action, not just the legs ──
     const launch = push + 0.7*feetUp;                     // going up: push-off + air
     const load   = crouch + 0.9*absorb;                   // compressing: crouch + landing
@@ -3541,8 +3551,8 @@ const BIPED_MOTIONS=[
     setRootY((-0.26*tuck)*A); animRoot.position.z += 0.30*roll*A;
     sw('Hips',AX.x,-TAU*roll*A);                                           // the full rotation
     leanF(tuck*0.45*A);
-    if(tuck>0.25){ [B_LLEG,B_RLEG].forEach(L=>{ legF(L,(0.6+tuck*0.9)*A); kneeB(L,(0.7+tuck*1.0)*A); footFlex(L,-0.30*tuck); }); }   // tucked, toes softly pointed — body-relative, the body is upside down here
-    else plantFeet(0.02,0.02,{width:0.085});
+    [B_LLEG,B_RLEG].forEach(L=>{ legF(L,(0.6+tuck*0.9)*A); kneeB(L,(0.7+tuck*1.0)*A); footFlex(L,-0.30*tuck); });   // tucked, toes softly pointed — body-relative, the body is upside down here
+    landFeet(1-smooth(clamp((tuck-0.12)/0.22,0,1)), 0.02, 0.02, {width:0.085, dorsiAir:-0.30});   // planted at both ends, blended (the if/else slid the feet 19 cm)
     [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,tuck*1.0*A); elb(Ar,(0.3+tuck*1.5)*A); armO(Ar,-0.25*tuck*A); });
     groundClamp(0,'up'); }},                                               // a roll rides over the floor, never through it
   {id:'thrust', name:'Spear Thrust', cat:'Combat', type:'stay', dur:0.8, build:(t,P)=>{ const A=P.amp, u=(t/0.8*P.speed)%1, chamber=ramp(u,0,0.35), p=bump(u,0.55,0.35);
@@ -4348,7 +4358,7 @@ const BIPED_MOTIONS=[
     [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,0.05*A); armO(Ar,0.2*A); }); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.15*A)); plantFeet(0.06*s*A,-0.06*s*A,{width:0.13}); }},
   {id:'injkneel', name:'Sink to Knees', cat:'Injured', type:'stay', dur:1.6, build:(t,P)=>{ bstand(); const A=P.amp, k=eio(clamp((t/1.6*P.speed)%1/0.7,0,1));
     setRootY(-0.48*k*A); animRoot.position.z -= 0.05*k*A;
-    [B_LLEG,B_RLEG].forEach(L=>{ legF(L,-0.1*k*A); kneeB(L,1.9*k*A); });         // both knees to the ground
+    [B_LLEG,B_RLEG].forEach(L=>{ legF(L,-0.1*k*A); kneeB(L,1.7*k*A); });         // both knees to the ground (knee capped ~150°)
     plantFeet(0.10*k*A,-0.10*k*A,{width:0.14, footY:[-0.28*k,-0.28*k]});
     leanF(0.2*k*A); BIPED_SPINE.forEach(s=>sw(s,AX.x,0.1*k*A)); [B_LARM,B_RARM].forEach(Ar=>armF(Ar,0.15*k*A)); sw(B_HEAD,AX.x,0.3*k*A); }},
   // ═════ GROUND & SITTING ══════════════════════════════════════════════════════════════════════════
@@ -4356,13 +4366,13 @@ const BIPED_MOTIONS=[
   // deep fold + splay), and lying poses rotate the HIPS bone to lay the spine down (as the get-up does).
   {id:'gndsitcross', name:'Sit Cross-Legged', cat:'Ground', type:'stay', dur:1.8, build:(t,P)=>{ bstand(); const A=P.amp, k=eio(clamp((t/1.8*P.speed)%1/0.7,0,1)), b=Math.sin(TAU*(t/1.8)*P.speed)*0.005;
     setRootY((-0.60+b)*A);
-    [B_LLEG,B_RLEG].forEach(L=>{ legF(L,1.2*k*A); legO(L,0.8*k*A); kneeB(L,2.0*k*A); });   // fold + splay = cross-legged
-    plantFeet(0.06*A,-0.06*A,{width:0.18*k+0.05, footY:[-0.55*k,-0.55*k]});
+    [B_LLEG,B_RLEG].forEach(L=>{ legF(L,1.2*k*A); legO(L,0.8*k*A); kneeB(L,1.75*k*A); });   // fold + splay = cross-legged (knee capped ~150°)
+    crossLegs(k);                                                                                // ankles crossed in front, shins stacked, knees splayed
     reachIK(B_LARM, V(-0.20,0.95,0.18), V(0,-1,0.2)); reachIK(B_RARM, V(0.20,0.95,0.18), V(0,-1,0.2));   // hands on the knees
     leanF(0.05*A); sw(B_HEAD,AX.x,0.05*A); }},
   {id:'gndseiza', name:'Kneel (seiza)', cat:'Ground', type:'stay', dur:1.6, build:(t,P)=>{ bstand(); const A=P.amp, k=eio(clamp((t/1.6*P.speed)%1/0.7,0,1));
     setRootY(-0.50*k*A); animRoot.position.z -= 0.05*k*A;
-    [B_LLEG,B_RLEG].forEach(L=>{ legF(L,-0.1*k*A); kneeB(L,2.2*k*A); sw(L.foot,AX.x,0.6*k*A); });   // shins down, sit back on the heels
+    [B_LLEG,B_RLEG].forEach(L=>{ legF(L,-0.1*k*A); kneeB(L,1.95*k*A); sw(L.foot,AX.x,0.6*k*A); });   // shins down, sit back on the heels
     plantFeet(0.02,-0.02,{width:0.12, footY:[-0.42*k,-0.42*k]});
     reachIK(B_LARM, V(-0.14,0.95,0.20), V(0,-1,0.2)); reachIK(B_RARM, V(0.14,0.95,0.20), V(0,-1,0.2)); sw(B_HEAD,AX.x,0.05*A); }},
   {id:'gndliedown', name:'Lie Down', cat:'Ground', type:'stay', dur:1.6, build:(t,P)=>{ bstand(); const A=P.amp, k=eio(clamp((t/1.6*P.speed)%1/0.8,0,1));
@@ -4381,19 +4391,19 @@ const BIPED_MOTIONS=[
     plantFeet(0.04,0.04,{width:0.16, footY:[-0.10*k,-0.10*k]}); sw(B_HEAD,AX.x,0.1*A); }},
   {id:'gndkneel1', name:'Kneel (one knee)', cat:'Ground', type:'stay', dur:1.6, build:(t,P)=>{ bstand(); const A=P.amp, k=eio(clamp((t/1.6*P.speed)%1/0.7,0,1));
     setRootY(-0.34*k*A);
-    legF(B_RLEG,-0.1*k*A); kneeB(B_RLEG,1.9*k*A); legF(B_LLEG,0.5*k*A); kneeB(B_LLEG,1.0*k*A);   // right knee down, left foot planted
+    legF(B_RLEG,-0.1*k*A); kneeB(B_RLEG,1.7*k*A); legF(B_LLEG,0.5*k*A); kneeB(B_LLEG,1.0*k*A);   // right knee down, left foot planted
     plantFeet(0.22*k*A,-0.10*A,{width:0.12, footY:[-0.02,-0.30*k]});
     reachIK(B_LARM, V(0.14,0.98,0.30), V(0,-1,0.3)); armF(B_RARM,0.1*A); leanF(0.08*A); sw(B_HEAD,AX.x,0.05*A); }},
   {id:'gndmeditate', name:'Meditate', cat:'Ground', type:'stay', dur:2.6, build:(t,P)=>{ bstand(); const A=P.amp, br=Math.sin(TAU*(t/2.6)*P.speed)*0.008;
     setRootY((-0.60+br)*A);
-    [B_LLEG,B_RLEG].forEach(L=>{ legF(L,1.2*A); legO(L,0.8*A); kneeB(L,2.0*A); });   // cross-legged
-    plantFeet(0.06*A,-0.06*A,{width:0.23, footY:[-0.55,-0.55]});
+    [B_LLEG,B_RLEG].forEach(L=>{ legF(L,1.2*A); legO(L,0.8*A); kneeB(L,1.75*A); });   // cross-legged
+    crossLegs(1);                                                  // ankles crossed in front, shins stacked, knees splayed
     reachIK(B_LARM, V(-0.20,0.95,0.16), V(0,-1,0.2)); handRoll(B_LARM,-1.4*A); reachIK(B_RARM, V(0.20,0.95,0.16), V(0,-1,0.2)); handRoll(B_RARM,1.4*A);   // palms up on the knees
     BIPED_SPINE.forEach(s=>sw(s,AX.x,-0.02*A)); sw(B_HEAD,AX.x,0.02*A); }},
   {id:'gndsittostand', name:'Sit-to-Stand', cat:'Ground', type:'stay', dur:1.8, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.8*P.speed)%1, up=eio(u), down=1-up;
     setRootY(-0.60*down*A);
-    [B_LLEG,B_RLEG].forEach(L=>{ legF(L,1.2*down*A); legO(L,0.8*down*A); kneeB(L,2.0*down*A); });
-    if(down>0.3) plantFeet(0.06*A,-0.06*A,{width:0.18*down+0.05, footY:[-0.55*down,-0.55*down]}); else plantFeet(0.02,0.02,{width:0.10});
+    [B_LLEG,B_RLEG].forEach(L=>{ legF(L,1.2*down*A); legO(L,0.8*down*A); kneeB(L,1.75*down*A); });
+    crossLegs(down);                                                                              // one continuous placement standing → cross-legged
     leanF(1.2*up*(1-up)*A); [B_LARM,B_RARM].forEach(Ar=>reachF(Ar,0.3*down,A)); sw(B_HEAD,AX.x,0.1*down*A); }},   // lean through the middle, rise
   {id:'gndproneprop', name:'Lie Prone (propped)', cat:'Ground', type:'stay', dur:2.0, build:(t,P)=>{ bstand(); const A=P.amp, kick=Math.sin(TAU*(t/2.0)*P.speed);
     sw('Hips',AX.x,1.55*A); setRootY(-0.68*A); animRoot.position.z += 0.15*A;  // lying face down
@@ -4403,8 +4413,8 @@ const BIPED_MOTIONS=[
     sw(B_HEAD,AX.x,-0.4*A); }},
   {id:'gndsitidle', name:'Seated Fidget', cat:'Ground', type:'stay', dur:2.4, build:(t,P)=>{ bstand(); const A=P.amp, ph=TAU*(t/2.4)*P.speed;
     setRootY(-0.60*A);
-    [B_LLEG,B_RLEG].forEach(L=>{ legF(L,1.2*A); legO(L,0.8*A); kneeB(L,2.0*A); });
-    plantFeet(0.06,-0.06,{width:0.23, footY:[-0.55,-0.55]});
+    [B_LLEG,B_RLEG].forEach(L=>{ legF(L,1.2*A); legO(L,0.8*A); kneeB(L,1.75*A); });
+    crossLegs(1);                                              // ankles crossed in front, shins stacked, knees splayed
     reachIK(B_LARM, V(-0.20,0.95,0.18), V(0,-1,0.2)); reachIK(B_RARM, V(0.18+0.05*Math.sin(ph),1.05+0.05*Math.sin(ph*1.5),0.22), V(0,-1,0.3));   // one hand fidgets
     sw('Spine02',AX.z,Math.sin(ph)*0.05*A); sw(B_HEAD,AX.y,Math.sin(ph*0.7)*0.15*A); }},
   // ═════ PARKOUR & ACROBATICS ══════════════════════════════════════════════════════════════════════
@@ -4421,7 +4431,7 @@ const BIPED_MOTIONS=[
     setRootY(-0.35*tuck*A); animRoot.position.z += 0.4*roll*A;
     [B_LLEG,B_RLEG].forEach(L=>{ legF(L,1.0*tuck*A); kneeB(L,1.8*tuck*A); });   // tuck through the roll
     [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,1.0*tuck*A); elb(Ar,(0.3+1.5*tuck)*A); });
-    groundClamp(0,'up'); if(u>0.85) plantFeet(0.06,0.06,{width:0.11}); }},
+    groundClamp(0,'up'); landFeet(Math.max(1-smooth(u/0.12), smooth((u-0.75)/0.15)), 0.06, 0.06, {width:0.11}); }},   // planted at both ends, blended
   {id:'pkland', name:'Precision Land', cat:'Parkour', type:'stay', dur:1.2, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.2*P.speed)%1, crouch=eio(clamp(u/0.3,0,1))*(1-0.6*ramp(u,0.4,1));
     setRootY(-0.42*crouch*A); leanF(0.35*crouch*A);
     reachIK(B_RARM, V(0.14,0.30+0.9*(1-crouch),0.34), V(0,-1,0.3));            // one hand down to the ground (superhero landing)
@@ -4439,13 +4449,13 @@ const BIPED_MOTIONS=[
     [B_LARM,B_RARM].forEach(Ar=>armO(Ar,1.45*A)); sw('Spine02',AX.z,Math.sin(ph)*0.06*A); sw(B_HEAD,AX.x,0.1*A); }},   // arms out, teeter
   {id:'pkslide', name:'Baseball Slide', cat:'Parkour', type:'stay', dur:1.0, build:(t,P)=>{ bstand(); const A=P.amp, sl=Math.sin(Math.PI*clamp((t/1.0*P.speed)%1/0.85,0,1));
     setRootY(-0.5*sl*A); leanF(-0.35*sl*A);                                    // drop low, lean back
-    legF(B_LLEG,0.9*sl*A); kneeB(B_LLEG,0.3*sl*A); legF(B_RLEG,0.2*sl*A); kneeB(B_RLEG,1.6*sl*A);   // lead leg out, trail tucked
+    legF(B_LLEG,0.9*sl*A); kneeB(B_LLEG,0.3*sl*A); legF(B_RLEG,0.2*sl*A); kneeB(B_RLEG,1.4*sl*A);   // lead leg out, trail tucked
     plantFeet(0.4*sl*A,-0.10*A,{width:0.12, footY:[-0.02,-0.30*sl]});
     [B_LARM,B_RARM].forEach(Ar=>armO(Ar,0.5*sl*A)); sw(B_HEAD,AX.x,-0.1*sl*A); animRoot.position.z += 0.3*sl*A; }},
   {id:'pkcartwheel', name:'Cartwheel', cat:'Parkour', type:'stay', dur:1.4, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.4*P.speed)%1, roll=eio(u), inv=Math.sin(Math.PI*roll);
     sw('Hips',AX.z, TAU*roll*A);                                               // full sideways rotation
     setRootY(0.2*inv*A); [B_LARM,B_RARM].forEach(Ar=>armO(Ar,1.6*A)); [B_LLEG,B_RLEG].forEach(L=>legO(L,0.4*A));   // star shape
-    sw(B_HEAD,AX.x,-0.1*A); if(u>0.9) plantFeet(0.06,-0.06,{width:0.12}); }},
+    sw(B_HEAD,AX.x,-0.1*A); landFeet(Math.max(1-smooth(u/0.10), smooth((u-0.80)/0.15)), 0.06, -0.06, {width:0.12}); }},   // planted at both ends, blended
   {id:'pkbackflip', name:'Backflip', cat:'Parkour', type:'stay', dur:1.1, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.1*P.speed)%1;
     const crouch=bump(u,0.14,0.12), spin=eio(clamp((u-0.2)/0.6,0,1)), air=Math.sin(Math.PI*clamp((u-0.2)/0.65,0,1));
     sw('Hips',AX.x, -TAU*spin*A); setRootY((-0.22*crouch + 0.55*air)*A);       // full backward rotation, big air
@@ -4470,7 +4480,7 @@ const BIPED_MOTIONS=[
     fightStance(A,{turn:0.35, knee:0.42, lead:0.16, rear:-0.18, lean:0.10});
     reachIK(B_RARM, V(0.14,1.08+br,0.30), V(0.2,-1,0.2)); reachIK(B_LARM, V(0.02,1.02+br,0.34), V(0,-1,0.2));   // two hands on the hilt, ready
     sw(B_HEAD,AX.y,0.2*A); }},
-  {id:'swchop', name:'Overhead Sword Chop', cat:'Swordplay', type:'stay', dur:0.9, build:(t,P)=>{ const A=P.amp, u=(t/0.9*P.speed)%1, wind=eio(clamp(u/0.4,0,1)), strike=eio(clamp((u-0.4)/0.4,0,1));
+  {id:'swchop', name:'Overhead Sword Chop', cat:'Swordplay', type:'stay', dur:0.9, build:(t,P)=>{ const A=P.amp, u=(t/0.9*P.speed)%1, wind=eio(clamp(u/0.4,0,1)), strike=eio(clamp((u-0.4)/0.5,0,1));
     fightStance(A,{turn:0.2, knee:0.34, dropKnee:0.24*strike, lead:0.16, rear:-0.18, rearHeel:-0.24*strike, z:0.06*strike*A, lean:0.22*strike});
     const rp=V(0.10,1.25,0.20).lerp(V(0.06,1.92,-0.08),wind).lerp(V(0.04,1.00,0.50),strike);      // rest → overhead → down out front (hands finish at hip height: the blade stands vertical below them)
     // Pole SWINGS with the arm (forward at the top → down-back at impact) and the wrists cock then snap, exactly as
@@ -4478,7 +4488,7 @@ const BIPED_MOTIONS=[
     const pole=V(0, 0.2-1.0*strike, 1-1.3*strike);
     reachIK(B_RARM, rp, pole); reachIK(B_LARM, rp.clone().add(V(-0.10,-0.05,-0.04)), pole);   // two-handed
     twoHandGrip('handshake', handsAway(V(0,0.2,0)));                                                // both fists round the hilt, blade out from the body (up at the top, forward-down at the strike)
-    const wr=(-0.4*wind + 1.3*strike)*A; handDev(B_RARM, wr); twoHandGrip('handshake', handDir(B_RARM, V(0,1,0)));   // wrist cock/snap on the lead hand, then BOTH hands re-aligned to the snapped blade (a mirrored snap on each hand drove them 89° apart)
+    const wr=(-0.35*wind + 1.05*strike)*A; handDev(B_RARM, wr); twoHandGrip('handshake', handDir(B_RARM, V(0,1,0)));   // wrist cock/snap on the lead hand, then BOTH hands re-aligned to the snapped blade (a mirrored snap on each hand drove them 89° apart)
     twist(-0.18*strike*A); sw(B_HEAD,AX.x,0.15*strike*A); }},
   {id:'swslashd', name:'Diagonal Slash', cat:'Swordplay', type:'stay', dur:0.8, build:(t,P)=>{ const A=P.amp, u=(t/0.8*P.speed)%1, wind=eio(clamp(u/0.35,0,1)), cut=eio(clamp((u-0.35)/0.4,0,1));
     fightStance(A,{turn:0.3, knee:0.34, dropKnee:0.15*cut, lead:0.16, rear:-0.18, rearHeel:-0.2*cut, z:0.05*cut*A, lean:0.15*cut});
