@@ -1467,9 +1467,18 @@ const bump=(u,c,w)=>{ const x=Math.max(0,1-Math.abs(u-c)/w); return x*x*(3-2*x);
 const eio=u=>u<0.5?2*u*u:1-Math.pow(-2*u+2,2)/2;                // ease in/out (quadratic) — unchanged (used by the protected gaits)
 // World-axis pose helpers, relative to a natural standing base. The character faces +Z, so "forward" about
 // world X is a NEGATIVE angle — these helpers make +a mean the intuitive direction.
-const armF =(Ar,a)=>sw(Ar.arm, AX.x, -a);       // +a = raise arm forward / up
+// swW: rotate about a TRUE world axis expressed in the bone's CURRENT frame. sw() converts the axis through the REST frame,
+// which is right for a hinge (an elbow/knee axis rides with the limb) but wrong for a shoulder swing once bstand has brought
+// the arm down from the T-pose: the rest X axis then lies along the upper arm, so armF TWISTED the arm instead of swinging
+// it (measured: armF(1.0) moved the hand 7 cm; 'bowl' never bowled).
+const _swq=new THREE.Quaternion(), _swa=new THREE.Vector3();
+function swW(name, worldAxis, angle){ const b=boneByName[name]; if(!b||!angle) return; animRoot.updateMatrixWorld(false);
+  b.getWorldQuaternion(_swq).invert(); _swa.copy(worldAxis).applyQuaternion(_swq).normalize(); b.quaternion.multiply(_q.setFromAxisAngle(_swa, angle)); b.updateMatrixWorld(true); }
+const _hlQ=new THREE.Quaternion(), _hlV=new THREE.Vector3();
+function hipsLateral(){ const h=boneByName['Hips']; if(!h) return _hlV.set(1,0,0); animRoot.updateMatrixWorld(false); h.getWorldQuaternion(_hlQ); const r=restWorldQ['Hips']; if(r) _hlQ.multiply(r.clone().invert()); return _hlV.set(1,0,0).applyQuaternion(_hlQ).normalize(); }   // the pelvis's lateral axis for ANY orientation (a somersault included — a yaw-only frame is undefined mid-flip)
+const armF =(Ar,a)=>swW(Ar.arm, hipsLateral(), -a);   // +a = swing the arm forward / up about the body's lateral axis (flexion)
 const armO =(Ar,a)=>sw(Ar.arm, AX.z, a*Ar.s);   // +a = raise arm out to the side
-const elb  =(Ar,a)=>sw(Ar.fore, AX.x, a);       // +a = bend elbow (hand comes up/forward)
+const elb  =(Ar,a)=>sw(Ar.fore, AX.y, -Ar.s*a); // +a = bend elbow (hand comes up/forward) — about the HINGE (rest-world Y: the arms rest along ±X, so rest X was the forearm's own length and only twisted it)
 const wristW=(Ar,a)=>sw(Ar.hand, AX.x, a);
 const legF =(L,a)=>sw(L.up, AX.x, -a);          // +a = swing thigh forward
 const legO =(L,a)=>sw(L.up, AX.z, a*L.s);       // +a = abduct thigh outward
@@ -1820,6 +1829,19 @@ function gaitNorm(t,P,dur,o){
     const sole = curveAt(GAIT_SOLE ,pct)*ka*mAnk[i];
     legF (L, (hip - restJoint.pelvis - restJoint[L.up]) * A + (o.hipBias??0));
     kneeB(L, (knee - restJoint[L.knee]) * A);
+    // FOOT LOCK — contact decides the stance foot's horizontal progression. The normative curves are joint angles in a
+    // body frame; played in place they let the contact point slow from ~4 cm/frame at heel strike to ~1 at toe-off — a
+    // 3× skate under the Stitcher's constant scroll. The ankle's forward position is blended (by the stance weight, so
+    // there is no switch) toward a LINEAR glide from its heel-strike position to its toe-off position.
+    if(o.footLock!==false){ const w=stanceRef(pct); if(w>0){
+      const th=boneByName[L.up], sh=boneByName[L.knee], hipsB=boneByName['Hips']; const q1=th.quaternion.clone(), q2=sh.quaternion.clone();
+      const zAt=p=>{ legF(L,(curveAt(GAIT_HIP,p)*kh*mHip[i]*dir - hip)*A); kneeB(L,(curveAt(GAIT_KNEE,p)*kk*mKnee[i] + (o.crouch??0) - knee)*A);
+        animRoot.updateMatrixWorld(false); boneByName[L.foot].getWorldPosition(_gnA); hipsB.getWorldPosition(_gnK); const z=_gnA.z-_gnK.z;
+        th.quaternion.copy(q1); sh.quaternion.copy(q2); th.updateMatrixWorld(true); return z; };
+      const z0=zAt(0), z1=zAt(58); const zLin=z0+(z1-z0)*(pct/58);
+      animRoot.updateMatrixWorld(false); boneByName[L.foot].getWorldPosition(_gnA); hipsB.getWorldPosition(_gnK);
+      const zCur=_gnA.z-_gnK.z; const zT=zCur+(zLin-zCur)*w;
+      legIK(L, V(_gnA.x, _gnA.y, _gnK.z+zT), AX.z); } }
     // The foot's attitude is expressed as a SOLE PITCH either way, so the two references blend smoothly.
     // In swing the target is "neutral ankle relative to the shank", which means measuring where the shank
     // actually ended up after the hip and knee were posed.
@@ -2516,8 +2538,8 @@ function upper(Ar,p,A){ setArm(Ar, lerpDir(BX_GU(Ar.s),V(0.10*Ar.s,-0.15,0.55),p
 // —— General arm-reach primitives (from a bstand base; a=0..1) ——
 // ⚠ From bstand the arm hangs down, so armF ALONE barely swings it forward (it mostly twists); forward
 // reach needs armF PAIRED with armO inward. These recipes were found empirically (see MOTION-RESEARCH.md).
-function reachF(Ar,a,A){ armF(Ar,1.2*a*A); armO(Ar,-0.95*a*A); elb(Ar,0.1*a*A); }   // point / thrust forward at shoulder height → hand z≈+0.31
-function reachHigh(Ar,a,A){ armF(Ar,1.5*a*A); armO(Ar,-1.4*a*A); }                    // release forward-and-UP (throws)          → hand z≈+0.40, y≈1.25
+function reachF(Ar,a,A){ armF(Ar,1.55*a*A); armO(Ar,-0.12*a*A); elb(Ar,0.1*a*A); }   // point / thrust forward at shoulder height → hand z≈+0.31
+function reachHigh(Ar,a,A){ armF(Ar,2.2*a*A); armO(Ar,-0.25*a*A); }                    // release forward-and-UP (throws)          → hand z≈+0.40, y≈1.25
 function reachUp(Ar,a,A){ armO(Ar,2.4*a*A); armF(Ar,0.2*a*A); }                       // raise the arm overhead (chop/serve chamber) → hand y≈1.70
 function raiseArm(Ar,a,A){ armO(Ar,1.55*a*A); armF(Ar,0.15*a*A); }                    // arm up to ~head height beside the body (wave/hail) → hand y≈1.3
 function handToHead(Ar,a,A){ armO(Ar,1.6*a*A); elb(Ar,1.95*a*A); armF(Ar,0.3*a*A); }  // bring the hand up to the head/face (salute/drink/facepalm) → y≈1.35
@@ -3073,7 +3095,7 @@ const BIPED_MOTIONS=[
   {id:'slip', name:'Slip & Weave', cat:'Boxing', type:'stay', dur:1.0, build:(t,P)=>{ guard(P.amp); const A=P.amp, ph=TAU*(t/1.0)*P.speed, s=Math.sin(ph);
     leanS(s*0.22*A); leanF(0.15*Math.abs(s)*A); sw('Hips',AX.z,s*0.1*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.15*Math.abs(s)*A)); }},
   {id:'block', name:'High Guard Block', cat:'Boxing', type:'stay', dur:0.9, build:(t,P)=>{ guard(P.amp); const u=(t/0.9*P.speed)%1, p=bump(u,0.5,0.45), A=P.amp;
-    [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,0.5*p*A); elb(Ar,0.4*p*A); }); leanF(0.1*p*A); sw(B_HEAD,AX.x,0.15*p*A); }},
+    [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,0.5*p*A); elb(Ar,0.12*p*A); }); leanF(0.1*p*A); sw(B_HEAD,AX.x,0.15*p*A); }},   // gloves up: the guard already folds the elbows, so only a touch more (elb now really bends)
   {id:'onetwo', name:'One-Two Combo', cat:'Boxing', type:'stay', dur:1.0, build:(t,P)=>{ const A=P.amp, u=(t/1.0*P.speed)%1, jab=bump(u,0.28,0.2), cross=bump(u,0.62,0.2); guard(A,cross);
     straight(B_LARM,jab,A); twist(-0.12*jab*A);
     straight(B_RARM,cross,A); twist(0.42*cross*A); sw('Hips',AX.y,0.35*cross*A - 0.08*jab*A); legF(B_RLEG,-0.12*cross*A); }},
@@ -3576,7 +3598,7 @@ const BIPED_MOTIONS=[
   // —— Work ——
   {id:'shovel', name:'Shovel Dig', cat:'Work', type:'stay', dur:1.4, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.4*P.speed)%1, dig=ramp(u,0,0.4), lift=ramp(u,0.4,0.7), toss=ramp(u,0.7,1);
     leanF((0.5*dig - 0.3*lift)*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.5*dig*A)); twist(0.3*toss*A);
-    const by=0.45+0.5*lift+0.2*toss, bz=0.55-0.3*toss; shaft(V(-0.05,1.05,0.28), V(0.05+0.3*toss,by,bz), V(0,-0.4,0.6)); }},   // shovel digs low → lifts → tosses aside
+    const by=0.30+0.65*lift+0.25*toss, bz=0.70-0.45*toss; shaft(V(-0.05,1.00+0.15*lift+0.1*toss,0.25+0.1*toss), V(0.05+0.45*toss,by,bz), V(0,-0.4,0.6)); }},   // shovel digs LOW and forward → lifts → tosses aside (the hands travel ~0.8 m)
   // Swinging a hammer drives from the legs and drops the body into the strike — the arms only steer it.
   {id:'hammer', name:'Swing Hammer', cat:'Work', type:'stay', dur:0.7, build:(t,P)=>{ const A=P.amp, u=(t/0.7*P.speed)%1, up=ramp(u,0,0.4), down=ramp(u,0.4,0.6);
     fightStance(A,{knee:0.40, dropKnee:0.30*down, lead:0.12, rear:-0.14, turn:0.22, lean:0.08+0.26*down, rearHeel:-0.22*up});
@@ -3640,7 +3662,7 @@ const BIPED_MOTIONS=[
   {id:'rake', name:'Rake the Ground', cat:'Work', type:'stay', dur:1.2, build:(t,P)=>{ const A=P.amp, u=(t/1.2*P.speed)%1, reach=ramp(u,0,0.4), pull=ramp(u,0.45,0.9);
     fightStance(A,{knee:0.38, dropKnee:0.24*pull, lead:0.16, rear:-0.18, turn:0.18,
       lean:0.30*reach-0.12*pull, rearHeel:-0.20*reach, z:(0.07*reach-0.05*pull)*A});
-    const rz=0.6-0.25*pull; shaft(V(0.0,1.05,0.3+0.05*reach), V(0.08,0.5,rz+0.05), V(0,-0.4,0.6)); }},   // rake head reaches out then hauls back
+    const rz=0.85-0.55*pull; shaft(V(0.0,1.05+0.05*reach,0.20+0.25*reach), V(0.08,0.42+0.1*reach,rz), V(0,-0.4,0.6)); }},   // rake head reaches far out then hauls back to the feet
   // The universal exhausted pose: bent forward, hands braced on the knees, chest heaving.
   {id:'catchbreath', name:'Catch Breath', cat:'Work', type:'stay', dur:2.0, build:(t,P)=>{ bstand(); const A=P.amp,
       b=Math.sin(TAU*t/1.4*P.speed);                                       // the breathing cycle
@@ -3697,7 +3719,7 @@ const BIPED_MOTIONS=[
     const addr=chestV(0.02,0.60,0.45), top=chestV(-0.30,1.66,0.20), fin=chestV(0.30,1.74,0.26);
     const g=orbitAt([[0,addr],[0.22,chestV(-0.32,1.05,0.40)],[0.45,top],[0.55,chestV(-0.36,1.12,0.38)],[0.65,addr],[0.78,chestV(0.34,1.15,0.38)],[0.9,fin],[1,fin]], u, {arms:[B_LARM,B_RARM]});   // orbitAt: both shoulders' reach lines kept clear of the chest
     grip(g, V(0,-0.4,-1));
-    twoHandGrip('power', handsAway(V(0,-0.9,0))); }},                                               // both fists on the grip, shaft down-and-out to the ball (level over the shoulder at the top)   // pole back-down: the hands hang straight BELOW the shoulders at address and impact, so a 'down' pole was parallel to the reach and the bend plane flipped through impact
+    twoHandGrip('power', handsAway(V(0,-0.35,0))); }},                                              // both fists on the grip, shaft down-and-out to the ball (level over the shoulder at the top)   // pole back-down: the hands hang straight BELOW the shoulders at address and impact, so a 'down' pole was parallel to the reach and the bend plane flipped through impact
   // A bat swing is a rotation off a STRIDE: the front foot steps toward the pitch, the hips clear, the
   // rear heel releases, and the hands come last.
   {id:'batswing', name:'Bat Swing', cat:'Sports', type:'stay', dur:0.9, build:(t,P)=>{ const A=P.amp, u=(t/0.9*P.speed)%1, load=ramp(u,0,0.35), swing=ramp(u,0.35,0.65);
@@ -3764,7 +3786,7 @@ const BIPED_MOTIONS=[
     armO(B_RARM,0.45*A); elb(B_RARM,(1.1+0.5*kick)*A); }},                 // rear arm tucked across
   {id:'karatechop', name:'Karate Chop', cat:'Sports', type:'stay', dur:0.7, build:(t,P)=>{ const A=P.amp, u=(t/0.7*P.speed)%1, up=ramp(u,0,0.4), down=bump(u,0.55,0.25);
     fightStance(A,{knee:0.40, dropKnee:0.18*down, lead:0.12, rear:-0.16, turn:0.20, lean:0.10*down, rearHeel:-0.22*down});
-    reachUp(B_RARM,(up*(1-down)*0.7),A); reachF(B_RARM,down,A); elb(B_RARM,0.4*A);   // hand cocked up by the ear → chops down-forward
+    reachUp(B_RARM,(up*(1-down)*0.7),A); reachF(B_RARM,down,A); elb(B_RARM,(0.3+0.9*up*(1-down))*A);   // hand cocked up by the ear (elbow folded) → chops down-forward (elbow extends)
     twist((-0.3*up + 0.45*down)*A); leanF(0.1*down*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.25*A)); }},
   // ═════ MAGIC & SPELLCASTING ══════════════════════════════════════════════════════════════════════
   // A caster's power, like a boxer's, comes off the legs and trunk — the hand only aims it. Every reach

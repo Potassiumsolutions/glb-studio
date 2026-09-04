@@ -83,3 +83,18 @@ Verify: `bake.mjs --ids …` → `bodyclip.mjs <lib> ids` → `flipscan.mjs <bas
 - **Gate.** `node tools/verify/verify.mjs --ids <id,…>` bakes and runs every audit (body, prop, grip, flip, coil, spine, limits)
   and prints PASS/FAIL with a hint per failure; `--json out.json` for a generator loop; `--all --no-bake` for the library.
   The jump reference is the deployed library in `D:\Claude\glb-studio` (override with `--ref`).
+
+### Kinetics audit and two more helper facts (2026-09-03, late)
+
+- `tools/verify/kinetics.mjs <lib> [ids]` — SKATE (a planted foot must not slide; an in-place gait's support foot must glide
+  backward at ONE steady speed), LEGX (legs through each other), BALANCE (weight over the planted feet in slow poses),
+  GAZE (head not looking away from the working hand), ROM (a punch must extend the elbow, a kick flex the hip, a jump lift
+  the hips, a gait swing hip and knee, a swing carry the hands ≥ 0.8 m…). The prop audit also reports a prop through the floor.
+  All of these are in `verify.mjs` too.
+- **`armF` swings about the pelvis's lateral axis in the arm's CURRENT frame (`swW`).** The old `sw()`-based armF rotated
+  about the REST-frame axis, which after `bstand` lies along the upper arm — it twisted instead of swinging (bowl never
+  bowled; reachF barely reached). `sw()` is still right for hinges (elb, kneeB) and for bones near rest (legF, armO).
+  `reachF` = straight forward at shoulder height, `reachHigh` = up-forward 45°, `reachUp` = overhead.
+- **`gaitNorm` foot lock:** the stance foot's contact point glides backward at a constant speed (blended by the stance
+  weight). Without it the normative joint curves let the foot slow 3× through stance — a visible skate under the
+  Stitcher's constant scroll. New gaits should use `gaitNorm`/`gaitIK`, never hand-swung legs with a bobbed root.
