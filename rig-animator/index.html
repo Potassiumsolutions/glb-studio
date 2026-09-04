@@ -3095,7 +3095,7 @@ const BIPED_MOTIONS=[
   {id:'slip', name:'Slip & Weave', cat:'Boxing', type:'stay', dur:1.0, build:(t,P)=>{ guard(P.amp); const A=P.amp, ph=TAU*(t/1.0)*P.speed, s=Math.sin(ph);
     leanS(s*0.22*A); leanF(0.15*Math.abs(s)*A); sw('Hips',AX.z,s*0.1*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.15*Math.abs(s)*A)); }},
   {id:'block', name:'High Guard Block', cat:'Boxing', type:'stay', dur:0.9, build:(t,P)=>{ guard(P.amp); const u=(t/0.9*P.speed)%1, p=bump(u,0.5,0.45), A=P.amp;
-    [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,0.5*p*A); elb(Ar,0.12*p*A); }); leanF(0.1*p*A); sw(B_HEAD,AX.x,0.15*p*A); }},   // gloves up: the guard already folds the elbows, so only a touch more (elb now really bends)
+    [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,0.5*p*A); }); leanF(0.1*p*A); sw(B_HEAD,AX.x,0.15*p*A); }},   // gloves up: the guard already folds the elbows, so only a touch more (elb now really bends)
   {id:'onetwo', name:'One-Two Combo', cat:'Boxing', type:'stay', dur:1.0, build:(t,P)=>{ const A=P.amp, u=(t/1.0*P.speed)%1, jab=bump(u,0.28,0.2), cross=bump(u,0.62,0.2); guard(A,cross);
     straight(B_LARM,jab,A); twist(-0.12*jab*A);
     straight(B_RARM,cross,A); twist(0.42*cross*A); sw('Hips',AX.y,0.35*cross*A - 0.08*jab*A); legF(B_RLEG,-0.12*cross*A); }},
