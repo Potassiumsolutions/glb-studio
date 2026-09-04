@@ -357,6 +357,7 @@
         <button class="btn ghost" id="mlUseLoaded" style="width:auto;padding:5px 12px;font-size:12px">Use loaded character as rig</button>
       </div>
       <div id="mlSourceBar" class="mlsrc" style="display:none"></div>
+      <div id="packBox"></div>
       <div class="row" style="margin-top:10px">
         <input type="text" id="mlSearch" placeholder="filter motions by name…" style="flex:1;background:var(--panel2,#161b23);border:1px solid var(--line,#252c37);color:inherit;border-radius:6px;padding:6px 8px;font-size:12px">
       </div>
@@ -2081,23 +2082,15 @@ wireDrop($('#envGroundDrop'), $('#envGroundInput'), fs=>{ const f=fs.find(x=>x.t
 // ---------- Scene sets: matched photo-real texture packs (in ./sets/) ----------
 // Each set colour-matches its surfaces so the scene reads as one continuous place
 // (e.g. desert = sand ground meeting sand dunes at the horizon under a warm sky).
+// PUBLIC/FREE build ships two scenes of each type; the rest come from the Scenery expansion pack
+// (imported at runtime, which pushes more entries into these arrays). The DEV copy keeps the full list.
 const SCENE_SETS = {
   expanse: [
-    {id:'desert',   name:'Desert dunes',     sky:'#dcc48f', ground:'sets/expanse/desert_ground.jpg',   backdrop:'sets/expanse/desert_pano.jpg',   tile:16},
     {id:'grass',    name:'Green meadow',      sky:'#a9cdf0', ground:'sets/expanse/grass_ground.jpg',     backdrop:'sets/expanse/grass_pano.jpg',     tile:18},
-    {id:'snow',     name:'Snowfield',         sky:'#cdddef', ground:'sets/expanse/snow_ground.jpg',      backdrop:'sets/expanse/snow_pano.jpg',      tile:16},
-    {id:'autumn',   name:'Autumn forest',     sky:'#c9d6df', ground:'sets/expanse/autumn_ground.jpg',    backdrop:'sets/expanse/autumn_pano.jpg',    tile:16},
-    {id:'volcanic', name:'Volcanic wasteland',sky:'#7c6f6a', ground:'sets/expanse/volcanic_ground.jpg',  backdrop:'sets/expanse/volcanic_pano.jpg',  tile:16},
-    {id:'beach',    name:'Tropical coast',    sky:'#bfe0ec', ground:'sets/expanse/beach_ground.jpg',     backdrop:'sets/expanse/beach_pano.jpg',     tile:16},
     {id:'city',     name:'City skyline',      sky:'#a9c6e6', ground:'sets/expanse/city_ground.jpg',      backdrop:'sets/expanse/city_pano.jpg',      tile:14},
-    {id:'nightcity',name:'Night city',        sky:'#0e1630', ground:'sets/expanse/nightcity_ground.jpg', backdrop:'sets/expanse/nightcity_pano.jpg', tile:14},
   ],
   room: [
     {id:'cabin',   name:'Wood cabin',       tint:'#7d6a52', floor:'sets/room/cabin_floor.jpg',   wall:'sets/room/cabin_wall.jpg',   floorTile:4, wallTile:3},
-    {id:'marble',  name:'Marble hall',      tint:'#c9c4bb', floor:'sets/room/marble_floor.jpg',  wall:'sets/room/marble_wall.jpg',  floorTile:3, wallTile:2},
-    {id:'dungeon', name:'Stone dungeon',    tint:'#6b6660', floor:'sets/room/dungeon_floor.jpg', wall:'sets/room/dungeon_wall.jpg', floorTile:4, wallTile:3},
-    {id:'temple',  name:'Sandstone temple', tint:'#c2a878', floor:'sets/room/temple_floor.jpg',  wall:'sets/room/temple_wall.jpg',  floorTile:4, wallTile:3},
-    {id:'loft',    name:'Modern loft',      tint:'#9a9a97', floor:'sets/room/loft_floor.jpg',    wall:'sets/room/loft_wall.jpg',    floorTile:3, wallTile:2},
     {id:'throne',  name:'Throne room',      tint:'#8a7a55', floor:'sets/room/throne_floor.jpg',  wall:'sets/room/throne_wall.jpg',  floorTile:4, wallTile:3},
   ],
 };
@@ -3606,16 +3599,34 @@ if($('#propChar')) $('#propChar').onchange=()=>renderPropCard();
 if($('#heldPropDrop')) wireDrop($('#heldPropDrop'), $('#heldPropInput'), loadPropFiles);
 // Built-in weapon presets: fetch a bundled .glb from ./props/ and equip it on the selected character.
 // [file, label, defaults] — defaults.rot (degrees) pre-sets the attach rotation so the prop lines up with a standard rigged hand
-const BUILTIN_PROPS=[['sword','Sword'],['cutlass','Cutlass'],['bow','Bow'],['staff','Staff'],['shield','Shield'],['rifle','Rifle'],['pistol','Pistol'],['spear','Spear'],['axe','Axe']];
+// ---- Expansion-pack state (declared here so rebuildPropPresets/mlFetchClip, which run below, can see it) ----
+const PACK_FMT='glbstudio-pack/1';
+let importedPacks=[];                 // [{id,name,category,version,counts}]
+const importedShards=new Map();       // motion id -> clip JSON  (consulted by mlFetchClip)
+let importedMotions=[];               // motion index entries    (folded into libIndex)
+const importedSkeletons={};           // sig -> skeleton         (folded into libSkeletons)
+const importedPoses={};               // motion id -> {s,e}      (folded into libPoses)
+const importedProps=new Map();        // name -> {buf, label, em}
+const importedSceneList=[];           // [{kind,set}] kept for reference
+
+// PUBLIC/FREE build ships two props; the rest (cutlass, staff, shield, rifle, pistol, spear, axe) come
+// from expansion packs (imported at runtime → rebuildPropPresets adds them). The DEV copy keeps all nine.
+const BUILTIN_PROPS=[['sword','Sword'],['bow','Bow']];
 async function equipBuiltin(name){ const ch=selectedPropChar(); if(!ch){ setStatus('Add a character first, then pick a prop'); return; }
-  try{ const res=await fetch('props/'+name+'.glb',{cache:'no-cache'}); if(!res.ok) throw 0; /* no-cache = revalidate, so a redeployed prop never shows stale */ const buf=await res.arrayBuffer();
+  try{ let buf; const imp=(typeof importedProps!=='undefined')?importedProps.get(name):null;
+    if(imp){ buf=imp.buf; }                                                          // prop from an installed expansion pack
+    else { const res=await fetch('props/'+name+'.glb',{cache:'no-cache'}); if(!res.ok) throw 0; /* no-cache = revalidate, so a redeployed prop never shows stale */ buf=await res.arrayBuffer(); }
     await loadPropFiles([new File([buf], name+'.glb', {type:'model/gltf-binary'})]);
     const def=(BUILTIN_PROPS.find(p=>p[0]===name)||[])[2]; const ch2=selectedPropChar();
     if(def&&def.rot&&ch2&&ch2.prop&&ch2.prop.name===name+'.glb'){ ch2.prop.rot=def.rot.map(v=>v*Math.PI/180); applyCharProps(); renderPropCard(); refreshView(); } }
   catch(e){ console.warn('built-in prop load failed:', name, String(e&&(e.stack||e.message||e))); setStatus('Built-in prop “'+name+'” not found'); } }
-(function(){ const el=$('#propPresets'); if(!el) return;
-  el.innerHTML=BUILTIN_PROPS.map(([n,l])=>`<button type="button" data-prop="${n}">${l}</button>`).join('');
-  el.querySelectorAll('button').forEach(b=>b.onclick=()=>equipBuiltin(b.dataset.prop)); })();
+function rebuildPropPresets(){ const el=$('#propPresets'); if(!el) return;
+  const builtinNames=new Set(BUILTIN_PROPS.map(p=>p[0]));
+  const imp=(typeof importedProps!=='undefined')?[...importedProps.entries()].filter(([n])=>!builtinNames.has(n)).map(([n,v])=>[n,(v.label||n)+' ✦',true]):[];
+  const all=[...BUILTIN_PROPS.map(([n,l])=>[n,l,false]), ...imp];
+  el.innerHTML=all.map(([n,l,im])=>`<button type="button" data-prop="${n}"${im?' title="from an expansion pack"':''}>${l}</button>`).join('');
+  el.querySelectorAll('button').forEach(b=>b.onclick=()=>equipBuiltin(b.dataset.prop)); }
+rebuildPropPresets();
 
 const isEnsemble=()=>$('#ensemble')&&$('#ensemble').checked;
 // Dev hook for headless / in-browser verification (module scope is otherwise unreachable from the console).
@@ -5168,6 +5179,7 @@ async function mlLoadIndex(){
     const r=await fetch(mlDir()+'/index.json',{cache:'no-cache'}); if(!r.ok) throw 0;   /* revalidate: Pages caches 10 min, and this runs after load so a hard refresh never reached it */
     const j=await r.json();
     libIndex=j.motions; libSkeletons=j.skeletons||{}; mlLibSig=Object.keys(libSkeletons)[0]||null;
+    if(typeof applyImportedMotions==='function') applyImportedMotions();   // fold in any installed expansion packs
     renderMlSourceBar();
     return true;
   }catch(e){
@@ -5177,6 +5189,7 @@ async function mlLoadIndex(){
 }
 async function mlFetchClip(id){
   if(mlClipCache.has(id)) return mlClipCache.get(id);
+  if(typeof importedShards!=='undefined' && importedShards.has(id)){ const c=importedShards.get(id); mlClipCache.set(id,c); return c; }   // from an installed expansion pack
   const r=await fetch(mlDir()+'/m/'+id+'.json',{cache:'no-cache'}); const j=await r.json();   /* revalidate (see mlLoadIndex) */ mlClipCache.set(id,j); return j;
 }
 
@@ -5308,7 +5321,9 @@ async function addMotionClip(meta){
 
 // ---- Sequence flow: rank motions by how well their start pose matches a reference end pose ----
 let libPoses=null;
-async function mlLoadPoses(){ if(libPoses) return libPoses; try{ const r=await fetch(mlDir()+'/poses.json',{cache:'no-cache'}); if(r.ok) libPoses=await r.json(); }catch(e){} return libPoses; }
+async function mlLoadPoses(){ if(libPoses) return libPoses; try{ const r=await fetch(mlDir()+'/poses.json',{cache:'no-cache'}); if(r.ok) libPoses=await r.json(); }catch(e){}
+  if(typeof importedPoses!=='undefined' && Object.keys(importedPoses).length){ libPoses=libPoses||{}; Object.assign(libPoses, importedPoses); }   // poses from installed expansion packs
+  return libPoses; }
 function quatAngle(a,ai,b,bi){ let d=a[ai]*b[bi]+a[ai+1]*b[bi+1]+a[ai+2]*b[bi+2]+a[ai+3]*b[bi+3]; d=Math.min(1,Math.abs(d)); return 2*Math.acos(d); }
 function poseDist(vecA, vecB){ const n=Math.min(vecA.length,vecB.length)/4; if(!n) return 9; let s=0; for(let i=0;i<n;i++) s+=quatAngle(vecA,i*4,vecB,i*4); return s/n; }  // mean bone angle (rad)
 const FLOW_MAX=0.35;   // mean angle below this ≈ little/no pop between clips
@@ -5633,7 +5648,92 @@ renderSampleCard();
 async function studioRefresh(){ await mlLoadIndex(); await studioMergeMotions(); renderMotionLib(); renderStudioLibrary(); }
 
 
-studioRefresh();
+
+// ==================== Expansion Packs (importable) ==============================================
+// The public app ships a small free library. Paid expansion packs are single .json files a supporter
+// downloads (from Patreon) and imports here — their motions/props/scenes fold into the live library.
+// Packs persist in the browser (IndexedDB) so they survive reloads. A static site can't lock files;
+// Patreon is the paywall. Format = { format, id, name, category, version, motions[], shards{}, poses{},
+// skeletons{}, props[{name,label,em,glb(base64)}], scenes[{kind,set}] }.
+// (pack state — importedPacks/importedShards/… — is declared earlier, above BUILTIN_PROPS, to avoid
+//  a temporal-dead-zone error: rebuildPropPresets()/mlFetchClip run before this point in the file.)
+function b64ToBuf(b64){ const bin=atob(b64), n=bin.length, u=new Uint8Array(n); for(let i=0;i<n;i++) u[i]=bin.charCodeAt(i); return u.buffer; }
+
+// Re-append imported motions/skeletons onto the (re)loaded library index. Safe to call repeatedly:
+// mlLoadIndex rebuilds libIndex on every source switch, so this restores the overlay each time.
+function applyImportedMotions(){
+  if(!Array.isArray(libIndex)) return;
+  const have=new Set(libIndex.map(m=>m.id));
+  for(const m of importedMotions) if(!have.has(m.id)){ libIndex.push(m); have.add(m.id); }
+  if(libSkeletons) Object.assign(libSkeletons, importedSkeletons);
+  if(!mlLibSig) mlLibSig=Object.keys(libSkeletons||{})[0]||null;
+}
+
+function registerPack(P){
+  importedPacks.push({ id:P.id, name:P.name||P.id, category:P.category||'', version:P.version||1,
+    counts:{ motions:(P.motions||[]).length, props:(P.props||[]).length, scenes:(P.scenes||[]).length } });
+  for(const m of (P.motions||[])) if(!importedMotions.some(x=>x.id===m.id)) importedMotions.push(m);
+  for(const id in (P.shards||{})) importedShards.set(id, P.shards[id]);
+  Object.assign(importedPoses, P.poses||{});
+  Object.assign(importedSkeletons, P.skeletons||{});
+  for(const pr of (P.props||[])) if(pr.glb) importedProps.set(pr.name, { buf:b64ToBuf(pr.glb), label:pr.label||pr.name, em:pr.em||'' });
+  for(const sc of (P.scenes||[])){ if(sc && sc.kind && sc.set && SCENE_SETS[sc.kind] && !SCENE_SETS[sc.kind].some(s=>s.id===sc.set.id)){ SCENE_SETS[sc.kind].push(sc.set); importedSceneList.push(sc); } }
+}
+
+function refreshAfterImport(){
+  applyImportedMotions();
+  if(libPoses) Object.assign(libPoses, importedPoses);
+  if(Array.isArray(libIndex) && typeof renderMotionLib==='function') renderMotionLib();
+  rebuildPropPresets();
+  if(setPickerKind && typeof buildSetGrid==='function') buildSetGrid(setPickerKind);   // refresh an open scene picker
+  renderPacksUI();
+}
+
+// ---- IndexedDB persistence (packs can be several MB — too big for localStorage) ----
+function packDB(){ return new Promise((res,rej)=>{ const q=indexedDB.open('glbStudioPacks',1);
+  q.onupgradeneeded=()=>{ if(!q.result.objectStoreNames.contains('packs')) q.result.createObjectStore('packs',{keyPath:'id'}); };
+  q.onsuccess=()=>res(q.result); q.onerror=()=>rej(q.error); }); }
+async function packPut(P){ const db=await packDB(); return new Promise((res,rej)=>{ const t=db.transaction('packs','readwrite'); t.objectStore('packs').put(P); t.oncomplete=()=>res(); t.onerror=()=>rej(t.error); }); }
+async function packGetAll(){ const db=await packDB(); return new Promise((res,rej)=>{ const t=db.transaction('packs','readonly'); const r=t.objectStore('packs').getAll(); r.onsuccess=()=>res(r.result||[]); r.onerror=()=>rej(r.error); }); }
+async function packDelete(id){ const db=await packDB(); return new Promise((res,rej)=>{ const t=db.transaction('packs','readwrite'); t.objectStore('packs').delete(id); t.oncomplete=()=>res(); t.onerror=()=>rej(t.error); }); }
+
+async function importPackFromText(text, srcName){
+  let P; try{ P=JSON.parse(text); }catch(e){ setStatus('“'+srcName+'” is not a valid pack file (.json)'); return; }
+  if(!P || (!P.motions && !P.props && !P.scenes)){ setStatus('“'+srcName+'” doesn’t look like an expansion pack'); return; }
+  if(!P.id) P.id='pack_'+Date.now().toString(36)+Math.floor(Math.random()*1e4).toString(36);
+  if(importedPacks.some(p=>p.id===P.id)){ setStatus('Already installed: '+(P.name||P.id)); return; }
+  try{ await packPut(P); }catch(e){ console.warn('pack persist failed',e); setStatus('Could not save the pack in this browser'); return; }
+  registerPack(P); refreshAfterImport();
+  setStatus('✅ Imported “'+(P.name||srcName)+'” — '+(P.motions||[]).length+' motions'+((P.props||[]).length?', '+(P.props||[]).length+' props':'')+((P.scenes||[]).length?', '+(P.scenes||[]).length+' scenes':'')+' added');
+}
+async function importPackFiles(files){ for(const f of (files||[])){ try{ await importPackFromText(await f.text(), f.name); }catch(e){ console.error(e); } } }
+async function removePack(id){ try{ await packDelete(id); }catch(e){ console.warn(e); } location.reload(); }
+
+function renderPacksUI(){
+  const box=$('#packBox'); if(!box) return;
+  let h='<div style="border:1px dashed var(--line,#252c37);border-radius:8px;padding:8px;margin:10px 0">'
+    +'<div style="font-size:12px;font-weight:600;margin-bottom:5px">🎁 Expansion packs</div>'
+    +'<div class="drop" id="packDrop" style="padding:9px;font-size:12px">Import an expansion <b>.json</b> pack<br><span class="hint" style="margin:0">drop it here or click to choose</span></div>'
+    +'<input type="file" id="packInput" accept=".json,application/json" hidden multiple>';
+  if(importedPacks.length){ h+='<div style="margin-top:6px;display:flex;flex-direction:column;gap:4px">';
+    for(const p of importedPacks){ const c=p.counts||{};
+      const bits=[c.motions?c.motions+' motions':'', c.props?c.props+' props':'', c.scenes?c.scenes+' scenes':''].filter(Boolean).join(' · ');
+      h+='<div style="display:flex;align-items:center;gap:6px;font-size:12px;background:var(--panel2,#161b23);border:1px solid var(--line,#252c37);border-radius:6px;padding:4px 8px">'
+        +'<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(p.name||p.id)+' <span class="hint">· '+bits+'</span></span>'
+        +'<button type="button" class="btn sm ghost" data-rm="'+p.id+'" title="Remove this pack" style="width:auto;flex:none;padding:2px 8px;font-size:12px">✕</button></div>';
+    }
+    h+='</div>';
+  } else { h+='<div class="hint" style="margin-top:6px">No packs installed. Get expansion packs from Patreon, then import them here to unlock more motions, props &amp; scenes.</div>'; }
+  h+='</div>';
+  box.innerHTML=h;
+  const drop=$('#packDrop'), inp=$('#packInput');
+  if(drop && inp && typeof wireDrop==='function') wireDrop(drop, inp, importPackFiles);
+  box.querySelectorAll('button[data-rm]').forEach(b=>b.onclick=()=>{ if(confirm('Remove this expansion pack? The app will reload.')) removePack(b.dataset.rm); });
+}
+
+async function bootPacks(){ try{ const saved=await packGetAll(); for(const P of saved) registerPack(P); }catch(e){ console.warn('pack load failed',e); } }
+
+bootPacks().then(()=>{ renderPacksUI(); rebuildPropPresets(); studioRefresh(); });
 if(window.StudioLib) StudioLib.onChange(studioRefresh);
 
 // ==================== Save / Load project ====================
