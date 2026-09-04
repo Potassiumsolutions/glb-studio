@@ -1714,6 +1714,15 @@ function gaitRun(t,P,dur,o){
     const knee = curveAt(RUN_KNEE,w)*kk + (o.crouch??0);
     legF (L, (hip - restJoint.pelvis - restJoint[L.up]) * A + (o.hipBias??0));
     kneeB(L, (knee - restJoint[L.knee]) * A);
+    // FOOT LOCK — the stance foot's contact point glides backward at ONE speed from strike to toe-off (see gaitNorm).
+    if(o.footLock!==false){ const wl=runStanceRef(w); if(wl>0){
+      const th=boneByName[L.up], sh=boneByName[L.knee], hipsB=boneByName['Hips']; const q1=th.quaternion.clone(), q2=sh.quaternion.clone();
+      const zAt=p=>{ const ww=warpDuty(p,duty); legF(L,(curveAt(RUN_HIP,ww)*kh*dir - hip)*A); kneeB(L,(curveAt(RUN_KNEE,ww)*kk + (o.crouch??0) - knee)*A);
+        animRoot.updateMatrixWorld(false); boneByName[L.foot].getWorldPosition(_gnA); hipsB.getWorldPosition(_gnK); const z=_gnA.z-_gnK.z;
+        th.quaternion.copy(q1); sh.quaternion.copy(q2); th.updateMatrixWorld(true); return z; };
+      const s1=duty*100; const z0=zAt(0), z1=zAt(s1); const zLin=z0+(z1-z0)*(pct/s1);
+      animRoot.updateMatrixWorld(false); boneByName[L.foot].getWorldPosition(_gnA); hipsB.getWorldPosition(_gnK);
+      const zCur=_gnA.z-_gnK.z; legIK(L, V(_gnA.x, _gnA.y, _gnK.z+zCur+(zLin-zCur)*wl), AX.z); } }
     animRoot.updateMatrixWorld(false);
     boneByName[L.knee].getWorldPosition(_gnK); boneByName[L.foot].getWorldPosition(_gnA);
     _gnA.sub(_gnK);
@@ -1781,6 +1790,15 @@ function gaitSkip(t,P,dur,o){
     if(SKIP_CONTACT(pct)) stance=true;
     legF (L,(curveAt(SKIP_HIP ,pct)*kh - restJoint.pelvis - restJoint[L.up])*A);
     kneeB(L,(curveAt(SKIP_KNEE,pct)*kk - restJoint[L.knee])*A);
+    // FOOT LOCK — each of the two contacts (step [0,16), hop [23,40)) glides backward at one speed (see gaitNorm).
+    if(o.footLock!==false){ const wl=skipStanceRef(pct); if(wl>0){
+      const th=boneByName[L.up], sh=boneByName[L.knee], hipsB=boneByName['Hips']; const q1=th.quaternion.clone(), q2=sh.quaternion.clone();
+      const zAt=p=>{ legF(L,(curveAt(SKIP_HIP,p)-curveAt(SKIP_HIP,pct))*kh*A); kneeB(L,(curveAt(SKIP_KNEE,p)-curveAt(SKIP_KNEE,pct))*kk*A);
+        animRoot.updateMatrixWorld(false); boneByName[L.foot].getWorldPosition(_gnA); hipsB.getWorldPosition(_gnK); const z=_gnA.z-_gnK.z;
+        th.quaternion.copy(q1); sh.quaternion.copy(q2); th.updateMatrixWorld(true); return z; };
+      const [pa,pb]= pct<20 ? [0,16] : [23,40]; const z0=zAt(pa), z1=zAt(pb); const zLin=z0+(z1-z0)*((pct-pa)/(pb-pa));
+      animRoot.updateMatrixWorld(false); boneByName[L.foot].getWorldPosition(_gnA); hipsB.getWorldPosition(_gnK);
+      const zCur=_gnA.z-_gnK.z; legIK(L, V(_gnA.x, _gnA.y, _gnK.z+zCur+(zLin-zCur)*wl), AX.z); } }
     animRoot.updateMatrixWorld(false);
     boneByName[L.knee].getWorldPosition(_gnK); boneByName[L.foot].getWorldPosition(_gnA);
     _gnA.sub(_gnK);
