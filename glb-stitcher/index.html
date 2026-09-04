@@ -3277,6 +3277,7 @@ function renderCharacters(){
     el.appendChild(row);
   });
   if(typeof renderPropCard==='function') renderPropCard();
+  mlSyncListToActive();   // keep the motion list filtered to whichever character is now active (cheap: only rebuilds when the active rig changed)
 }
 // ---------- Held props: a small .glb parented to a character's hand bone, so it follows every motion ----------
 // One prop per character (ch.prop = {name, src, bone, pos[3], rot[3]rad, scale}). We clone the prop onto the
@@ -5379,7 +5380,18 @@ const _catToSuper={}; for(const s in CAT_SUPER) for(const c of CAT_SUPER[s]) _ca
 const catSuper=c=> _catToSuper[(c||'').toLowerCase()] || 'Other';
 let mlSuperCollapsed=(()=>{ try{ return new Set(JSON.parse(localStorage.getItem('mlSuperCollapsed')||'[]')); }catch(e){ return new Set(); } })();
 function mlSaveSuper(){ try{ localStorage.setItem('mlSuperCollapsed', JSON.stringify([...mlSuperCollapsed])); }catch(e){} }
-function mlCollapseAll(){ if(!libIndex) return; const rigSig=(libRig&&libRig.sig)||null; const s=new Set();
+// ---- The motion list follows the ACTIVE character (the one selected below the preview, or the only one
+// loaded) so it only shows motions that fit that character's skeleton. This is LIVE — it tracks the active
+// character automatically, rather than a manually "set" rig. (The retarget still aims at the active
+// character at add-time via syncActiveRig; this just keeps the LIST in sync with the selection.)
+function mlRootSig(root){ if(!root) return null; if(root.__mlSig===undefined){ try{ root.__mlSig=skelSig(root); }catch(e){ root.__mlSig=null; } } return root.__mlSig; }
+function mlActiveRoot(){ const ch=(typeof activeChar==='function')?activeChar():null;
+  if(ch){ const src=charClips(ch).find(c=>c.hips&&c.root); if(src) return {root:src.root, name:ch.name}; }
+  return libRig?{root:libRig.root, name:libRig.label}:null; }
+function mlActiveSig(){ const a=mlActiveRoot(); return a?mlRootSig(a.root):null; }
+let _mlLastSig; let _mlLastSigSet=false;
+function mlSyncListToActive(){ const s=mlActiveSig(); if(!_mlLastSigSet || s!==_mlLastSig){ _mlLastSig=s; _mlLastSigSet=true; renderMotionLib(); } }
+function mlCollapseAll(){ if(!libIndex) return; const rigSig=mlActiveSig(); const s=new Set();
   for(const m of libIndex){ if(!rigSig||m.sig===rigSig) s.add(catSuper(m.cat||'Other')); } mlSuperCollapsed=s; mlSaveSuper(); renderMotionLib(); }
 function mlExpandAll(){ mlSuperCollapsed=new Set(); mlCollapsed=new Set(); mlSaveSuper(); mlSaveCollapsed(); renderMotionLib(); }
 { const _cb=$('#mlCollapseAllBtn'), _eb=$('#mlExpandAllBtn'); if(_cb) _cb.onclick=mlCollapseAll; if(_eb) _eb.onclick=mlExpandAll; }
@@ -5396,9 +5408,13 @@ function renderMotionLib(){
   if(!libIndex){ el.innerHTML='<div class="hint" style="padding:10px">Loading library…</div>'; if(bar) bar.innerHTML=''; return; }
   const q=$('#mlSearch').value.trim().toLowerCase();
   const ty=(document.querySelector('input[name=mlType]:checked')||{}).value||'all';
-  // Once a rig is loaded, only show motions authored for ITS skeleton (biped / quadruped / bird) —
-  // motions retarget by bone name, so a mismatched skeleton wouldn't apply. No rig yet → show all.
-  const rigSig = (libRig && libRig.sig) || null;
+  // Show only the motions that fit the ACTIVE character's skeleton (biped / quadruped / bird) — motions
+  // retarget by bone name, so a mismatched skeleton wouldn't apply. No character loaded yet → show all.
+  const rigSig = mlActiveSig();
+  { const rl=$('#mlRig'), a=mlActiveRoot();
+    if(rl){ if(a){ const match = mlLibSig && rigSig===mlLibSig;
+        rl.innerHTML = `Showing motions for <b>${a.name}</b>${match?'':' — retargets by bone name'}. Select another character below the preview to switch.`; }
+      else rl.textContent='Load a rigged character — the list then shows the motions that fit it. Click one to add it.'; } }
   const seq = mlSeqOn();
   // Base set: type + rig + name search. Category is applied after, so the chips can show live counts.
   const base=libIndex.filter(m=> (ty==='all'||m.type===ty) && (!q||m.name.toLowerCase().includes(q))
