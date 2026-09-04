@@ -2753,6 +2753,10 @@ function selectCharacter(ch, additive){
   if(additive){ if(previewSel.has(ch.id)) previewSel.delete(ch.id); else previewSel.add(ch.id); }
   else previewSel=new Set([ch.id]);
   const firstClip=charClips(ch)[0]; if(firstClip){ selIndex=clips.indexOf(firstClip); }
+  // A single-pick in the preview makes that character the ACTIVE one being edited, so every selector
+  // (motion list, held-prop, node tree) switches to it. (A shift/ctrl additive pick just extends the
+  // gizmo's multi-selection and leaves the active character alone.)
+  if(!additive && typeof setActiveChar==='function' && activeCharId!==ch.id) setActiveChar(ch.id);
   if(isEnsemble()) showEnsemble(); else showClip(selIndex);
   showCharPopup(ch);
 }
@@ -3168,8 +3172,11 @@ $('#audioClear').addEventListener('click', ()=>{ audioBuffer=null; audioName='';
 
 // ---------- GLB loading ----------
 function numFromName(name){ const m=name.match(/(\d+)/g); return m?parseInt(m[m.length-1],10):999999; }
-async function addGLBs(files){
+async function addGLBs(files, charName){
   const glbs=files.filter(f=>/\.glb$/i.test(f.name));
+  // Name a freshly-created character after its file when a single model is loaded (a sample, or one dropped
+  // rig) — clearer than "Character 1". A batch of numbered clips (the multi-file workflow) keeps "Character N".
+  const autoName = charName || (glbs.length===1 ? glbs[0].name.replace(/\.glb$/i,'').trim() : null);
   for(const f of glbs){
     setStatus('Loading '+f.name+' …');
     try{
@@ -3204,7 +3211,7 @@ async function addGLBs(files){
     c.baseScale = c.root.scale.clone();
     c.restH = measureRest(c).getSize(new THREE.Vector3()).y || 1;
     c.hips = findHips(c.root);
-    assignCharacter(c);                    // auto-group by skeleton
+    assignCharacter(c, autoName);          // auto-group by skeleton (name a new one after its file/sample)
     computeTravel(c);
     c.scroll = analyzeMotion(c).scroll;    // best-guess world-motion on/off from name + animation
     finalizeAdvance(c);                    // in-place walk/run → forward advance (−Z if named backward)
@@ -3225,15 +3232,15 @@ function ensureMainChar(){ const act=activeChars(); if(!act.length){ mainCharId=
 function mainChar(){ ensureMainChar(); return characters.find(x=>x.id===mainCharId)||null; }
 function isMain(ch){ return !!ch && ch.id===mainCharId; }
 function skelSig(root){ const n=[]; root.traverse(o=>{ if(o.isBone) n.push(o.name); }); n.sort(); return n.length? n.join('|') : 'nobones'; }
-function newCharacter(sig, restH){
-  const ch={ id:crypto.randomUUID(), name:'Character '+(characters.length+1),
+function newCharacter(sig, restH, name){
+  const ch={ id:crypto.randomUUID(), name: name || ('Character '+(characters.length+1)),
     color:CHAR_COLORS[characters.length%CHAR_COLORS.length], relativeScale:1, sig, restH };
   characters.push(ch); return ch;
 }
-function assignCharacter(c){
+function assignCharacter(c, nameHint){
   const sig = c.hips ? skelSig(c.root) : ('mesh:'+(c.restH||0).toFixed(2));
   let ch=characters.find(x=>x.sig===sig);
-  if(!ch) ch=newCharacter(sig, c.restH);
+  if(!ch) ch=newCharacter(sig, c.restH, nameHint);   // name a NEW character after its file/sample (single load only)
   c.charId=ch.id;
   if(ch.restH==null) ch.restH=c.restH;
 }
@@ -3454,7 +3461,9 @@ function renderPropCard(){
   const prev=sel.value, box=$('#propControls');
   if(!characters.length){ sel.innerHTML='<option>— add a character —</option>'; box.innerHTML=''; hideHeldPropPop(); return; }
   sel.innerHTML=characters.map(ch=>`<option value="${ch.id}">${ch.name}${ch.prop?' ⚔':''}</option>`).join('');
-  sel.value = characters.some(c=>c.id===prev)?prev:((activeChar()&&activeChar().id)||characters[0].id);
+  // Follow the ACTIVE character so this selector switches with every other one. (Choosing a different
+  // character in the dropdown makes THAT one active — see the onchange — so the two never disagree.)
+  sel.value = ((activeChar()&&activeChar().id)) || (characters.some(c=>c.id===prev)?prev:characters[0].id);
   buildPropControls(box, selectedPropChar());
 }
 // Build the prop editor (hand / offsets / scale / remove) into ANY container — used by the side card AND the
@@ -3501,7 +3510,7 @@ function popAt(x,y){ const pop=$('#heldPropPop'); pop.classList.add('show'); con
   pop.style.left=px+'px'; pop.style.top=py+'px'; pop.style.right='auto'; }
 function openObjPop(kind, ref, x, y){
   const body=$('#hpBody'), title=$('#hpTitle'); if(!body) return;
-  if(kind==='weapon'){ const ch=ref; if(!ch||!ch.prop) return; const sel=$('#propChar'); if(sel && characters.some(c=>c.id===ch.id)){ sel.value=ch.id; renderPropCard(); }
+  if(kind==='weapon'){ const ch=ref; if(!ch||!ch.prop) return; if(characters.some(c=>c.id===ch.id) && activeCharId!==ch.id) setActiveChar(ch.id);   // clicking a weapon makes its owner the active character (side card follows)
     title.textContent='⚔ '+ch.prop.name; buildPropControls(body, ch); }
   else if(kind==='char'){ const ch=ref; if(!ch) return; title.innerHTML='<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:'+(ch.color||'#5b9dff')+';margin-right:5px"></span>'+(ch.name||'Character'); buildCharControls(body, ch); }
   else if(kind==='sceneprop'){ const p=ref; if(!p) return; title.textContent='🌳 '+(p.name||'Prop'); buildScenePropControls(body, p); }
@@ -3596,7 +3605,7 @@ if($('#hpX')) $('#hpX').addEventListener('click', hideHeldPropPop);
   let init='cast'; try{ init=localStorage.getItem('sbTab')||'cast'; }catch(_){} if(!TABS.some(x=>x[0]===init)) init='cast';
   setTab(init);
 })();
-if($('#propChar')) $('#propChar').onchange=()=>renderPropCard();
+if($('#propChar')) $('#propChar').onchange=()=>{ const id=$('#propChar').value; if(characters.some(c=>c.id===id)) setActiveChar(id); else renderPropCard(); };   // picking a character here makes it the active one (all selectors follow)
 if($('#heldPropDrop')) wireDrop($('#heldPropDrop'), $('#heldPropInput'), loadPropFiles);
 // Built-in weapon presets: fetch a bundled .glb from ./props/ and equip it on the selected character.
 // [file, label, defaults] — defaults.rot (degrees) pre-sets the attach rotation so the prop lines up with a standard rigged hand
@@ -3641,7 +3650,10 @@ const activeChars=()=>characters.filter(ch=>charClips(ch).length);
 // ---- Active character: the lane new movements are inserted into, and whose rig library motions retarget onto ----
 let activeCharId=null;
 function activeChar(){ let ch=characters.find(c=>c.id===activeCharId && charClips(c).length); if(!ch) ch=activeChars()[0]||null; activeCharId=ch?ch.id:null; return ch; }
-function setActiveChar(id){ activeCharId=id; syncActiveRig(); renderCharacters(); if($('#nodeEditor')&&$('#nodeEditor').classList.contains('show')) renderNodes();
+function setActiveChar(id){ activeCharId=id;
+  if(typeof isEnsemble==='function' && isEnsemble() && typeof previewSel!=='undefined') previewSel=new Set([id]);   // keep the preview selection ring on the active character
+  syncActiveRig(); renderCharacters(); if($('#nodeEditor')&&$('#nodeEditor').classList.contains('show')) renderNodes();
+  if(typeof updateGizmo==='function') updateGizmo();   // move the ring/gizmo to the newly-active character
   const ch=characters.find(c=>c.id===id); if(ch) setStatus('Active character: '+ch.name+' — new movements go to its timeline'); }
 function syncActiveRig(){                      // aim the motion-library retarget at the active character's rig
   const ch=characters.find(c=>c.id===activeCharId); if(!ch) return;
@@ -5638,7 +5650,7 @@ async function loadSampleModel(s){
   setStatus('Loading sample: '+s.name+'…');
   let blob; try{ const r=await fetch(url); if(!r.ok) throw 0; blob=await r.blob(); }
   catch(e){ setStatus('Could not load sample “'+s.name+'” (not found at '+url+')'); return; }
-  await addGLBs([ new File([blob], s.file, {type:'model/gltf-binary'}) ]);
+  await addGLBs([ new File([blob], s.file, {type:'model/gltf-binary'}) ], s.name);   // name the character after the sample (Human / Dog / Bird)
 }
 async function renderSampleCard(){
   const card=$('#sampleCard'); if(!card) return;
