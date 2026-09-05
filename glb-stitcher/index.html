@@ -923,7 +923,7 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 
 const $ = s => document.querySelector(s);
-const APP_NAME='GLB Stitcher', APP_VERSION='1.5.0', APP_BUILD='2026-09-04';   // version shown in About + footer
+const APP_NAME='GLB Stitcher', APP_VERSION='1.5.1', APP_BUILD='2026-09-04';   // version shown in About + footer
 // Bump APP_BUILD whenever the app or the bundled motion library changes. It is printed to the console and
 // shown in the footer so "am I running the current version?" can be answered by looking, not by guessing —
 // a stale browser tab kept an old build alive twice while the files on disk were already up to date.
@@ -4791,7 +4791,14 @@ async function produceFrames(fps,loops,hold,spin,trans, emit, abort){
     const sx=c.root.scale.x, sz=c.root.scale.z, sy=c.root.scale.y;
     let clipFrame=0;
     const render1 = async (D)=>{
+      // Seam ease-in: blend this clip's skeleton FROM the previous clip's end pose for a few frames. We RENDER the
+      // blended pose but must not let it PERSIST into the bones, because three's AnimationMixer writes a CONSTANT
+      // track (a held-still arm) only ONCE — if the blend leaves that bone changed, the mixer never restores it and
+      // the arm stays stuck at the previous pose (a resting arm froze in the neighbour's/​bind T-pose). So snapshot
+      // the mixer's authoritative pose first and restore it after the frame is emitted.
+      let _cleanPose=null;
       if(ci>0 && prevPose && clipFrame<blendFrames){   // ease this clip's skeleton in from the previous clip's end pose
+        _cleanPose = capturePose(c.root);
         const x=clipFrame/blendFrames, w=(1-x)*(1-x); blendPose(c.root, prevPose, w); }   // quadratic ease-out weight
       if(c.hips) placeCharacter(c, {x:D.x, z:D.z, y:D.y});   // x/z travel + accumulated climb (D.y) + manual lift
       if(follow){ camState.pivotX=D.x; camState.pivotZ=D.z;
@@ -4812,6 +4819,7 @@ async function produceFrames(fps,loops,hold,spin,trans, emit, abort){
       if(doTrans && clipFrame<transFrames) renderOverlay(1-(clipFrame+1)/transFrames);
       drawClipCaption(c);                           // per-clip lower-third caption, composited on top
       await emit(frame++); clipFrame++;
+      if(_cleanPose){ c.root.traverse(o=>{ if(o.isBone && _cleanPose[o.name]) o.quaternion.copy(_cleanPose[o.name]); }); c.root.updateMatrixWorld(true); }   // restore the mixer pose (see above)
     };
     for(let l=0;l<loops;l++){
       if(abort()) break;
