@@ -370,6 +370,13 @@
       <div id="mlCatBar" class="mlcats"></div>
       <div id="mlBrowseTools" class="mlbtools"><span class="hint" style="font-size:10px;margin-right:2px">sections:</span><button type="button" id="mlCollapseAllBtn">collapse all</button><button type="button" id="mlExpandAllBtn">expand all</button></div>
       <div id="mlList" style="max-height:280px;overflow-y:auto;margin-top:8px;border:1px solid var(--line,#252c37);border-radius:8px"></div>
+      <div id="nlTuneBox" style="margin-top:10px;border-top:1px solid var(--line,#252c37);padding-top:8px">
+        <div class="hint" style="margin:0 0 4px;font-size:11px"><b>✎ Tune the selected clip</b> — describe a change in plain words</div>
+        <div class="row">
+          <input type="text" id="nlTuneInput" placeholder='e.g. “extend by 2 seconds”, “right arm range +10 degrees”, “make it bigger”, “slower”' style="flex:1;background:var(--panel2,#161b23);border:1px solid var(--line,#252c37);color:inherit;border-radius:6px;padding:6px 8px;font-size:12px">
+          <button type="button" id="nlTuneUndo" title="Undo the last tuning change">Undo</button>
+        </div>
+      </div>
       <label class="mlchk" style="margin-top:8px;font-size:12px"><input type="checkbox" id="mlSeqMode"> Build a sequence — queue motions that flow together, add them all at once</label>
       <div id="mlSeqWrap" style="display:none;margin-top:6px">
         <div id="mlSeqBar" style="display:flex;gap:6px;flex-wrap:wrap;min-height:30px;padding:6px;background:var(--panel2,#161b23);border:1px solid var(--line,#252c37);border-radius:8px"></div>
@@ -923,7 +930,7 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 
 const $ = s => document.querySelector(s);
-const APP_NAME='GLB Stitcher', APP_VERSION='1.5.1', APP_BUILD='2026-09-04';   // version shown in About + footer
+const APP_NAME='GLB Stitcher', APP_VERSION='1.6.0', APP_BUILD='2026-09-04';   // version shown in About + footer
 // Bump APP_BUILD whenever the app or the bundled motion library changes. It is printed to the console and
 // shown in the footer so "am I running the current version?" can be answered by looking, not by guessing —
 // a stale browser tab kept an old build alive twice while the files on disk were already up to date.
@@ -5399,6 +5406,81 @@ function bakeFloorContact(clip, root, spec){
     return t; });
   return new THREE.AnimationClip(clip.name, clip.duration, newTracks);
 }
+// ===== Natural-language motion tuning (local, no API) =========================================================
+// Edits apply to the SOURCE (library-space) clip and then RE-RETARGET, so a tweak stays retarget-safe on any
+// character. Each edited clip keeps its untouched source + an ordered edit stack; every apply rebuilds from the
+// source, so undo is just popping the stack and edits compose cleanly. A rule parser turns plain phrases into ops
+// — no network/API. (A user-supplied LLM key can later translate free wording into these same ops.)
+const _NLQ1=new THREE.Quaternion(), _NLQ2=new THREE.Quaternion(), _NLQr=new THREE.Quaternion();
+const NL_GROUPS={ rightarm:['RightArm','RightForeArm','RightHand'], leftarm:['LeftArm','LeftForeArm','LeftHand'],
+  arms:['RightArm','RightForeArm','RightHand','LeftArm','LeftForeArm','LeftHand'],
+  rightleg:['RightUpLeg','RightLeg','RightFoot'], leftleg:['LeftUpLeg','LeftLeg','LeftFoot'],
+  legs:['RightUpLeg','RightLeg','RightFoot','LeftUpLeg','LeftLeg','LeftFoot'],
+  head:['Head','neck'], spine:['Spine','Spine01','Spine02'], all:null };
+const NL_GROUP_LABEL={rightarm:'right arm',leftarm:'left arm',arms:'arms',rightleg:'right leg',leftleg:'left leg',legs:'legs',head:'head',spine:'spine',all:'whole body'};
+const _nlClone=j=>JSON.parse(JSON.stringify(j));
+function _nlQtracks(json, group){ const set=group?new Set(group):null;
+  return json.tracks.filter(t=>(t.name||'').endsWith('.quaternion') && (!set||set.has(t.name.replace('.quaternion','')))); }
+function nlRetime(json, f){ json.duration=(json.duration||1)*f; for(const t of json.tracks) if(t.times) t.times=t.times.map(v=>v*f); }
+function nlAmp(json, group, f){ for(const t of _nlQtracks(json, group)){ const v=t.values; if(!v||v.length<8) continue;
+  _NLQr.set(v[0],v[1],v[2],v[3]);
+  for(let i=0;i<v.length;i+=4){ _NLQ2.set(v[i],v[i+1],v[i+2],v[i+3]); _NLQ1.copy(_NLQr).slerp(_NLQ2,f); v[i]=_NLQ1.x;v[i+1]=_NLQ1.y;v[i+2]=_NLQ1.z;v[i+3]=_NLQ1.w; } } }
+function nlPeakDeg(json, group){ let peak=0; for(const t of _nlQtracks(json, group)){ const v=t.values; if(!v||v.length<8) continue; _NLQr.set(v[0],v[1],v[2],v[3]);
+  for(let i=4;i<v.length;i+=4){ _NLQ2.set(v[i],v[i+1],v[i+2],v[i+3]); const d=2*Math.acos(Math.min(1,Math.abs(_NLQr.dot(_NLQ2))))*180/Math.PI; if(d>peak) peak=d; } } return peak; }
+function nlParse(text){
+  const s=(text||'').toLowerCase().trim(); if(!s) return null;
+  const num=re=>{ const m=s.match(re); return m?parseFloat(m[1]):null; };
+  const groupOf=()=>{ if(/right\s*arm/.test(s))return 'rightarm'; if(/left\s*arm/.test(s))return 'leftarm';
+    if(/right\s*leg/.test(s))return 'rightleg'; if(/left\s*leg/.test(s))return 'leftleg';
+    if(/\barms?\b/.test(s))return 'arms'; if(/\blegs?\b/.test(s))return 'legs'; if(/\bhead\b/.test(s))return 'head';
+    if(/spine|torso|back/.test(s))return 'spine'; return 'all'; };
+  const less=/reduce|less|smaller|decrease|shrink|narrower|tighter|gentler|calmer|subtle/.test(s);
+  let n;
+  if((n=num(/(?:extend|lengthen|add|longer by)\D*?([0-9.]+)\s*sec/))!=null) return {kind:'retime',mode:'addSec',v:n,label:`+${n}s`};
+  if((n=num(/([0-9.]+)\s*sec(?:onds?)?\s*longer/))!=null) return {kind:'retime',mode:'addSec',v:n,label:`+${n}s`};
+  if((n=num(/(?:make (?:it|this)?\s*|duration\s*)([0-9.]+)\s*sec/))!=null) return {kind:'retime',mode:'toSec',v:n,label:`→ ${n}s`};
+  if(/half\s*speed|twice as long|2x slower/.test(s)) return {kind:'retime',mode:'mult',v:2,label:'half speed'};
+  if(/double\s*speed|twice as fast|2x faster/.test(s)) return {kind:'retime',mode:'mult',v:0.5,label:'double speed'};
+  if((n=num(/([0-9.]+)\s*%\s*speed/))!=null&&n>0) return {kind:'retime',mode:'mult',v:100/n,label:`${n}% speed`};
+  if(/slower/.test(s)) return {kind:'retime',mode:'mult',v:1.25,label:'slower'};
+  if(/faster|quicker|speed up/.test(s)) return {kind:'retime',mode:'mult',v:0.8,label:'faster'};
+  if((n=num(/([0-9.]+)\s*deg/))!=null){ const g=groupOf(); return {kind:'ampDeg',group:g,deg:less?-n:n,label:`${NL_GROUP_LABEL[g]} range ${less?'-':'+'}${n}°`}; }
+  if((n=num(/([0-9.]+)\s*%/))!=null&&n>0){ const g=groupOf(); return {kind:'amp',group:g,factor:less?1-n/100:1+n/100,label:`${NL_GROUP_LABEL[g]} range ${less?'-':'+'}${n}%`}; }
+  if(/bigger|more energetic|exaggerat|more range|wider|stronger/.test(s)){ const g=groupOf(); return {kind:'amp',group:g,factor:1.3,label:`${NL_GROUP_LABEL[g]} more range`}; }
+  if(less){ const g=groupOf(); return {kind:'amp',group:g,factor:0.7,label:`${NL_GROUP_LABEL[g]} less range`}; }
+  return {error:`Didn't understand "${text}". Try: "extend by 2 seconds", "right arm range +10 degrees", "make it bigger", "slower".`};
+}
+function nlRebuild(c){
+  if(!c||!c.srcClip||!c.srcMeta) return;
+  if(c.charId && c.charId!==activeCharId && typeof setActiveChar==='function') setActiveChar(c.charId);
+  syncActiveRig(); if(!libRig) return;
+  let json=_nlClone(c.srcClip);
+  for(const op of (c.edits||[])){
+    if(op.kind==='retime'){ const dur=json.duration||1; let f=op.mode==='addSec'?(dur+op.v)/dur:op.mode==='toSec'?op.v/dur:op.v; nlRetime(json, Math.max(0.05,f)); }
+    else if(op.kind==='amp') nlAmp(json, NL_GROUPS[op.group], Math.max(0.05,op.factor));
+    else if(op.kind==='ampDeg'){ const peak=nlPeakDeg(json, NL_GROUPS[op.group])||1; nlAmp(json, NL_GROUPS[op.group], Math.max(0.05,(peak+op.deg)/peak)); }
+  }
+  let retClip=retargetMotion({...c.srcMeta, clip:json}, libRig);
+  const shortId=(c.srcMeta.id||'').replace(/^ra_[a-z]+_/,'').replace(/_\d+_\d+_\d+$/,'');
+  if(FLOOR_CONTACT[shortId]){ try{ const gc=skeletonClone(libRig.root); gc.position.set(0,0,0); gc.rotation.set(0,0,0); gc.scale.set(1,1,1); retClip=bakeFloorContact(retClip, gc, FLOOR_CONTACT[shortId]); }catch(e){} }
+  c.mixer.stopAllAction();
+  c.action=c.mixer.clipAction(retClip); c.action.clampWhenFinished=true; c.duration=retClip.duration;
+  computeTravel(c); finalizeAdvance(c); c._norm=true; recomputeAllNorm(); computeSharedFrame();
+  selIndex=clips.indexOf(c); showClip(selIndex); renderList(); renderTimeline(); updateReady();
+}
+function nlTune(text){
+  const c=clips[selIndex];
+  if(!c||!c.fromLibrary||!c.srcClip){ setStatus('Select a library motion clip first, then type a change.'); return; }
+  const op=nlParse(text);
+  if(!op) return;
+  if(op.error){ setStatus(op.error); return; }
+  c.edits=c.edits||[]; c.edits.push(op);
+  try{ nlRebuild(c); setStatus(`Tuned "${c.name}": ${op.label}  ·  ${(c.duration||0).toFixed(2)}s  (${c.edits.length} change${c.edits.length>1?'s':''})`); }
+  catch(e){ console.error(e); c.edits.pop(); setStatus('That change failed — reverted.'); }
+}
+function nlUndo(){ const c=clips[selIndex]; if(!c||!c.edits||!c.edits.length){ setStatus('No tuning to undo.'); return; }
+  const last=c.edits.pop(); nlRebuild(c); setStatus(`Undid "${last.label}"  ·  ${c.edits.length} change${c.edits.length===1?'':'s'} left`); }
+
 // Retarget a library motion onto the ACTIVE character's rig and insert it next to the selected movement.
 async function addMotionClip(meta){
   const act=activeChar(); if(act) syncActiveRig();                 // retarget onto whichever character is active
@@ -5418,7 +5500,8 @@ async function addMotionClip(meta){
   const mixer=new THREE.AnimationMixer(root);
   const action=mixer.clipAction(retClip); action.clampWhenFinished=true;
   const c={ id:crypto.randomUUID(), name:meta.name, order:0, gltf:null, root, mixer, action, duration:retClip.duration,
-    fromLibrary:true, cam:{ custom:false, yaw:gYaw(), camY:gCamY(), pad:gPad(), vpos:gVpos(), exp:false } };
+    fromLibrary:true, srcClip:clipJSON, srcMeta:{...meta}, edits:[],   // keep the library-space source + edit stack for natural-language tuning
+    cam:{ custom:false, yaw:gYaw(), camY:gCamY(), pad:gPad(), vpos:gVpos(), exp:false } };
   bakeRigScale(c.root, [retClip]);       // normalize the cm/0.01-armature rig (clone inherits it)
   c.baseScale=c.root.scale.clone();
   c.restH=measureRest(c).getSize(new THREE.Vector3()).y||1;
@@ -5687,6 +5770,9 @@ $('#mlUseLoaded').addEventListener('click', ()=>{
   mlSetRig(src.root, (src.name||'loaded character').replace(/\.glb$/i,'')); setStatus('Rig set to '+src.name);
 });
 $('#mlSearch').addEventListener('input', renderMotionLib);
+// Natural-language clip tuning (local): Enter applies a change to the selected clip; Undo pops the last one.
+{ const nlin=$('#nlTuneInput'); if(nlin) nlin.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); const v=nlin.value.trim(); if(v){ nlTune(v); nlin.value=''; } } });
+  const nlu=$('#nlTuneUndo'); if(nlu) nlu.addEventListener('click', ()=>nlUndo()); }
 document.querySelectorAll('input[name=mlType]').forEach(r=>r.addEventListener('change', renderMotionLib));
 $('#mlSeqMode').addEventListener('change', async e=>{ $('#mlSeqWrap').style.display=e.target.checked?'block':'none';
   if(e.target.checked){ await mlLoadPoses(); renderSeqBar(); } renderMotionLib(); });
