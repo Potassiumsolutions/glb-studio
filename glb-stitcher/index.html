@@ -923,7 +923,7 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 
 const $ = s => document.querySelector(s);
-const APP_NAME='GLB Stitcher', APP_VERSION='1.4.7', APP_BUILD='2026-09-04';   // version shown in About + footer
+const APP_NAME='GLB Stitcher', APP_VERSION='1.4.8', APP_BUILD='2026-09-04';   // version shown in About + footer
 // Bump APP_BUILD whenever the app or the bundled motion library changes. It is printed to the console and
 // shown in the footer so "am I running the current version?" can be answered by looking, not by guessing —
 // a stale browser tab kept an old build alive twice while the files on disk were already up to date.
@@ -5335,12 +5335,19 @@ function floorContactPose(root, spec, floorY){
     for(let pass=0;pass<2;pass++){ root.updateMatrixWorld(true); for(const l of legs){ const e=l.end.getWorldPosition(_gcV3), tgt=new THREE.Vector3(e.x,gy,e.z); for(const bn of l.chain){ const bone=B(bn); if(bone)_ccdToward(bone,l.end,tgt);} } }
     return;
   }
+  const gy=0;   // the scene floor — contacts belong on y=0, NOT wherever the retarget happened to leave them (a
+                // plank retargeted floating at 0.28 must come DOWN to the floor, not be planted at its float height)
   const all=[];
   if(spec.hands){ if(B('LeftHand'))all.push({chain:['LeftArm','LeftForeArm'],end:B('LeftHand')}); if(B('RightHand'))all.push({chain:['RightArm','RightForeArm'],end:B('RightHand')}); }
   if(spec.toes){ const lt=B('LeftToeBase')||B('LeftFoot'), rt=B('RightToeBase')||B('RightFoot'); if(lt)all.push({chain:['LeftUpLeg','LeftLeg','LeftFoot'],end:lt}); if(rt)all.push({chain:['RightUpLeg','RightLeg','RightFoot'],end:rt}); }
   if(!all.length) return;
   const hips=B('Hips');
-  const plant=()=>{ root.updateMatrixWorld(true); for(const l of all){ const e=l.end.getWorldPosition(_gcV3), tgt=new THREE.Vector3(e.x,floorY,e.z); for(const bn of l.chain){ const bone=B(bn); if(bone)_ccdToward(bone,l.end,tgt); } } };
+  // First drop the WHOLE body so the lowest contact rests on the floor — this preserves the authored pose shape and
+  // keeps the CCD from having to bend the limbs across a big gap (which is what left the plank floating).
+  root.updateMatrixWorld(true);
+  { let lowY=Infinity; for(const l of all) lowY=Math.min(lowY, l.end.getWorldPosition(_gcV3).y);
+    if(hips && isFinite(lowY)){ const ps=hips.parent?hips.parent.getWorldScale(_gcV2).y:1; hips.position.y += (gy-lowY)/(ps||1); hips.updateWorldMatrix(true,true); } }
+  const plant=()=>{ root.updateMatrixWorld(true); for(const l of all){ const e=l.end.getWorldPosition(_gcV3), tgt=new THREE.Vector3(e.x,gy,e.z); for(const bn of l.chain){ const bone=B(bn); if(bone)_ccdToward(bone,l.end,tgt); } } };
   for(let pass=0; pass<3; pass++){
     plant();
     // straighten the body: bring the hips to ~midway between the shoulders and the ankles (kills the pike)
