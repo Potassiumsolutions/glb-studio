@@ -930,7 +930,7 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 
 const $ = s => document.querySelector(s);
-const APP_NAME='GLB Stitcher', APP_VERSION='1.6.0', APP_BUILD='2026-09-04';   // version shown in About + footer
+const APP_NAME='GLB Stitcher', APP_VERSION='1.6.1', APP_BUILD='2026-09-04';   // version shown in About + footer
 // Bump APP_BUILD whenever the app or the bundled motion library changes. It is printed to the console and
 // shown in the footer so "am I running the current version?" can be answered by looking, not by guessing —
 // a stale browser tab kept an old build alive twice while the files on disk were already up to date.
@@ -4774,7 +4774,7 @@ async function produceFrames(fps,loops,hold,spin,trans, emit, abort){
     if(doTrans) snapshotCanvas();          // grab previous clip's final frame
     const c=clips[ci]; renderRotCarry=carry.rot; showClip(ci); setPlayingClip(c.id);   // apply carried heading, then light up the current node/block
     const baseTargetY=camState.targetY;   // framed look-at height at clip start
-    let baseHipsY=0; if(c.hips){ const _h=new THREE.Vector3(); c.hips.getWorldPosition(_h); baseHipsY=_h.y; }  // grounded Hips ref → vertical follow tracks the REAL hips height (climb/fall + within-clip)
+    let baseDy=null;   // D.y at the clip's first frame — the vertical follow tracks the SMOOTH travel height (climb/fall), NOT the live hips (which bob every gait step and made the whole scene lurch vertically → nausea)
     $('#ovLbl').textContent=`Clip ${ci+1} / ${clips.length}`;
     const spd=clipSpeed(c);                        // per-clip playback speed (slow-mo / fast-forward)
     const nFrames=Math.max(1,Math.round((c.duration||1.5)*fps/spd));   // stretched (slow) / squeezed (fast) frame budget
@@ -4809,7 +4809,8 @@ async function produceFrames(fps,loops,hold,spin,trans, emit, abort){
         const x=clipFrame/blendFrames, w=(1-x)*(1-x); blendPose(c.root, prevPose, w); }   // quadratic ease-out weight
       if(c.hips) placeCharacter(c, {x:D.x, z:D.z, y:D.y});   // x/z travel + accumulated climb (D.y) + manual lift
       if(follow){ camState.pivotX=D.x; camState.pivotZ=D.z;
-        if(c.hips){ const _h=new THREE.Vector3(); c.hips.getWorldPosition(_h); camState.targetY=baseTargetY+(_h.y-baseHipsY); } }  // pan up a climb / down a fall, keeping the character framed
+        if(baseDy===null) baseDy=D.y;
+        camState.targetY=baseTargetY+(D.y-baseDy); }  // pan up a climb / down a fall (smooth) — but do NOT chase the per-step gait bob (that lurched the scene vertically)
       if(spin||follow||driftMode!=='off'){ let sY=0; if(spin){ spinYaw+=dt*0.4; sY=spinYaw; }
         applyRenderDrift(driftMode, frame/driftTotal, sY); }
       if(reliefWall.visible) positionReliefWall();
