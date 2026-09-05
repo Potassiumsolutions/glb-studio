@@ -923,7 +923,7 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 
 const $ = s => document.querySelector(s);
-const APP_NAME='GLB Stitcher', APP_VERSION='1.4.4', APP_BUILD='2026-09-04';   // version shown in About + footer
+const APP_NAME='GLB Stitcher', APP_VERSION='1.4.5', APP_BUILD='2026-09-04';   // version shown in About + footer
 // Bump APP_BUILD whenever the app or the bundled motion library changes. It is printed to the console and
 // shown in the footer so "am I running the current version?" can be answered by looking, not by guessing —
 // a stale browser tab kept an old build alive twice while the files on disk were already up to date.
@@ -5304,7 +5304,7 @@ function retargetMotion(motion, rig){
 // re-plant the contact points on the loaded character's OWN skeleton (CCD IK) and bake the corrected rotations
 // back into the clip — done once at add time (no render-loop cost). Gated by how HORIZONTAL the torso is, so a
 // get-down/get-up transition only gets corrected once it is actually down (standing frames are left untouched).
-const FLOOR_CONTACT = { fitpushup:{hands:1,toes:1}, fitplank:{hands:1,toes:1}, floordown:{hands:1,toes:1}, floorup:{hands:1,toes:1} };
+const FLOOR_CONTACT = { fitpushup:{rep:1}, fitplank:{hands:1,toes:1}, floordown:{hands:1,toes:1}, floorup:{hands:1,toes:1} };
 const _gcV1=new THREE.Vector3(), _gcV2=new THREE.Vector3(), _gcV3=new THREE.Vector3(), _gcQ1=new THREE.Quaternion(), _gcQ2=new THREE.Quaternion();
 function _ccdToward(bone, endEff, target){
   bone.updateWorldMatrix(true,false);
@@ -5320,6 +5320,21 @@ function _ccdToward(bone, endEff, target){
 function _avgY(bones){ let s=0,n=0; const v=new THREE.Vector3(); for(const b of bones){ if(b){ s+=b.getWorldPosition(v).y; n++; } } return n?s/n:null; }
 function floorContactPose(root, spec, floorY){
   const B=n=>root.getObjectByName(n);
+  if(spec.rep){
+    // Rep mode (push-up): the elbow fold is AUTHORED, so don't re-solve the arms (that flattens the rep). Plant the
+    // hands by translating the whole body vertically until they sit on the floor — the authored fold is preserved,
+    // and because the extended arm reaches lower than the folded one, the body rides higher at the top and lower at
+    // the bottom, i.e. the chest dips. Then plant the toes with the legs. No hip-leveling (the author keeps it straight).
+    const gy=0;   // the scene floor
+    const hips=B('Hips');
+    root.updateMatrixWorld(true);
+    const hy=_avgY([B('LeftHand'),B('RightHand')]);
+    if(hips && hy!=null){ const ps=hips.parent?hips.parent.getWorldScale(_gcV2).y:1; hips.position.y += (gy-hy)/(ps||1); hips.updateWorldMatrix(true,true); }
+    const legs=[]; const lt=B('LeftToeBase')||B('LeftFoot'), rt=B('RightToeBase')||B('RightFoot');
+    if(lt)legs.push({chain:['LeftUpLeg','LeftLeg','LeftFoot'],end:lt}); if(rt)legs.push({chain:['RightUpLeg','RightLeg','RightFoot'],end:rt});
+    for(let pass=0;pass<2;pass++){ root.updateMatrixWorld(true); for(const l of legs){ const e=l.end.getWorldPosition(_gcV3), tgt=new THREE.Vector3(e.x,gy,e.z); for(const bn of l.chain){ const bone=B(bn); if(bone)_ccdToward(bone,l.end,tgt);} } }
+    return;
+  }
   const all=[];
   if(spec.hands){ if(B('LeftHand'))all.push({chain:['LeftArm','LeftForeArm'],end:B('LeftHand')}); if(B('RightHand'))all.push({chain:['RightArm','RightForeArm'],end:B('RightHand')}); }
   if(spec.toes){ const lt=B('LeftToeBase')||B('LeftFoot'), rt=B('RightToeBase')||B('RightFoot'); if(lt)all.push({chain:['LeftUpLeg','LeftLeg','LeftFoot'],end:lt}); if(rt)all.push({chain:['RightUpLeg','RightLeg','RightFoot'],end:rt}); }
@@ -5381,7 +5396,7 @@ async function addMotionClip(meta){
   // only carries rotations, so it otherwise floats/pikes on a differently-proportioned rig).
   const shortId=(meta.id||'').replace(/^ra_[a-z]+_/,'').replace(/_\d+_\d+_\d+$/,'');
   if(FLOOR_CONTACT[shortId]){ try{ const gcRoot=skeletonClone(libRig.root); gcRoot.position.set(0,0,0); gcRoot.rotation.set(0,0,0); gcRoot.scale.set(1,1,1);
-    retClip=bakeFloorContact(retClip, gcRoot, FLOOR_CONTACT[shortId]); }catch(e){ console.warn('floor-contact bake failed:', e); } }
+    const _m=retClip.__match; retClip=bakeFloorContact(retClip, gcRoot, FLOOR_CONTACT[shortId]); if(_m) retClip.__match=_m; }catch(e){ console.warn('floor-contact bake failed:', e); } }
   const root=skeletonClone(libRig.root);
   root.position.set(0,0,0); root.rotation.set(0,0,0); root.scale.set(1,1,1);   // rig root may be mid-frame-scaled; start the clone neutral (else baseScale double-applies)
   root.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.receiveShadow=false; o.frustumCulled=false; } });
@@ -5405,7 +5420,7 @@ async function addMotionClip(meta){
   activeCharId=c.charId; selIndex=clips.indexOf(c);
   recomputeAllNorm(); computeSharedFrame();
   renderCharacters(); renderList(); renderTimeline(); if($('#nodeEditor').classList.contains('show')) renderNodes(); refreshView(); updateReady();
-  setStatus(`Added ${meta.name} → ${charName(c)} · retargeted ${retClip.__match.matched}/${retClip.__match.totalBones} bones`);
+  const _mm=retClip.__match; setStatus(`Added ${meta.name} → ${charName(c)}`+(_mm?` · retargeted ${_mm.matched}/${_mm.totalBones} bones`:''));
 }
 
 // ---- Sequence flow: rank motions by how well their start pose matches a reference end pose ----
