@@ -923,7 +923,7 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 
 const $ = s => document.querySelector(s);
-const APP_NAME='GLB Stitcher', APP_VERSION='1.4.3', APP_BUILD='2026-09-04';   // version shown in About + footer
+const APP_NAME='GLB Stitcher', APP_VERSION='1.4.4', APP_BUILD='2026-09-04';   // version shown in About + footer
 // Bump APP_BUILD whenever the app or the bundled motion library changes. It is printed to the console and
 // shown in the footer so "am I running the current version?" can be answered by looking, not by guessing —
 // a stale browser tab kept an old build alive twice while the files on disk were already up to date.
@@ -5298,6 +5298,77 @@ function retargetMotion(motion, rig){
   return out;
 }
 
+// ===== Ground contact for floor poses (plank / push-up) =====================================================
+// Library floor poses are baked on one internal rig; retargeting transfers ROTATIONS only, so on a
+// differently-proportioned character the plank floats/pikes (hands & toes off the floor). After retargeting,
+// re-plant the contact points on the loaded character's OWN skeleton (CCD IK) and bake the corrected rotations
+// back into the clip — done once at add time (no render-loop cost). Gated by how HORIZONTAL the torso is, so a
+// get-down/get-up transition only gets corrected once it is actually down (standing frames are left untouched).
+const FLOOR_CONTACT = { fitpushup:{hands:1,toes:1}, fitplank:{hands:1,toes:1}, floordown:{hands:1,toes:1}, floorup:{hands:1,toes:1} };
+const _gcV1=new THREE.Vector3(), _gcV2=new THREE.Vector3(), _gcV3=new THREE.Vector3(), _gcQ1=new THREE.Quaternion(), _gcQ2=new THREE.Quaternion();
+function _ccdToward(bone, endEff, target){
+  bone.updateWorldMatrix(true,false);
+  const bp=bone.getWorldPosition(_gcV1), ep=endEff.getWorldPosition(_gcV2);
+  const a=_gcV2.clone().sub(bp), b=target.clone().sub(bp);
+  if(a.lengthSq()<1e-8||b.lengthSq()<1e-8) return;
+  a.normalize(); b.normalize();
+  const q=_gcQ1.setFromUnitVectors(a,b);
+  const pw=bone.parent.getWorldQuaternion(_gcQ2);
+  bone.quaternion.premultiply(pw.clone().invert().multiply(q).multiply(pw));
+  bone.updateWorldMatrix(true,true);
+}
+function _avgY(bones){ let s=0,n=0; const v=new THREE.Vector3(); for(const b of bones){ if(b){ s+=b.getWorldPosition(v).y; n++; } } return n?s/n:null; }
+function floorContactPose(root, spec, floorY){
+  const B=n=>root.getObjectByName(n);
+  const all=[];
+  if(spec.hands){ if(B('LeftHand'))all.push({chain:['LeftArm','LeftForeArm'],end:B('LeftHand')}); if(B('RightHand'))all.push({chain:['RightArm','RightForeArm'],end:B('RightHand')}); }
+  if(spec.toes){ const lt=B('LeftToeBase')||B('LeftFoot'), rt=B('RightToeBase')||B('RightFoot'); if(lt)all.push({chain:['LeftUpLeg','LeftLeg','LeftFoot'],end:lt}); if(rt)all.push({chain:['RightUpLeg','RightLeg','RightFoot'],end:rt}); }
+  if(!all.length) return;
+  const hips=B('Hips');
+  const plant=()=>{ root.updateMatrixWorld(true); for(const l of all){ const e=l.end.getWorldPosition(_gcV3), tgt=new THREE.Vector3(e.x,floorY,e.z); for(const bn of l.chain){ const bone=B(bn); if(bone)_ccdToward(bone,l.end,tgt); } } };
+  for(let pass=0; pass<3; pass++){
+    plant();
+    // straighten the body: bring the hips to ~midway between the shoulders and the ankles (kills the pike)
+    if(hips){ root.updateMatrixWorld(true);
+      const shY=_avgY([B('LeftArm'),B('RightArm')]), ankY=_avgY([B('LeftFoot'),B('RightFoot')]);
+      if(shY!=null && ankY!=null){ const target=(shY+ankY)/2, cur=hips.getWorldPosition(_gcV1).y;
+        const ps=hips.parent?hips.parent.getWorldScale(_gcV2).y:1; hips.position.y += (target-cur)/(ps||1); hips.updateWorldMatrix(true,true); } }
+  }
+  plant();
+}
+function torsoHoriz(root){ const h=root.getObjectByName('Hips'), n=root.getObjectByName('neck')||root.getObjectByName('Spine02'); if(!h||!n) return 0;
+  const d=n.getWorldPosition(_gcV1).clone().sub(h.getWorldPosition(_gcV2)); const L=d.length()||1; return 1-Math.min(1,Math.abs(d.y)/L); }   // 0 = standing (vertical), 1 = planked (horizontal)
+function bakeFloorContact(clip, root, spec){
+  const N=Math.max(4, Math.round((clip.duration||1)*30));
+  const times=[]; for(let i=0;i<N;i++) times.push((N===1?0:i/(N-1))*(clip.duration||1));
+  const mixer=new THREE.AnimationMixer(root); mixer.clipAction(clip).play();
+  const B=n=>root.getObjectByName(n);
+  // CONSTANT floor = the lowest a contact naturally reaches (the dip bottom), over the horizontal frames only,
+  // so the hands/toes stay planted while the body dips (a real push-up rep) instead of riding down with it.
+  let floorY=Infinity, anyHoriz=false;
+  for(let i=0;i<N;i++){ mixer.setTime(times[i]); root.updateMatrixWorld(true); if(torsoHoriz(root)<0.5) continue; anyHoriz=true;
+    for(const nm of ['LeftHand','RightHand','LeftToeBase','RightToeBase']){ const b=B(nm); if(b) floorY=Math.min(floorY, b.getWorldPosition(_gcV1).y); } }
+  if(!anyHoriz || !isFinite(floorY)) return clip;   // never horizontal → nothing to plant
+  const bones=[...new Set(clip.tracks.filter(t=>t.name.endsWith('.quaternion')).map(t=>t.name.replace('.quaternion','')))];
+  const hasHipsPos=clip.tracks.some(t=>t.name==='Hips.position');
+  const rec={}; bones.forEach(b=>rec[b]=[]); const hipsRec=[];
+  for(let i=0;i<N;i++){ mixer.setTime(times[i]); root.updateMatrixWorld(true);
+    const factor=torsoHoriz(root);
+    const orig={}; bones.forEach(b=>{ const bn=B(b); if(bn) orig[b]=bn.quaternion.clone(); });
+    const origHip=B('Hips')?B('Hips').position.clone():null;
+    if(factor>0.05){ floorContactPose(root, spec, floorY);
+      if(factor<0.999){ bones.forEach(b=>{ const bn=B(b); if(bn&&orig[b]) bn.quaternion.slerp(orig[b],1-factor); });
+        if(origHip&&B('Hips')) B('Hips').position.lerp(origHip,1-factor); } }
+    bones.forEach(b=>{ const bn=B(b); const q=bn?bn.quaternion:(orig[b]||{x:0,y:0,z:0,w:1}); rec[b].push(q.x,q.y,q.z,q.w); });
+    if(hasHipsPos){ const hp=B('Hips')?B('Hips').position:(origHip||{x:0,y:0,z:0}); hipsRec.push(hp.x,hp.y,hp.z); }
+  }
+  mixer.stopAllAction();
+  const newTracks=clip.tracks.map(t=>{
+    if(t.name.endsWith('.quaternion')){ const b=t.name.replace('.quaternion',''); if(rec[b]&&rec[b].length===N*4) return new THREE.QuaternionKeyframeTrack(t.name, times.slice(), rec[b]); }
+    if(t.name==='Hips.position' && hipsRec.length===N*3) return new THREE.VectorKeyframeTrack('Hips.position', times.slice(), hipsRec);
+    return t; });
+  return new THREE.AnimationClip(clip.name, clip.duration, newTracks);
+}
 // Retarget a library motion onto the ACTIVE character's rig and insert it next to the selected movement.
 async function addMotionClip(meta){
   const act=activeChar(); if(act) syncActiveRig();                 // retarget onto whichever character is active
@@ -5305,7 +5376,12 @@ async function addMotionClip(meta){
   if(!libRig){ setStatus('Load a rigged character first (drop one in the Motion library panel)'); return; }
   setStatus('Retargeting '+meta.name+' …');
   let clipJSON; try{ clipJSON=await mlFetchClip(meta.id); }catch(e){ console.error(e); setStatus('Could not load motion data for '+meta.name); return; }
-  const retClip=retargetMotion({...meta, clip:clipJSON}, libRig);
+  let retClip=retargetMotion({...meta, clip:clipJSON}, libRig);
+  // Floor poses: re-plant hands/toes on THIS character's skeleton so the plank sits on the floor (retarget
+  // only carries rotations, so it otherwise floats/pikes on a differently-proportioned rig).
+  const shortId=(meta.id||'').replace(/^ra_[a-z]+_/,'').replace(/_\d+_\d+_\d+$/,'');
+  if(FLOOR_CONTACT[shortId]){ try{ const gcRoot=skeletonClone(libRig.root); gcRoot.position.set(0,0,0); gcRoot.rotation.set(0,0,0); gcRoot.scale.set(1,1,1);
+    retClip=bakeFloorContact(retClip, gcRoot, FLOOR_CONTACT[shortId]); }catch(e){ console.warn('floor-contact bake failed:', e); } }
   const root=skeletonClone(libRig.root);
   root.position.set(0,0,0); root.rotation.set(0,0,0); root.scale.set(1,1,1);   // rig root may be mid-frame-scaled; start the clone neutral (else baseScale double-applies)
   root.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.receiveShadow=false; o.frustumCulled=false; } });
