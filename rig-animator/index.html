@@ -61,7 +61,7 @@
 <main>
   <aside>
     <div>
-      <h1>🐾 Rig Animator <span class="appver">v1.18.0</span></h1>
+      <h1>🐾 Rig Animator <span class="appver">v1.19.0</span></h1>
       <div class="hint" style="margin-top:0">Procedurally generate original animations for your <b>biped</b>, <b>quadruped</b> and <b>bird</b> rigs — organized by category (boxing, fencing, football, dancing, running, walking, jumping, climbing…) — then export them into the GLB Stitcher motion library.</div>
     </div>
 
@@ -121,7 +121,7 @@
         </g>
       </svg>
       <div>
-        <div><b>Rig Animator</b> v1.18.0 · part of GLB Studio</div>
+        <div><b>Rig Animator</b> v1.19.0 · part of GLB Studio</div>
         <div class="appfoot-sub">© <span class="cred-year">2026</span> Paul A.T. Ramey · <b>KSOL Designs</b> · <a href="https://www.ksoldesigns.com" target="_blank" rel="noopener">ksoldesigns.com</a></div>
       </div>
     </div>
@@ -662,8 +662,13 @@ function quadGaitN(t, P, dur, o){
   // A suspension gait (canter/gallop/bound) covers extra ground while airborne that no foot-sweep measures,
   // so its `flight` amount boosts the reach; walking gaits get none. Translate along FWD_LOCAL (world −Z, the
   // head direction) — NOT raw .position.z, which is UP for this stood-up rig and launched the dog skyward.
-  animRoot.position.addScaledVector(FWD_LOCAL,
-    (o.stride ?? 0.5) * 3.4 * (1 + (o.flight || 0)*6) * LL * (t/dur) * (o.dir < 0 ? -1 : 1) * A);
+  // ⚠ WINGED rigs (pegasus/dragon) SKIP this: FWD_LOCAL is their local −Y, and the Stitcher's root-track retarget
+  // applies it to the mesh's vertical → the body sinks while walking. They rely on the Stitcher's synthetic advance
+  // (finalizeAdvance) for forward travel instead — which already scrolls the scene for them.
+  if(!boneByName['wing']){
+    animRoot.position.addScaledVector(FWD_LOCAL,
+      (o.stride ?? 0.5) * 3.4 * (1 + (o.flight || 0)*6) * LL * (t/dur) * (o.dir < 0 ? -1 : 1) * A);
+  }
 }
 // ═════ QUADRUPED — stationary poses ══════════════════════════════════════════════════════════════
 // Everything that is not locomotion is the same three steps: stand, MOVE THE BODY, then solve each paw
@@ -5022,7 +5027,7 @@ const SNAKE_MOTIONS=[
 // Winged-flight physics (bird/bat): a flap cycle = powered DOWNSTROKE + recovery UPSTROKE (wing folds a
 // little to cut drag on the way up); body pitches slightly with the beat; the long tail trails as a rudder.
 // On the ground the wings FOLD back along the body. Reuses the quad legDrive engine for walking.
-const DRAGON_TEMPLATE=[{"name":"Hips","parent":null,"t":[0,0.5,-0.3],"q":[0.658725,0,0,0.752384]},{"name":"chest","parent":"Hips","t":[0,0.453982,0],"q":[-0.261181,0,0,0.96529]},{"name":"neck01","parent":"chest","t":[0,0.114018,0],"q":[-0.062137,0,0,0.998068]},{"name":"neck02","parent":"neck01","t":[0,0.113137,0],"q":[0,0,0,1]},{"name":"neck03","parent":"neck02","t":[0,0.098995,0],"q":[0.082481,0,0,0.996593]},{"name":"head","parent":"neck03","t":[0,0.086023,0],"q":[0.363761,0,0,0.931492]},{"name":"headend","parent":"head","t":[0,0.080623,0],"q":[0,0,0,1]},{"name":"jaw","parent":"head","t":[0,0.075661,0.040931],"q":[0,0,0,1]},{"name":"horn","parent":"head","t":[0.05,-0.050854,-0.084344],"q":[0,0,0,1]},{"name":"R_horn","parent":"head","t":[-0.05,-0.050854,-0.084344],"q":[0,0,0,1]},{"name":"frontleg","parent":"chest","t":[0.12,-0.016664,0.037713],"q":[-0.428105,-0.392218,-0.801944,-0.140632]},{"name":"frontleg0","parent":"frontleg","t":[0,0.181384,0],"q":[-0.049349,-0.892376,0.024769,0.447902]},{"name":"frontleg1","parent":"frontleg0","t":[0,0.180278,0],"q":[0.058925,0,0,-0.998262]},{"name":"frontleg2","parent":"frontleg1","t":[0,0.160312,0],"q":[0,0,0,1]},{"name":"R_frontleg","parent":"chest","t":[-0.12,-0.016664,0.037713],"q":[-0.428105,0.392218,0.801944,-0.140632]},{"name":"R_frontleg0","parent":"R_frontleg","t":[0,0.181384,0],"q":[-0.049349,0.892376,-0.024769,0.447902]},{"name":"R_frontleg1","parent":"R_frontleg0","t":[0,0.180278,0],"q":[0.058925,0,0,-0.998262]},{"name":"R_frontleg2","parent":"R_frontleg1","t":[0,0.160312,0],"q":[0,0,0,1]},{"name":"backleg","parent":"Hips","t":[0.13,0.049561,0.006608],"q":[0.292713,-0.587922,-0.671515,0.343125]},{"name":"backleg0","parent":"backleg","t":[0,0.171464,0],"q":[0.052208,0.89213,0.026216,0.447985]},{"name":"backleg1","parent":"backleg0","t":[0,0.170294,0],"q":[-0.001831,0,0,0.999998]},{"name":"backleg2","parent":"backleg1","t":[0,0.160312,0],"q":[0,0,0,1]},{"name":"R_backleg","parent":"Hips","t":[-0.13,0.049561,0.006608],"q":[0.292713,0.587922,0.671515,0.343125]},{"name":"R_backleg0","parent":"R_backleg","t":[0,0.171464,0],"q":[0.052208,-0.89213,-0.026216,0.447985]},{"name":"R_backleg1","parent":"R_backleg0","t":[0,0.170294,0],"q":[-0.001831,0,0,0.999998]},{"name":"R_backleg2","parent":"R_backleg1","t":[0,0.160312,0],"q":[0,0,0,1]},{"name":"wing","parent":"chest","t":[0.1,-0.053501,-0.14296],"q":[-0.523048,-0.234375,-0.479213,0.664714]},{"name":"wing0","parent":"wing","t":[0,0.272029,0],"q":[-0.058844,-0.025547,-0.05773,0.996269]},{"name":"wing1","parent":"wing0","t":[0,0.266833,0],"q":[-0.078393,-0.042077,-0.050621,0.994747]},{"name":"wing2","parent":"wing1","t":[0,0.295973,0],"q":[0,0,0,1]},{"name":"R_wing","parent":"chest","t":[-0.1,-0.053501,-0.14296],"q":[-0.523048,0.234375,0.479213,0.664714]},{"name":"R_wing0","parent":"R_wing","t":[0,0.272029,0],"q":[-0.058844,0.025547,0.05773,0.996269]},{"name":"R_wing1","parent":"R_wing0","t":[0,0.266833,0],"q":[-0.078393,0.042077,0.050621,0.994747]},{"name":"R_wing2","parent":"R_wing1","t":[0,0.295973,0],"q":[0,0,0,1]},{"name":"tail","parent":"Hips","t":[0,-0.042292,0.014538],"q":[-0.986328,0,0,-0.164793]},{"name":"tailstart","parent":"tail","t":[0,0.089443,0],"q":[0,0,0,1]},{"name":"tail1","parent":"tailstart","t":[0,0.111803,0],"q":[-0.038377,0,0,0.999263]},{"name":"tail2","parent":"tail1","t":[0,0.116619,0],"q":[-0.035146,0,0,0.999382]},{"name":"tail3","parent":"tail2","t":[0,0.122066,0],"q":[-0.087225,0,0,0.996189]},{"name":"tail4","parent":"tail3","t":[0,0.113137,0],"q":[-0.033278,0,0,0.999446]},{"name":"tail5","parent":"tail4","t":[0,0.106301,0],"q":[-0.012046,0,0,0.999927]},{"name":"tail6","parent":"tail5","t":[0,0.078102,0],"q":[0,0,0,1]},{"name":"saddle","parent":"Hips","t":[0,0.238886,-0.089211],"q":[0,0,0,1]}];
+const DRAGON_TEMPLATE = [{"name":"Hips","parent":null,"t":[-0.0032502757385373116,-0.08773189038038254,-0.18744230270385742],"q":[-2.980232949312267e-8,0,0,1]},{"name":"chest","parent":"Hips","t":[-0.0073125967755913734,0.17381246387958527,0.0033942079171538353],"q":[-0.1562374234199524,-2.830722989344281e-9,-0.037283919751644135,0.9870156049728394]},{"name":"neck01","parent":"chest","t":[0,0.114018,0],"q":[-0.062137,0,0,0.998068]},{"name":"neck02","parent":"neck01","t":[0,0.113137,0],"q":[0,0,0,1]},{"name":"neck03","parent":"neck02","t":[0,0.098995,0],"q":[0.082481,0,0,0.996593]},{"name":"head","parent":"neck03","t":[0,0.086023,0],"q":[0.363761,0,0,0.931492]},{"name":"headend","parent":"head","t":[0,0.080623,0],"q":[0,0,0,1]},{"name":"jaw","parent":"head","t":[0,0.075661,0.040931],"q":[0,0,0,1]},{"name":"horn","parent":"head","t":[0.05,-0.050854,-0.084344],"q":[0,0,0,1]},{"name":"R_horn","parent":"head","t":[-0.05,-0.050854,-0.084344],"q":[0,0,0,1]},{"name":"frontleg","parent":"chest","t":[0.021591512486338615,0.030357876792550087,0.019987108185887337],"q":[0.9420432448387146,0.035163868218660355,0.0026610579807311296,0.3336329460144043]},{"name":"frontleg0","parent":"frontleg","t":[6.984919309616089e-10,0.07986066490411758,3.754394128918648e-9],"q":[-0.28382283449172974,0.09851101785898209,0.058355897665023804,0.9520161747932434]},{"name":"frontleg1","parent":"frontleg0","t":[-9.313225746154785e-10,0.05745067819952965,-5.180481821298599e-9],"q":[-0.11904646456241608,-0.05475759133696556,-0.0717434510588646,0.988778293132782]},{"name":"frontleg2","parent":"frontleg1","t":[1.7462298274040222e-10,0.02956072986125946,5.384208634495735e-10],"q":[-0.37872734665870667,-0.002645482076331973,-0.009330322965979576,0.9254574775695801]},{"name":"R_frontleg","parent":"chest","t":[-0.026247836649417877,0.026827098801732063,0.019428227096796036],"q":[0.9419724941253662,0.02984592691063881,0.03623991459608078,0.3323909342288971]},{"name":"R_frontleg0","parent":"R_frontleg","t":[-3.259629011154175e-9,0.07986489683389664,-1.979060471057892e-9],"q":[-0.28186431527137756,-0.07169497013092041,-0.04488096386194229,0.9557186365127563]},{"name":"R_frontleg1","parent":"R_frontleg0","t":[5.122274160385132e-9,0.0571313351392746,-1.8553691916167736e-9],"q":[-0.12223468720912933,0.02951880358159542,0.0408996045589447,0.9912187457084656]},{"name":"R_frontleg2","parent":"R_frontleg1","t":[-2.444721758365631e-9,0.029566964134573936,9.313225746154785e-10],"q":[-0.3786187767982483,0.0044371443800628185,0.01565205492079258,0.925409734249115]},{"name":"backleg","parent":"Hips","t":[0.027547094970941544,0.02053331956267357,0.017599964514374733],"q":[0.8445946574211121,3.969669037928725e-8,-0.169101282954216,0.5080006122589111]},{"name":"backleg0","parent":"backleg","t":[-5.587935447692871e-9,0.049449414014816284,-9.313225746154785e-10],"q":[0.07455594092607498,0.26658082008361816,0.14541390538215637,0.9498583078384399]},{"name":"backleg1","parent":"backleg0","t":[-2.7939677238464355e-9,0.08873124420642853,2.0954757928848267e-8],"q":[-0.3790876567363739,-0.1318041831254959,-0.12540127336978912,0.9073008298873901]},{"name":"backleg2","parent":"backleg1","t":[-2.561137080192566e-9,0.03741346299648285,-1.5366822481155396e-8],"q":[-0.4220430850982666,0.012767721898853779,0.04502325505018234,0.9053670763969421]},{"name":"R_backleg","parent":"Hips","t":[-0.022436795756220818,0.02053331956267357,0.017599964514374733],"q":[0.8338199853897095,-6.701608867842879e-8,0.21111229062080383,0.5100743770599365]},{"name":"R_backleg0","parent":"R_backleg","t":[5.587935447692871e-9,0.04988473653793335,1.0244548320770264e-8],"q":[0.07162100076675415,-0.352180153131485,-0.1973063349723816,0.9120908975601196]},{"name":"R_backleg1","parent":"R_backleg0","t":[1.862645149230957e-9,0.08952740579843521,1.862645149230957e-9],"q":[-0.3662242293357849,0.15070201456546783,0.1621197909116745,0.9038174152374268]},{"name":"R_backleg2","parent":"R_backleg1","t":[-1.1641532182693481e-9,0.037339385598897934,-1.82189978659153e-8],"q":[-0.42318621277809143,-0.0058603063225746155,-0.020663931965827942,0.9057881236076355]},{"name":"wing","parent":"chest","t":[0.1,-0.053501,-0.14296],"q":[-0.523048,-0.234375,-0.479213,0.664714]},{"name":"wing0","parent":"wing","t":[0,0.272029,0],"q":[-0.058844,-0.025547,-0.05773,0.996269]},{"name":"wing1","parent":"wing0","t":[0,0.266833,0],"q":[-0.078393,-0.042077,-0.050621,0.994747]},{"name":"wing2","parent":"wing1","t":[0,0.295973,0],"q":[0,0,0,1]},{"name":"R_wing","parent":"chest","t":[-0.1,-0.053501,-0.14296],"q":[-0.523048,0.234375,0.479213,0.664714]},{"name":"R_wing0","parent":"R_wing","t":[0,0.272029,0],"q":[-0.058844,0.025547,0.05773,0.996269]},{"name":"R_wing1","parent":"R_wing0","t":[0,0.266833,0],"q":[-0.078393,0.042077,0.050621,0.994747]},{"name":"R_wing2","parent":"R_wing1","t":[0,0.295973,0],"q":[0,0,0,1]},{"name":"tail","parent":"Hips","t":[0,-0.042292,0.014538],"q":[-0.986328,0,0,-0.164793]},{"name":"tailstart","parent":"tail","t":[0,0.089443,0],"q":[0,0,0,1]},{"name":"tail1","parent":"tailstart","t":[0,0.111803,0],"q":[-0.038377,0,0,0.999263]},{"name":"tail2","parent":"tail1","t":[0,0.116619,0],"q":[-0.035146,0,0,0.999382]},{"name":"tail3","parent":"tail2","t":[0,0.122066,0],"q":[-0.087225,0,0,0.996189]},{"name":"tail4","parent":"tail3","t":[0,0.113137,0],"q":[-0.033278,0,0,0.999446]},{"name":"tail5","parent":"tail4","t":[0,0.106301,0],"q":[-0.012046,0,0,0.999927]},{"name":"tail6","parent":"tail5","t":[0,0.078102,0],"q":[0,0,0,1]},{"name":"saddle","parent":"Hips","t":[0,0.238886,-0.089211],"q":[0,0,0,1]}];
 const DRAGON_PAWS=['frontleg2','R_frontleg2','backleg2','R_backleg2'];
 const DRAGON_NECK=['neck01','neck02','neck03'];
 const DRAGON_TAIL=['tail','tailstart','tail1','tail2','tail3','tail4','tail5','tail6'];
@@ -5032,15 +5037,57 @@ function dWingBeat(elev, fold){
   sw('R_wing',AX.z,-elev*0.75); sw('R_wing0',AX.z,-elev*0.5); sw('R_wing1',AX.z,-elev*0.3);
   if(fold){ sw('wing0',AX.y, fold*0.6); sw('wing1',AX.y, fold*0.7); sw('R_wing0',AX.y,-fold*0.6); sw('R_wing1',AX.y,-fold*0.7); }
 }
-// static fold against the body for ground poses
-function dWingFold(f){ sw('wing',AX.z,-f*0.5); sw('R_wing',AX.z,f*0.5);
-  sw('wing',AX.y,f*1.2); sw('wing0',AX.y,f*1.0); sw('wing1',AX.y,f*0.8);
-  sw('R_wing',AX.y,-f*1.2); sw('R_wing0',AX.y,-f*1.0); sw('R_wing1',AX.y,-f*0.8); }
+// static fold against the body for ground poses: lower the whole wing DOWN onto the back (same elevation axis
+// the beat uses, driven negative) and tuck the distal wing (elbow/wrist) back along the body.
+function dWingFold(f){
+  sw('wing',AX.z,-f*1.05); sw('wing0',AX.z,-f*0.75); sw('wing1',AX.z,-f*0.5);
+  sw('R_wing',AX.z, f*1.05); sw('R_wing0',AX.z, f*0.75); sw('R_wing1',AX.z, f*0.5);
+  sw('wing0',AX.y,f*0.7); sw('wing1',AX.y,f*0.95); sw('R_wing0',AX.y,-f*0.7); sw('R_wing1',AX.y,-f*0.95); }
 function dTuckLegs(a){ ['frontleg','R_frontleg','backleg','R_backleg'].forEach(h=>sw(h,AX.x,0.7*a));
   ['frontleg0','R_frontleg0','backleg0','R_backleg0'].forEach(k=>sw(k,AX.x,-1.0*a));
   ['frontleg1','R_frontleg1','backleg1','R_backleg1'].forEach(s=>sw(s,AX.x,-0.5*a)); }
+// streamlined FLIGHT tuck: hind thighs draw up, FRONT shoulders rotate BACK so the forelegs sweep back and tuck
+// along the body (not dangling under), knees/ankles fold. Gentle enough not to hyper-flex the dragon's hind legs.
+function dTuckLegsTight(a){
+  ['backleg','R_backleg'].forEach(h=>sw(h,AX.x,0.8*a));               // hind thighs tuck up toward the belly
+  ['frontleg','R_frontleg'].forEach(h=>sw(h,AX.x,-1.1*a));           // front shoulders rotate BACK — forelegs sweep back & tuck for flight
+  ['frontleg0','R_frontleg0','backleg0','R_backleg0'].forEach(k=>sw(k,AX.x,-0.95*a));
+  ['frontleg1','R_frontleg1','backleg1','R_backleg1'].forEach(s=>sw(s,AX.x,-0.4*a)); }
+// bank into a turn (dir +1 = right, -1 = left): roll the body; the INSIDE (dipped) wing lowers a little and its
+// OUTER half bends UP (a winglet) — that upward-bent dipped tip is what drives the tilt/turn; tail rudder + head lean.
+function dBank(dir, amt){ const a=amt||1;
+  sw('Hips',AX.z, dir*0.34*a); sw('chest',AX.z, dir*0.08*a);            // roll the body into the bank
+  if(dir>0){ sw('R_wing',AX.z, 0.14*a); sw('R_wing1',AX.z,-0.42*a); sw('R_wing2',AX.z,-0.30*a);   // right wing dips, outer half bends UP
+             sw('wing',AX.z, 0.05*a); }                                                            // left (outside) stays ~level
+  else     { sw('wing',AX.z, -0.14*a); sw('wing1',AX.z, 0.42*a); sw('wing2',AX.z, 0.30*a);         // left wing dips, outer half bends UP
+             sw('R_wing',AX.z,-0.05*a); }
+  sw('tail',AX.y, dir*0.16*a); sw('tailstart',AX.y, dir*0.10*a);        // tail rudder into the turn
+  DRAGON_NECK.forEach(b=>sw(b,AX.z, dir*0.10*a)); sw('head',AX.z, dir*0.12*a); sw('head',AX.y, dir*0.14*a); } // lean/look into the turn
+// BANKED-TURN FLIGHT PATH: over one clip the body YAWS 90° (dir=+1 right, -1 left) and travels a matching
+// QUARTER-CIRCLE arc at forward speed v, holding altitude. The Stitcher carries the net 90° yaw into the next
+// clip (carry.rot) and rotates the next arc onto the end of this one, so FOUR banked clips in the same
+// direction close a full circle. Yaw is baked about world-Y (read by computeTravel's head→tail measure); the
+// arc is the integral of velocity v along the instantaneous heading, so the body always faces its travel.
+function flightArc(t, dur, dir, v){
+  const w = dir*(Math.PI/2)/dur;                     // turn rate → ±90° across the clip
+  sw('Hips', AX.y, w*t);                             // yaw toward the new heading
+  animRoot.position.x += (v/w)*(1-Math.cos(w*t));    // ∫ v·sin(heading) dt  — curved path, x
+  animRoot.position.z += (v/w)*Math.sin(w*t);        // ∫ v·cos(heading) dt  — curved path, z (forward)
+}
 function dTailWave(cyc,amp){ for(let i=0;i<DRAGON_TAIL.length;i++){ const frac=i/(DRAGON_TAIL.length-1);
   sw(DRAGON_TAIL[i],AX.y, Math.sin(TAU*(cyc-0.8*frac))*amp*(0.3+frac)); } }
+// hold the wings FLAT (level with the ground) and PERPENDICULAR to the body — the soaring hold. `extra` adds a gentle breathe.
+// PEGASUS gliding leg pose — a show-jumper clearing a fence: front legs folded up tight under the chest, hind
+// legs trailing back extended/streamlined behind (used while the wings are held out gliding/soaring).
+function pegJumpTuck(a){
+  ['frontleg','R_frontleg'].forEach(h=>sw(h,AX.x,1.15*a)); ['frontleg0','R_frontleg0'].forEach(k=>sw(k,AX.x,-1.95*a)); ['frontleg1','R_frontleg1'].forEach(s=>sw(s,AX.x,-0.55*a)); // forelegs fold up tight
+  ['backleg','R_backleg'].forEach(h=>sw(h,AX.x,-0.65*a)); ['backleg0','R_backleg0'].forEach(k=>sw(k,AX.x,-0.35*a)); ['backleg1','R_backleg1'].forEach(s=>sw(s,AX.x,-0.15*a)); } // hind legs trail back, extended
+function dSoarWings(a, extra){ const peg = (typeof rigKey!=='undefined' && rigKey==='pegasus');   // pegasus wing rig sits higher → needs a lower elevation to read flat
+  dWingBeat(((peg?-0.60:-0.16)+(extra||0))*a, 0);
+  // sweep the wing ARM forward so the trailing feathers read PERPENDICULAR to the body (the feathers trail ~45° back
+  // from the bones, so the bones must lead forward). wing0 shares the sweep so the whole arm swings, not just the root.
+  sw('wing',AX.y,(peg?-0.55:-0.70)*a); sw('wing0',AX.y,(peg?-0.30:-0.35)*a);
+  sw('R_wing',AX.y,(peg?0.55:0.70)*a); sw('R_wing0',AX.y,(peg?0.30:0.35)*a); }
 
 const DRAGON_MOTIONS=[
   {id:'dragon_walk', name:'Walk', cat:'Locomotion', type:'move', dur:1.3, build:(t,P)=>{ resetPose(); const cyc=(t/1.3)*P.speed;
@@ -5053,38 +5100,102 @@ const DRAGON_MOTIONS=[
   {id:'dragon_fly', name:'Fly (flap)', cat:'Locomotion', type:'move', dur:1.0, build:(t,P)=>{ resetPose(); const cyc=(t/1.0)*P.speed;
     const beat=Math.sin(TAU*cyc); const fold=Math.max(0,beat)*0.5;      // downstroke=neg, fold on the upstroke
     dWingBeat(beat*0.95*P.amp, fold*P.amp);
-    dTuckLegs(0.9*P.amp);
+    dTuckLegsTight(0.9*P.amp);                                          // legs tucked in for flight (same as glide)
     DRAGON_NECK.forEach(b=>sw(b,AX.x,0.10*P.amp)); sw('head',AX.x,0.05*P.amp);
     dTailWave(cyc*0.5,0.08*P.amp); sw('chest',AX.x,beat*0.05*P.amp);    // body pitches with the beat
+    animRoot.position.y += 0.24*(t/1.0)*P.amp;                          // the flap CLIMBS 0.24 per cycle (carries between clips)
+    animRoot.position.z += 0.70*t*P.amp;                                // …and travels forward as it climbs
   }},
   {id:'dragon_glide', name:'Glide', cat:'Locomotion', type:'move', dur:3.2, build:(t,P)=>{ resetPose(); const a=TAU*(t/3.2)*P.speed;
-    dWingBeat(0.18+Math.sin(a)*0.06*P.amp, 0);                          // wings held spread, tiny adjust
-    dTuckLegs(0.8*P.amp); dTailWave((t/3.2)*P.speed*0.3,0.05*P.amp);
+    dSoarWings(P.amp, Math.sin(a)*0.04);                               // wings flat + perpendicular to the body
+    dTuckLegsTight(0.9*P.amp); dTailWave((t/3.2)*P.speed*0.3,0.05*P.amp);   // legs bent + swept back close to the body
     sw('chest',AX.x,Math.sin(a)*0.02*P.amp);
+    animRoot.position.z += 0.90*t*P.amp;                                // glides FORWARD (faster than the flap — trading height for speed)
+    animRoot.position.y -= 0.06*(t/3.2)*P.amp;                          // …losing 0.06 of altitude per clip = 1/4 of a flap's climb
+  }},
+  {id:'dragon_soar', name:'Soar', cat:'Locomotion', type:'move', dur:4.0, build:(t,P)=>{ resetPose(); const a=TAU*(t/4.0)*P.speed;
+    dSoarWings(P.amp, Math.sin(a*0.6)*0.04);                            // wings flat + perpendicular to the body
+    dTuckLegsTight(0.95*P.amp);
+    sw('chest',AX.x, -0.05*P.amp + Math.sin(a*0.5)*0.015*P.amp);        // gentle nose-up soaring attitude
+    DRAGON_NECK.forEach(b=>sw(b,AX.y,Math.sin(a*0.4)*0.02*P.amp));
+    dTailWave((t/4.0)*P.speed*0.2,0.03*P.amp);
+    animRoot.position.z += 0.80*t*P.amp;                                // soars FORWARD, holding altitude (no vertical change)
+  }},
+  {id:'dragon_soar_r', name:'Soar — Bank Right', cat:'Locomotion', type:'move', dur:3.6, build:(t,P)=>{ resetPose(); const a=TAU*(t/3.6)*P.speed;
+    dSoarWings(P.amp, Math.sin(a*0.6)*0.03);
+    dTuckLegsTight(0.95*P.amp);
+    dBank(1, (0.9+Math.sin(a*0.5)*0.08)*P.amp);                         // steady right bank with a slight roll oscillation
+    flightArc(t, 3.6, 1, 0.80*P.amp);                                   // level; curves right 90°/clip (4 clips = a full circle)
+  }},
+  {id:'dragon_soar_l', name:'Soar — Bank Left', cat:'Locomotion', type:'move', dur:3.6, build:(t,P)=>{ resetPose(); const a=TAU*(t/3.6)*P.speed;
+    dSoarWings(P.amp, Math.sin(a*0.6)*0.03);
+    dTuckLegsTight(0.95*P.amp);
+    dBank(-1, (0.9+Math.sin(a*0.5)*0.08)*P.amp);                        // steady left bank
+    flightArc(t, 3.6, -1, 0.80*P.amp);                                  // level; curves left 90°/clip (4 clips = a full circle)
   }},
   {id:'dragon_takeoff', name:'Take Off', cat:'Action', type:'action', dur:1.8, build:(t,P)=>{ resetPose(); const u=((t/1.8)*P.speed)%1;
-    const crouch = u<0.30 ? (0.5-0.5*Math.cos(Math.PI*u/0.30)) : Math.max(0,1-(u-0.30)/0.25);
-    const leap = u>0.35 ? Math.min(1,(u-0.35)/0.5) : 0;
-    ['backleg','R_backleg'].forEach(h=>sw(h,AX.x,crouch*0.5*P.amp)); ['backleg0','R_backleg0'].forEach(k=>sw(k,AX.x,-crouch*0.7*P.amp));
-    dTuckLegs(leap*0.9*P.amp);
-    const beat = u>0.35 ? -Math.sin(Math.PI*Math.min((u-0.35)/0.55,1)) : 0.5;   // wind up, then a big downbeat
-    dWingBeat(beat*1.0*P.amp, 0);
-    DRAGON_NECK.forEach(b=>sw(b,AX.x,-leap*0.15*P.amp));
-    setRootY((-0.22*crouch + 0.45*leap)*P.amp);
+    const crouch = u<0.30 ? (0.5-0.5*Math.cos(Math.PI*u/0.30)) : Math.max(0,1-(u-0.30)/0.20);   // load, then explode
+    const leap = u>0.30 ? Math.min(1,(u-0.30)/0.45) : 0;
+    // BOTH front + back legs load in the crouch and extend to spring off the ground
+    ['backleg','R_backleg'].forEach(h=>sw(h,AX.x,crouch*0.65*P.amp)); ['backleg0','R_backleg0'].forEach(k=>sw(k,AX.x,-crouch*0.95*P.amp));
+    ['frontleg','R_frontleg'].forEach(h=>sw(h,AX.x,crouch*0.55*P.amp)); ['frontleg0','R_frontleg0'].forEach(k=>sw(k,AX.x,-crouch*0.85*P.amp));
+    dTuckLegs(leap*0.95*P.amp);                                          // all legs tuck once airborne
+    // wings: bigger range + higher frequency — a wind-up then ~2 fast, deep flaps through the launch/climb
+    const beat = u<0.28 ? 0.55 : Math.sin(TAU*2.0*((u-0.28)/0.72));      // ~2 flap cycles after the wind-up
+    dWingBeat(beat*1.3*P.amp, Math.max(0,beat)*0.4*P.amp);
+    DRAGON_NECK.forEach(b=>sw(b,AX.x,-leap*0.18*P.amp));
+    animRoot.position.y += (-0.12*crouch + 0.95*leap)*P.amp;            // climb along local Y (retargets to world-up; setRootY's UP_LOCAL maps to Z on oriented rigs)
   }},
   {id:'dragon_tailswipe', name:'Tail Swipe', cat:'Action', type:'action', dur:1.4, build:(t,P)=>{ resetPose(); const u=((t/1.4)*P.speed)%1;
-    const s=Math.sin(TAU*u);
-    for(let i=0;i<DRAGON_TAIL.length;i++){ const frac=i/(DRAGON_TAIL.length-1); sw(DRAGON_TAIL[i],AX.y, s*0.38*(0.3+frac)*P.amp); }
-    sw('Hips',AX.y, s*0.05*P.amp); sw('chest',AX.y,-s*0.06*P.amp); sw('head',AX.y,-s*0.12*P.amp);   // body counter-rotates
-    dWingFold(0.7*P.amp);
+    // BODY-DRIVEN swipe: wind up ~1/8 turn one way, then spin a FULL turn the other way — the tail (a child of the
+    // body) whips through, trailing the rotation. Net body yaw = −360° so it loops cleanly.
+    const windEnd=0.18, wind=0.8, spin=wind+TAU;                        // wind up +46°, then rotate −406° (ends at −360° ≡ 0)
+    const yawAt=uu=>{ uu=((uu%1)+1)%1; if(uu<windEnd){ const p=uu/windEnd; return wind*(0.5-0.5*Math.cos(Math.PI*p)); }
+      const p=(uu-windEnd)/(1-windEnd); return wind - spin*(0.5-0.5*Math.cos(Math.PI*p)); };
+    const y=yawAt(u); sw('Hips',AX.y, y*P.amp);                         // the whole dragon pivots; the tail rides with it
+    // CENTRIFUGAL EXTENSION on a smooth envelope: 0 at the start/finish → 1 at MID-rotation, so the tail extends
+    // fully out FLAT at the middle of the spin and eases smoothly back in. eio() smooths the ends of the sweep.
+    const ext = Math.sin(Math.PI*u), es = eio(ext);
+    let prev=y;
+    for(let i=0;i<DRAGON_TAIL.length;i++){ const frac=i/(DRAGON_TAIL.length-1);
+      const net=yawAt(u-0.05*(i+1)*(1-es*0.75)); sw(DRAGON_TAIL[i],AX.y,(net-prev)*P.amp); prev=net;   // whip; lag shrinks as it extends out
+      sw(DRAGON_TAIL[i],AX.x, es*0.20*(0.45+frac)*P.amp); }            // lift + straighten → fully out flat at mid
+    sw('chest',AX.y,(yawAt(u+0.03)-y)*0.4*P.amp);                       // shoulders lead slightly into the spin
+    DRAGON_NECK.forEach(b=>sw(b,AX.y,(yawAt(u+0.05)-y)*0.3*P.amp)); sw('head',AX.y,(yawAt(u+0.06)-y)*0.3*P.amp);
+    ['backleg','R_backleg','frontleg','R_frontleg'].forEach(h=>sw(h,AX.x,0.08*P.amp));   // legs brace/plant as it pivots
+    dWingFold(0.75*P.amp);
   }},
-  {id:'dragon_roar', name:'Roar / Rear', cat:'Action', type:'action', dur:3.2, build:(t,P)=>{ resetPose(); const u=((t/3.2)*P.speed)%1; const rear=envUpDown(u,0.30,0.68);
-    sw('chest',AX.x,-rear*0.6*P.amp);                                    // front rears up (hind legs plant)
-    ['frontleg','R_frontleg'].forEach(h=>sw(h,AX.x,rear*0.9*P.amp)); ['frontleg0','R_frontleg0'].forEach(k=>sw(k,AX.x,-rear*0.7*P.amp)); // forelegs tuck up
-    DRAGON_NECK.forEach(b=>sw(b,AX.x,-rear*0.25*P.amp)); sw('head',AX.x,-rear*0.35*P.amp);
-    sw('jaw',AX.x, rear*0.55*P.amp);                                     // mouth opens
-    dWingBeat(rear*0.5*P.amp,0);                                         // wings flare
-    if(u>0.4&&u<0.68) sw('head',AX.y,Math.sin(TAU*t*8)*0.03*P.amp);      // roar shake
+  {id:'dragon_roar', name:'Roar / Rear', cat:'Action', type:'action', dur:3.2, build:(t,P)=>{ resetPose(); const u=((t/3.2)*P.speed)%1;
+    const rear=envUpDown(u,0.32,0.70); const A=P.amp;
+    // REAR / ROAR — the pocket-gopher stand-up, PIVOTING ON THE PLANTED HIND FEET (not the hips).
+    // The hind feet never leave their standing spots; the trunk pitches up toward vertical, the hind legs FOLD
+    // under so the body rocks up about the ankle first and then the hip, the tail drapes DOWN & back as a prop
+    // (bending at the tail-body junction), the front legs tuck and the wings unfold from stowed to full spread.
+    const th = rear*1.28*A;                                              // pelvis pitch toward vertical (~73°)
+    sw('Hips', AX.x, -th);                                               // rock the pelvis/trunk up …
+    sw('chest', AX.x, -rear*0.28*A);                                     // … spine adds the last bit so the torso stands vertical
+    // a light bias-fold so the hind legs bend the RIGHT way (knee/hock tuck under) before the foot-IK refines it
+    const fold = eio(clamp((u-0.12)/0.72,0,1))*A;
+    ['backleg','R_backleg'].forEach(h=> sw(h,AX.x, th*0.42));            // hold the femur from flinging forward with the pelvis
+    ['backleg0','R_backleg0'].forEach(k=> sw(k,AX.x, -fold*1.05));       // knee flexes …
+    ['backleg1','R_backleg1'].forEach(a=> sw(a,AX.x,  fold*0.80));       // … hock flexes → sit onto the haunches
+    ['frontleg','R_frontleg'].forEach(h=>sw(h,AX.x, rear*1.05*A)); ['frontleg0','R_frontleg0'].forEach(k=>sw(k,AX.x,-rear*1.0*A));  // front legs tuck to the chest
+    DRAGON_NECK.forEach(b=>sw(b,AX.x,((1-rear)*0.50 - rear*0.30)*A)); sw('head',AX.x,((1-rear)*0.58 - rear*0.35)*A);   // head starts LOW, neck unfolds vertically
+    sw('jaw',AX.x, rear*0.6*A);                                          // mouth opens
+    dWingFold((1-rear)*1.15*A);                                          // wings START tightly stowed …
+    dWingBeat(rear*0.55*A, 0);                                           // … and UNFOLD to full spread in step with the front legs folding in
+    // TAIL: cancel the pelvis up-pitch at the base so it does NOT pole up, then curl it DOWN & back (bending at
+    // the tail-body junction) into a counter-balancing prop behind the haunches.
+    sw('tail', AX.x, th);                                               // undo the body's up-rotation for the tail as a whole
+    sw('tailstart', AX.x, rear*0.42*A); sw('tail1', AX.x, rear*0.26*A); sw('tail2', AX.x, rear*0.16*A);
+    if(u>0.42&&u<0.66) sw('head',AX.y,Math.sin(TAU*t*8)*0.03*A);        // roar shake
+    // PLANT THE HIND FEET on their standing spots. The hips stay at standing height (the trunk pitched up ABOUT
+    // the fixed hip), so the paws are reached purely by FOLDING the hind legs with IK — no body translation.
+    // That matters for retarget: only bone ROTATIONS are baked (they transfer faithfully to any mesh), whereas a
+    // baked root DROP gets re-scaled by leg length on the target and punched the paws through the floor.
+    animRoot.updateMatrixWorld(true);
+    QUAD_LEGS.filter(L=>!L.front).forEach(L=>{ const r=QUAD_PAW0[L.foot]; if(r) qLimbIK(L, r, 18); });
+    qLevelGroundedPaws();
   }},
   {id:'dragon_idle', name:'Idle', cat:'Idle', type:'idle', dur:5.0, build:(t,P)=>{ resetPose(); const a=TAU*(t/5.0)*P.speed;
     dWingFold(0.85*P.amp);
@@ -5100,28 +5211,59 @@ const DRAGON_MOTIONS=[
 // Ground gaits reuse the quad legDrive engine (same leg bone names); flight reuses the dragon's wing
 // helpers (dWingBeat / dWingFold / dTuckLegs) since the wings are the same bone chain. Wings FOLD on the
 // ground and beat (bird/bat downstroke+upstroke) in the air; horse tail streams behind.
-const PEGASUS_TEMPLATE=[{"name":"Hips","parent":null,"t":[-0.00325,0.187442,-0.087732],"q":[0.713339,0,0.030011,0.700176]},{"name":"tail","parent":"Hips","t":[0,0,0],"q":[-0.99066,-0.007636,-0.049174,0.126947]},{"name":"tailstart","parent":"tail","t":[0,0.03591,0],"q":[-0.431458,0.104779,-0.164343,0.880827]},{"name":"tail1","parent":"tailstart","t":[0,0.032538,0],"q":[-0.249346,0.148667,-0.13908,0.946774]},{"name":"tail2","parent":"tail1","t":[0,0.027653,0],"q":[0.205913,0.352185,0.028199,0.912562]},{"name":"tail3","parent":"tail2","t":[0,0.027204,0],"q":[0,0,0,1]},{"name":"backleg","parent":"Hips","t":[0.027637,0.019697,0.018397],"q":[-0.825984,-0.202802,-0.23381,-0.471121]},{"name":"backleg0","parent":"backleg","t":[0,0.049449,0],"q":[0.050205,-0.469522,0.15551,0.867667]},{"name":"backleg1","parent":"backleg0","t":[0,0.088731,0],"q":[0.365964,0.241948,-0.159698,-0.884324]},{"name":"backleg2","parent":"backleg1","t":[0,0.037413,0],"q":[0,0,0,1]},{"name":"R_backleg","parent":"Hips","t":[-0.022257,0.021798,0.016257],"q":[-0.809378,0.307404,0.26768,-0.422798]},{"name":"R_backleg0","parent":"R_backleg","t":[0,0.049885,0],"q":[0.044629,0.594231,-0.205104,0.776421]},{"name":"R_backleg1","parent":"R_backleg0","t":[0,0.089527,0],"q":[0.389482,0.064705,0.09331,-0.914008]},{"name":"R_backleg2","parent":"R_backleg1","t":[0,0.037339,0],"q":[0,0,0,1]},{"name":"chest","parent":"Hips","t":[0,0.173999,0],"q":[-0.497225,-0.054251,-0.074169,0.862742]},{"name":"head","parent":"chest","t":[0,0.061129,0],"q":[0.64885,0.05379,0.036022,0.758158]},{"name":"headend","parent":"head","t":[0,0.041088,0],"q":[0,0,0,1]},{"name":"earend","parent":"head","t":[0.02679,-0.01391,-0.047328],"q":[0,0,0,1]},{"name":"R_earend","parent":"head","t":[-0.009876,0.006364,-0.055872],"q":[0,0,0,1]},{"name":"frontleg","parent":"chest","t":[0.023868,0.011846,0.032822],"q":[-0.997447,-0.068925,-0.006184,0.017619]},{"name":"frontleg0","parent":"frontleg","t":[0,0.079861,0],"q":[0.050457,-0.955661,0.285333,0.052448]},{"name":"frontleg1","parent":"frontleg0","t":[0,0.057451,0],"q":[0.077217,-0.990224,-0.115572,0.011738]},{"name":"frontleg2","parent":"frontleg1","t":[0,0.029561,0],"q":[0,0,0,1]},{"name":"R_frontleg","parent":"chest","t":[-0.023703,0.005877,0.034492],"q":[-0.997284,-0.053603,0.048532,0.014019]},{"name":"R_frontleg0","parent":"R_frontleg","t":[0,0.079865,0],"q":[0.019187,0.955883,-0.28477,0.069468]},{"name":"R_frontleg1","parent":"R_frontleg0","t":[0,0.057131,0],"q":[0.057485,0.991433,0.115367,0.02113]},{"name":"R_frontleg2","parent":"R_frontleg1","t":[0,0.029567,0],"q":[0,0,0,1]},{"name":"saddle","parent":"Hips","t":[0.008159,0.086962,-0.028945],"q":[0,0,0,1]},{"name":"wing","parent":"chest","t":[0.06496,0.02718,-0.079343],"q":[-0.4002,-0.147329,-0.430153,0.795677]},{"name":"wing0","parent":"wing","t":[0,0.164324,0],"q":[-0.11622,-0.057843,-0.054342,0.990048]},{"name":"wing1","parent":"wing0","t":[0,0.16613,0],"q":[-0.076176,-0.041355,-0.026748,0.995877]},{"name":"wing2","parent":"wing1","t":[0,0.173207,0],"q":[0,0,0,1]},{"name":"R_wing","parent":"chest","t":[-0.054028,0.012253,-0.075166],"q":[-0.400205,0.124003,0.539486,0.730352]},{"name":"R_wing0","parent":"R_wing","t":[0,0.164322,0],"q":[-0.116217,0.05784,0.054349,0.990048]},{"name":"R_wing1","parent":"R_wing0","t":[0,0.166133,0],"q":[-0.076178,0.041373,0.026709,0.995877]},{"name":"R_wing2","parent":"R_wing1","t":[0,0.173206,0],"q":[0,0,0,1]}];
+const PEGASUS_TEMPLATE = [{"name":"Hips","parent":null,"t":[-0.00325,-0.087732,-0.187442],"q":[0,0,0,1]},{"name":"tail","parent":"Hips","t":[0,0,0],"q":[-0.968569,0,-0.20584,0.139659]},{"name":"tailstart","parent":"tail","t":[0,0.03591,0],"q":[-0.460611,-0.45923,-0.031672,0.758909]},{"name":"tail1","parent":"tailstart","t":[0,0.032538,0],"q":[-0.254247,0.126569,0.129904,0.949981]},{"name":"tail2","parent":"tail1","t":[0,0.027653,0],"q":[0.009777,-0.276951,-0.207605,0.938138]},{"name":"tail3","parent":"tail2","t":[0,0.027204,0],"q":[-0.073973,-0.369435,-0.222884,0.899093]},{"name":"backleg","parent":"Hips","t":[0.027547,0.020533,0.0176],"q":[0.844595,0,-0.169101,0.508001]},{"name":"backleg0","parent":"backleg","t":[0,0.049449,0],"q":[0.074556,0.266581,0.145414,0.949858]},{"name":"backleg1","parent":"backleg0","t":[0,0.088731,0],"q":[-0.379088,-0.131804,-0.125401,0.907301]},{"name":"backleg2","parent":"backleg1","t":[0,0.037413,0],"q":[-0.422043,0.012768,0.045023,0.905367]},{"name":"R_backleg","parent":"Hips","t":[-0.022437,0.020533,0.0176],"q":[0.83382,0,0.211112,0.510074]},{"name":"R_backleg0","parent":"R_backleg","t":[0,0.049885,0],"q":[0.071621,-0.35218,-0.197306,0.912091]},{"name":"R_backleg1","parent":"R_backleg0","t":[0,0.089527,0],"q":[-0.366224,0.150702,0.16212,0.903817]},{"name":"R_backleg2","parent":"R_backleg1","t":[0,0.037339,0],"q":[-0.423186,-0.00586,-0.020664,0.905788]},{"name":"chest","parent":"Hips","t":[-0.007313,0.173812,0.003394],"q":[-0.156237,0,-0.037284,0.987016]},{"name":"head","parent":"chest","t":[0.004656,0.046492,-0.039415],"q":[-0.268646,-0.002207,-0.050164,0.961929]},{"name":"headend","parent":"head","t":[-0.004746,0.012549,0.038836],"q":[0.583384,0.016503,0.083415,0.807733]},{"name":"earend","parent":"head","t":[0.022141,0.044351,-0.026342],"q":[-0.22854,0.083908,-0.229635,0.942336]},{"name":"R_earend","parent":"head","t":[-0.017396,0.052924,-0.012494],"q":[-0.097689,-0.084528,0.164228,0.977927]},{"name":"frontleg","parent":"chest","t":[0.021592,0.030358,0.019987],"q":[0.942043,0.035164,0.002661,0.333633]},{"name":"frontleg0","parent":"frontleg","t":[0,0.079861,0],"q":[-0.283823,0.098511,0.058356,0.952016]},{"name":"frontleg1","parent":"frontleg0","t":[0,0.057451,0],"q":[-0.119046,-0.054758,-0.071743,0.988778]},{"name":"frontleg2","parent":"frontleg1","t":[0,0.029561,0],"q":[-0.378727,-0.002645,-0.00933,0.925457]},{"name":"R_frontleg","parent":"chest","t":[-0.026248,0.026827,0.019428],"q":[0.941972,0.029846,0.03624,0.332391]},{"name":"R_frontleg0","parent":"R_frontleg","t":[0,0.079865,0],"q":[-0.281864,-0.071695,-0.044881,0.955719]},{"name":"R_frontleg1","parent":"R_frontleg0","t":[0,0.057131,0],"q":[-0.122235,0.029519,0.0409,0.991219]},{"name":"R_frontleg2","parent":"R_frontleg1","t":[0,0.029567,0],"q":[-0.378619,0.004437,0.015652,0.92541]},{"name":"saddle","parent":"Hips","t":[0,0.03,0],"q":[0,0,0,1]},{"name":"wing","parent":"chest","t":[0.06496,0.02718,-0.079343],"q":[-0.4002,-0.147329,-0.430153,0.795677]},{"name":"wing0","parent":"wing","t":[0,0.164324,0],"q":[-0.11622,-0.057843,-0.054342,0.990048]},{"name":"wing1","parent":"wing0","t":[0,0.16613,0],"q":[-0.076176,-0.041355,-0.026748,0.995878]},{"name":"wing2","parent":"wing1","t":[0,0.173207,0],"q":[0,0,0,1]},{"name":"R_wing","parent":"chest","t":[-0.054028,0.012253,-0.075166],"q":[-0.400205,0.124003,0.539486,0.730352]},{"name":"R_wing0","parent":"R_wing","t":[0,0.164322,0],"q":[-0.116217,0.05784,0.054349,0.990049]},{"name":"R_wing1","parent":"R_wing0","t":[0,0.166133,0],"q":[-0.076178,0.041373,0.026709,0.995878]},{"name":"R_wing2","parent":"R_wing1","t":[0,0.173206,0],"q":[0,0,0,1]}];
 const PEGASUS_PAWS=['frontleg2','R_frontleg2','backleg2','R_backleg2'];
 const PEGASUS_MOTIONS=[
   {id:'peg_walk', name:'Walk', cat:'Locomotion', type:'move', dur:1.3, build:(t,P)=>{ quadGaitN(t,P,1.3,{gait:'walk', headBob:3, tail:3, bob:0.012}); dWingFold(0.92*P.amp); }},
   {id:'peg_gallop', name:'Gallop', cat:'Locomotion', type:'move', dur:0.6, build:(t,P)=>{ quadGaitN(t,P,0.6,{gait:'gallop', stride:0.7, lift:0.28, spine:0.15, headBob:5, tail:5, bob:0.03, flight:0.1}); dWingFold(0.82*P.amp); }},
   {id:'peg_fly', name:'Fly (flap)', cat:'Locomotion', type:'move', dur:1.0, build:(t,P)=>{ resetPose(); const cyc=(t/1.0)*P.speed;
     const beat=Math.sin(TAU*cyc); dWingBeat(beat*0.92*P.amp, Math.max(0,beat)*0.5*P.amp);
-    dTuckLegs(0.9*P.amp);
+    // FLYING GALLOP — the legs cycle in time with the wing beat: fores gather as the wings drive DOWN (beat>0),
+    // reach out as the wings sweep up; hind legs run the opposite phase, like a horse galloping through the air.
+    ['frontleg','R_frontleg'].forEach(h=>sw(h,AX.x,(0.60 + beat*0.45)*P.amp));
+    ['frontleg0','R_frontleg0'].forEach(k=>sw(k,AX.x,(-0.75 - Math.max(0,beat)*0.55)*P.amp));   // knee flexes as it gathers
+    ['backleg','R_backleg'].forEach(h=>sw(h,AX.x,(0.60 - beat*0.45)*P.amp));                    // hind = opposite phase
+    ['backleg0','R_backleg0'].forEach(k=>sw(k,AX.x,(-0.75 - Math.max(0,-beat)*0.55)*P.amp));
+    ['frontleg1','R_frontleg1','backleg1','R_backleg1'].forEach(s=>sw(s,AX.x,-0.4*P.amp));      // ankles tucked
     QUAD_TAIL.forEach((b,i)=>sw(b,AX.x,(0.10+Math.sin(TAU*cyc-i*0.3)*0.04)*P.amp));   // tail streams
     sw('chest',AX.x,beat*0.05*P.amp); sw('head',AX.x,0.05*P.amp);
+    animRoot.position.y += 0.24*(t/1.0)*P.amp;                          // the flap CLIMBS 0.24 per cycle (carries between clips)
+    animRoot.position.z += 0.70*t*P.amp;                                // …and travels forward as it climbs
   }},
   {id:'peg_glide', name:'Glide', cat:'Locomotion', type:'move', dur:3.2, build:(t,P)=>{ resetPose(); const a=TAU*(t/3.2)*P.speed;
-    dWingBeat(0.18+Math.sin(a)*0.06*P.amp, 0); dTuckLegs(0.8*P.amp);
+    dSoarWings(P.amp, Math.sin(a)*0.04); pegJumpTuck(P.amp);   // wings flat + perpendicular; legs in a show-jumper fold (front up, hind trailing)
     QUAD_TAIL.forEach(b=>sw(b,AX.x,0.08*P.amp)); sw('chest',AX.x,Math.sin(a)*0.02*P.amp);
+    animRoot.position.z += 0.90*t*P.amp;                                // glides FORWARD (faster than the flap — trading height for speed)
+    animRoot.position.y -= 0.06*(t/3.2)*P.amp;                          // …losing 0.06 of altitude per clip = 1/4 of a flap's climb
+  }},
+  {id:'peg_soar', name:'Soar', cat:'Locomotion', type:'move', dur:4.0, build:(t,P)=>{ resetPose(); const a=TAU*(t/4.0)*P.speed;
+    dSoarWings(P.amp, Math.sin(a*0.6)*0.04); pegJumpTuck(P.amp);   // wings flat + perpendicular; show-jumper leg fold
+    QUAD_TAIL.forEach(b=>sw(b,AX.x,0.06*P.amp)); sw('chest',AX.x,-0.04*P.amp+Math.sin(a*0.5)*0.015*P.amp);
+    animRoot.position.z += 0.80*t*P.amp;                                // soars FORWARD, holding altitude (no vertical change)
+  }},
+  {id:'peg_soar_r', name:'Soar — Bank Right', cat:'Locomotion', type:'move', dur:3.6, build:(t,P)=>{ resetPose(); const a=TAU*(t/3.6)*P.speed;
+    dSoarWings(P.amp, Math.sin(a*0.6)*0.03); pegJumpTuck(P.amp);
+    sw('Hips',AX.z,0.34*P.amp); sw('chest',AX.z,0.10*P.amp);            // roll right
+    sw('wing',AX.z,-0.20*P.amp); sw('R_wing',AX.z,-0.08*P.amp);
+    QUAD_TAIL.forEach(b=>sw(b,AX.y,0.10*P.amp)); sw('head',AX.z,0.12*P.amp); sw('head',AX.y,0.12*P.amp);
+    flightArc(t, 3.6, 1, 0.80*P.amp);                                   // level; curves right 90°/clip (4 clips = a full circle)
+  }},
+  {id:'peg_soar_l', name:'Soar — Bank Left', cat:'Locomotion', type:'move', dur:3.6, build:(t,P)=>{ resetPose(); const a=TAU*(t/3.6)*P.speed;
+    dSoarWings(P.amp, Math.sin(a*0.6)*0.03); pegJumpTuck(P.amp);
+    sw('Hips',AX.z,-0.34*P.amp); sw('chest',AX.z,-0.10*P.amp);          // roll left
+    sw('wing',AX.z,0.08*P.amp); sw('R_wing',AX.z,0.20*P.amp);
+    QUAD_TAIL.forEach(b=>sw(b,AX.y,-0.10*P.amp)); sw('head',AX.z,-0.12*P.amp); sw('head',AX.y,-0.12*P.amp);
+    flightArc(t, 3.6, -1, 0.80*P.amp);                                  // level; curves left 90°/clip (4 clips = a full circle)
   }},
   {id:'peg_takeoff', name:'Take Off', cat:'Action', type:'action', dur:1.8, build:(t,P)=>{ resetPose(); const u=((t/1.8)*P.speed)%1;
-    const crouch = u<0.30 ? (0.5-0.5*Math.cos(Math.PI*u/0.30)) : Math.max(0,1-(u-0.30)/0.25);
-    const leap = u>0.35 ? Math.min(1,(u-0.35)/0.5) : 0;
-    ['backleg','R_backleg'].forEach(hp=>sw(hp,AX.x,crouch*0.5*P.amp)); ['backleg0','R_backleg0'].forEach(k=>sw(k,AX.x,-crouch*0.7*P.amp));
-    dTuckLegs(leap*0.9*P.amp);
-    const beat = u>0.35 ? -Math.sin(Math.PI*Math.min((u-0.35)/0.55,1)) : 0.5; dWingBeat(beat*1.0*P.amp, 0);
-    setRootY((-0.10*crouch + 0.42*leap)*P.amp);
+    const crouch = u<0.30 ? (0.5-0.5*Math.cos(Math.PI*u/0.30)) : Math.max(0,1-(u-0.30)/0.20);
+    const leap = u>0.30 ? Math.min(1,(u-0.30)/0.45) : 0;
+    ['backleg','R_backleg'].forEach(hp=>sw(hp,AX.x,crouch*0.65*P.amp)); ['backleg0','R_backleg0'].forEach(k=>sw(k,AX.x,-crouch*0.95*P.amp));
+    ['frontleg','R_frontleg'].forEach(hp=>sw(hp,AX.x,crouch*0.55*P.amp)); ['frontleg0','R_frontleg0'].forEach(k=>sw(k,AX.x,-crouch*0.85*P.amp));
+    dTuckLegs(leap*0.95*P.amp);
+    const beat = u<0.28 ? 0.55 : Math.sin(TAU*2.0*((u-0.28)/0.72)); dWingBeat(beat*1.3*P.amp, Math.max(0,beat)*0.4*P.amp);
+    QUAD_TAIL.forEach(b=>sw(b,AX.x,leap*0.08*P.amp));
+    animRoot.position.y += (-0.12*crouch + 0.95*leap)*P.amp;            // climb along local Y (retargets to world-up)
   }},
   {id:'peg_rear', name:'Rear Up', cat:'Action', type:'action', dur:3.0, build:(t,P)=>{ resetPose(); const u=((t/3.0)*P.speed)%1; const rear=envUpDown(u,0.30,0.68);
     sw('chest',AX.x,-rear*0.6*P.amp);                                              // front rears up (hind planted)
@@ -5148,8 +5290,8 @@ const RIGS = {
   fish:        {tpl:FISH_TEMPLATE, label:'12-bone fish — spine + fins; lateral-undulation swim / dart / turn / hover.', motions:FISH_MOTIONS},
   cetacean:    {tpl:CETACEAN_TEMPLATE, label:'10-bone cetacean (dolphin/whale) — dorso-ventral fluke swim / dive / surface / glide.', motions:CETACEAN_MOTIONS},
   snake:       {tpl:SNAKE_TEMPLATE, label:'27-bone serpent — serpentine slither / idle / coil / strike.', motions:SNAKE_MOTIONS},
-  dragon:      {tpl:DRAGON_TEMPLATE, ground:DRAGON_PAWS, label:'43-bone dragon — quad body + wings + long tail; walk / fly / glide / take-off / tail-swipe / roar / idle.', motions:DRAGON_MOTIONS},
-  pegasus:     {tpl:PEGASUS_TEMPLATE, ground:PEGASUS_PAWS, label:'36-bone pegasus — winged horse (quad body + wings); walk / gallop / fly / glide / take-off / rear / idle.', motions:PEGASUS_MOTIONS},
+  dragon:      {tpl:DRAGON_TEMPLATE, orient:QUAD_ORIENT, ground:DRAGON_PAWS, label:'43-bone dragon — quad body + wings + long tail; walk / fly / glide / take-off / tail-swipe / roar / idle.', motions:DRAGON_MOTIONS},
+  pegasus:     {tpl:PEGASUS_TEMPLATE, orient:QUAD_ORIENT, ground:PEGASUS_PAWS, label:'36-bone pegasus — winged horse (quad body + wings); walk / gallop / fly / glide / take-off / rear / idle.', motions:PEGASUS_MOTIONS},
 };
 
 // ===== State + playback =====

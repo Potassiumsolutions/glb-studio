@@ -932,7 +932,7 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 
 const $ = s => document.querySelector(s);
-const APP_NAME='GLB Stitcher', APP_VERSION='1.7.0', APP_BUILD='2026-09-05';   // version shown in About + footer
+const APP_NAME='GLB Stitcher', APP_VERSION='1.8.0', APP_BUILD='2026-09-06';   // version shown in About + footer
 // Bump APP_BUILD whenever the app or the bundled motion library changes. It is printed to the console and
 // shown in the footer so "am I running the current version?" can be answered by looking, not by guessing —
 // a stale browser tab kept an old build alive twice while the files on disk were already up to date.
@@ -4940,8 +4940,9 @@ async function produceFrames(fps,loops,hold,spin,trans, emit, abort){
     // Carry vertical for wall/ladder climbs AND for bird flight ascents/dives — those genuinely change altitude
     // and should stack when chained (take off + climb keeps rising; a dive keeps dropping). Kept name-based
     // (not net-Y-based) on purpose: a sit / crouch also ends lower, and carrying THAT would drop the next clip
-    // underground. Glide is deliberately excluded — it keeps the altitude a prior climb gave it and moves forward.
-    const vClimb=CLIMB_RE.test(c.name||'') || /\b(take[\s-]?off|climbing|ascend|ascent|dive|stoop)\b/i.test(c.name||'');
+    // underground. FLIGHT: fly/flap climbs and glide loses a little — both must ACCUMULATE across chained clips
+    // ("flap flap glide glide…" nets the sum, not a snap back each loop). Soar is level (bakes no net vertical).
+    const vClimb=CLIMB_RE.test(c.name||'') || /\b(take[\s-]?off|climbing|ascend|ascent|dive|stoop|fly|flap|glide)\b/i.test(c.name||'');
     const netY=vClimb ? (netRaw.y||0) : 0;        // net vertical travel carried between clips/loops
     const sx=c.root.scale.x, sz=c.root.scale.z, sy=c.root.scale.y;
     let clipFrame=0;
@@ -5445,8 +5446,14 @@ function retargetMotion(motion, rig){
       const srInv=sr?sr.clone().invert():null;
       const v=t.values.slice();
       if(haveRest){ const q=new THREE.Quaternion();
+        // Roll-invariant transfer: carry the rotation-from-rest in the PARENT frame (out = q·sr⁻¹·tr),
+        // NOT the bone-local frame (tr·sr⁻¹·q). When src & tgt rest match (auto-rigged chars) both reduce
+        // to q, so working rigs are untouched; when a manually-rigged bone's roll differs from the template
+        // (e.g. the hand-rigged Pegasus front legs, rolled ~90°), the local-frame copy sent the fore-aft
+        // hip swing onto the wrong world axis → legs bowed out / pigeon-toed. Parent-frame transfer keeps
+        // the swing on its true world axis regardless of the target bone's roll.
         for(let i=0;i<v.length;i+=4){ q.set(v[i],v[i+1],v[i+2],v[i+3]);
-          const delta=srInv.clone().multiply(q); const out=tr.clone().multiply(delta);
+          const out=q.clone().multiply(srInv).multiply(tr);
           v[i]=out.x;v[i+1]=out.y;v[i+2]=out.z;v[i+3]=out.w; } }
       tracks.push(new THREE.QuaternionKeyframeTrack(t.name, t.times.slice(), v));
     } else if(prop==='position'){
@@ -5468,7 +5475,11 @@ function retargetMotion(motion, rig){
 // re-plant the contact points on the loaded character's OWN skeleton (CCD IK) and bake the corrected rotations
 // back into the clip — done once at add time (no render-loop cost). Gated by how HORIZONTAL the torso is, so a
 // get-down/get-up transition only gets corrected once it is actually down (standing frames are left untouched).
-const FLOOR_CONTACT = { fitpushup:{rep:1}, fitplank:{hands:1,toes:1}, floordown:{hands:1,toes:1}, floorup:{hands:1,toes:1} };
+const FLOOR_CONTACT = { fitpushup:{rep:1}, fitplank:{hands:1,toes:1}, floordown:{hands:1,toes:1}, floorup:{hands:1,toes:1},
+  // Quad rear/roar: the trunk pitches upright but the HIND paws must stay on the floor. Retarget carries only
+  // joint angles, so on a mesh whose legs differ in length from the template the SAME fold reaches BELOW the
+  // floor — re-plant the hind paws on THIS character's own skeleton (see the hindpaws branch below).
+  dragon_roar:{hindpaws:1}, peg_rear:{hindpaws:1} };
 const _gcV1=new THREE.Vector3(), _gcV2=new THREE.Vector3(), _gcV3=new THREE.Vector3(), _gcQ1=new THREE.Quaternion(), _gcQ2=new THREE.Quaternion();
 function _ccdToward(bone, endEff, target){
   bone.updateWorldMatrix(true,false);
@@ -5484,6 +5495,21 @@ function _ccdToward(bone, endEff, target){
 function _avgY(bones){ let s=0,n=0; const v=new THREE.Vector3(); for(const b of bones){ if(b){ s+=b.getWorldPosition(v).y; n++; } } return n?s/n:null; }
 function floorContactPose(root, spec, floorY){
   const B=n=>root.getObjectByName(n);
+  if(spec.hindpaws){
+    // Quad rear: plant each HIND paw on the floor (y=0) by folding its own leg chain — the body pitch/height
+    // the author baked is left untouched (no hip move); a paw that is legitimately LIFTED (up past ~6 cm) is
+    // left alone so a mid-motion lift is not yanked down.
+    const gy=0; const legs=[];
+    const bl=B('backleg2'), br=B('R_backleg2');
+    if(bl) legs.push({chain:['backleg','backleg0','backleg1'], end:bl});
+    if(br) legs.push({chain:['R_backleg','R_backleg0','R_backleg1'], end:br});
+    if(!legs.length) return;
+    for(let pass=0; pass<4; pass++){ root.updateMatrixWorld(true);
+      for(const l of legs){ const e=l.end.getWorldPosition(_gcV3); if(e.y > gy+0.06) continue;
+        const tgt=new THREE.Vector3(e.x, gy, e.z);
+        for(const bn of l.chain){ const bone=B(bn); if(bone) _ccdToward(bone, l.end, tgt); } } }
+    return;
+  }
   if(spec.rep){
     // Rep mode (push-up): the elbow fold is AUTHORED, so don't re-solve the arms (that flattens the rep). Plant the
     // hands by translating the whole body vertically until they sit on the floor — the authored fold is preserved,
@@ -5529,6 +5555,17 @@ function bakeFloorContact(clip, root, spec){
   const times=[]; for(let i=0;i<N;i++) times.push((N===1?0:i/(N-1))*(clip.duration||1));
   const mixer=new THREE.AnimationMixer(root); mixer.clipAction(clip).play();
   const B=n=>root.getObjectByName(n);
+  if(spec.hindpaws){
+    // Quad rear: re-plant the hind paws every frame on this mesh (no torso-horizontal gate — the rear is upright,
+    // not planked). Only the hind-leg bone rotations change; the body pitch/height are left as authored.
+    const bones=[...new Set(clip.tracks.filter(t=>t.name.endsWith('.quaternion')).map(t=>t.name.replace('.quaternion','')))];
+    const rec={}; bones.forEach(b=>rec[b]=[]);
+    for(let i=0;i<N;i++){ mixer.setTime(times[i]); root.updateMatrixWorld(true); floorContactPose(root, spec, 0);
+      bones.forEach(b=>{ const bn=B(b); const q=bn?bn.quaternion:{x:0,y:0,z:0,w:1}; rec[b].push(q.x,q.y,q.z,q.w); }); }
+    mixer.stopAllAction();
+    const nt=clip.tracks.map(t=>{ if(t.name.endsWith('.quaternion')){ const b=t.name.replace('.quaternion',''); if(rec[b]&&rec[b].length===N*4) return new THREE.QuaternionKeyframeTrack(t.name, times.slice(), rec[b]); } return t; });
+    return new THREE.AnimationClip(clip.name, clip.duration, nt);
+  }
   // CONSTANT floor = the lowest a contact naturally reaches (the dip bottom), over the horizontal frames only,
   // so the hands/toes stay planted while the body dips (a real push-up rep) instead of riding down with it.
   let floorY=Infinity, anyHoriz=false;
