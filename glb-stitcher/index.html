@@ -598,7 +598,8 @@
         <b>Preview controls (like CAD):</b><br>
         • <b>Drag</b> — move the character on the ground<br>
         • <b>Right-drag</b> (or Shift+drag) — spin the character<br>
-        • Hold <b>Space</b> / <b>Alt</b> (or middle-mouse) + drag — orbit the camera; +right-drag pans up/down<br>
+        • Hold <b>Space</b> / <b>Alt</b> (or middle-mouse) + drag — orbit the camera; + <b>Shift</b> (or right) drag — <b>pan</b> the view any direction<br>
+        • <b>🎥 Orbit view</b> button — left-drag tumbles, <b>Shift</b>+left-drag pans<br>
         • <b>Mouse wheel</b> — zoom in / out
         <button id="resetView" type="button" style="margin-top:6px">Reset view</button>
       </div>
@@ -932,7 +933,7 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 
 const $ = s => document.querySelector(s);
-const APP_NAME='GLB Stitcher', APP_VERSION='1.8.3', APP_BUILD='2026-09-06';   // version shown in About + footer
+const APP_NAME='GLB Stitcher', APP_VERSION='1.8.4', APP_BUILD='2026-09-07';   // version shown in About + footer
 // Bump APP_BUILD whenever the app or the bundled motion library changes. It is printed to the console and
 // shown in the footer so "am I running the current version?" can be answered by looking, not by guessing —
 // a stale browser tab kept an old build alive twice while the files on disk were already up to date.
@@ -2793,11 +2794,12 @@ function nudgeCam(dYawDeg, dElev){               // orbit: yaw + camera height, 
   const c=clips[selIndex]; if(c&&c.cam&&c.cam.custom){ c.cam.yaw=parseFloat(yEl.value); c.cam.camY=parseFloat(eEl.value); if(activeRoot) frameObject(activeRoot,c); }
   yEl.dispatchEvent(new Event('input'));         // updates labels + reframes globals + renders
 }
-function panCam(dy){                              // pan: shift the vertical framing
-  const vEl=$('#vpos');
-  vEl.value=clampN(parseFloat(vEl.value)+dy*0.004, -1.5, 1.5);
-  const c=clips[selIndex]; if(c&&c.cam&&c.cam.custom){ c.cam.vpos=parseFloat(vEl.value); if(activeRoot) frameObject(activeRoot,c); }
-  vEl.dispatchEvent(new Event('input'));
+function panCam(dx, dy){                          // pan the camera across the view plane (both axes), like the animator
+  const dist=(camState&&camState.dist?camState.dist:5)*viewDolly;
+  const k=dist*0.0016;                            // scale with distance so the drag tracks the cursor at any zoom
+  viewPanRight -= dx*k;                           // drag right → the scene follows the cursor (grab-pan)
+  viewPanUp    += dy*k;                           // drag down  → the scene follows the cursor
+  orbitCamera(0); renderFrame();
 }
 function zoomCam(step){                           // dolly in / out via the framing-padding slider
   const pEl=$('#pad');
@@ -3191,7 +3193,7 @@ canvasEl.addEventListener('pointerdown', e=>{
   drag.moved=false; drag.pickChar=null; drag.additive=e.shiftKey;
   if(e.altKey && e.button===2){ drag.mode='view-free'; }   // Alt + right-drag → spin/tumble the whole view
   else if(useCam){ drag.mode = (e.button===2||e.shiftKey) ? 'cam-pan' : 'cam-orbit'; }
-  else if(viewFreeMode && e.button===0){ drag.mode='view-free'; }   // Orbit-view button: left-drag tumbles
+  else if(viewFreeMode && e.button===0){ drag.mode = e.shiftKey ? 'cam-pan' : 'view-free'; }   // Orbit-view: left-drag tumbles, Shift+left-drag PANS (like the animator)
   else if(e.button===2){ drag.mode='model-spin'; }
   else { drag.mode = gizmoOn ? 'select' : 'move'; drag.pickChar = pickCharacter(e); }   // click = select, drag = move
   try{ canvasEl.setPointerCapture(e.pointerId); }catch(_){}
@@ -3213,7 +3215,7 @@ window.addEventListener('pointermove', e=>{
   else if(drag.mode==='model-spin'){ spinModel(dx); drag.x=e.clientX; }
   else if(drag.mode==='prop-spin'){ if(drag.prop){ drag.prop.rotY += dx*0.012; updatePropTransform(drag.prop); renderFrame(); } drag.x=e.clientX; }
   else if(drag.mode==='cam-orbit'){ nudgeCam(dx*0.4, -dy*0.005); drag.x=e.clientX; drag.y=e.clientY; }
-  else if(drag.mode==='cam-pan'){ panCam(dy); drag.y=e.clientY; }
+  else if(drag.mode==='cam-pan'){ panCam(dx, dy); drag.x=e.clientX; drag.y=e.clientY; }
   else if(drag.mode==='view-free'){ freeView(dx, dy); drag.x=e.clientX; drag.y=e.clientY; }
 });
 window.addEventListener('pointerup', e=>{
@@ -4710,11 +4712,13 @@ let camState={radius:1,dist:5,baseYaw:0,camElev:0.2,targetY:0,pivotX:0,pivotZ:0}
 // Free-look view offsets for composing a recording shot. These compose ON TOP of the auto-framing,
 // so the character is never re-framed, re-centred, or re-scaled — it just moves the camera.
 let viewYaw=0, viewPitch=0, viewDolly=1;
-function resetFreeView(){ viewYaw=0; viewPitch=0; viewDolly=1; }
+let viewPanRight=0, viewPanUp=0;   // persistent screen-plane pan (world units), layered on the framed pivot like viewYaw — survives clip reframes
+function resetFreeView(){ viewYaw=0; viewPitch=0; viewDolly=1; viewPanRight=0; viewPanUp=0; }
 function orbitCamera(extraYaw=0){
   if(topView){                                            // straight down, looking at the floor; screen-up = −Z (north)
     const {targetY=0,pivotX=0,pivotZ=0}=camState; const d=(camState.dist||5)*viewDolly*1.6;
-    camera.up.set(0,0,-1); camera.position.set(pivotX, targetY+d, pivotZ); camera.lookAt(pivotX,targetY,pivotZ);
+    const tX=pivotX+viewPanRight, tZ=pivotZ-viewPanUp;   // top-down: screen-right = +X, screen-up = −Z
+    camera.up.set(0,0,-1); camera.position.set(tX, targetY+d, tZ); camera.lookAt(tX,targetY,tZ);
     camera.near=Math.max(0.01,d/100); camera.far=d*100+100; camera.updateProjectionMatrix(); return;
   }
   camera.up.set(0,1,0);
@@ -4728,8 +4732,10 @@ function orbitCamera(extraYaw=0){
     const cx=kz*vy, cy=kz*vx-kx*vz, cz=-kx*vy;            // k × v
     vx=vx*ca+cx*sa+kx*kv*(1-ca); vy=vy*ca+cy*sa; vz=vz*ca+cz*sa+kz*kv*(1-ca);
   }
-  camera.position.set(pivotX+vx, targetY+vy, pivotZ+vz);
-  camera.lookAt(pivotX,targetY,pivotZ);
+  const rx=Math.cos(yaw), rz=-Math.sin(yaw);             // screen-right in world XZ → pan the pivot in the view plane
+  const pX=pivotX+viewPanRight*rx, pY=targetY+viewPanUp, pZ=pivotZ+viewPanRight*rz;
+  camera.position.set(pX+vx, pY+vy, pZ+vz);
+  camera.lookAt(pX,pY,pZ);
   camera.near=Math.max(0.01,dist/100); camera.far=dist*100; camera.updateProjectionMatrix();
 }
 // Cinematic camera drift for render/preview — layered purely through the existing extraYaw + viewDolly
