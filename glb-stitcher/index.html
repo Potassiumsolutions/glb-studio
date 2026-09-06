@@ -932,7 +932,7 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 
 const $ = s => document.querySelector(s);
-const APP_NAME='GLB Stitcher', APP_VERSION='1.8.2', APP_BUILD='2026-09-06';   // version shown in About + footer
+const APP_NAME='GLB Stitcher', APP_VERSION='1.8.3', APP_BUILD='2026-09-06';   // version shown in About + footer
 // Bump APP_BUILD whenever the app or the bundled motion library changes. It is printed to the console and
 // shown in the footer so "am I running the current version?" can be answered by looking, not by guessing —
 // a stale browser tab kept an old build alive twice while the files on disk were already up to date.
@@ -5509,8 +5509,11 @@ function floorContactPose(root, spec, floorY){
     if(br) legs.push({chain:['R_backleg','R_backleg0','R_backleg1'], end:br});
     if(!legs.length) return;
     for(let pass=0; pass<4; pass++){ root.updateMatrixWorld(true);
-      for(const l of legs){ const e=l.end.getWorldPosition(_gcV3); if(e.y > gy+0.06) continue;
-        const tgt=new THREE.Vector3(e.x, gy, e.z);
+      for(const l of legs){ const e=l.end.getWorldPosition(_gcV3); if(e.y > gy+0.10) continue;
+        // Lock to the paw's STANDING x,z (spec._anchors, captured at the first frame) so the foot does not SLIDE
+        // fore-aft / snap backwards as the body rears — only fall back to the live x,z if no anchor was captured.
+        const anc = spec._anchors && spec._anchors[l.end.name||''];
+        const tgt = new THREE.Vector3(anc?anc.x:e.x, gy, anc?anc.z:e.z);
         for(const bn of l.chain){ const bone=B(bn); if(bone) _ccdToward(bone, l.end, tgt); } } }
     return;
   }
@@ -5564,6 +5567,9 @@ function bakeFloorContact(clip, root, spec){
     // not planked). Only the hind-leg bone rotations change; the body pitch/height are left as authored.
     const bones=[...new Set(clip.tracks.filter(t=>t.name.endsWith('.quaternion')).map(t=>t.name.replace('.quaternion','')))];
     const rec={}; bones.forEach(b=>rec[b]=[]);
+    // Anchor each hind paw at its STANDING x,z (first frame) so it stays planted (no fore-aft slide) through the rear.
+    mixer.setTime(0); root.updateMatrixWorld(true);
+    spec._anchors={}; for(const nm of ['backleg2','R_backleg2']){ const b=B(nm); if(b){ const p=b.getWorldPosition(new THREE.Vector3()); spec._anchors[nm]={x:p.x, z:p.z}; } }
     for(let i=0;i<N;i++){ mixer.setTime(times[i]); root.updateMatrixWorld(true); floorContactPose(root, spec, 0);
       bones.forEach(b=>{ const bn=B(b); const q=bn?bn.quaternion:{x:0,y:0,z:0,w:1}; rec[b].push(q.x,q.y,q.z,q.w); }); }
     mixer.stopAllAction();
