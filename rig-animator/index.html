@@ -61,7 +61,7 @@
 <main>
   <aside>
     <div>
-      <h1>🐾 Rig Animator <span class="appver">v1.19.2</span></h1>
+      <h1>🐾 Rig Animator <span class="appver">v1.19.3</span></h1>
       <div class="hint" style="margin-top:0">Procedurally generate original animations for your <b>biped</b>, <b>quadruped</b> and <b>bird</b> rigs — organized by category (boxing, fencing, football, dancing, running, walking, jumping, climbing…) — then export them into the GLB Stitcher motion library.</div>
     </div>
 
@@ -121,7 +121,7 @@
         </g>
       </svg>
       <div>
-        <div><b>Rig Animator</b> v1.19.2 · part of GLB Studio</div>
+        <div><b>Rig Animator</b> v1.19.3 · part of GLB Studio</div>
         <div class="appfoot-sub">© <span class="cred-year">2026</span> Paul A.T. Ramey · <b>KSOL Designs</b> · <a href="https://www.ksoldesigns.com" target="_blank" rel="noopener">ksoldesigns.com</a></div>
       </div>
     </div>
@@ -5049,9 +5049,12 @@ function dTuckLegs(a){ ['frontleg','R_frontleg','backleg','R_backleg'].forEach(h
 // streamlined FLIGHT tuck: hind thighs draw up, FRONT shoulders rotate BACK so the forelegs sweep back and tuck
 // along the body (not dangling under), knees/ankles fold. Gentle enough not to hyper-flex the dragon's hind legs.
 function dTuckLegsTight(a){
-  ['backleg','R_backleg'].forEach(h=>sw(h,AX.x,0.8*a));               // hind thighs tuck up toward the belly
-  ['frontleg','R_frontleg'].forEach(h=>sw(h,AX.x,-1.1*a));           // front shoulders rotate BACK — forelegs sweep back & tuck for flight
-  ['frontleg0','R_frontleg0','backleg0','R_backleg0'].forEach(k=>sw(k,AX.x,-0.95*a));
+  // FLIGHT TUCK: front shoulders sweep BACK and hind hips swing FORWARD so all four legs gather up UNDER the
+  // belly (not the front-forward/hind-back bound pose). NOTE the hand-rig retarget inverts the hip response vs
+  // the template, so these signs are set to give the correct tuck ON THE MESH (measured), not on the template.
+  ['backleg','R_backleg'].forEach(h=>sw(h,AX.x,-0.9*a));             // hind hips rotate FORWARD → hind legs come up under the belly
+  ['frontleg','R_frontleg'].forEach(h=>sw(h,AX.x,1.1*a));            // front shoulders rotate BACK → forelegs sweep back & tuck
+  ['frontleg0','R_frontleg0','backleg0','R_backleg0'].forEach(k=>sw(k,AX.x,-1.35*a));   // knees fold hard → feet come UP against the belly
   ['frontleg1','R_frontleg1','backleg1','R_backleg1'].forEach(s=>sw(s,AX.x,-0.4*a)); }
 // bank into a turn (dir +1 = right, -1 = left): roll the body; the INSIDE (dipped) wing lowers a little and its
 // OUTER half bends UP (a winglet) — that upward-bent dipped tip is what drives the tilt/turn; tail rudder + head lean.
@@ -5069,7 +5072,7 @@ function dBank(dir, amt){ const a=amt||1;
 // direction close a full circle. Yaw is baked about world-Y (read by computeTravel's head→tail measure); the
 // arc is the integral of velocity v along the instantaneous heading, so the body always faces its travel.
 function flightArc(t, dur, dir, v){
-  const w = dir*(Math.PI/2)/dur;                     // turn rate → ±90° across the clip
+  const w = -dir*(Math.PI/2)/dur;                    // turn rate → ±90° across the clip (dir sign matches the bank roll: +1 banks & turns RIGHT)
   sw('Hips', AX.y, w*t);                             // yaw toward the new heading
   animRoot.position.x += (v/w)*(1-Math.cos(w*t));    // ∫ v·sin(heading) dt  — curved path, x
   animRoot.position.z += (v/w)*Math.sin(w*t);        // ∫ v·cos(heading) dt  — curved path, z (forward)
