@@ -61,7 +61,7 @@
 <main>
   <aside>
     <div>
-      <h1>🐾 Rig Animator <span class="appver">v1.19.0</span></h1>
+      <h1>🐾 Rig Animator <span class="appver">v1.19.1</span></h1>
       <div class="hint" style="margin-top:0">Procedurally generate original animations for your <b>biped</b>, <b>quadruped</b> and <b>bird</b> rigs — organized by category (boxing, fencing, football, dancing, running, walking, jumping, climbing…) — then export them into the GLB Stitcher motion library.</div>
     </div>
 
@@ -121,7 +121,7 @@
         </g>
       </svg>
       <div>
-        <div><b>Rig Animator</b> v1.19.0 · part of GLB Studio</div>
+        <div><b>Rig Animator</b> v1.19.1 · part of GLB Studio</div>
         <div class="appfoot-sub">© <span class="cred-year">2026</span> Paul A.T. Ramey · <b>KSOL Designs</b> · <a href="https://www.ksoldesigns.com" target="_blank" rel="noopener">ksoldesigns.com</a></div>
       </div>
     </div>
@@ -5080,8 +5080,8 @@ function dTailWave(cyc,amp){ for(let i=0;i<DRAGON_TAIL.length;i++){ const frac=i
 // PEGASUS gliding leg pose — a show-jumper clearing a fence: front legs folded up tight under the chest, hind
 // legs trailing back extended/streamlined behind (used while the wings are held out gliding/soaring).
 function pegJumpTuck(a){
-  ['frontleg','R_frontleg'].forEach(h=>sw(h,AX.x,1.15*a)); ['frontleg0','R_frontleg0'].forEach(k=>sw(k,AX.x,-1.95*a)); ['frontleg1','R_frontleg1'].forEach(s=>sw(s,AX.x,-0.55*a)); // forelegs fold up tight
-  ['backleg','R_backleg'].forEach(h=>sw(h,AX.x,-0.65*a)); ['backleg0','R_backleg0'].forEach(k=>sw(k,AX.x,-0.35*a)); ['backleg1','R_backleg1'].forEach(s=>sw(s,AX.x,-0.15*a)); } // hind legs trail back, extended
+  ['frontleg','R_frontleg'].forEach(h=>sw(h,AX.x,1.55*a)); ['frontleg0','R_frontleg0'].forEach(k=>sw(k,AX.x,-2.50*a)); ['frontleg1','R_frontleg1'].forEach(s=>sw(s,AX.x,-0.90*a)); // forelegs fold up tight under the chest
+  ['backleg','R_backleg'].forEach(h=>sw(h,AX.x,0.90*a)); ['backleg0','R_backleg0'].forEach(k=>sw(k,AX.x,-0.15*a)); ['backleg1','R_backleg1'].forEach(s=>sw(s,AX.x,-0.10*a)); } // hind legs trail back, extended
 function dSoarWings(a, extra){ const peg = (typeof rigKey!=='undefined' && rigKey==='pegasus');   // pegasus wing rig sits higher → needs a lower elevation to read flat
   dWingBeat(((peg?-0.60:-0.16)+(extra||0))*a, 0);
   // sweep the wing ARM forward so the trailing feathers read PERPENDICULAR to the body (the feathers trail ~45° back
@@ -5184,10 +5184,12 @@ const DRAGON_MOTIONS=[
     sw('jaw',AX.x, rear*0.6*A);                                          // mouth opens
     dWingFold((1-rear)*1.15*A);                                          // wings START tightly stowed …
     dWingBeat(rear*0.55*A, 0);                                           // … and UNFOLD to full spread in step with the front legs folding in
-    // TAIL: cancel the pelvis up-pitch at the base so it does NOT pole up, then curl it DOWN & back (bending at
-    // the tail-body junction) into a counter-balancing prop behind the haunches.
-    sw('tail', AX.x, th);                                               // undo the body's up-rotation for the tail as a whole
-    sw('tailstart', AX.x, rear*0.42*A); sw('tail1', AX.x, rear*0.26*A); sw('tail2', AX.x, rear*0.16*A);
+    // TAIL: the body pitched up by th and the tail (a child of Hips) rode up with it. Bring it back DOWN & behind
+    // by spreading the counter-rotation ACROSS the WHOLE tail chain — a single-joint counter at the base bent it
+    // ~73° in one segment and TORE the mesh. Even counter (th/N per joint) returns the tip to its resting droop
+    // while each joint bends only ~9°; a progressive extra curl drapes it as a counter-balancing prop.
+    { const nT=DRAGON_TAIL.length;
+      for(let i=0;i<nT;i++){ const frac=i/(nT-1); sw(DRAGON_TAIL[i], AX.x, (th/nT) + rear*0.10*A*(0.4+frac)); } }
     if(u>0.42&&u<0.66) sw('head',AX.y,Math.sin(TAU*t*8)*0.03*A);        // roar shake
     // PLANT THE HIND FEET on their standing spots. The hips stay at standing height (the trunk pitched up ABOUT
     // the fixed hip), so the paws are reached purely by FOLDING the hind legs with IK — no body translation.

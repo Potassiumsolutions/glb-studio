@@ -932,7 +932,7 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 
 const $ = s => document.querySelector(s);
-const APP_NAME='GLB Stitcher', APP_VERSION='1.8.0', APP_BUILD='2026-09-06';   // version shown in About + footer
+const APP_NAME='GLB Stitcher', APP_VERSION='1.8.1', APP_BUILD='2026-09-06';   // version shown in About + footer
 // Bump APP_BUILD whenever the app or the bundled motion library changes. It is printed to the console and
 // shown in the footer so "am I running the current version?" can be answered by looking, not by guessing —
 // a stale browser tab kept an old build alive twice while the files on disk were already up to date.
@@ -5445,15 +5445,19 @@ function retargetMotion(motion, rig){
       const tr=haveRest?new THREE.Quaternion().fromArray(tgtRest[bone].q):null;
       const srInv=sr?sr.clone().invert():null;
       const v=t.values.slice();
-      if(haveRest){ const q=new THREE.Quaternion();
-        // Roll-invariant transfer: carry the rotation-from-rest in the PARENT frame (out = q·sr⁻¹·tr),
-        // NOT the bone-local frame (tr·sr⁻¹·q). When src & tgt rest match (auto-rigged chars) both reduce
-        // to q, so working rigs are untouched; when a manually-rigged bone's roll differs from the template
-        // (e.g. the hand-rigged Pegasus front legs, rolled ~90°), the local-frame copy sent the fore-aft
-        // hip swing onto the wrong world axis → legs bowed out / pigeon-toed. Parent-frame transfer keeps
-        // the swing on its true world axis regardless of the target bone's roll.
+      if(haveRest){ const q=new THREE.Quaternion(); const isRoot=(bone===rootBone);
+        // Rest-compensated transfer, chosen per bone:
+        //  • CHILD bones → PARENT-frame transfer (out = q·sr⁻¹·tr). Roll-invariant: when a manually-rigged
+        //    bone's roll differs from the template (e.g. the hand-rigged Pegasus front legs, rolled ~90°),
+        //    the plain local-frame copy sent the fore-aft hip swing onto the wrong world axis → legs bowed
+        //    out / pigeon-toed. This keeps each swing on its true world axis. (When rests match it reduces to q.)
+        //  • ROOT bone → BONE-LOCAL transfer (out = tr·sr⁻¹·q). The root's parent is the armature, whose
+        //    orientation differs between the template and a hand rig; the parent-frame form there tips a
+        //    world-VERTICAL body spin (tail-swipe) onto a horizontal axis (the dragon tumbled). The local
+        //    form keeps the spin about the axis the animation authored. (Also reduces to q when rests match.)
         for(let i=0;i<v.length;i+=4){ q.set(v[i],v[i+1],v[i+2],v[i+3]);
-          const out=q.clone().multiply(srInv).multiply(tr);
+          const out = isRoot ? tr.clone().multiply(srInv).multiply(q)
+                             : q.clone().multiply(srInv).multiply(tr);
           v[i]=out.x;v[i+1]=out.y;v[i+2]=out.z;v[i+3]=out.w; } }
       tracks.push(new THREE.QuaternionKeyframeTrack(t.name, t.times.slice(), v));
     } else if(prop==='position'){
