@@ -932,7 +932,7 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 
 const $ = s => document.querySelector(s);
-const APP_NAME='GLB Stitcher', APP_VERSION='1.8.1', APP_BUILD='2026-09-06';   // version shown in About + footer
+const APP_NAME='GLB Stitcher', APP_VERSION='1.8.2', APP_BUILD='2026-09-06';   // version shown in About + footer
 // Bump APP_BUILD whenever the app or the bundled motion library changes. It is printed to the console and
 // shown in the footer so "am I running the current version?" can be answered by looking, not by guessing —
 // a stale browser tab kept an old build alive twice while the files on disk were already up to date.
@@ -4942,7 +4942,7 @@ async function produceFrames(fps,loops,hold,spin,trans, emit, abort){
     // (not net-Y-based) on purpose: a sit / crouch also ends lower, and carrying THAT would drop the next clip
     // underground. FLIGHT: fly/flap climbs and glide loses a little — both must ACCUMULATE across chained clips
     // ("flap flap glide glide…" nets the sum, not a snap back each loop). Soar is level (bakes no net vertical).
-    const vClimb=CLIMB_RE.test(c.name||'') || /\b(take[\s-]?off|climbing|ascend|ascent|dive|stoop|fly|flap|glide)\b/i.test(c.name||'');
+    const vClimb=CLIMB_RE.test(c.name||'') || /\b(take[\s-]?off|climbing|ascend|ascent|dive|stoop|fly|flap|glide|descend|land)\b/i.test(c.name||'');
     const netY=vClimb ? (netRaw.y||0) : 0;        // net vertical travel carried between clips/loops
     const sx=c.root.scale.x, sz=c.root.scale.z, sy=c.root.scale.y;
     let clipFrame=0;
