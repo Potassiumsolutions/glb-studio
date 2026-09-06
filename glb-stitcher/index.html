@@ -402,6 +402,8 @@
         <option value="rocks">Rocky cliff</option>
         <option value="ground">Ground / floor (top-down)</option>
         <option value="climb">Vertical wall (climb)</option>
+        <option value="underwater">Underwater (seabed)</option>
+        <option value="courtyard">Castle courtyard</option>
       </select>
       <label class="block">Scenery scroll speed</label>
       <div class="range-row"><input type="range" id="sceneryScroll" min="0" max="4" step="0.1" value="1"><span class="val" id="sceneryScrollVal">1.0</span></div>
@@ -930,7 +932,7 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 
 const $ = s => document.querySelector(s);
-const APP_NAME='GLB Stitcher', APP_VERSION='1.6.1', APP_BUILD='2026-09-04';   // version shown in About + footer
+const APP_NAME='GLB Stitcher', APP_VERSION='1.7.0', APP_BUILD='2026-09-05';   // version shown in About + footer
 // Bump APP_BUILD whenever the app or the bundled motion library changes. It is printed to the console and
 // shown in the footer so "am I running the current version?" can be answered by looking, not by guessing —
 // a stale browser tab kept an old build alive twice while the files on disk were already up to date.
@@ -1327,6 +1329,27 @@ function genScenery(type){
       g.beginPath(); g.arc(hx, r*bh+bh/2, 17, 0,7); g.fill(); }
     return {canvas:cv, repeatX:1, repeatY:2, axis:'y', parallax:0.6, sky:null, ground:false};
   }
+  if(type==='underwater'){
+    const grd=g.createLinearGradient(0,0,0,S); grd.addColorStop(0,'#1f7fa6'); grd.addColorStop(0.55,'#0e4f70'); grd.addColorStop(1,'#07354c');
+    g.fillStyle=grd; g.fillRect(0,0,S,S);
+    g.globalAlpha=0.10; g.fillStyle='#cdeeff';
+    for(let i=0;i<7;i++){ const x=rnd(i)*S; g.beginPath(); g.moveTo(x,0); g.lineTo(x+70,0); g.lineTo(x+210,S); g.lineTo(x+150,S); g.closePath(); g.fill(); }
+    g.globalAlpha=1;
+    g.fillStyle='#cbb98a'; g.beginPath(); g.moveTo(0,S); for(let x=0;x<=S;x+=8) g.lineTo(x, S*0.82 - 34*Math.sin(x/95) - 14*rnd(x)); g.lineTo(S,S); g.closePath(); g.fill();
+    g.fillStyle='#3f8a55'; for(let i=0;i<9;i++){ const x=rnd(i+2)*S, h2=60+120*rnd(i+5); g.save(); g.translate(x,S*0.82); for(let s=0;s<5;s++){ g.rotate(Math.sin(s+i)*0.12); g.fillRect(-5,-h2/5*(s+1),10,-h2/5);} g.restore(); }
+    g.fillStyle='rgba(205,240,255,0.35)'; for(let i=0;i<60;i++){ g.beginPath(); g.arc(rnd(i)*S, rnd(i+3)*S*0.85, 2+6*rnd(i+7),0,7); g.fill(); }
+    return {canvas:cv, repeatX:1.8, repeatY:1, axis:'x', parallax:0.4, sky:null, ground:false};
+  }
+  if(type==='courtyard'){
+    const sky=g.createLinearGradient(0,0,0,S*0.5); sky.addColorStop(0,'#9db8d6'); sky.addColorStop(1,'#c9d8e6'); g.fillStyle=sky; g.fillRect(0,0,S,S*0.5);
+    g.fillStyle='#8a847a'; g.fillRect(0,S*0.5,S,S*0.5);
+    const cols=6,bw=S/cols,bh=S*0.5/5;
+    for(let r=0;r<5;r++){ const off=(r%2)?bw/2:0; for(let k=-1;k<=cols;k++){ const bx=k*bw+off, by=S*0.5+r*bh, v=0.9+0.22*rnd(r*13+((k+cols)%cols)); g.fillStyle='rgb('+((150*v)|0)+','+((144*v)|0)+','+((132*v)|0)+')'; g.fillRect(bx+3,by+3,bw-6,bh-6);} }
+    g.fillStyle='#3a3630'; for(let k=1;k<cols;k+=2){ const wx=k*bw+bw*0.28, wy=S*0.56, ww=bw*0.44, wh=bh*2.2; g.fillRect(wx,wy,ww,wh); g.beginPath(); g.arc(wx+ww/2,wy,ww/2,Math.PI,0); g.fill(); }
+    for(let k=0;k<=cols;k++){ g.fillStyle='#767066'; g.fillRect(k*bw-6,S*0.5,12,S*0.5); g.fillRect(k*bw-14,S*0.47,28,26); }
+    return {canvas:cv, repeatX:2.2, repeatY:1, axis:'x', parallax:0.5, sky:null, ground:false};
+  }
+
   if(type==='ground'){
     g.fillStyle='#4e7d34'; g.fillRect(0,0,S,S);
     for(let i=0;i<900;i++){ const x=rnd(i)*S,y=rnd(i+5)*S; g.fillStyle=`rgba(${(60+40*rnd(i))|0},${(120+40*rnd(i+1))|0},${(40+30*rnd(i+2))|0},0.6)`; g.fillRect(x,y,3,7); }
@@ -2470,10 +2493,133 @@ const OBSTACLES=[
     const roof=obMesh(new THREE.ConeGeometry(1.05,0.7,16),0x4a3020); roof.position.y=4.35; g.add(roof);
     const sp=obCyl(0.1,0.6,0x333333,0,8); sp.rotation.z=0.5; sp.position.set(0.7,2.5,0); g.add(sp); return g; }},
   {id:'bufferstop', name:'Buffer stop', em:'🛑', build:()=>{ const g=obG(obBox(1.4,0.6,1.4,0x6a3020,0,0.3,0)); const b1=obBox(0.14,1.6,0.14,0x8a4a2a,0,0.9,0.4); b1.rotation.x=0.5; const b2=obBox(0.14,1.6,0.14,0x8a4a2a,0,0.9,-0.4); b2.rotation.x=-0.5; g.add(b1,b2, obBox(1.4,0.3,0.2,0xf2c200,0,1.1,0.55)); return g; }},
+  // ═══ Underwater ═══
+  {id:'coral_brain', name:'Brain coral', em:'🪸', build:()=>{ const g=new THREE.Group();
+    [[0,0.5,0,0.6,0xdd7a8a],[0.35,0.62,0.18,0.32,0xe6899a],[-0.3,0.58,-0.22,0.30,0xd06a80],[0.08,0.8,-0.28,0.26,0xe895a4]].forEach(([x,y,z,r,c])=>{const b=obMesh(new THREE.SphereGeometry(r,14,12),c,true);b.position.set(x,y,z);b.scale.y=0.82;g.add(b);}); return g; }},
+  {id:'coral_fan', name:'Sea fan', em:'🪸', build:()=>{ const g=obG(obCyl(0.07,0.5,0x8a4ac0,0.25,8)); const col=0x9a5ad0;
+    const branch=(x,y,ang,len,r)=>{ if(len<0.14)return; const b=obMesh(new THREE.CylinderGeometry(r*0.6,r,len,6),col); b.position.set(x,y,0); b.rotation.z=ang; b.position.x+=Math.sin(-ang)*len/2; b.position.y+=Math.cos(ang)*len/2; g.add(b);
+      const nx=x+Math.sin(-ang)*len, ny=y+Math.cos(ang)*len; branch(nx,ny,ang+0.5,len*0.7,r*0.7); branch(nx,ny,ang-0.5,len*0.7,r*0.7); };
+    branch(0,0.5,0,0.55,0.05); return g; }},
+  {id:'kelp', name:'Kelp', em:'🌿', build:()=>{ const g=new THREE.Group(); [[-0.25,0.1],[0.05,0],[0.28,0.2]].forEach(([x,ph])=>{ for(let i=0;i<5;i++){ const seg=obMesh(new THREE.BoxGeometry(0.16,0.55,0.05),0x3f8a45); seg.position.set(x+Math.sin(i*0.9+ph)*0.12, 0.3+i*0.5, 0); seg.rotation.z=Math.sin(i*0.9+ph)*0.25; g.add(seg);} }); return g; }},
+  {id:'clam', name:'Giant clam', em:'🐚', build:()=>{ const g=new THREE.Group(); const sh=(rot)=>{ const s=obMesh(new THREE.SphereGeometry(0.7,16,10,0,Math.PI*2,0,Math.PI/2),0xdcc7e0,true); s.scale.set(1,0.5,1); s.rotation.x=rot; s.position.y=0.35; return s; };
+    const a=sh(-0.5), b=sh(Math.PI+0.5); g.add(a,b); const pearl=obEmis(new THREE.SphereGeometry(0.16,16,12),0xffffff,0xbfeaff,0.4); pearl.position.y=0.4; g.add(pearl); return g; }},
+  {id:'starfish', name:'Starfish', em:'⭐', build:()=>{ const geo=new THREE.ExtrudeGeometry(obStarShape(0.7,0.28,5),{depth:0.16,bevelEnabled:false}); geo.rotateX(-Math.PI/2); geo.center(); const m=obMesh(geo,0xe8823a,true); m.position.y=0.09; return obG(m); }},
+  {id:'anchor', name:'Anchor', em:'⚓', build:()=>{ const g=obG(obCyl(0.09,1.6,0x5b6470,0.8,10)); const ring=obMesh(new THREE.TorusGeometry(0.22,0.06,8,18),0x5b6470); ring.position.y=1.6; g.add(ring);
+    g.add(obBox(0.9,0.1,0.1,0x5b6470,0,0.35,0)); const fl=(s)=>{ const a=obMesh(new THREE.TorusGeometry(0.4,0.08,8,14,Math.PI*0.7),0x5b6470); a.position.set(s*0.28,0.28,0); a.rotation.z=s>0?-0.6:Math.PI+0.6; return a; }; g.add(fl(1),fl(-1)); return g; }},
+  {id:'shipwreck', name:'Shipwreck', em:'🚢', build:()=>{ const g=new THREE.Group(); const hull=obMesh(new THREE.CylinderGeometry(0.9,0.6,3.2,10,1,true,0,Math.PI),0x5a3f26,true); hull.rotation.z=Math.PI/2; hull.rotation.x=0.25; hull.position.set(0,0.7,0); g.add(hull);
+    for(let i=-1;i<=1;i++){ const rib=obMesh(new THREE.TorusGeometry(0.85,0.06,6,12,Math.PI),0x4a3220); rib.rotation.y=Math.PI/2; rib.position.set(i*1.0,0.7,0); rib.rotation.z=0.25; g.add(rib);}
+    const mast=obBox(0.14,2.0,0.14,0x4a3220,-1.1,1.4,0); mast.rotation.z=0.5; g.add(mast); return g; }},
+  {id:'bubbles', name:'Bubble stream', em:'🫧', build:()=>{ const g=new THREE.Group(); for(let i=0;i<12;i++){ const r=0.06+0.12*Math.random(); const b=obMesh(new THREE.SphereGeometry(r,12,10),0xbfe8ff); b.material.transparent=true; b.material.opacity=0.5; b.material.roughness=0.1; b.position.set(Math.sin(i*1.3)*0.18, 0.2+i*0.28, Math.cos(i*1.7)*0.18); g.add(b);} return g; }},
+  // ═══ Medieval & Fantasy ═══
+  {id:'castle', name:'Castle + drawbridge', em:'🏰', build:()=>{ const g=new THREE.Group(); const stone=0x9a948a, dark=0x6f6a60;
+    const merlons=(w,y,z,n)=>{ for(let i=0;i<n;i++){ const x=-w/2+ (i+0.5)*(w/n); if(i%2===0) g.add(obBox(w/n*0.8,0.35,0.5,stone,x,y,z)); } };
+    const tower=(x)=>{ g.add(obCyl(0.7,3.2,stone,1.6,16)); g.children[g.children.length-1].position.x=x;
+      const top=obCyl(0.82,0.35,dark,3.3,16); top.position.x=x; g.add(top);
+      for(let k=0;k<10;k++){ const a=k/10*Math.PI*2; if(k%2===0) g.add(obBox(0.22,0.4,0.22,stone,x+Math.cos(a)*0.75,3.55,Math.sin(a)*0.75)); }
+      const roof=obMesh(new THREE.ConeGeometry(0.95,1.1,16),0x8a3a2a); roof.position.set(x,4.1,0); g.add(roof); };
+    tower(-1.9); tower(1.9);
+    // gatehouse wall between the towers
+    g.add(obBox(3.0,2.8,0.7,stone,0,1.4,0));
+    const gate=obBox(1.2,1.8,0.75,0x2a2620,0,0.9,0.02); g.add(gate);   // dark gate opening
+    merlons(3.0,3.0,0,8);
+    // DRAWBRIDGE — a hinged plank at the gate base, lowered forward across the "moat"
+    const bridge=new THREE.Group(); const deck=obBox(1.2,0.14,2.6,0x6f4a28,0,0,1.3); bridge.add(deck);
+    bridge.add(obBox(1.2,0.06,2.6,0x5a3a20,0,0.1,1.3));
+    [[-0.5,0.16],[0.5,0.16]].forEach(([x])=>{ for(let p=0;p<4;p++) bridge.add(obBox(0.9,0.05,0.05,0x4a3018,0,0.14,0.4+p*0.7)); });
+    bridge.position.set(0,0.08,0.38); bridge.rotation.x=-0.08;   // lowered, resting forward on the ground
+    g.add(bridge);
+    // chains from the gatehouse top to the bridge end
+    [-0.5,0.5].forEach(x=>{ const ch=obCyl(0.03,2.6,0x3a3a3e,0,6); ch.position.set(x,1.9,1.3); ch.rotation.x=-0.9; g.add(ch); });
+    return g; }},
+  {id:'tower', name:'Watchtower', em:'🗼', build:()=>{ const g=obG(obCyl(0.65,3.4,0x9a948a,1.7,16)); const top=obCyl(0.78,0.32,0x6f6a60,3.5,16); g.add(top);
+    for(let k=0;k<10;k++){ const a=k/10*Math.PI*2; if(k%2===0) g.add(obBox(0.2,0.4,0.2,0x9a948a,Math.cos(a)*0.72,3.75,Math.sin(a)*0.72)); }
+    const roof=obMesh(new THREE.ConeGeometry(0.9,1.3,16),0x8a3a2a); roof.position.y=4.35; g.add(roof);
+    const flag=obMesh(new THREE.BoxGeometry(0.5,0.3,0.02),0xc0281f); flag.position.set(0.28,4.9,0); g.add(obCyl(0.03,1.0,0x3a3a3e,4.6,6), flag); return g; }},
+  {id:'portcullis', name:'Portcullis', em:'🚪', build:()=>{ const g=obG(obBox(0.24,3.0,0.24,0x6f6a60,-1.1,1.5,0), obBox(0.24,3.0,0.24,0x6f6a60,1.1,1.5,0), obBox(2.6,0.3,0.4,0x6f6a60,0,3.0,0));
+    for(let i=-2;i<=2;i++) g.add(obBox(0.09,2.6,0.09,0x4a4640,i*0.44,1.4,0)); for(let j=0;j<3;j++) g.add(obBox(2.2,0.09,0.09,0x4a4640,0,0.6+j*0.9,0)); return g; }},
+  {id:'banner', name:'Banner', em:'🚩', build:()=>{ const g=obG(obCyl(0.06,3.0,0x5a3a1a,1.5,8)); const cloth=obBox(0.8,1.6,0.04,0x2a5aa0,0.35,2.0,0); g.add(cloth);
+    const tip=obMesh(new THREE.ConeGeometry(0.14,0.5,4),0x2a5aa0); tip.position.set(0.35,1.05,0); tip.rotation.x=Math.PI; tip.scale.set(2,1,0.1); g.add(tip); return g; }},
+  {id:'well', name:'Stone well', em:'⛲', build:()=>{ const g=obG(obCyl(0.85,0.9,0x9a948a,0.45,16), obCyl(0.62,0.95,0x24303a,0.5,16)); g.children[1].scale.set(1,1,1);
+    [[-0.75],[0.75]].forEach(([x])=>g.add(obBox(0.12,1.5,0.12,0x5a3a1a,x,1.5,0))); g.add(obBox(1.9,0.14,0.9,0x6f4a28,0,2.3,0)); const roof1=obBox(1.0,0.1,1.0,0x8a3a2a,0,2.45,0); roof1.rotation.x=0.4; roof1.position.z=0.25; g.add(roof1); const roof2=obBox(1.0,0.1,1.0,0x8a3a2a,0,2.45,0); roof2.rotation.x=-0.4; roof2.position.z=-0.25; g.add(roof2);
+    g.add(obCyl(0.12,0.02,0x3a3a3e,2.2,6)); return g; }},
+  {id:'brazier', name:'Brazier', em:'🔥', build:()=>{ const bowl=obMesh(new THREE.CylinderGeometry(0.45,0.28,0.4,14),0x3a3a3e); bowl.position.y=1.1; const fire=obEmis(new THREE.ConeGeometry(0.35,0.7,10),0xff8a1e,0xff5a00,1.1); fire.position.y=1.5;
+    const g=obG(bowl,fire); [[-0.25,-0.25],[0.25,-0.25],[0,0.3]].forEach(([x,z])=>{ const leg=obBox(0.08,1.0,0.08,0x2a2a2e,x,0.5,z); leg.rotation.x=z>0?-0.15:0.15; g.add(leg);}); return g; }},
+  {id:'catapult', name:'Catapult', em:'🪨', build:()=>{ const g=obG(obBox(1.8,0.18,0.9,0x5a3a1a,0,0.4,0)); [[0.7,0.4],[0.7,-0.4],[-0.7,0.4],[-0.7,-0.4]].forEach(([x,z])=>{ const w=obMesh(new THREE.CylinderGeometry(0.35,0.35,0.16,14),0x3a2a18); w.rotation.z=Math.PI/2; w.position.set(x,0.35,z); g.add(w);});
+    g.add(obBox(0.14,1.2,0.14,0x6f4a28,-0.3,1.1,0)); const arm=obBox(0.12,2.0,0.12,0x6f4a28,0,0,0); arm.position.set(0.1,1.3,0); arm.rotation.x=-0.9; g.add(arm); const bucket=obMesh(new THREE.SphereGeometry(0.28,12,8,0,Math.PI*2,0,Math.PI/2),0x4a3220); bucket.position.set(0.1,2.05,0.9); g.add(bucket); return g; }},
+  {id:'throne', name:'Throne', em:'👑', build:()=>{ const g=obG(obBox(1.1,0.2,1.0,0x7a5a2a,0,0.6,0), obBox(1.1,1.8,0.2,0x8a6a34,0,1.5,-0.4), obBox(0.2,0.9,1.0,0x7a5a2a,-0.55,1.05,0), obBox(0.2,0.9,1.0,0x7a5a2a,0.55,1.05,0), obBox(1.3,0.2,1.2,0x6f4a28,0,0.5,0));
+    [[-0.5],[0.5]].forEach(([x])=>{ const k=obEmis(new THREE.SphereGeometry(0.12,12,10),0xffcf3a,0x6a4e00,0.3); k.position.set(x,2.45,-0.4); g.add(k);}); const cush=obBox(0.9,0.16,0.8,0xc0281f,0,0.72,0); g.add(cush); return g; }},
+
+  {id:'drawbridge', name:'Drawbridge', em:'🏰', build:()=>{ const g=new THREE.Group(); const stone=0x9a948a;
+    g.add(obBox(0.5,3.0,0.5,stone,-1.0,1.5,0), obBox(0.5,3.0,0.5,stone,1.0,1.5,0), obBox(2.5,0.5,0.5,stone,0,3.1,0));   // gate posts + lintel
+    const bridge=new THREE.Group(); bridge.add(obBox(1.5,0.16,2.8,0x6f4a28,0,0,1.4), obBox(1.5,0.06,2.8,0x5a3a20,0,0.1,1.4));
+    for(let p=0;p<5;p++) bridge.add(obBox(1.35,0.05,0.06,0x4a3018,0,0.15,0.35+p*0.62));
+    bridge.position.set(0,0.1,0.28); bridge.rotation.x=-0.06; g.add(bridge);                                           // deck lowered forward
+    [-0.6,0.6].forEach(x=>{ const ch=obCyl(0.03,2.9,0x3a3a3e,0,6); ch.position.set(x,1.9,1.45); ch.rotation.x=-0.85; g.add(ch); });   // chains
+    return g; }},
+  {id:'jousting', name:'Jousting list (tilt)', em:'🏇', build:()=>{ const g=new THREE.Group(); const L=5, posts=6, step=L/(posts-1);
+    for(let i=0;i<posts;i++){ const x=-L/2+i*step; g.add(obBox(0.14,1.1,0.14,0x6f4a28,x,0.55,0));
+      if(i%2===0){ g.add(obCyl(0.03,0.55,0x5a3a1a,1.32,6)); const p=obMesh(new THREE.BoxGeometry(0.42,0.28,0.02),(i%4===0)?0xc0281f:0x2a5aa0); p.position.set(x+0.22,1.2,0); g.add(p); } }
+    g.add(obBox(L,0.14,0.16,0x8a5a2b,0,1.0,0));                                                                        // top rail
+    for(let i=0;i<posts-1;i++){ const x=-L/2+(i+0.5)*step; g.add(obBox(step*0.9,0.72,0.08,(i%2)?0xf2f2f2:0xc0281f,x,0.6,0)); } // striped tilt panels
+    return g; }},
+  {id:'lance', name:'Lance', em:'🗡', build:()=>{ const L=new THREE.Group(); const shaft=obMesh(new THREE.CylinderGeometry(0.03,0.09,3.2,10),0x8a5a2b); L.add(shaft);
+    const vp=obMesh(new THREE.ConeGeometry(0.22,0.36,12),0xb8bcc4); vp.position.y=-0.85; vp.rotation.x=Math.PI; L.add(vp);   // vamplate hand guard
+    const tip=obMesh(new THREE.ConeGeometry(0.055,0.42,8),0x6a6a70); tip.position.y=1.8; L.add(tip);
+    [-0.3,0.35,1.0].forEach((y,i)=>L.add(obCyl(0.078,0.16,(i%2)?0xc0281f:0xf2f2f2,y,10)));                              // painted bands
+    const g=obG(L); L.rotation.z=0.42; L.position.set(-0.5,1.5,0); return g; }},                                       // planted at an angle
+  {id:'helmet', name:'Knight helm', em:'⛑', build:()=>{ const steel=0xb8bcc4; const g=new THREE.Group();
+    const dome=obMesh(new THREE.SphereGeometry(0.33,16,12,0,Math.PI*2,0,Math.PI/2),steel); dome.position.y=0.9; g.add(dome);
+    g.add(obCyl(0.33,0.6,steel,0.58,16));                                                                              // helm barrel
+    g.add(obBox(0.5,0.05,0.05,0x14141a,0,0.66,0.32), obBox(0.5,0.05,0.05,0x14141a,0,0.52,0.32));                       // visor slits
+    const crest=obMesh(new THREE.BoxGeometry(0.06,0.42,0.55),0xc0281f); crest.position.set(0,1.2,-0.02); crest.rotation.x=-0.15; g.add(crest);  // plume
+    g.add(obCyl(0.3,0.1,0x5a3a1a,0.05,12)); return g; }},                                                             // stand base
+  {id:'shield', name:'Heraldic shield', em:'🛡', build:()=>{ const s=new THREE.Shape(); s.moveTo(-0.5,0.7); s.lineTo(0.5,0.7); s.lineTo(0.5,0.15); s.quadraticCurveTo(0.48,-0.45,0,-0.8); s.quadraticCurveTo(-0.48,-0.45,-0.5,0.15); s.closePath();
+    const geo=new THREE.ExtrudeGeometry(s,{depth:0.12,bevelEnabled:false}); geo.center(); const face=obMesh(geo,0x2a5aa0); face.position.y=1.0;
+    const band=obBox(1.15,0.24,0.14,0xffcf3a,0,1.0,0.03); band.rotation.z=-0.62;                                       // heraldic bend
+    const boss=obMesh(new THREE.SphereGeometry(0.1,12,10),0xd8d8dc); boss.position.set(0,1.0,0.09);
+    const post=obCyl(0.05,1.0,0x5a3a1a,0.5,8); post.position.z=-0.1; return obG(post,face,band,boss); }},
+  {id:'haybale', name:'Hay bale', em:'🌾', build:()=>{ const m=obMesh(new THREE.CylinderGeometry(0.6,0.6,1.3,16),0xd8b24a,true); m.rotation.z=Math.PI/2; m.position.y=0.6;
+    const g=obG(m); [-0.4,0.4].forEach(x=>{ const r=obMesh(new THREE.TorusGeometry(0.61,0.035,6,16),0x9a7a2a); r.position.set(x,0.6,0); r.rotation.y=Math.PI/2; g.add(r);}); return g; }},
+
+  // ═══ Medieval — tournament & town (batch 2) ═══
+  {id:'quintain', name:'Quintain', em:'🎯', build:()=>{ const g=obG(obCyl(0.13,2.2,0x6f4a28,1.1,12), obCyl(0.16,0.28,0x5a3a1a,2.2,12), obBox(2.6,0.12,0.12,0x8a5a2b,0,2.2,0));
+    g.add(obBox(0.5,0.7,0.08,0xc0281f,1.25,2.2,0));                                                   // target shield end
+    const chain=obCyl(0.02,0.5,0x3a3a3e,1.95,6); chain.position.x=-1.2; g.add(chain);
+    const bag=obMesh(new THREE.SphereGeometry(0.22,12,10),0x9a7a4a); bag.position.set(-1.2,1.55,0); bag.scale.y=1.3; g.add(bag); return g; }},
+  {id:'market_stall', name:'Market stall', em:'🏪', build:()=>{ const g=new THREE.Group(); [[-1,-0.55],[1,-0.55],[-1,0.55],[1,0.55]].forEach(([x,z])=>g.add(obBox(0.1,1.8,0.1,0x6f4a28,x,0.9,z)));
+    g.add(obBox(2.2,0.12,1.3,0x8a5a2b,0,1.15,0));                                                     // table
+    for(let i=0;i<6;i++){ const s=obBox(2.3/6,0.06,1.5,(i%2)?0xc0281f:0xf2f2f2,-2.3/2+(i+0.5)*2.3/6,2.0,0); s.rotation.x=0.28; g.add(s);}  // striped awning
+    [[-0.6,0.2,0xd23b3b],[-0.1,0.25,0xe0a020],[0.5,-0.2,0x8a3ad0]].forEach(([x,z,c])=>{ const a=obMesh(new THREE.SphereGeometry(0.15,10,8),c); a.position.set(x,1.36,z); g.add(a);}); return g; }},
+  {id:'weapon_rack', name:'Weapon rack', em:'⚔️', build:()=>{ const g=obG(obBox(1.8,0.12,0.4,0x5a3a20,0,0.06,0), obBox(1.8,0.12,0.4,0x5a3a20,0,1.45,0), obBox(0.1,1.5,0.1,0x5a3a20,-0.85,0.75,0), obBox(0.1,1.5,0.1,0x5a3a20,0.85,0.75,0));
+    for(let i=-1;i<=1;i++){ g.add(obCyl(0.03,1.9,0x8a5a2b,0.95,8)); g.children[g.children.length-1].position.x=i*0.5; const tip=obMesh(new THREE.ConeGeometry(0.06,0.26,8),0xb8bcc4); tip.position.set(i*0.5,1.95,0); g.add(tip);} return g; }},
+  {id:'anvil', name:'Anvil', em:'🔨', build:()=>{ const g=obG(obCyl(0.42,0.7,0x5a3a1a,0.35,12), obBox(0.5,0.22,0.36,0x35353c,0,0.61,0), obBox(1.0,0.32,0.42,0x3a3a42,0,0.86,0));
+    const horn=obMesh(new THREE.ConeGeometry(0.16,0.55,12),0x3a3a42); horn.rotation.z=-Math.PI/2; horn.position.set(0.68,0.86,0); g.add(horn); return g; }},
+  {id:'cart', name:'Wooden cart', em:'🛒', build:()=>{ const g=obG(obBox(2.0,0.16,1.0,0x6f4a28,0,0.7,0), obBox(2.0,0.4,0.08,0x5a3a20,0,0.95,0.5), obBox(2.0,0.4,0.08,0x5a3a20,0,0.95,-0.5), obBox(0.08,0.4,1.0,0x5a3a20,0.98,0.95,0), obBox(0.08,0.4,1.0,0x5a3a20,-0.98,0.95,0));
+    [[0.6,0.58],[0.6,-0.58],[-0.6,0.58],[-0.6,-0.58]].forEach(([x,z])=>{ const w=obMesh(new THREE.TorusGeometry(0.4,0.08,8,18),0x4a3018); w.rotation.y=Math.PI/2; w.position.set(x,0.4,z); g.add(w); const sp=obMesh(new THREE.CylinderGeometry(0.34,0.34,0.05,6),0x6f4a28); sp.rotation.x=Math.PI/2; sp.position.set(x,0.4,z); g.add(sp);});
+    const h1=obBox(0.09,0.09,1.3,0x5a3a20,0.6,0.62,0.9); g.add(h1); return g; }},
+  {id:'wall', name:'Battlement wall', em:'🧱', build:()=>{ const g=obG(obBox(3.0,2.2,0.6,0x9a948a,0,1.1,0), obBox(1.0,1.5,0.7,0x2a2620,0,0.75,0));
+    for(let i=0;i<7;i++){ if(i%2===0) g.add(obBox(0.42,0.42,0.6,0x8a847a,-1.25+i*0.42,2.4,0)); } return g; }},
+  {id:'treasure', name:'Treasure pile', em:'💰', build:()=>{ const g=obG(obEmis(new THREE.ConeGeometry(0.8,0.5,16),0xffcf3a,0x6a4e00,0.35)); g.children[0].position.y=0.25;
+    for(let i=0;i<9;i++){ const c=obEmis(new THREE.CylinderGeometry(0.14,0.14,0.03,14),0xffd83a,0x6a4e00,0.3); c.position.set(Math.sin(i*1.3)*0.55,0.04,Math.cos(i*1.7)*0.55); c.rotation.set(Math.PI/2,0,i); g.add(c);}
+    [0x35d0e0,0xd23bd0,0x3bd07a].forEach((col,i)=>{ const gem=obEmis(new THREE.OctahedronGeometry(0.12,0),col,col,0.5); gem.position.set(Math.sin(i*2.1)*0.4,0.35,Math.cos(i*2.1)*0.3); g.add(gem);}); return g; }},
+  // ═══ Underwater (batch 2) ═══
+  {id:'rock_arch', name:'Rock arch', em:'🪨', build:()=>{ const g=new THREE.Group(); [-1,1].forEach(x=>{ const m=obMesh(new THREE.IcosahedronGeometry(0.55,0),0x6f6a60,true); m.position.set(x,1.0,0); m.scale.set(1,1.9,1); g.add(m);});
+    const top=obMesh(new THREE.TorusGeometry(1.0,0.42,8,16,Math.PI),0x6f6a60,true); top.position.y=1.95; g.add(top);
+    [[-1,1.7,0.3],[0.9,1.5,0.25]].forEach(([x,y,z])=>{ const cc=obMesh(new THREE.SphereGeometry(0.2,10,8),0xdd7a8a,true); cc.position.set(x,y,z); g.add(cc);}); return g; }},
+  {id:'urchin', name:'Sea urchin', em:'🦔', build:()=>{ const g=obG(obMesh(new THREE.SphereGeometry(0.38,14,12),0x3a2a55)); g.children[0].position.y=0.5;
+    for(let i=0;i<40;i++){ const a=Math.acos(1-2*(i+0.5)/40), b=Math.PI*(1+Math.sqrt(5))*i; const d=new THREE.Vector3(Math.sin(a)*Math.cos(b),Math.cos(a),Math.sin(a)*Math.sin(b));
+      const sp=obMesh(new THREE.ConeGeometry(0.03,0.3,5),0x6a4a85); sp.position.set(d.x*0.5,0.5+d.y*0.5,d.z*0.5); sp.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d); g.add(sp);} return g; }},
+  {id:'conch', name:'Conch shell', em:'🐚', build:()=>{ const g=new THREE.Group(); for(let i=0;i<10;i++){ const t=i/10, r=0.35*(1-t*0.75), ang=t*Math.PI*3; const s=obMesh(new THREE.SphereGeometry(r,12,10),0xf0d9c0,true); s.position.set(Math.cos(ang)*t*0.6,0.3+t*0.55,Math.sin(ang)*t*0.4); g.add(s);}
+    const lip=obMesh(new THREE.SphereGeometry(0.42,12,10,0,Math.PI),0xe8a0a8); lip.position.set(0,0.35,0.12); lip.scale.set(1,0.7,0.5); g.add(lip); return g; }},
+  {id:'amphora', name:'Amphora', em:'🏺', build:()=>{ const g=new THREE.Group(); const body=obMesh(new THREE.SphereGeometry(0.45,14,12),0xb07a4a); body.position.y=0.75; body.scale.set(1,1.3,1); g.add(body);
+    g.add(obCyl(0.14,0.5,0xb07a4a,1.4,12)); const pb=obMesh(new THREE.ConeGeometry(0.13,0.32,10),0xb07a4a); pb.position.y=0.12; pb.rotation.x=Math.PI; g.add(pb);
+    [-1,1].forEach(s=>{ const hd=obMesh(new THREE.TorusGeometry(0.14,0.035,6,12,Math.PI),0x9a6a3a); hd.position.set(s*0.3,1.28,0); hd.rotation.z=s>0?-0.3:Math.PI+0.3; g.add(hd);}); return g; }},
+  {id:'anemone', name:'Sea anemone', em:'🌸', build:()=>{ const g=obG(obCyl(0.3,0.5,0x9a5ad0,0.25,12)); for(let i=0;i<14;i++){ const a=i/14*Math.PI*2; const t=obMesh(new THREE.CylinderGeometry(0.02,0.055,0.6,6),0xe07aa0); t.position.set(Math.cos(a)*0.22,0.62,Math.sin(a)*0.22); t.rotation.z=Math.cos(a)*0.7; t.rotation.x=-Math.sin(a)*0.7; g.add(t);} return g; }},
+
 ];
 // Obstacles a character can stand ON TOP of (flat, low enough to step onto). Others (posts, signs, walls, trees)
 // never lift a character. Loaded-GLB props default to non-walkable but can be toggled per-prop in the list.
-const WALKABLE_OBSTACLES=new Set(['crate','platform','ring','stairs','plank','sidewalk','stepstones','pallet','container','jersey','log','chest','bench','parkbench']);
+const WALKABLE_OBSTACLES=new Set(['castle','throne','shipwreck','drawbridge','cart','crate','platform','ring','stairs','plank','sidewalk','stepstones','pallet','container','jersey','log','chest','bench','parkbench']);
 // Sort each category's items alphabetically at render; categories appear in this order. Every obstacle id belongs to exactly one group.
 const OBSTACLE_CATS=[
   {name:'Obstacle course', em:'🏃', ids:['hurdle','ramp','tires','stairs','ladder','plank','stepstones','platform']},
@@ -2485,6 +2631,8 @@ const OBSTACLE_CATS=[
   {name:'City & street', em:'🏙', ids:['hydrant','mailbox','trashcan','lamppost','bench','sidewalk','phonebooth','busshelter','vending','newsstand','planter','dumpster','manhole']},
   {name:'Park', em:'🪑', ids:['parkbench','trashbin','ring']},
   {name:'Train yard', em:'🚃', ids:['railcar','track','container','railsignal','watertower','bufferstop']},
+  {name:'Underwater', em:'🐚', ids:['coral_brain','coral_fan','kelp','clam','starfish','anchor','shipwreck','bubbles','rock_arch','urchin','conch','amphora','anemone']},
+  {name:'Medieval & Fantasy', em:'🏰', ids:['castle','tower','portcullis','banner','well','brazier','catapult','throne','drawbridge','jousting','lance','helmet','shield','haybale','quintain','market_stall','weapon_rack','anvil','cart','wall','treasure']},
 ];
 function spawnObstacle(id,x,z,rotY){ const o=OBSTACLES.find(t=>t.id===id); if(!o) return null;
   const root=o.build(); root.traverse(m=>{ if(m.isMesh){ m.castShadow=true; m.receiveShadow=true; m.frustumCulled=false; } });
