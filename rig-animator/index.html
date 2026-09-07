@@ -61,7 +61,7 @@
 <main>
   <aside>
     <div>
-      <h1>🐾 Rig Animator <span class="appver">v1.19.13</span></h1>
+      <h1>🐾 Rig Animator <span class="appver">v1.19.14</span></h1>
       <div class="hint" style="margin-top:0">Procedurally generate original animations for your <b>biped</b>, <b>quadruped</b> and <b>bird</b> rigs — organized by category (boxing, fencing, football, dancing, running, walking, jumping, climbing…) — then export them into the GLB Stitcher motion library.</div>
     </div>
 
@@ -121,7 +121,7 @@
         </g>
       </svg>
       <div>
-        <div><b>Rig Animator</b> v1.19.13 · part of GLB Studio</div>
+        <div><b>Rig Animator</b> v1.19.14 · part of GLB Studio</div>
         <div class="appfoot-sub">© <span class="cred-year">2026</span> Paul A.T. Ramey · <b>KSOL Designs</b> · <a href="https://www.ksoldesigns.com" target="_blank" rel="noopener">ksoldesigns.com</a></div>
       </div>
     </div>
@@ -5053,15 +5053,15 @@ function dTuckLegsTight(a){
   // FLIGHT TUCK: draw all four legs UP UNDER the belly and IN toward the centreline — front paws close together
   // under the chest, hind feet close together under the tail. Modest thigh lift (so the forelegs don't fold up
   // into / collapse the chest); the KNEES bring the paws up under the body. (Hand-rig hips inverted → signs for mesh.)
-  ['frontleg','R_frontleg'].forEach(h=>sw(h,AX.x,1.90*a));           // shoulders sweep the upper arms BACK along the body
-  ['frontleg0','R_frontleg0'].forEach(k=>sw(k,AX.x,-0.80*a));        // elbows bend so the forearms line up BACKWARD (not folded up)
+  ['frontleg','R_frontleg'].forEach(h=>sw(h,AX.x,0.95*a));           // shoulders: modest sweep so the upper arms HANG DOWN (not ride up into the chest)
+  ['frontleg0','R_frontleg0'].forEach(k=>sw(k,AX.x,-1.25*a));        // elbows fold so the forearms/hands come DOWN UNDER the belly
   ['frontleg1','R_frontleg1'].forEach(s=>sw(s,AX.x,-0.30*a));
   ['backleg','R_backleg'].forEach(h=>sw(h,AX.x,0.30*a));             // hind thighs: modest
   ['backleg0','R_backleg0'].forEach(k=>sw(k,AX.x,-1.45*a));          // …knees fold → hind feet come up under the tail
   ['backleg1','R_backleg1'].forEach(s=>sw(s,AX.x,-0.25*a));
-  // ADDUCT at the shoulders (front view) so the HANDS COME TOGETHER at the centreline and the arms tuck IN,
-  // interfering with the body far less. Front needs a hard pull; hind a gentle gather under the tail.
-  sw('frontleg',AX.z,-1.25*a); sw('R_frontleg',AX.z,1.25*a);
+  // ADDUCT at the shoulders (front view) so the HANDS COME TOGETHER LOW UNDER THE BELLY. The arms now hang down
+  // (above) so this convergence gathers them beneath the torso instead of pinching up into the chest.
+  sw('frontleg',AX.z,-1.05*a); sw('R_frontleg',AX.z,1.05*a);
   sw('backleg', AX.z,-0.55*a); sw('R_backleg', AX.z,0.55*a); }
 // bank into a turn (dir +1 = right, -1 = left): roll the body; the INSIDE (dipped) wing lowers a little and its
 // OUTER half bends UP (a winglet) — that upward-bent dipped tip is what drives the tilt/turn; tail rudder + head lean.
