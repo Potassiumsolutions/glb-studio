@@ -61,7 +61,7 @@
 <main>
   <aside>
     <div>
-      <h1>🐾 Rig Animator <span class="appver">v1.19.24</span></h1>
+      <h1>🐾 Rig Animator <span class="appver">v1.19.25</span></h1>
       <div class="hint" style="margin-top:0">Procedurally generate original animations for your <b>biped</b>, <b>quadruped</b> and <b>bird</b> rigs — organized by category (boxing, fencing, football, dancing, running, walking, jumping, climbing…) — then export them into the GLB Stitcher motion library.</div>
     </div>
 
@@ -121,7 +121,7 @@
         </g>
       </svg>
       <div>
-        <div><b>Rig Animator</b> v1.19.24 · part of GLB Studio</div>
+        <div><b>Rig Animator</b> v1.19.25 · part of GLB Studio</div>
         <div class="appfoot-sub">© <span class="cred-year">2026</span> Paul A.T. Ramey · <b>KSOL Designs</b> · <a href="https://www.ksoldesigns.com" target="_blank" rel="noopener">ksoldesigns.com</a></div>
       </div>
     </div>
@@ -5116,15 +5116,18 @@ function pegTuckLegs(a){
   ['backleg','R_backleg'].forEach(h=>sw(h,AX.x,-0.35*a)); ['backleg0','R_backleg0'].forEach(k=>sw(k,AX.x,1.30*a)); ['backleg1','R_backleg1'].forEach(s=>sw(s,AX.x,0.25*a)); // hind legs fold up under the tail
   sw('frontleg',AX.z,0.20*a); sw('R_frontleg',AX.z,-0.20*a); sw('backleg',AX.z,0.16*a); sw('R_backleg',AX.z,-0.16*a); } // light gather toward the centreline
 function dSoarWings(a, extra){ const peg = (typeof rigKey!=='undefined' && rigKey==='pegasus');   // pegasus wing rig sits higher → needs a lower elevation to read flat
-  // PEGASUS elev −1.35 lowers the outstretched wing about as far as it reads cleanly (the tips settle roughly level
-  // with the withers). NOTE: the small remaining bump right over the back is the wing's MOUNT — on this model the
-  // wing bases sit ~0.5 above the shoulder joint and are skinned to the body there, so no posing can drop that point
-  // to shoulder level; it would need the mesh itself edited. Pitching the wing root harder only tangles the feathers.
-  dWingBeat(((peg?-1.35:-0.16)+(extra||0))*a, 0);
-  // sweep the wing ARM forward so the trailing feathers read PERPENDICULAR to the body (the feathers trail ~45° back
-  // from the bones, so the bones must lead forward). wing0 shares the sweep so the whole arm swings, not just the root.
-  sw('wing',AX.y,(peg?-0.55:-0.70)*a); sw('wing0',AX.y,(peg?-0.30:-0.35)*a);
-  sw('R_wing',AX.y,(peg?0.55:0.70)*a); sw('R_wing0',AX.y,(peg?0.30:0.35)*a); }
+  if(peg){
+    // FLAT SPREAD shape first (a light graded elevation just to open the wing out), then a RIGID pivot of the whole
+    // wing DOWN about the shoulder joint (the wing ROOT only — wing0/1/2 ride along, so the feathers keep their shape
+    // and DON'T bend/tangle). This drops the high leading-edge arm to about shoulder height, which is what "lower it
+    // pivoting around the wing hip" means. WING_PIVOT is the tuning knob.
+    dWingBeat((-0.55+(extra||0))*a, 0);
+    sw('wing', AX.x, 1.2*a); sw('R_wing', AX.x, 1.2*a);   // rigid down-pivot about the shoulder → leading edge drops to ~withers level, feathers keep their shape
+    sw('wing',AX.y,-0.55*a); sw('wing0',AX.y,-0.30*a); sw('R_wing',AX.y,0.55*a); sw('R_wing0',AX.y,0.30*a);
+    return;
+  }
+  dWingBeat((-0.16+(extra||0))*a, 0);
+  sw('wing',AX.y,-0.70*a); sw('wing0',AX.y,-0.35*a); sw('R_wing',AX.y,0.70*a); sw('R_wing0',AX.y,0.35*a); }
 
 const DRAGON_MOTIONS=[
   {id:'dragon_walk', name:'Walk', cat:'Locomotion', type:'move', dur:1.3, build:(t,P)=>{ resetPose(); const cyc=(t/1.3)*P.speed;
@@ -5278,6 +5281,7 @@ const PEGASUS_MOTIONS=[
     { const nod=Math.sin(TAU*(t/0.6)*P.speed - 0.1); PEGASUS_NECK.forEach(b=>sw(b,AX.x, nod*0.04*P.amp)); } }},   // gentle nod along the neck (small spine/head so the boneless-base doesn't crease)
   {id:'peg_fly', name:'Fly (flap)', cat:'Locomotion', type:'move', dur:1.0, build:(t,P)=>{ resetPose(); const cyc=(t/1.0)*P.speed;
     const beat=Math.sin(TAU*cyc); dWingBeat((beat*0.92 - 0.30)*P.amp, Math.max(0,beat)*0.5*P.amp);   // −0.30 bias lowers the whole flap so the leading edge doesn't poke up above the shoulders at the top of the stroke
+    sw('wing',AX.x,0.7*P.amp); sw('R_wing',AX.x,0.7*P.amp);   // rigid down-pivot at the shoulder → the wing carriage sits at ~shoulder height (matches the soar hold) while it still beats
     pegTrotLegs(cyc, P.amp, 1.0);      // legs TROT in time with the wing flaps (diagonal pairs alternate each flap)
     QUAD_TAIL.forEach((b,i)=>sw(b,AX.x,(0.10+Math.sin(TAU*cyc-i*0.3)*0.04)*P.amp));   // tail streams
     sw('chest',AX.x,beat*0.05*P.amp); sw('head',AX.x,0.05*P.amp);
