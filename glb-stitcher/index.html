@@ -933,7 +933,7 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 
 const $ = s => document.querySelector(s);
-const APP_NAME='GLB Stitcher', APP_VERSION='1.8.9', APP_BUILD='2026-09-07';   // version shown in About + footer
+const APP_NAME='GLB Stitcher', APP_VERSION='1.8.10', APP_BUILD='2026-09-07';   // version shown in About + footer
 // Bump APP_BUILD whenever the app or the bundled motion library changes. It is printed to the console and
 // shown in the footer so "am I running the current version?" can be answered by looking, not by guessing —
 // a stale browser tab kept an old build alive twice while the files on disk were already up to date.
@@ -5840,7 +5840,7 @@ function mlRootSig(root){ if(!root) return null; if(root.__mlSig===undefined){ t
 // OPTIONAL when matching a motion to a character: a rig and a motion that differ ONLY by the neck chain still match
 // (retarget is by bone NAME). Without this, a cached 36-bone pegasus (Studio-Library IndexedDB survives refreshes)
 // shows ZERO of its own 39-bone motions.
-function sigCore(sig){ return sig ? sig.split('|').filter(b=>!/^neck0[123]$/.test(b)).join('|') : sig; }
+function sigCore(sig){ return sig ? sig.split('|').filter(b=>!/^(neck0[123]|wingbase)$/.test(b)).join('|') : sig; }   // wingbase (shared wing-shoulder joint) added later — optional too, same reasoning as the neck
 function sigCompat(a,b){ return a===b || (!!a && !!b && sigCore(a)===sigCore(b)); }
 function mlActiveRoot(){ const ch=(typeof activeChar==='function')?activeChar():null;
   if(ch){ const src=charClips(ch).find(c=>c.hips&&c.root); if(src) return {root:src.root, name:ch.name}; }
