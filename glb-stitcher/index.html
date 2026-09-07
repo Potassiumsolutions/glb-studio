@@ -933,7 +933,7 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 
 const $ = s => document.querySelector(s);
-const APP_NAME='GLB Stitcher', APP_VERSION='1.8.6', APP_BUILD='2026-09-07';   // version shown in About + footer
+const APP_NAME='GLB Stitcher', APP_VERSION='1.8.7', APP_BUILD='2026-09-07';   // version shown in About + footer
 // Bump APP_BUILD whenever the app or the bundled motion library changes. It is printed to the console and
 // shown in the footer so "am I running the current version?" can be answered by looking, not by guessing —
 // a stale browser tab kept an old build alive twice while the files on disk were already up to date.
@@ -4918,10 +4918,15 @@ async function produceFrames(fps,loops,hold,spin,trans, emit, abort){
   // Seam pose-blend: each clip has its OWN skeleton, so switching clips can pop even when the motion matches
   // (e.g. two walks). Capture the outgoing clip's final bone pose and, for the first few frames of the next clip,
   // ease its skeleton in from that pose so the motion flows through the join. Cheap (local-quat slerp, same rig).
-  const blendFrames = Math.max(2, Math.round(0.16*fps));   // ~0.16s of easing at the join
   let prevPose=null;
+  // The ROOT bone must be EXCLUDED from the seam pose-blend: its baked spin/turn (e.g. a banking soar's 90°
+  // yaw) lives in the bone track, while the running HEADING is applied separately as the carried root rotation
+  // (renderRotCarry). Slerping the root toward the previous clip's end pose therefore briefly DOUBLE-APPLIES the
+  // turn → a little swing/hitch at every join of linked banks. Blend only the child bones (legs/wings/neck), and
+  // let the carry own the heading. (rootBoneName comes from the active rig; fall back to the topmost bone.)
+  const rootBN = (libRig && libRig.rootBoneName) || null;
   const capturePose=(root)=>{ const m={}; root.traverse(o=>{ if(o.isBone) m[o.name]=o.quaternion.clone(); }); return m; };
-  const blendPose=(root,pose,w)=>{ if(!pose||w<=0)return; root.traverse(o=>{ if(o.isBone && pose[o.name]) o.quaternion.slerp(pose[o.name], w); }); root.updateMatrixWorld(true); };
+  const blendPose=(root,pose,w)=>{ if(!pose||w<=0)return; root.traverse(o=>{ if(o.isBone && o.name!==rootBN && pose[o.name]) o.quaternion.slerp(pose[o.name], w); }); root.updateMatrixWorld(true); };
   for(let ci=0; ci<clips.length; ci++){
     if(abort()) break;
     const doTrans = ci>0 && transFrames>0;
@@ -4951,6 +4956,10 @@ async function produceFrames(fps,loops,hold,spin,trans, emit, abort){
     const vClimb=CLIMB_RE.test(c.name||'') || /\b(take[\s-]?off|climbing|ascend|ascent|dive|stoop|fly|flap|glide|descend|land)\b/i.test(c.name||'');
     const netY=vClimb ? (netRaw.y||0) : 0;        // net vertical travel carried between clips/loops
     const sx=c.root.scale.x, sz=c.root.scale.z, sy=c.root.scale.y;
+    // Seam ease length: a longer, gentler cross-fade for the smooth, long flight clips (soar/glide/fly/hover),
+    // where any residual pose difference at a join should melt away; the default short ease for everything else.
+    const blendSec = /\b(soar|glide|fly|flap|flight|bank|hover|drift|float|swim)\b/i.test(c.name||'') ? 0.32 : 0.16;
+    const blendFrames = Math.max(2, Math.round(blendSec*fps));
     let clipFrame=0;
     const render1 = async (D)=>{
       // Seam ease-in: blend this clip's skeleton FROM the previous clip's end pose for a few frames. We RENDER the
