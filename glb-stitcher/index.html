@@ -933,7 +933,7 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 
 const $ = s => document.querySelector(s);
-const APP_NAME='GLB Stitcher', APP_VERSION='1.8.7', APP_BUILD='2026-09-07';   // version shown in About + footer
+const APP_NAME='GLB Stitcher', APP_VERSION='1.8.8', APP_BUILD='2026-09-07';   // version shown in About + footer
 // Bump APP_BUILD whenever the app or the bundled motion library changes. It is printed to the console and
 // shown in the footer so "am I running the current version?" can be answered by looking, not by guessing —
 // a stale browser tab kept an old build alive twice while the files on disk were already up to date.
@@ -4139,8 +4139,13 @@ function computeTravel(c){
     if(!_headB && /^head$/i.test(o.name)) _headB=o;
     if(!_tailB && /^(tailstart|tail3|tail)$/i.test(o.name)) _tailB=o; } });
   const _hw=new THREE.Vector3(), _tw=new THREE.Vector3(); const yaws=[];
-  const bodyYaw=()=>{ if(!_headB||!_tailB) return 0; _headB.getWorldPosition(_hw); _tailB.getWorldPosition(_tw);
-    return Math.atan2(_hw.x-_tw.x, _hw.z-_tw.z); };
+  // Body yaw from the head→tail line, projected to XZ. When the body pitches NEAR-VERTICAL (a rear / roar), that
+  // horizontal projection collapses and its direction flips ~180° — reading it as a real turn made the Stitcher
+  // CARRY a phantom yaw and spin the character sideways. Return null on those frames so they're ignored.
+  const bodyYaw=()=>{ if(!_headB||!_tailB) return null; _headB.getWorldPosition(_hw); _tailB.getWorldPosition(_tw);
+    const dx=_hw.x-_tw.x, dz=_hw.z-_tw.z, dy=_hw.y-_tw.y; const horiz=Math.hypot(dx,dz);
+    if(horiz < 1e-3 || horiz < 0.5*Math.abs(dy)) return null;   // body too vertical → yaw undefined
+    return Math.atan2(dx, dz); };
   for(let f=0; f<=n; f++){ c.mixer.setTime(Math.min(c.duration,f/TRAVEL_FPS)); c.root.updateMatrixWorld(true);
     yaws.push(bodyYaw());
     const w=new THREE.Vector3(); c.hips.getWorldPosition(w); raw.push({x:w.x,y:w.y,z:w.z});
@@ -4172,9 +4177,9 @@ function computeTravel(c){
   // net body yaw over the clip (a turn-in-place bakes ~±180°; a normal walk ~0). Carried between clips in
   // produceFrames (carry.rot) so linking several turns spins the character right round. Take the PEAK shortest-arc
   // deviation across all frames — robust to the teleport-reset frame the exporter appends at the very end.
-  { const y0=yaws[0]||0; let best=0;
-    for(const y of yaws){ let d=y-y0; while(d>Math.PI)d-=2*Math.PI; while(d<-Math.PI)d+=2*Math.PI; if(Math.abs(d)>Math.abs(best)) best=d; }
-    c._netRotY = Math.abs(best)<0.12 ? 0 : best; }   // ignore tiny yaw wobble from ordinary gaits
+  { const valid=yaws.filter(y=>y!=null); const y0=valid.length?valid[0]:0; let best=0;
+    for(const y of valid){ let d=y-y0; while(d>Math.PI)d-=2*Math.PI; while(d<-Math.PI)d+=2*Math.PI; if(Math.abs(d)>Math.abs(best)) best=d; }
+    c._netRotY = Math.abs(best)<0.12 ? 0 : best; }   // ignore tiny yaw wobble from ordinary gaits (and near-vertical rear frames, which read null)
   // (The synthetic-advance DIRECTION is decided by rig type in finalizeAdvance — quad −Z, biped/bird +Z. An
   // attempt to measure it here from head/tail bones inverted the sign and moon-walked the dog; removed.)
   c.mixer.setTime(0); c.root.position.copy(savedP); c.root.scale.copy(savedS); c.root.rotation.copy(savedR);
