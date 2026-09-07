@@ -61,7 +61,7 @@
 <main>
   <aside>
     <div>
-      <h1>🐾 Rig Animator <span class="appver">v1.19.18</span></h1>
+      <h1>🐾 Rig Animator <span class="appver">v1.19.19</span></h1>
       <div class="hint" style="margin-top:0">Procedurally generate original animations for your <b>biped</b>, <b>quadruped</b> and <b>bird</b> rigs — organized by category (boxing, fencing, football, dancing, running, walking, jumping, climbing…) — then export them into the GLB Stitcher motion library.</div>
     </div>
 
@@ -121,7 +121,7 @@
         </g>
       </svg>
       <div>
-        <div><b>Rig Animator</b> v1.19.18 · part of GLB Studio</div>
+        <div><b>Rig Animator</b> v1.19.19 · part of GLB Studio</div>
         <div class="appfoot-sub">© <span class="cred-year">2026</span> Paul A.T. Ramey · <b>KSOL Designs</b> · <a href="https://www.ksoldesigns.com" target="_blank" rel="noopener">ksoldesigns.com</a></div>
       </div>
     </div>
@@ -5446,7 +5446,12 @@ function skeletonEntry(){
   const names=boneList.slice().sort(); const rest={};
   for(const bn of boneList){ const p=restLocalP[bn], q=restLocalQ[bn];
     rest[bn]={ p:[p.x*100,p.y*100,p.z*100], q:[q.x,q.y,q.z,q.w] }; }   // p in CENTIMETRES to match the Meshy/character rig scale → the Stitcher's summed-magnitude posScale ≈ 1 (metres blew it up to ~82× → root bob launched the figure)
-  return { sig:names.join('|'), boneNames:boneList.slice(), rest };
+  // ROOT bone WORLD rest orientation — lets the Stitcher transfer a WORLD-authored root rotation (a banking
+  // turn, a tail-swipe body-spin) about the SAME world axis on a hand rig whose armature is oriented
+  // differently from this template. Without it the root transfer tilts a meant-to-be-vertical turn (banks
+  // nosed down mid-turn → hitched when linked). Only the ROOT needs it; child bones stay roll-invariant.
+  const rw = restWorldQ[boneList[0]];
+  return { sig:names.join('|'), boneNames:boneList.slice(), rest, rootWorldQ:[rw.x,rw.y,rw.z,rw.w] };
 }
 function poseSig(m, D, params){
   const grab=t=>{ setRootY(0); m.build(t,params); armClearance(); animRoot.updateMatrixWorld(false);

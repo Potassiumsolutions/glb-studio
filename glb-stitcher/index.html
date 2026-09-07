@@ -933,7 +933,7 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 
 const $ = s => document.querySelector(s);
-const APP_NAME='GLB Stitcher', APP_VERSION='1.8.5', APP_BUILD='2026-09-07';   // version shown in About + footer
+const APP_NAME='GLB Stitcher', APP_VERSION='1.8.6', APP_BUILD='2026-09-07';   // version shown in About + footer
 // Bump APP_BUILD whenever the app or the bundled motion library changes. It is printed to the console and
 // shown in the footer so "am I running the current version?" can be answered by looking, not by guessing —
 // a stale browser tab kept an old build alive twice while the files on disk were already up to date.
@@ -5405,7 +5405,22 @@ function mlSetRig(root, label){
     skins.forEach((o,si)=>{ o.skeleton.bones.forEach((b,i)=>{ b.position.copy(saved[si][i].p); b.quaternion.copy(saved[si][i].q); b.scale.copy(saved[si][i].s); }); });
     root.updateMatrixWorld(true);
   }
-  libRig={ root, rest, legLength:mlLegLength(root), sig:skelSig(root), label };
+  // Capture the ROOT bone's WORLD rest orientation, so the retarget can transfer a world-authored root
+  // rotation (a banking turn, a body-spin) about the SAME world axis even when this rig's armature is
+  // oriented differently from the library template. Pose the skeleton to `rest`, read the root bone's world
+  // quaternion, then restore. (Only needed for the root; pairs with the library's stored rootWorldQ.)
+  let rootWorldQ=null, rootBoneName=null;
+  { let rb=null; root.traverse(o=>{ if(o.isBone && !rb && !(o.parent&&o.parent.isBone)) rb=o; });
+    if(rb){ rootBoneName=rb.name;
+      const skins=[], saved=[];
+      root.traverse(o=>{ if(o.isSkinnedMesh && o.skeleton){ skins.push(o); saved.push(o.skeleton.bones.map(b=>({p:b.position.clone(),q:b.quaternion.clone()}))); } });
+      root.traverse(o=>{ if(o.isBone && rest[o.name]){ o.quaternion.fromArray(rest[o.name].q); o.position.fromArray(rest[o.name].p); } });
+      root.updateMatrixWorld(true);
+      rootWorldQ = rb.getWorldQuaternion(new THREE.Quaternion()).toArray();
+      skins.forEach((o,si)=>{ o.skeleton.bones.forEach((b,i)=>{ b.position.copy(saved[si][i].p); b.quaternion.copy(saved[si][i].q); }); });
+      root.updateMatrixWorld(true);
+    } }
+  libRig={ root, rest, legLength:mlLegLength(root), sig:skelSig(root), label, rootWorldQ, rootBoneName };
   const match = mlLibSig && libRig.sig===mlLibSig;
   $('#mlRig').innerHTML=`Rig: <b>${label}</b> · ${mlBoneList(root).length} bones · ${match?'✓ matches library skeleton':'⚠ different rig — retargets by bone name'}`;
   renderMotionLib();   // re-filter the list to this rig's skeleton (biped / quad / bird)
@@ -5457,13 +5472,23 @@ function retargetMotion(motion, rig){
         //    bone's roll differs from the template (e.g. the hand-rigged Pegasus front legs, rolled ~90°),
         //    the plain local-frame copy sent the fore-aft hip swing onto the wrong world axis → legs bowed
         //    out / pigeon-toed. This keeps each swing on its true world axis. (When rests match it reduces to q.)
-        //  • ROOT bone → BONE-LOCAL transfer (out = tr·sr⁻¹·q). The root's parent is the armature, whose
-        //    orientation differs between the template and a hand rig; the parent-frame form there tips a
-        //    world-VERTICAL body spin (tail-swipe) onto a horizontal axis (the dragon tumbled). The local
-        //    form keeps the spin about the axis the animation authored. (Also reduces to q when rests match.)
+        //  • ROOT bone → WORLD-FAITHFUL transfer when both armature orientations are known (out =
+        //    Aᵗ⁻¹·Aˢ·q·sr⁻¹·Aˢ⁻¹·Aᵗ·tr, Aˢ/Aᵗ = source/target armature world quats). This reproduces the
+        //    root's WORLD rotation exactly, so a world-vertical body spin / banking turn authored on the
+        //    template stays vertical on a hand rig whose armature is tilted (fixes banks nosing down mid-turn
+        //    → hitching when linked). Falls back to the BONE-LOCAL form (out = tr·sr⁻¹·q) when the stored
+        //    rootWorldQ is absent (older bakes) — that keeps a spin roughly upright but tilts by the rest gap.
+        let pre=null, postR=null;
+        if(isRoot && src && src.rootWorldQ && rig && rig.rootWorldQ && rig.rootBoneName===bone){
+          const sArm=new THREE.Quaternion().fromArray(src.rootWorldQ).multiply(srInv);          // Aˢ = rootWorldQ_src · sr⁻¹
+          const tArm=new THREE.Quaternion().fromArray(rig.rootWorldQ).multiply(tr.clone().invert()); // Aᵗ = rootWorldQ_tgt · tr⁻¹
+          pre=tArm.clone().invert().multiply(sArm);                                              // K = Aᵗ⁻¹·Aˢ
+          postR=pre.clone().invert().multiply(tr);                                               // K⁻¹·tr
+        }
         for(let i=0;i<v.length;i+=4){ q.set(v[i],v[i+1],v[i+2],v[i+3]);
-          const out = isRoot ? tr.clone().multiply(srInv).multiply(q)
-                             : q.clone().multiply(srInv).multiply(tr);
+          const out = pre ? pre.clone().multiply(q).multiply(srInv).multiply(postR)
+                          : isRoot ? tr.clone().multiply(srInv).multiply(q)
+                                   : q.clone().multiply(srInv).multiply(tr);
           v[i]=out.x;v[i+1]=out.y;v[i+2]=out.z;v[i+3]=out.w; } }
       tracks.push(new THREE.QuaternionKeyframeTrack(t.name, t.times.slice(), v));
     } else if(prop==='position'){
