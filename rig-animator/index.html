@@ -61,7 +61,7 @@
 <main>
   <aside>
     <div>
-      <h1>🐾 Rig Animator <span class="appver">v1.19.31</span></h1>
+      <h1>🐾 Rig Animator <span class="appver">v1.19.32</span></h1>
       <div class="hint" style="margin-top:0">Procedurally generate original animations for your <b>biped</b>, <b>quadruped</b> and <b>bird</b> rigs — organized by category (boxing, fencing, football, dancing, running, walking, jumping, climbing…) — then export them into the GLB Stitcher motion library.</div>
     </div>
 
@@ -121,7 +121,7 @@
         </g>
       </svg>
       <div>
-        <div><b>Rig Animator</b> v1.19.31 · part of GLB Studio</div>
+        <div><b>Rig Animator</b> v1.19.32 · part of GLB Studio</div>
         <div class="appfoot-sub">© <span class="cred-year">2026</span> Paul A.T. Ramey · <b>KSOL Designs</b> · <a href="https://www.ksoldesigns.com" target="_blank" rel="noopener">ksoldesigns.com</a></div>
       </div>
     </div>
@@ -5288,11 +5288,12 @@ const PEGASUS_TEMPLATE = [{"name":"Hips","parent":null,"t":[-0.00325,-0.087732,-
 const PEGASUS_PAWS=['frontleg2','R_frontleg2','backleg2','R_backleg2'];
 const PEGASUS_NECK=['neck01','neck02','neck03'];   // the rig now has neck bones — distribute the head-nod along them
 const PEGASUS_MOTIONS=[
-  // NOTE: the pegasus has NO neck bones (chest→head only), so a big head-bob / chest-yaw creases the long neck at
-  // its base. Keep headBob + yaw small (and gallop's spine gentle) so the neck stays smooth.
-  {id:'peg_walk', name:'Walk', cat:'Locomotion', type:'move', dur:1.3, build:(t,P)=>{ quadGaitN(t,P,1.3,{gait:'walk', headBob:2, yaw:0.6, tail:3, bob:0.012}); dWingFold(0.92*P.amp);
+  // NOTE: the CHEST YAW (side-to-side body twist in the gait) creases the neck-base / chest on this rig — the neck
+  // and wings hang off the chest, so twisting it pinches that junction. Set yaw:0 for both gaits (the head-nod +
+  // tail sway + leg motion still give life). A gentle chest PITCH (gallop spine) is fine — pitch doesn't crease.
+  {id:'peg_walk', name:'Walk', cat:'Locomotion', type:'move', dur:1.3, build:(t,P)=>{ quadGaitN(t,P,1.3,{gait:'walk', headBob:2, yaw:0, tail:3, bob:0.012}); dWingFold(0.92*P.amp);
     { const nod=Math.sin(TAU*(t/1.3)*P.speed - 0.1); PEGASUS_NECK.forEach(b=>sw(b,AX.x, nod*0.05*P.amp)); } }},   // natural head-nod, spread along the neck (no crease)
-  {id:'peg_gallop', name:'Gallop', cat:'Locomotion', type:'move', dur:0.6, build:(t,P)=>{ quadGaitN(t,P,0.6,{gait:'gallop', stride:0.7, lift:0.28, spine:0.02, headBob:1, yaw:0.4, tail:5, bob:0.03, flight:0.1}); dWingFold(0.82*P.amp);
+  {id:'peg_gallop', name:'Gallop', cat:'Locomotion', type:'move', dur:0.6, build:(t,P)=>{ quadGaitN(t,P,0.6,{gait:'gallop', stride:0.7, lift:0.28, spine:0.02, headBob:1, yaw:0, tail:5, bob:0.03, flight:0.1}); dWingFold(0.82*P.amp);
     { const nod=Math.sin(TAU*(t/0.6)*P.speed - 0.1); PEGASUS_NECK.forEach(b=>sw(b,AX.x, nod*0.04*P.amp)); } }},   // gentle nod along the neck (small spine/head so the boneless-base doesn't crease)
   {id:'peg_fly', name:'Fly (flap)', cat:'Locomotion', type:'move', dur:1.0, build:(t,P)=>{ resetPose(); const cyc=(t/1.0)*P.speed;
     pegWingBeat(cyc, P.amp);           // real bird wingbeat: extended power downstroke, folded recovery upstroke
