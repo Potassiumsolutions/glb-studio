@@ -933,7 +933,7 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 
 const $ = s => document.querySelector(s);
-const APP_NAME='GLB Stitcher', APP_VERSION='1.8.8', APP_BUILD='2026-09-07';   // version shown in About + footer
+const APP_NAME='GLB Stitcher', APP_VERSION='1.8.9', APP_BUILD='2026-09-07';   // version shown in About + footer
 // Bump APP_BUILD whenever the app or the bundled motion library changes. It is printed to the console and
 // shown in the footer so "am I running the current version?" can be answered by looking, not by guessing —
 // a stale browser tab kept an old build alive twice while the files on disk were already up to date.
@@ -5560,6 +5560,15 @@ function floorContactPose(root, spec, floorY){
         const anc = spec._anchors && spec._anchors[l.end.name||''];
         const tgt = new THREE.Vector3(anc?anc.x:e.x, gy, anc?anc.z:e.z);
         for(const bn of l.chain){ const bone=B(bn); if(bone) _ccdToward(bone, l.end, tgt); } } }
+    // Re-LEVEL each planted hind hoof to its STANDING world attitude (toes forward, sole flat). The CCD above only
+    // brings the ankle to the ground; without this the hoof keeps the retarget's backward tilt (it "rotates off the
+    // floor facing backward"). A genuinely lifted paw (up past ~10 cm) is left alone.
+    if(spec._footRest){ root.updateMatrixWorld(true);
+      for(const l of legs){ const fr=spec._footRest[l.end.name||'']; if(!fr) continue;
+        if(l.end.getWorldPosition(_gcV3).y > gy+0.10) continue;
+        const par=l.end.parent; if(!par) continue; par.updateWorldMatrix(true,false);
+        l.end.quaternion.copy(par.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(fr));
+        l.end.updateWorldMatrix(false,false); } }
     return;
   }
   if(spec.rep){
@@ -5614,7 +5623,7 @@ function bakeFloorContact(clip, root, spec){
     const rec={}; bones.forEach(b=>rec[b]=[]);
     // Anchor each hind paw at its STANDING x,z (first frame) so it stays planted (no fore-aft slide) through the rear.
     mixer.setTime(0); root.updateMatrixWorld(true);
-    spec._anchors={}; for(const nm of ['backleg2','R_backleg2']){ const b=B(nm); if(b){ const p=b.getWorldPosition(new THREE.Vector3()); spec._anchors[nm]={x:p.x, z:p.z}; } }
+    spec._anchors={}; spec._footRest={}; for(const nm of ['backleg2','R_backleg2']){ const b=B(nm); if(b){ const p=b.getWorldPosition(new THREE.Vector3()); spec._anchors[nm]={x:p.x, z:p.z}; spec._footRest[nm]=b.getWorldQuaternion(new THREE.Quaternion()); } }   // also capture the STANDING hoof world attitude → re-level the planted foot (see floorContactPose)
     for(let i=0;i<N;i++){ mixer.setTime(times[i]); root.updateMatrixWorld(true); floorContactPose(root, spec, 0);
       bones.forEach(b=>{ const bn=B(b); const q=bn?bn.quaternion:{x:0,y:0,z:0,w:1}; rec[b].push(q.x,q.y,q.z,q.w); }); }
     mixer.stopAllAction();
