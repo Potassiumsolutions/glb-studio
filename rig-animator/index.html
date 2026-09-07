@@ -61,7 +61,7 @@
 <main>
   <aside>
     <div>
-      <h1>🐾 Rig Animator <span class="appver">v1.19.20</span></h1>
+      <h1>🐾 Rig Animator <span class="appver">v1.19.21</span></h1>
       <div class="hint" style="margin-top:0">Procedurally generate original animations for your <b>biped</b>, <b>quadruped</b> and <b>bird</b> rigs — organized by category (boxing, fencing, football, dancing, running, walking, jumping, climbing…) — then export them into the GLB Stitcher motion library.</div>
     </div>
 
@@ -121,7 +121,7 @@
         </g>
       </svg>
       <div>
-        <div><b>Rig Animator</b> v1.19.20 · part of GLB Studio</div>
+        <div><b>Rig Animator</b> v1.19.21 · part of GLB Studio</div>
         <div class="appfoot-sub">© <span class="cred-year">2026</span> Paul A.T. Ramey · <b>KSOL Designs</b> · <a href="https://www.ksoldesigns.com" target="_blank" rel="noopener">ksoldesigns.com</a></div>
       </div>
     </div>
@@ -5220,8 +5220,11 @@ const DRAGON_MOTIONS=[
     const th = rear*1.28*A;                                              // pelvis pitch toward vertical (~73°)
     sw('Hips', AX.x, -th);                                               // rock the pelvis/trunk up …
     sw('chest', AX.x, -rear*0.28*A);                                     // … spine adds the last bit so the torso stands vertical
-    // a light bias-fold so the hind legs bend the RIGHT way (knee/hock tuck under) before the foot-IK refines it
-    const fold = eio(clamp((u-0.12)/0.72,0,1))*A;
+    // a light bias-fold so the hind legs bend the RIGHT way (knee/hock tuck under) before the foot-IK refines it.
+    // It TRACKS the rear envelope (not a monotonic ramp) so the hocks UNFOLD as the body comes back down — a
+    // fold that stayed folded through the descent left the over-flexed hind leg unable to reach the ground, so
+    // the hind foot lifted off and tipped backward at the tail of the motion.
+    const fold = rear*A;
     ['backleg','R_backleg'].forEach(h=> sw(h,AX.x, th*0.42));            // hold the femur from flinging forward with the pelvis
     ['backleg0','R_backleg0'].forEach(k=> sw(k,AX.x, -fold*1.05));       // knee flexes …
     ['backleg1','R_backleg1'].forEach(a=> sw(a,AX.x,  fold*0.80));       // … hock flexes → sit onto the haunches
@@ -5332,8 +5335,9 @@ const PEGASUS_MOTIONS=[
     const th = rear*1.30*A;                                              // pelvis pitch toward vertical
     sw('Hips', AX.x, -th);                                               // rock the trunk up about the hindquarters
     sw('chest', AX.x, -rear*0.18*A);                                     // a little spine so the withers rise smoothly
-    // hind legs bias-fold the RIGHT way (pegasus: knee/hock POSITIVE folds), then the foot-IK refines the plant
-    const fold = eio(clamp((u-0.10)/0.75,0,1))*A;
+    // hind legs bias-fold the RIGHT way (pegasus: knee/hock POSITIVE folds), then the foot-IK refines the plant.
+    // Track the rear envelope so the hocks UNFOLD on the way down and the hind hooves stay planted throughout.
+    const fold = rear*A;
     ['backleg','R_backleg'].forEach(h=> sw(h,AX.x, -th*0.42));           // femur follows the pelvis (pegasus sign)
     ['backleg0','R_backleg0'].forEach(k=> sw(k,AX.x,  fold*1.05));       // hocks flex → sit onto the haunches
     ['backleg1','R_backleg1'].forEach(a=> sw(a,AX.x,  fold*0.55));
