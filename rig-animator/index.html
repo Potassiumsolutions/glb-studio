@@ -61,7 +61,7 @@
 <main>
   <aside>
     <div>
-      <h1>🐾 Rig Animator <span class="appver">v1.19.30</span></h1>
+      <h1>🐾 Rig Animator <span class="appver">v1.19.31</span></h1>
       <div class="hint" style="margin-top:0">Procedurally generate original animations for your <b>biped</b>, <b>quadruped</b> and <b>bird</b> rigs — organized by category (boxing, fencing, football, dancing, running, walking, jumping, climbing…) — then export them into the GLB Stitcher motion library.</div>
     </div>
 
@@ -121,7 +121,7 @@
         </g>
       </svg>
       <div>
-        <div><b>Rig Animator</b> v1.19.30 · part of GLB Studio</div>
+        <div><b>Rig Animator</b> v1.19.31 · part of GLB Studio</div>
         <div class="appfoot-sub">© <span class="cred-year">2026</span> Paul A.T. Ramey · <b>KSOL Designs</b> · <a href="https://www.ksoldesigns.com" target="_blank" rel="noopener">ksoldesigns.com</a></div>
       </div>
     </div>
@@ -5126,6 +5126,23 @@ function dSoarWings(a, extra){ const peg = (typeof rigKey!=='undefined' && rigKe
   dWingBeat((-0.16+(extra||0))*a, 0);
   sw('wing',AX.y,-0.70*a); sw('wing0',AX.y,-0.35*a); sw('R_wing',AX.y,0.70*a); sw('R_wing0',AX.y,0.35*a); }
 var WING_Z = -1.0;   // pegasus: rigid dihedral, each wing rotated about the FORE-AFT (Z) axis at its entry — lowers the wings while they stay out to the sides. Tuned via renders
+// PHYSICS-BASED WINGBEAT (bird kinematics): the wing is EXTENDED and sweeps DOWN (+ slightly forward) on the
+// downstroke — the power stroke — then the elbow (wing0) and wrist (wing1) FLEX to FOLD the hand up & in on the
+// upstroke (the recovery stroke, cutting drag), sweeping up & back. Humerus (wing) elevation is about the fore-aft
+// (Z) axis — the same axis as the glide dihedral. cyc 0→1: top → downstroke → bottom → upstroke → top.
+function pegWingBeat(cyc, a){
+  const elev = Math.cos(TAU*cyc);                 // +1 at top of stroke, −1 at bottom of downstroke
+  const fold = Math.max(0, -Math.sin(TAU*cyc));   // 0 through the downstroke, peaks mid-UPSTROKE → fold the wing then
+  const wz = (-0.30 + elev*1.15)*a;               // humerus elevation about Z, swinging around a slightly-lowered mean
+  sw('wing',AX.z, wz); sw('R_wing',AX.z,-wz);
+  const sweep = Math.sin(TAU*cyc)*0.22*a;         // protract (forward) on the downstroke, retract (back) on the upstroke
+  sw('wing',AX.y, sweep); sw('R_wing',AX.y,-sweep);
+  // upstroke FLEX: elbow + wrist fold the hand up & in (reduce area on the recovery stroke)
+  sw('wing0',AX.z, fold*1.20*a); sw('wing1',AX.z, fold*0.95*a);
+  sw('R_wing0',AX.z,-fold*1.20*a); sw('R_wing1',AX.z,-fold*0.95*a);
+  sw('wing0',AX.y, fold*0.55*a); sw('wing1',AX.y, fold*0.45*a);
+  sw('R_wing0',AX.y,-fold*0.55*a); sw('R_wing1',AX.y,-fold*0.45*a);
+}
 
 const DRAGON_MOTIONS=[
   {id:'dragon_walk', name:'Walk', cat:'Locomotion', type:'move', dur:1.3, build:(t,P)=>{ resetPose(); const cyc=(t/1.3)*P.speed;
@@ -5278,11 +5295,10 @@ const PEGASUS_MOTIONS=[
   {id:'peg_gallop', name:'Gallop', cat:'Locomotion', type:'move', dur:0.6, build:(t,P)=>{ quadGaitN(t,P,0.6,{gait:'gallop', stride:0.7, lift:0.28, spine:0.02, headBob:1, yaw:0.4, tail:5, bob:0.03, flight:0.1}); dWingFold(0.82*P.amp);
     { const nod=Math.sin(TAU*(t/0.6)*P.speed - 0.1); PEGASUS_NECK.forEach(b=>sw(b,AX.x, nod*0.04*P.amp)); } }},   // gentle nod along the neck (small spine/head so the boneless-base doesn't crease)
   {id:'peg_fly', name:'Fly (flap)', cat:'Locomotion', type:'move', dur:1.0, build:(t,P)=>{ resetPose(); const cyc=(t/1.0)*P.speed;
-    const beat=Math.sin(TAU*cyc); dWingBeat((beat*0.92 - 0.30)*P.amp, Math.max(0,beat)*0.5*P.amp);   // −0.30 bias lowers the whole flap so the leading edge doesn't poke up above the shoulders at the top of the stroke
-    sw('wingbase',AX.x,0.9*P.amp);   // hinge the wings down about the shoulder joint so the flap carriage sits at ~back height while it still beats
+    pegWingBeat(cyc, P.amp);           // real bird wingbeat: extended power downstroke, folded recovery upstroke
     pegTrotLegs(cyc, P.amp, 1.0);      // legs TROT in time with the wing flaps (diagonal pairs alternate each flap)
     QUAD_TAIL.forEach((b,i)=>sw(b,AX.x,(0.10+Math.sin(TAU*cyc-i*0.3)*0.04)*P.amp));   // tail streams
-    sw('chest',AX.x,beat*0.05*P.amp); sw('head',AX.x,0.05*P.amp);
+    sw('chest',AX.x,Math.sin(TAU*cyc)*0.05*P.amp); sw('head',AX.x,0.05*P.amp);   // body bobs with the stroke
     animRoot.position.y += 0.24*(t/1.0)*P.amp;                          // the flap CLIMBS 0.24 per cycle (carries between clips)
     animRoot.position.z += 0.70*t*P.amp;                                // …and travels forward as it climbs
   }},
