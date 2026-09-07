@@ -61,7 +61,7 @@
 <main>
   <aside>
     <div>
-      <h1>🐾 Rig Animator <span class="appver">v1.19.12</span></h1>
+      <h1>🐾 Rig Animator <span class="appver">v1.19.13</span></h1>
       <div class="hint" style="margin-top:0">Procedurally generate original animations for your <b>biped</b>, <b>quadruped</b> and <b>bird</b> rigs — organized by category (boxing, fencing, football, dancing, running, walking, jumping, climbing…) — then export them into the GLB Stitcher motion library.</div>
     </div>
 
@@ -121,7 +121,7 @@
         </g>
       </svg>
       <div>
-        <div><b>Rig Animator</b> v1.19.12 · part of GLB Studio</div>
+        <div><b>Rig Animator</b> v1.19.13 · part of GLB Studio</div>
         <div class="appfoot-sub">© <span class="cred-year">2026</span> Paul A.T. Ramey · <b>KSOL Designs</b> · <a href="https://www.ksoldesigns.com" target="_blank" rel="noopener">ksoldesigns.com</a></div>
       </div>
     </div>
@@ -5059,8 +5059,10 @@ function dTuckLegsTight(a){
   ['backleg','R_backleg'].forEach(h=>sw(h,AX.x,0.30*a));             // hind thighs: modest
   ['backleg0','R_backleg0'].forEach(k=>sw(k,AX.x,-1.45*a));          // …knees fold → hind feet come up under the tail
   ['backleg1','R_backleg1'].forEach(s=>sw(s,AX.x,-0.25*a));
-  // ADDUCT toward the centreline so the paws gather CLOSE TOGETHER under the body
-  ['frontleg','backleg'].forEach(h=>sw(h,AX.z,-0.60*a)); ['R_frontleg','R_backleg'].forEach(h=>sw(h,AX.z,0.60*a)); }
+  // ADDUCT at the shoulders (front view) so the HANDS COME TOGETHER at the centreline and the arms tuck IN,
+  // interfering with the body far less. Front needs a hard pull; hind a gentle gather under the tail.
+  sw('frontleg',AX.z,-1.25*a); sw('R_frontleg',AX.z,1.25*a);
+  sw('backleg', AX.z,-0.55*a); sw('R_backleg', AX.z,0.55*a); }
 // bank into a turn (dir +1 = right, -1 = left): roll the body; the INSIDE (dipped) wing lowers a little and its
 // OUTER half bends UP (a winglet) — that upward-bent dipped tip is what drives the tilt/turn; tail rudder + head lean.
 function dBank(dir, amt){ const a=amt||1;
