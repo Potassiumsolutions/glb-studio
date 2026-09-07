@@ -61,7 +61,7 @@
 <main>
   <aside>
     <div>
-      <h1>🐾 Rig Animator <span class="appver">v1.19.22</span></h1>
+      <h1>🐾 Rig Animator <span class="appver">v1.19.23</span></h1>
       <div class="hint" style="margin-top:0">Procedurally generate original animations for your <b>biped</b>, <b>quadruped</b> and <b>bird</b> rigs — organized by category (boxing, fencing, football, dancing, running, walking, jumping, climbing…) — then export them into the GLB Stitcher motion library.</div>
     </div>
 
@@ -121,7 +121,7 @@
         </g>
       </svg>
       <div>
-        <div><b>Rig Animator</b> v1.19.22 · part of GLB Studio</div>
+        <div><b>Rig Animator</b> v1.19.23 · part of GLB Studio</div>
         <div class="appfoot-sub">© <span class="cred-year">2026</span> Paul A.T. Ramey · <b>KSOL Designs</b> · <a href="https://www.ksoldesigns.com" target="_blank" rel="noopener">ksoldesigns.com</a></div>
       </div>
     </div>
@@ -5116,7 +5116,7 @@ function pegTuckLegs(a){
   ['backleg','R_backleg'].forEach(h=>sw(h,AX.x,-0.35*a)); ['backleg0','R_backleg0'].forEach(k=>sw(k,AX.x,1.30*a)); ['backleg1','R_backleg1'].forEach(s=>sw(s,AX.x,0.25*a)); // hind legs fold up under the tail
   sw('frontleg',AX.z,0.20*a); sw('R_frontleg',AX.z,-0.20*a); sw('backleg',AX.z,0.16*a); sw('R_backleg',AX.z,-0.16*a); } // light gather toward the centreline
 function dSoarWings(a, extra){ const peg = (typeof rigKey!=='undefined' && rigKey==='pegasus');   // pegasus wing rig sits higher → needs a lower elevation to read flat
-  dWingBeat(((peg?-0.95:-0.16)+(extra||0))*a, 0);   // pegasus: −0.95 holds the wings roughly PARALLEL WITH THE GROUND (−0.60 still read as a raised V)
+  dWingBeat(((peg?-1.15:-0.16)+(extra||0))*a, 0);   // pegasus: −0.95 holds the wings roughly PARALLEL WITH THE GROUND (−0.60 still read as a raised V)
   // sweep the wing ARM forward so the trailing feathers read PERPENDICULAR to the body (the feathers trail ~45° back
   // from the bones, so the bones must lead forward). wing0 shares the sweep so the whole arm swings, not just the root.
   sw('wing',AX.y,(peg?-0.55:-0.70)*a); sw('wing0',AX.y,(peg?-0.30:-0.35)*a);
@@ -5273,7 +5273,7 @@ const PEGASUS_MOTIONS=[
   {id:'peg_gallop', name:'Gallop', cat:'Locomotion', type:'move', dur:0.6, build:(t,P)=>{ quadGaitN(t,P,0.6,{gait:'gallop', stride:0.7, lift:0.28, spine:0.02, headBob:1, yaw:0.4, tail:5, bob:0.03, flight:0.1}); dWingFold(0.82*P.amp);
     { const nod=Math.sin(TAU*(t/0.6)*P.speed - 0.1); PEGASUS_NECK.forEach(b=>sw(b,AX.x, nod*0.04*P.amp)); } }},   // gentle nod along the neck (small spine/head so the boneless-base doesn't crease)
   {id:'peg_fly', name:'Fly (flap)', cat:'Locomotion', type:'move', dur:1.0, build:(t,P)=>{ resetPose(); const cyc=(t/1.0)*P.speed;
-    const beat=Math.sin(TAU*cyc); dWingBeat(beat*0.92*P.amp, Math.max(0,beat)*0.5*P.amp);
+    const beat=Math.sin(TAU*cyc); dWingBeat((beat*0.92 - 0.30)*P.amp, Math.max(0,beat)*0.5*P.amp);   // −0.30 bias lowers the whole flap so the leading edge doesn't poke up above the shoulders at the top of the stroke
     pegTrotLegs(cyc, P.amp, 1.0);      // legs TROT in time with the wing flaps (diagonal pairs alternate each flap)
     QUAD_TAIL.forEach((b,i)=>sw(b,AX.x,(0.10+Math.sin(TAU*cyc-i*0.3)*0.04)*P.amp));   // tail streams
     sw('chest',AX.x,beat*0.05*P.amp); sw('head',AX.x,0.05*P.amp);
