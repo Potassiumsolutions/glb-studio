@@ -61,7 +61,7 @@
 <main>
   <aside>
     <div>
-      <h1>🐾 Rig Animator <span class="appver">v1.19.23</span></h1>
+      <h1>🐾 Rig Animator <span class="appver">v1.19.24</span></h1>
       <div class="hint" style="margin-top:0">Procedurally generate original animations for your <b>biped</b>, <b>quadruped</b> and <b>bird</b> rigs — organized by category (boxing, fencing, football, dancing, running, walking, jumping, climbing…) — then export them into the GLB Stitcher motion library.</div>
     </div>
 
@@ -121,7 +121,7 @@
         </g>
       </svg>
       <div>
-        <div><b>Rig Animator</b> v1.19.23 · part of GLB Studio</div>
+        <div><b>Rig Animator</b> v1.19.24 · part of GLB Studio</div>
         <div class="appfoot-sub">© <span class="cred-year">2026</span> Paul A.T. Ramey · <b>KSOL Designs</b> · <a href="https://www.ksoldesigns.com" target="_blank" rel="noopener">ksoldesigns.com</a></div>
       </div>
     </div>
@@ -5116,7 +5116,11 @@ function pegTuckLegs(a){
   ['backleg','R_backleg'].forEach(h=>sw(h,AX.x,-0.35*a)); ['backleg0','R_backleg0'].forEach(k=>sw(k,AX.x,1.30*a)); ['backleg1','R_backleg1'].forEach(s=>sw(s,AX.x,0.25*a)); // hind legs fold up under the tail
   sw('frontleg',AX.z,0.20*a); sw('R_frontleg',AX.z,-0.20*a); sw('backleg',AX.z,0.16*a); sw('R_backleg',AX.z,-0.16*a); } // light gather toward the centreline
 function dSoarWings(a, extra){ const peg = (typeof rigKey!=='undefined' && rigKey==='pegasus');   // pegasus wing rig sits higher → needs a lower elevation to read flat
-  dWingBeat(((peg?-1.15:-0.16)+(extra||0))*a, 0);   // pegasus: −0.95 holds the wings roughly PARALLEL WITH THE GROUND (−0.60 still read as a raised V)
+  // PEGASUS elev −1.35 lowers the outstretched wing about as far as it reads cleanly (the tips settle roughly level
+  // with the withers). NOTE: the small remaining bump right over the back is the wing's MOUNT — on this model the
+  // wing bases sit ~0.5 above the shoulder joint and are skinned to the body there, so no posing can drop that point
+  // to shoulder level; it would need the mesh itself edited. Pitching the wing root harder only tangles the feathers.
+  dWingBeat(((peg?-1.35:-0.16)+(extra||0))*a, 0);
   // sweep the wing ARM forward so the trailing feathers read PERPENDICULAR to the body (the feathers trail ~45° back
   // from the bones, so the bones must lead forward). wing0 shares the sweep so the whole arm swings, not just the root.
   sw('wing',AX.y,(peg?-0.55:-0.70)*a); sw('wing0',AX.y,(peg?-0.30:-0.35)*a);
