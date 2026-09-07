@@ -61,7 +61,7 @@
 <main>
   <aside>
     <div>
-      <h1>🐾 Rig Animator <span class="appver">v1.19.10</span></h1>
+      <h1>🐾 Rig Animator <span class="appver">v1.19.11</span></h1>
       <div class="hint" style="margin-top:0">Procedurally generate original animations for your <b>biped</b>, <b>quadruped</b> and <b>bird</b> rigs — organized by category (boxing, fencing, football, dancing, running, walking, jumping, climbing…) — then export them into the GLB Stitcher motion library.</div>
     </div>
 
@@ -121,7 +121,7 @@
         </g>
       </svg>
       <div>
-        <div><b>Rig Animator</b> v1.19.10 · part of GLB Studio</div>
+        <div><b>Rig Animator</b> v1.19.11 · part of GLB Studio</div>
         <div class="appfoot-sub">© <span class="cred-year">2026</span> Paul A.T. Ramey · <b>KSOL Designs</b> · <a href="https://www.ksoldesigns.com" target="_blank" rel="noopener">ksoldesigns.com</a></div>
       </div>
     </div>
@@ -5050,14 +5050,17 @@ function dTuckLegs(a){ ['frontleg','R_frontleg','backleg','R_backleg'].forEach(h
 // streamlined FLIGHT tuck: hind thighs draw up, FRONT shoulders rotate BACK so the forelegs sweep back and tuck
 // along the body (not dangling under), knees/ankles fold. Gentle enough not to hyper-flex the dragon's hind legs.
 function dTuckLegsTight(a){
-  // FLIGHT TUCK — SHOW-JUMPER style (like the pegasus soar the user liked): the FRONT legs fold UP tight toward
-  // the chest, the HIND legs trail BACK extended behind. (Hand-rig hips are inverted, so signs are set for the mesh.)
-  ['frontleg','R_frontleg'].forEach(h=>sw(h,AX.x,1.35*a));           // front shoulders fold the forelegs UP to the chest
-  ['frontleg0','R_frontleg0'].forEach(k=>sw(k,AX.x,-2.10*a));        // …knees fold hard → forefeet tuck up under the chin
-  ['frontleg1','R_frontleg1'].forEach(s=>sw(s,AX.x,-0.60*a));
-  ['backleg','R_backleg'].forEach(h=>sw(h,AX.x,0.55*a));             // hind hips extend BACK → hind legs trail behind
-  ['backleg0','R_backleg0'].forEach(k=>sw(k,AX.x,-0.25*a));          // …only a little bend → they stream out straight
-  ['backleg1','R_backleg1'].forEach(s=>sw(s,AX.x,-0.15*a)); }
+  // FLIGHT TUCK: draw all four legs UP UNDER the belly and IN toward the centreline — front paws close together
+  // under the chest, hind feet close together under the tail. Modest thigh lift (so the forelegs don't fold up
+  // into / collapse the chest); the KNEES bring the paws up under the body. (Hand-rig hips inverted → signs for mesh.)
+  ['frontleg','R_frontleg'].forEach(h=>sw(h,AX.x,0.45*a));           // front thighs: modest lift, not jammed into the chest
+  ['frontleg0','R_frontleg0'].forEach(k=>sw(k,AX.x,-1.65*a));        // …knees fold → forepaws come UP under the belly
+  ['frontleg1','R_frontleg1'].forEach(s=>sw(s,AX.x,-0.35*a));
+  ['backleg','R_backleg'].forEach(h=>sw(h,AX.x,0.30*a));             // hind thighs: modest
+  ['backleg0','R_backleg0'].forEach(k=>sw(k,AX.x,-1.45*a));          // …knees fold → hind feet come up under the tail
+  ['backleg1','R_backleg1'].forEach(s=>sw(s,AX.x,-0.25*a));
+  // ADDUCT toward the centreline so the paws gather CLOSE TOGETHER under the body
+  ['frontleg','backleg'].forEach(h=>sw(h,AX.z,-0.60*a)); ['R_frontleg','R_backleg'].forEach(h=>sw(h,AX.z,0.60*a)); }
 // bank into a turn (dir +1 = right, -1 = left): roll the body; the INSIDE (dipped) wing lowers a little and its
 // OUTER half bends UP (a winglet) — that upward-bent dipped tip is what drives the tilt/turn; tail rudder + head lean.
 function dBank(dir, amt){ const a=amt||1;
@@ -5088,16 +5091,18 @@ function dTailWave(cyc,amp){ for(let i=0;i<DRAGON_TAIL.length;i++){ const frac=i
 // `phase` (pass the wingbeat phase for Fly so it steps in time with the flaps; a slow phase for Soar). Legs also
 // gather lightly toward the centreline. Rig roll is fixed, so AX.x is clean fore-aft.
 function pegTrotLegs(phase, a, amp){ amp = (amp==null?1:amp); const s=Math.sin(TAU*phase);
-  const hipB=0.28, hipA=0.42*amp, kneeB=-0.50, kneeA=0.45*amp;
-  // +AX.x at the hip swings the foot BACKWARD on this rig, so the lifted (knee-flexed) leg must use −s*hipA to
-  // swing FORWARD (reach ahead), and the planted leg +|s|*hipA to push back — otherwise the legs cycle in reverse
-  // and the horse looks like it's backing up.
-  sw('frontleg', AX.x,(hipB - s*hipA)*a);  sw('R_backleg',AX.x,(hipB - s*hipA)*a);          // diagonal A reaches FORWARD as its knee lifts (s>0)
-  sw('frontleg0',AX.x,(kneeB - Math.max(0,s)*kneeA)*a); sw('R_backleg0',AX.x,(kneeB - Math.max(0,s)*kneeA)*a);
-  sw('R_frontleg',AX.x,(hipB + s*hipA)*a); sw('backleg', AX.x,(hipB + s*hipA)*a);           // diagonal B opposite (reaches on s<0)
-  sw('R_frontleg0',AX.x,(kneeB - Math.max(0,-s)*kneeA)*a); sw('backleg0',AX.x,(kneeB - Math.max(0,-s)*kneeA)*a);
-  ['frontleg1','R_frontleg1','backleg1','R_backleg1'].forEach(b=>sw(b,AX.x,-0.35*a));       // ankles tucked
-  sw('frontleg',AX.z,0.20*a); sw('R_frontleg',AX.z,-0.20*a); sw('backleg',AX.z,0.20*a); sw('R_backleg',AX.z,-0.20*a); }  // light centre gather
+  // Natural fold, matching the walk gait (qPoseLimbs): hip NEGATIVE, knee POSITIVE (front folds more than hind).
+  // −AX.x at the hip = foot FORWARD on this rig, so the lifted leg reaches forward (hip more negative) with the
+  // knee flexed, and the planted leg swings back (hip positive) with the knee extended — a real diagonal trot.
+  const hipB=-0.20, hipR=0.45*amp, kFB=0.35, kFA=0.85*amp, kHB=0.30, kHA=0.55*amp;
+  const swA=Math.max(0,s), swB=Math.max(0,-s);
+  // diagonal A: front-left + back-right (reach/lift on s>0)
+  sw('frontleg', AX.x,(hipB - s*hipR)*a);  sw('frontleg0',AX.x,(kFB + swA*kFA)*a);
+  sw('R_backleg',AX.x,(hipB - s*hipR)*a);  sw('R_backleg0',AX.x,(kHB + swA*kHA)*a);
+  // diagonal B: front-right + back-left (reach/lift on s<0)
+  sw('R_frontleg',AX.x,(hipB + s*hipR)*a); sw('R_frontleg0',AX.x,(kFB + swB*kFA)*a);
+  sw('backleg',  AX.x,(hipB + s*hipR)*a);  sw('backleg0', AX.x,(kHB + swB*kHA)*a);
+  sw('frontleg',AX.z,0.16*a); sw('R_frontleg',AX.z,-0.16*a); sw('backleg',AX.z,0.16*a); sw('R_backleg',AX.z,-0.16*a); }  // light centre gather
 function pegJumpTuck(a){
   ['frontleg','R_frontleg'].forEach(h=>sw(h,AX.x,1.55*a)); ['frontleg0','R_frontleg0'].forEach(k=>sw(k,AX.x,-2.50*a)); ['frontleg1','R_frontleg1'].forEach(s=>sw(s,AX.x,-0.90*a)); // forelegs fold up tight under the chest
   ['backleg','R_backleg'].forEach(h=>sw(h,AX.x,0.90*a)); ['backleg0','R_backleg0'].forEach(k=>sw(k,AX.x,-0.15*a)); ['backleg1','R_backleg1'].forEach(s=>sw(s,AX.x,-0.10*a)); // hind legs trail back, extended
@@ -5265,7 +5270,7 @@ const PEGASUS_MOTIONS=[
     animRoot.position.z += 0.70*t*P.amp;                                // …and travels forward as it climbs
   }},
   {id:'peg_glide', name:'Glide', cat:'Locomotion', type:'move', dur:3.2, build:(t,P)=>{ resetPose(); const a=TAU*(t/3.2)*P.speed;
-    dSoarWings(P.amp, Math.sin(a)*0.04); pegJumpTuck(P.amp);   // wings flat + perpendicular; legs in a show-jumper fold (front up, hind trailing)
+    dSoarWings(P.amp, Math.sin(a)*0.04); pegTrotLegs(a/TAU, P.amp, 0.6);   // wings flat; legs TROT gently, like Soar
     QUAD_TAIL.forEach(b=>sw(b,AX.x,0.08*P.amp)); sw('chest',AX.x,Math.sin(a)*0.02*P.amp);
     animRoot.position.z += 0.90*t*P.amp;                                // glides FORWARD (faster than the flap — trading height for speed)
     animRoot.position.y -= 0.06*(t/3.2)*P.amp;                          // …losing 0.06 of altitude per clip = 1/4 of a flap's climb
