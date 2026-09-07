@@ -61,7 +61,7 @@
 <main>
   <aside>
     <div>
-      <h1>🐾 Rig Animator <span class="appver">v1.19.17</span></h1>
+      <h1>🐾 Rig Animator <span class="appver">v1.19.18</span></h1>
       <div class="hint" style="margin-top:0">Procedurally generate original animations for your <b>biped</b>, <b>quadruped</b> and <b>bird</b> rigs — organized by category (boxing, fencing, football, dancing, running, walking, jumping, climbing…) — then export them into the GLB Stitcher motion library.</div>
     </div>
 
@@ -121,7 +121,7 @@
         </g>
       </svg>
       <div>
-        <div><b>Rig Animator</b> v1.19.17 · part of GLB Studio</div>
+        <div><b>Rig Animator</b> v1.19.18 · part of GLB Studio</div>
         <div class="appfoot-sub">© <span class="cred-year">2026</span> Paul A.T. Ramey · <b>KSOL Designs</b> · <a href="https://www.ksoldesigns.com" target="_blank" rel="noopener">ksoldesigns.com</a></div>
       </div>
     </div>
@@ -5149,16 +5149,16 @@ const DRAGON_MOTIONS=[
     animRoot.position.z += 0.80*t*P.amp;                                // soars FORWARD, holding altitude (no vertical change)
   }},
   {id:'dragon_soar_r', name:'Soar — Bank Right', cat:'Locomotion', type:'move', dur:3.6, build:(t,P)=>{ resetPose(); const a=TAU*(t/3.6)*P.speed;
-    dSoarWings(P.amp, Math.sin(a*0.6)*0.03);
+    flightArc(t, 3.6, 1, 0.80*P.amp);                                   // TURN FIRST: clean world-Y yaw on the Hips (before the roll, so the bank never noses down mid-turn)
+    dSoarWings(P.amp, Math.sin(a)*0.03);                                // full-period breathe → loops seamlessly clip-to-clip
     dTuckLegsTight(0.95*P.amp);
-    dBank(1, (0.9+Math.sin(a*0.5)*0.08)*P.amp);                         // steady right bank with a slight roll oscillation
-    flightArc(t, 3.6, 1, 0.80*P.amp);                                   // level; curves right 90°/clip (4 clips = a full circle)
+    dBank(1, (0.9+Math.sin(a)*0.08)*P.amp);                             // steady right bank rolled ON TOP of the yawed frame; full-period roll wobble
   }},
   {id:'dragon_soar_l', name:'Soar — Bank Left', cat:'Locomotion', type:'move', dur:3.6, build:(t,P)=>{ resetPose(); const a=TAU*(t/3.6)*P.speed;
-    dSoarWings(P.amp, Math.sin(a*0.6)*0.03);
+    flightArc(t, 3.6, -1, 0.80*P.amp);                                  // TURN FIRST: clean world-Y yaw on the Hips (before the roll, so the bank never noses down mid-turn)
+    dSoarWings(P.amp, Math.sin(a)*0.03);                                // full-period breathe → loops seamlessly clip-to-clip
     dTuckLegsTight(0.95*P.amp);
-    dBank(-1, (0.9+Math.sin(a*0.5)*0.08)*P.amp);                        // steady left bank
-    flightArc(t, 3.6, -1, 0.80*P.amp);                                  // level; curves left 90°/clip (4 clips = a full circle)
+    dBank(-1, (0.9+Math.sin(a)*0.08)*P.amp);                            // steady left bank rolled ON TOP of the yawed frame; full-period roll wobble
   }},
   {id:'dragon_descend', name:'Descend / Land', cat:'Locomotion', type:'move', dur:3.0, build:(t,P)=>{ resetPose(); const a=TAU*(t/3.0)*P.speed;
     // COMING DOWN: wings held OUT but RAISED & cupped into a braking flare (parachuting down), tips twisted; the
@@ -5283,18 +5283,18 @@ const PEGASUS_MOTIONS=[
     animRoot.position.z += 0.80*t*P.amp;                                // soars FORWARD, holding altitude (no vertical change)
   }},
   {id:'peg_soar_r', name:'Soar — Bank Right', cat:'Locomotion', type:'move', dur:3.6, build:(t,P)=>{ resetPose(); const a=TAU*(t/3.6)*P.speed;
-    dSoarWings(P.amp, Math.sin(a*0.6)*0.03); pegTrotLegs(a/TAU, P.amp, 0.6);   // legs TROT gently, like Fly
-    sw('Hips',AX.z,0.34*P.amp); sw('chest',AX.z,0.10*P.amp);            // roll right
+    flightArc(t, 3.6, 1, 0.80*P.amp);                                   // TURN FIRST: clean world-Y yaw before the roll, so the bank holds level through the turn
+    dSoarWings(P.amp, Math.sin(a)*0.03); pegTrotLegs(a/TAU, P.amp, 0.6);   // full-period breathe; legs TROT gently, like Fly
+    sw('Hips',AX.z,0.34*P.amp); sw('chest',AX.z,0.10*P.amp);            // roll right ON TOP of the yawed frame
     sw('wing',AX.z,-0.20*P.amp); sw('R_wing',AX.z,-0.08*P.amp);
     QUAD_TAIL.forEach(b=>sw(b,AX.y,0.10*P.amp)); sw('head',AX.z,0.12*P.amp); sw('head',AX.y,0.12*P.amp);
-    flightArc(t, 3.6, 1, 0.80*P.amp);                                   // level; curves right 90°/clip (4 clips = a full circle)
   }},
   {id:'peg_soar_l', name:'Soar — Bank Left', cat:'Locomotion', type:'move', dur:3.6, build:(t,P)=>{ resetPose(); const a=TAU*(t/3.6)*P.speed;
-    dSoarWings(P.amp, Math.sin(a*0.6)*0.03); pegTrotLegs(a/TAU, P.amp, 0.6);   // legs TROT gently, like Fly
-    sw('Hips',AX.z,-0.34*P.amp); sw('chest',AX.z,-0.10*P.amp);          // roll left
+    flightArc(t, 3.6, -1, 0.80*P.amp);                                  // TURN FIRST: clean world-Y yaw before the roll, so the bank holds level through the turn
+    dSoarWings(P.amp, Math.sin(a)*0.03); pegTrotLegs(a/TAU, P.amp, 0.6);   // full-period breathe; legs TROT gently, like Fly
+    sw('Hips',AX.z,-0.34*P.amp); sw('chest',AX.z,-0.10*P.amp);          // roll left ON TOP of the yawed frame
     sw('wing',AX.z,0.08*P.amp); sw('R_wing',AX.z,0.20*P.amp);
     QUAD_TAIL.forEach(b=>sw(b,AX.y,-0.10*P.amp)); sw('head',AX.z,-0.12*P.amp); sw('head',AX.y,-0.12*P.amp);
-    flightArc(t, 3.6, -1, 0.80*P.amp);                                  // level; curves left 90°/clip (4 clips = a full circle)
   }},
   {id:'peg_descend', name:'Descend / Land', cat:'Locomotion', type:'move', dur:3.0, build:(t,P)=>{ resetPose(); const a=TAU*(t/3.0)*P.speed;
     // COMING DOWN: wings OUT, raised & cupped into a braking flare (tips twisted); legs drop DOWN and reach for
