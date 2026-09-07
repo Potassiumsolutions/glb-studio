@@ -61,7 +61,7 @@
 <main>
   <aside>
     <div>
-      <h1>🐾 Rig Animator <span class="appver">v1.19.29</span></h1>
+      <h1>🐾 Rig Animator <span class="appver">v1.19.30</span></h1>
       <div class="hint" style="margin-top:0">Procedurally generate original animations for your <b>biped</b>, <b>quadruped</b> and <b>bird</b> rigs — organized by category (boxing, fencing, football, dancing, running, walking, jumping, climbing…) — then export them into the GLB Stitcher motion library.</div>
     </div>
 
@@ -121,7 +121,7 @@
         </g>
       </svg>
       <div>
-        <div><b>Rig Animator</b> v1.19.29 · part of GLB Studio</div>
+        <div><b>Rig Animator</b> v1.19.30 · part of GLB Studio</div>
         <div class="appfoot-sub">© <span class="cred-year">2026</span> Paul A.T. Ramey · <b>KSOL Designs</b> · <a href="https://www.ksoldesigns.com" target="_blank" rel="noopener">ksoldesigns.com</a></div>
       </div>
     </div>
@@ -5117,19 +5117,15 @@ function pegTuckLegs(a){
   sw('frontleg',AX.z,0.20*a); sw('R_frontleg',AX.z,-0.20*a); sw('backleg',AX.z,0.16*a); sw('R_backleg',AX.z,-0.16*a); } // light gather toward the centreline
 function dSoarWings(a, extra){ const peg = (typeof rigKey!=='undefined' && rigKey==='pegasus');   // pegasus wing rig sits higher → needs a lower elevation to read flat
   if(peg){
-    // FLAT SPREAD shape, then hinge the WHOLE wing pair DOWN about the new `wingbase` joint (added at the shoulder,
-    // on the spine, parent of both wings). Because wingbase's only children are the wings, rotating it drops the wing
-    // BASES toward the back WITHOUT moving the neck/head/legs — the pivot the rig previously lacked.
-    dWingBeat((-0.55+(extra||0))*a, 0);
-    sw('wing',AX.y,WING_SWEEP*a); sw('wing0',AX.y,(WING_SWEEP*0.55)*a); sw('R_wing',AX.y,-WING_SWEEP*a); sw('R_wing0',AX.y,-(WING_SWEEP*0.55)*a);
-    sw('wingbase', AX.x, WING_BASE_PIVOT*a);              // hinge BOTH wings down about the SHOULDER joint (the new wingbase bone) → wing bases drop toward the back
-    sw('wing', AX.x, 0.5*a); sw('R_wing', AX.x, 0.5*a);   // a little per-wing flatten of the outer wing on top
+    // Rotate EACH wing DOWN about the FORE-AFT (Z) axis at its entry point — a rigid dihedral on the wing ROOT only
+    // (wing0/1/2 ride along, feathers keep their shape). This lowers the wings from the raised rest-V to out-to-the-
+    // sides at back level WITHOUT pitching them forward (X-pitch was the mistake). Mirror signs for L/R.
+    sw('wing', AX.z, WING_Z*a); sw('R_wing', AX.z, -WING_Z*a);
     return;
   }
   dWingBeat((-0.16+(extra||0))*a, 0);
   sw('wing',AX.y,-0.70*a); sw('wing0',AX.y,-0.35*a); sw('R_wing',AX.y,0.70*a); sw('R_wing0',AX.y,0.35*a); }
-var WING_BASE_PIVOT = 1.5;   // pegasus: hinge the whole wing pair down about the shoulder (wingbase joint) — tuned via GLB renders
-var WING_SWEEP = 1.0;      // pegasus fore/aft sweep of the wing arm (negative = forward). Tuned via top-down renders
+var WING_Z = -1.0;   // pegasus: rigid dihedral, each wing rotated about the FORE-AFT (Z) axis at its entry — lowers the wings while they stay out to the sides. Tuned via renders
 
 const DRAGON_MOTIONS=[
   {id:'dragon_walk', name:'Walk', cat:'Locomotion', type:'move', dur:1.3, build:(t,P)=>{ resetPose(); const cyc=(t/1.3)*P.speed;
