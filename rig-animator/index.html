@@ -61,7 +61,7 @@
 <main>
   <aside>
     <div>
-      <h1>🐾 Rig Animator <span class="appver">v1.19.16</span></h1>
+      <h1>🐾 Rig Animator <span class="appver">v1.19.17</span></h1>
       <div class="hint" style="margin-top:0">Procedurally generate original animations for your <b>biped</b>, <b>quadruped</b> and <b>bird</b> rigs — organized by category (boxing, fencing, football, dancing, running, walking, jumping, climbing…) — then export them into the GLB Stitcher motion library.</div>
     </div>
 
@@ -121,7 +121,7 @@
         </g>
       </svg>
       <div>
-        <div><b>Rig Animator</b> v1.19.16 · part of GLB Studio</div>
+        <div><b>Rig Animator</b> v1.19.17 · part of GLB Studio</div>
         <div class="appfoot-sub">© <span class="cred-year">2026</span> Paul A.T. Ramey · <b>KSOL Designs</b> · <a href="https://www.ksoldesigns.com" target="_blank" rel="noopener">ksoldesigns.com</a></div>
       </div>
     </div>
@@ -5054,7 +5054,7 @@ function dTuckLegsTight(a){
   // under the chest, hind feet close together under the tail. Modest thigh lift (so the forelegs don't fold up
   // into / collapse the chest); the KNEES bring the paws up under the body. (Hand-rig hips inverted → signs for mesh.)
   ['frontleg','R_frontleg'].forEach(h=>sw(h,AX.x,0.55*a));           // shoulders rotate the upper arms DOWN (side view) so the arms swing clear of the chest
-  ['frontleg0','R_frontleg0'].forEach(k=>sw(k,AX.x,0.25*a));         // elbows nearly straight (unbent ~90°) → forearms extend the hands DOWN under the belly
+  ['frontleg0','R_frontleg0'].forEach(k=>sw(k,AX.x,0.60*a));         // elbows unfolded further → forearms extend the hands down until they almost reach the knees
   ['frontleg1','R_frontleg1'].forEach(s=>sw(s,AX.x,-0.30*a));
   ['backleg','R_backleg'].forEach(h=>sw(h,AX.x,0.30*a));             // hind thighs: modest
   ['backleg0','R_backleg0'].forEach(k=>sw(k,AX.x,-1.45*a));          // …knees fold → hind feet come up under the tail
