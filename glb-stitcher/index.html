@@ -933,7 +933,7 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 
 const $ = s => document.querySelector(s);
-const APP_NAME='GLB Stitcher', APP_VERSION='1.8.10', APP_BUILD='2026-09-07';   // version shown in About + footer
+const APP_NAME='GLB Stitcher', APP_VERSION='1.8.11', APP_BUILD='2026-09-07';   // version shown in About + footer
 // Bump APP_BUILD whenever the app or the bundled motion library changes. It is printed to the console and
 // shown in the footer so "am I running the current version?" can be answered by looking, not by guessing —
 // a stale browser tab kept an old build alive twice while the files on disk were already up to date.
@@ -6044,14 +6044,17 @@ async function studioMergeMotions(){
   let recs=[]; try{ recs=await StudioLib.getAllMotions(); }catch(e){ return; }
   if(!libIndex) libIndex=[]; if(!libSkeletons) libSkeletons={}; if(!libPoses) libPoses={};
   libIndex = libIndex.filter(m=>!m.__studio);                 // drop prior studio injections, then re-add fresh
-  const bundled=new Set(libIndex.map(m=>m.id));
+  // Key by the motion's BASE id (rig + motion, WITHOUT the trailing _dur_amp_speed params). A Studio-library
+  // record for the same motion is an older bake — even if it was baked at different params (so a DIFFERENT full
+  // id), it must NOT shadow the current bundled file. Without stripping params, an old saved copy kept being
+  // re-injected from IndexedDB on every load (surviving hard-refreshes) and served stale — e.g. a gallop whose
+  // neck dropped into the chest, long after the file library had been re-baked. Bundled always wins per base id.
+  const baseId = id => (id||'').replace(/_\d+_\d+_\d+$/, '');
+  const bundled=new Set(libIndex.map(m=>baseId(m.id)));
   let shadowed=0;
   for(const rec of recs){
     if(!rec.entry) continue;
-    // A Studio-library record with the SAME id as a bundled motion is an older bake of that exact motion (the id
-    // encodes name + params). It used to shadow the bundled file from memory, so a redeployed motion could never
-    // show for anyone who had once sent it over from Animate. The bundled library wins on a collision.
-    if(bundled.has(rec.entry.id)){ shadowed++; mlClipCache.delete(rec.entry.id); continue; }
+    if(bundled.has(baseId(rec.entry.id))){ shadowed++; mlClipCache.delete(rec.entry.id); continue; }
     libIndex.push({ ...rec.entry, __studio:true });
     if(rec.sig && rec.skeleton && !libSkeletons[rec.sig]) libSkeletons[rec.sig]=rec.skeleton;   // its skeleton for retarget
     if(rec.clip) mlClipCache.set(rec.entry.id, rec.clip);      // serve clip from memory (no ./library/m fetch)
