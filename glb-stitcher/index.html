@@ -933,7 +933,7 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 
 const $ = s => document.querySelector(s);
-const APP_NAME='GLB Stitcher', APP_VERSION='1.8.12', APP_BUILD='2026-09-08';   // version shown in About + footer
+const APP_NAME='GLB Stitcher', APP_VERSION='1.8.13', APP_BUILD='2026-09-08';   // version shown in About + footer
 // Bump APP_BUILD whenever the app or the bundled motion library changes. It is printed to the console and
 // shown in the footer so "am I running the current version?" can be answered by looking, not by guessing —
 // a stale browser tab kept an old build alive twice while the files on disk were already up to date.
@@ -5468,6 +5468,17 @@ function retargetMotion(motion, rig){
   const sLeg=legLen(srcRest), tLeg=legLen(tgtRest);
   const rootScale = (sLeg>1e-6 && tLeg>1e-6) ? tLeg/sLeg : posScale;
   const rootBone = (src && src.boneNames && src.boneNames[0]) || 'Hips';
+  // Armature-aware ROOT transfer K = Aᵗ⁻¹·Aˢ (Aˢ/Aᵗ = source/target armature world orientation). Used for BOTH the
+  // root's rotation (keeps a world-vertical turn vertical) AND its TRANSLATION: a stood-up quad bakes its jump/sit
+  // vertical along the Hips' local −Z, so without K that lands in the target's world-Z (forward) and the animal
+  // scoots instead of leaving the ground / sitting down. Present only when the bake stored rootWorldQ (newer bakes).
+  let rootK=null;
+  if(src && src.rootWorldQ && rig && rig.rootWorldQ && rig.rootBoneName===rootBone && srcRest[rootBone] && tgtRest[rootBone]){
+    const srR=new THREE.Quaternion().fromArray(srcRest[rootBone].q), trR=new THREE.Quaternion().fromArray(tgtRest[rootBone].q);
+    const sArm=new THREE.Quaternion().fromArray(src.rootWorldQ).multiply(srR.clone().invert());
+    const tArm=new THREE.Quaternion().fromArray(rig.rootWorldQ).multiply(trR.clone().invert());
+    rootK=tArm.clone().invert().multiply(sArm);
+  }
   const tracks=[]; let matched=0, totalBones=0; const seen=new Set();
   for(const t of clip.tracks){
     const dot=t.name.lastIndexOf('.'); const bone=t.name.slice(0,dot), prop=t.name.slice(dot+1);
@@ -5493,12 +5504,7 @@ function retargetMotion(motion, rig){
         //    → hitching when linked). Falls back to the BONE-LOCAL form (out = tr·sr⁻¹·q) when the stored
         //    rootWorldQ is absent (older bakes) — that keeps a spin roughly upright but tilts by the rest gap.
         let pre=null, postR=null;
-        if(isRoot && src && src.rootWorldQ && rig && rig.rootWorldQ && rig.rootBoneName===bone){
-          const sArm=new THREE.Quaternion().fromArray(src.rootWorldQ).multiply(srInv);          // Aˢ = rootWorldQ_src · sr⁻¹
-          const tArm=new THREE.Quaternion().fromArray(rig.rootWorldQ).multiply(tr.clone().invert()); // Aᵗ = rootWorldQ_tgt · tr⁻¹
-          pre=tArm.clone().invert().multiply(sArm);                                              // K = Aᵗ⁻¹·Aˢ
-          postR=pre.clone().invert().multiply(tr);                                               // K⁻¹·tr
-        }
+        if(isRoot && rootK){ pre=rootK; postR=rootK.clone().invert().multiply(tr); }             // K·q·sr⁻¹·K⁻¹·tr
         for(let i=0;i<v.length;i+=4){ q.set(v[i],v[i+1],v[i+2],v[i+3]);
           const out = pre ? pre.clone().multiply(q).multiply(srInv).multiply(postR)
                           : isRoot ? tr.clone().multiply(srInv).multiply(q)
@@ -5509,7 +5515,13 @@ function retargetMotion(motion, rig){
       const sp=(srcRest[bone]&&srcRest[bone].p)||[0,0,0], tp=(tgtRest[bone]&&tgtRest[bone].p)||[0,0,0];
       const v=t.values.slice();
       const ps = (bone===rootBone) ? rootScale : posScale;   // body travel scales by leg length, bone offsets by build
-      for(let i=0;i<v.length;i+=3){ v[i]=tp[0]+(v[i]-sp[0])*ps; v[i+1]=tp[1]+(v[i+1]-sp[1])*ps; v[i+2]=tp[2]+(v[i+2]-sp[2])*ps; }
+      if(bone===rootBone && rootK){                          // rotate the root delta into the target's world frame (jump goes UP, not forward)
+        const d=new THREE.Vector3();
+        for(let i=0;i<v.length;i+=3){ d.set(v[i]-sp[0], v[i+1]-sp[1], v[i+2]-sp[2]).applyQuaternion(rootK).multiplyScalar(ps);
+          v[i]=tp[0]+d.x; v[i+1]=tp[1]+d.y; v[i+2]=tp[2]+d.z; }
+      } else {
+        for(let i=0;i<v.length;i+=3){ v[i]=tp[0]+(v[i]-sp[0])*ps; v[i+1]=tp[1]+(v[i+1]-sp[1])*ps; v[i+2]=tp[2]+(v[i+2]-sp[2])*ps; }
+      }
       tracks.push(new THREE.VectorKeyframeTrack(t.name, t.times.slice(), v));
     } // scale tracks ignored (keep target's bone scales)
   }
