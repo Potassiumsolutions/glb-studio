@@ -933,7 +933,7 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 
 const $ = s => document.querySelector(s);
-const APP_NAME='GLB Stitcher', APP_VERSION='1.8.13', APP_BUILD='2026-09-08';   // version shown in About + footer
+const APP_NAME='GLB Stitcher', APP_VERSION='1.8.14', APP_BUILD='2026-09-09';   // version shown in About + footer
 // Bump APP_BUILD whenever the app or the bundled motion library changes. It is printed to the console and
 // shown in the footer so "am I running the current version?" can be answered by looking, not by guessing —
 // a stale browser tab kept an old build alive twice while the files on disk were already up to date.
@@ -5472,12 +5472,13 @@ function retargetMotion(motion, rig){
   // root's rotation (keeps a world-vertical turn vertical) AND its TRANSLATION: a stood-up quad bakes its jump/sit
   // vertical along the Hips' local −Z, so without K that lands in the target's world-Z (forward) and the animal
   // scoots instead of leaving the ground / sitting down. Present only when the bake stored rootWorldQ (newer bakes).
-  let rootK=null;
+  let rootK=null, tArmUp=null;   // tArmUp = world-up expressed in the target root's PARENT frame (the frame the root position track lives in)
   if(src && src.rootWorldQ && rig && rig.rootWorldQ && rig.rootBoneName===rootBone && srcRest[rootBone] && tgtRest[rootBone]){
     const srR=new THREE.Quaternion().fromArray(srcRest[rootBone].q), trR=new THREE.Quaternion().fromArray(tgtRest[rootBone].q);
     const sArm=new THREE.Quaternion().fromArray(src.rootWorldQ).multiply(srR.clone().invert());
     const tArm=new THREE.Quaternion().fromArray(rig.rootWorldQ).multiply(trR.clone().invert());
     rootK=tArm.clone().invert().multiply(sArm);
+    tArmUp=new THREE.Vector3(0,1,0).applyQuaternion(tArm.clone().invert());
   }
   const tracks=[]; let matched=0, totalBones=0; const seen=new Set();
   for(const t of clip.tracks){
@@ -5544,7 +5545,11 @@ function retargetMotion(motion, rig){
         const steps=[]; for(let f=1;f<n;f++){ const dx=v[f*3]-v[(f-1)*3],dy=v[f*3+1]-v[(f-1)*3+1],dz=v[f*3+2]-v[(f-1)*3+2]; steps.push(Math.hypot(dx,dy,dz)); }
         const srt=[...steps].sort((a,b)=>a-b); const med=srt[srt.length>>1]||0.01; const thr=Math.max(0.25,med*6);
         let endIdx=n-1; while(endIdx>1 && steps[endIdx-1]>thr) endIdx--;   // walk back over trailing reset/teleport frames
-        const dNx=v[endIdx*3]-d0x, dNy=v[endIdx*3+1]-d0y, dNz=v[endIdx*3+2]-d0z;
+        let dNx=v[endIdx*3]-d0x, dNy=v[endIdx*3+1]-d0y, dNz=v[endIdx*3+2]-d0z;
+        // With the armature-aware transfer (rootK) the stride can no longer leak into the vertical, so only the HORIZONTAL
+        // drift is removed. A one-cycle bake's last sample sits one frame short of the loop point — on a gait with a
+        // suspension arc (gallop/bound) that frame is airborne, and detrending its height made the whole clip sink.
+        if(rootK && tArmUp){ const k=dNx*tArmUp.x+dNy*tArmUp.y+dNz*tArmUp.z; dNx-=k*tArmUp.x; dNy-=k*tArmUp.y; dNz-=k*tArmUp.z; }
         for(let f=0;f<n;f++){ const a=Math.min(f,endIdx)/endIdx; v[f*3]-=a*dNx; v[f*3+1]-=a*dNy; v[f*3+2]-=a*dNz; } } } }
   const out=new THREE.AnimationClip(clip.name, clip.duration, tracks);
   out.__match={matched, totalBones, ratio:+ratio.toFixed(3)};
@@ -5561,7 +5566,7 @@ const FLOOR_CONTACT = { fitpushup:{rep:1}, fitplank:{hands:1,toes:1}, floordown:
   // Quad rear/roar: the trunk pitches upright but the HIND paws must stay on the floor. Retarget carries only
   // joint angles, so on a mesh whose legs differ in length from the template the SAME fold reaches BELOW the
   // floor — re-plant the hind paws on THIS character's own skeleton (see the hindpaws branch below).
-  dragon_roar:{hindpaws:1}, peg_rear:{hindpaws:1} };
+  dragon_roar:{hindpaws:1}, peg_rear:{hindpaws:1}, rear:{hindpaws:1} };
 const _gcV1=new THREE.Vector3(), _gcV2=new THREE.Vector3(), _gcV3=new THREE.Vector3(), _gcQ1=new THREE.Quaternion(), _gcQ2=new THREE.Quaternion();
 function _ccdToward(bone, endEff, target){
   bone.updateWorldMatrix(true,false);
@@ -5852,7 +5857,7 @@ function mlSaveCollapsed(){ try{ localStorage.setItem('mlCollapsed', JSON.string
 // Super-groups cluster the many categories into a handful of top-level sections in the browse list, so the
 // list stays scannable no matter how many categories exist. A category not listed here falls under "Other".
 const CAT_SUPER={
-  'Locomotion':['Walking','Running','Jumping','Climbing','Locomotion','Flight','Swimming','Parkour','Movement'],
+  'Locomotion':['Walking','Running','Jumping','Climbing','Locomotion','Flight','Swimming','Parkour','Movement','Horse','Big Cat','Bear','Rhino'],
   'Combat & Reactions':['Boxing','Fencing','Combat','Reactions','Martial Arts','Aim','Aim & Ranged','Ranged','Action','Pirate','Swashbuckling','Stealth','Swordplay','Melee'],
   'Sports':['Football','Track & Field','Sports','Basketball','Athletics','Fitness','Yoga'],
   'Expression':['Dancing','Gestures','Emotes','Social','Music','Cheer','Celebration'],

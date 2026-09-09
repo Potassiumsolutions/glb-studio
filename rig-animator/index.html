@@ -448,6 +448,30 @@ function qLimbIK(L, target, iters){
     }
   }
 }
+// 3D variant of qLimbIK for motions that ABDUCT a limb (the giraffe's splay-drink). qLimbIK is sagittal-only —
+// it zeroes the lateral component — so once a leg has been swung OUT at the shoulder it cannot bring the foot
+// back down to the floor (rotating an abducted leg about the fore-aft axis moves the foot sideways, not down; the
+// foot floated ~0.3 no matter how the bow was tuned). CCD with a full 3D rotation axis per joint. Contained to
+// the callers that need it; qLimbIK itself is unchanged.
+const _qc3ax = new THREE.Vector3();
+function qLimbIK3D(L, target, iters){
+  const end = boneByName[L.foot]; if(!end) return;
+  const chain = [L.hip, L.knee, L.shin];
+  const R = QUAD_REACH[L.foot];
+  if(R){ boneByName[L.hip].getWorldPosition(_qcJ); _qcR.copy(target).sub(_qcJ); const d=_qcR.length(); if(d>R) target=_qcJ.clone().addScaledVector(_qcR.divideScalar(d), R); }
+  for(let it = 0; it < (iters || 12); it++){
+    for(let i = chain.length - 1; i >= 0; i--){
+      const b = boneByName[chain[i]]; if(!b) continue;
+      b.getWorldPosition(_qcJ); end.getWorldPosition(_qcE);
+      _qcA.copy(_qcE).sub(_qcJ); _qcT.copy(target).sub(_qcJ);
+      if(_qcA.lengthSq() < 1e-9 || _qcT.lengthSq() < 1e-9) continue;
+      _qcA.normalize(); _qcT.normalize();
+      _qc3ax.crossVectors(_qcA, _qcT); const s = _qc3ax.length(), c = _qcA.dot(_qcT);
+      if(s < 1e-6) continue; _qc3ax.divideScalar(s);
+      swNow(chain[i], _qc3ax, clamp(Math.atan2(s, c)*QIK_GAIN[i], -0.45, 0.45));
+    }
+  }
+}
 // Rest paw positions, captured standing — every paw target below is expressed relative to these, so a
 // motion says "a stride ahead of where this paw stands" rather than carrying absolute numbers.
 const QUAD_PAW0 = {}, QUAD_REACH = {}, QUAD_FOOTQ0 = {};
@@ -518,15 +542,15 @@ function qWarp(pct, duty){ const st = duty*100; return pct < st ? (pct/st)*60 : 
 // it), so flexing mostly there broke the leg high and left the long forearm+foot hanging straight below it
 // ("the wrist bends too far up the leg"). Shifting flexion down to the carpus articulates the leg near the
 // ground so the segment below the bend is short, like a real dog's wrist.
-const Q_FRONT = { hip:0.85, knee:2.90, lower:1.30 };
+const Q_FRONT = { hip:1.00, knee:2.90, lower:1.30 };   // hip 0.85→1.00: more fore-aft swing range (was too stiff)
 // Extra protraction (radians) added to the FRONT hips across the whole cycle so the fore-limbs reach further
 // ahead (toward the HEAD). Sign verified visually with the marked-paw render (tools/verify + shoot --marks 1),
 // NOT the FK number (that measured the reach with the opposite sign and was misleading): a NEGATIVE value
 // swings the front paw FORWARD toward the head; positive rotates it backward.
 // The amount scales with SPEED: a slow walk (duty .65) uses −25° ("P25", user-approved); a fast/running gait
 // (low duty, more airborne) eases up to −45° ("P45") so the fore-limbs reach out more at speed. See qPoseLimbs.
-let FRONT_PROTRACT = -25*Math.PI/180;         // walk (duty ≈ 0.65)
-let FRONT_PROTRACT_RUN = -45*Math.PI/180;     // fastest gaits (gallop, duty ≈ 0.32)
+let FRONT_PROTRACT = -14*Math.PI/180;         // walk (duty ≈ 0.65) — was -25; reduced forward bias so the fore-limbs retract BEHIND the shoulder (user: "front legs could move backwards more, looks stiff")
+let FRONT_PROTRACT_RUN = -34*Math.PI/180;     // fastest gaits (gallop, duty ≈ 0.32) — was -45
 const Q_HIND  = { hip:0.88, knee:2.00, lower:0.30 };
 // Stride is a fraction of the animal's own leg length, so it scales with the rig instead of being metres.
 const QUAD_LEGLEN = () => { const a = QUAD_PAW0['frontleg2'], b = boneByName['frontleg'];
@@ -592,6 +616,19 @@ function gaitCrouch(G, duty, o, A){
   QGAIT_CROUCH.set(key, worst);
   return worst;
 }
+// Fraction of the way through the CURRENT airborne gap (no limb in stance) at cycle position cyc, or -1 when any
+// limb is planted. A suspension phase is what falls out of duty < spacing; this just locates its edges so the
+// body's ballistic arc can start and end at zero.
+function qAirPhase(cyc, G, duty, dir){
+  const n = G.td.length; const on = i => { let raw = (((cyc - G.td[i]) % 1) + 1) % 1; if(dir < 0) raw = (1 - raw) % 1; return raw < duty; };
+  for(let i = 0; i < n; i++) if(on(i)) return -1;
+  // walk backwards to the last lift-off and forwards to the next touchdown (1/256-cycle resolution)
+  const step = 1/256; let a = cyc, b = cyc, k = 0;
+  const any = c => { for(let i = 0; i < n; i++){ let raw = (((c - G.td[i]) % 1) + 1) % 1; if(dir < 0) raw = (1 - raw) % 1; if(raw < duty) return true; } return false; };
+  while(k++ < 256 && !any(a - step)) a -= step;
+  k = 0; while(k++ < 256 && !any(b + step)) b += step;
+  const len = b - a; return len < 1e-6 ? 0 : Math.min(1, Math.max(0, (cyc - a)/len));
+}
 function quadGaitN(t, P, dur, o){
   o = o || {};
   const G = GAITS[o.gait || 'walk'], duty = o.duty ?? G.duty, A = P.amp;
@@ -608,7 +645,8 @@ function quadGaitN(t, P, dur, o){
   sw('head',  AX.x, -Math.sin(TAU*(cyc*(o.headBeats ?? 1) + 0.15))*(o.headBob ?? 3)*DEG*A);
   // A moving quadruped carries itself lower than it stands — on this rig it MUST, because the foreleg has
   // barely any slack. The amount is solved from the stride rather than guessed, and held constant.
-  setRootY(-(o.drop ?? 0)*LL*A - gaitCrouch(G, duty, o, A));
+  const _crouch = (o.drop ?? 0)*LL*A + gaitCrouch(G, duty, o, A);
+  setRootY(-_crouch);
   if(o.chestOff) sw('chest', AX.x, o.chestOff*A);
   if(o.headOff)  sw('head',  AX.x, o.headOff*A);
   // NOTE: no separate body bob. It used to be applied here with another setRootY, which OVERWROTE the
@@ -619,13 +657,13 @@ function quadGaitN(t, P, dur, o){
   QUAD_TAIL.forEach((tb,i) => sw(tb, AX.y, Math.sin(ph - i*0.55)*(o.tail ?? 3)*DEG*A));
   // Is any limb on the ground at all? With none, the body is ballistic — that is what a suspension phase
   // IS — and the lift has to be applied BEFORE the paws are solved, or it drags them off their targets.
-  let stance = false;
-  QUAD_LEGS.forEach((L, i) => {
-    let raw = (((cyc - G.td[i]) % 1) + 1) % 1;
-    if(o.dir < 0) raw = (1 - raw) % 1;
-    if(raw < duty) stance = true;
-  });
-  if(!stance && o.flight) setRootY(o.flight*LL*A*Math.abs(Math.sin(ph*(o.flightBeats ?? 1))));
+  // ⚠ setRootY is ABSOLUTE: the old flight-lift call here REPLACED the solved crouch for the airborne frames, so
+  // the body popped UP to standing height for one frame twice a stride (trot/pace) or on the last frame (gallop/
+  // bound) — and the Stitcher's gait detrend then read that last-frame pop as a vertical drift and SANK the whole
+  // clip. The lift is now added ON TOP of the crouch, and it is a ballistic arc over the airborne window (zero at
+  // the last lift-off and the next touchdown) instead of a slice of |sin| that started and ended with a step.
+  const _air = qAirPhase(cyc, G, duty, o.dir);
+  if(_air >= 0 && o.flight) setRootY(-_crouch + o.flight*LL*A*4*_air*(1-_air));
   animRoot.updateMatrixWorld(true);
   // ——— limbs: the curves ARE the gait ———
   const inStance = qPoseLimbs(cyc, G, duty, o, A);
@@ -782,6 +820,66 @@ function qPaw(L, dx, dy, dz){
   }
   if(_qTgt.y <= QUAD_FLOOR + 0.02) levelPaw(L);      // paw resting on the ground → point it the standing way
 }
+// Move the whole animal so its hind hooves are back on their standing spots. After a root pitch this is what turns
+// "rotate about the pelvis" into a PIVOT ABOUT THE HIND HOOVES — the only contact a rearing animal has. Rigid: the
+// hind limbs keep whatever joint angles they hold; a crouch / IK pass afterwards flexes them from there.
+const _qpvA = new THREE.Vector3(), _qpvB = new THREE.Vector3();
+function qPivotHind(){
+  animRoot.updateMatrixWorld(true);
+  _qpvA.set(0,0,0); let n = 0;
+  for(const L of QUAD_LEGS){ if(L.front) continue; const r = QUAD_PAW0[L.foot]; if(!r) continue;
+    boneByName[L.foot].getWorldPosition(_qpvB); _qpvA.add(r).sub(_qpvB); n++; }
+  if(!n) return;
+  _qpvA.divideScalar(n).applyQuaternion(rigRoot.quaternion.clone().invert());   // world delta → animRoot's frame (rigRoot carries only the stand-up orient)
+  animRoot.position.add(_qpvA);
+  animRoot.updateMatrixWorld(true);
+}
+// ═════ REAR — the physics ═════════════════════════════════════════════════════════════════════════
+// A rearing animal PIVOTS ABOUT ITS HIND HOOVES: they are its only contact, so every other point moves on an arc
+// about the line between them. (The old version pitched about the pelvis and left the hips where they stood, so
+// the forehand flew up and forward with nothing under it and the hind legs were dragged along behind.)
+// Sequence, from horse / rhino rear kinematics:
+//   LOAD  the croup drops as the hind limbs flex and the weight shifts back; the head dips (anticipation)
+//   RISE  the hind limbs extend and drive the forehand up about the hooves; the forelegs FOLD (elbow + carpus
+//         close, hooves hang under the chest); the neck extends and the head lifts with the body
+//   APEX  a heavy animal holds a MODERATE angle with the hind limbs still flexed (a levade). ~38° is also this
+//         geometry's static balance point: the mass centre sits ≈60% of the way from hind to fore hooves at
+//         about root height, and it is over the hind hooves once tan θ ≈ 0.60·wheelbase / root height.
+//   FALL  the forelegs unfold EARLY and hang down-forward to meet the ground while the body comes down
+//   LAND  the forehand takes the drop: the forelimbs compress, the head nods, then everything recovers
+function quadRear(t, P, o){
+  o = o || {};
+  const A = P.amp, D = o.dur || 1.80, u = (((t/D)*P.speed)%1 + 1)%1;
+  const thMax = o.angle ?? 0.66;                                        // nose-up body angle at the apex (0.66 rad ≈ 38°)
+  const load  = bump(u,0.17,0.17);                                      // hind crouch + head dip before the rise
+  const rise  = ramp(u,0.16,0.46) * (1 - ramp(u,0.62,0.86));            // body angle 0 → 1 → 0
+  const apex  = bump(u,0.52,0.14);                                      // settle / head toss at the top
+  const land  = bump(u,0.90,0.10);                                      // landing compression
+  const fold  = ramp(u,0.20,0.48) * (1 - ramp(u,0.60,0.78));            // foreleg fold follows the rise, unfolds early on the way down
+  const th    = (thMax*rise - 0.04*apex)*A;                             // a slight sag at the apex as it balances
+  const crouch= (0.13*load + 0.04*rise*(1 - 0.5*rise) + 0.05*land)*A;   // pelvis drop along the hind limb, fraction of leg length (kept small at the apex/landing: heavier rigs retarget the same flex into a deeper drop)
+  // Body: pitched nose-up about the ROOT (qPose pitch + = nose down), then the whole animal is moved so the hind
+  // hooves are back on their spots — which makes that pitch a pivot about the hooves.
+  const LL = qPose({ pitch: -th - 0.10*load*A + 0.03*land*A,
+                     chest: (0.06*load - 0.12*rise - 0.06*apex + 0.10*land)*A,   // neck dips, then extends up with the body
+                     head:  (0.12*load - 0.22*rise - 0.14*apex + 0.14*land)*A,   // head tossed up at the top, nods on landing
+                     tail:  (0.10*load + 0.30*rise)*A });
+  qPivotHind();
+  rootLift(-crouch*LL);                                                 // the crouch: pelvis sinks, hind limbs flex to keep the hooves planted
+  QUAD_LEGS.forEach(L=>{
+    if(!L.front){ qPaw(L, 0, 0, 0); return; }                           // hind hooves stay exactly where they stood
+    sw(L.hip,  AX.x, -0.18*fold*A);                                     // forelegs — a FOLD from the joints: slight protraction,
+    sw(L.knee, AX.x,  0.85*fold*A);                                     // elbow closes,
+    sw(L.shin, AX.x,  1.15*fold*A);                                     // carpus closes, hoof hangs
+    sw(L.foot, AX.x,  0.25*fold*A);
+  });
+  animRoot.updateMatrixWorld(true);
+  // Fore hooves on the ground (load, landing, recovery): plant them. The landing compression falls out of the
+  // nose-down pitch pushing them under the floor and the solver folding the elbows to keep them on it.
+  if(th < 0.02) QUAD_LEGS.forEach(L=>{ if(L.front) qPaw(L, 0, 0, 0); });
+  else qPawsToFloor();
+  animRoot.updateMatrixWorld(true);
+}
 // Plant every paw, with optional per-end offsets — the base of every standing pose.
 function qFeet(o){
   o = o || {};
@@ -877,6 +975,11 @@ const QUAD_SPEC = {
   rollover:{min:{hi:20}, body:[-0.75,-0.30], con:[30,100], src:'down, roll, back' },
   limp:   { min:{sh:10, hi:14}, con:[95,100], src:'walk with one forelimb carried' },
   collapse:{min:{hi:25}, body:[-0.80,-0.30], con:[50,100], src:'legs give way, body goes down' },
+  // ——— Horse preset [Back&Clayton13 / Clayton04 joint ROM; Hildebrand65 duty] — approximate ranges
+  hs_walk:  { rom:{sh:[20,34], el:[36,58], ca:[55,82],  hi:[22,36], st:[36,54], ta:[36,58]}, con:[95,100], src:'equine walk' },
+  hs_trot:  { rom:{sh:[26,42], el:[48,72], ca:[78,112], hi:[26,42], st:[42,62], ta:[44,72]}, con:[80,100], src:'equine trot' },
+  hs_canter:{ rom:{sh:[30,50], el:[54,82], ca:[84,116], hi:[30,50], st:[45,66], ta:[48,76]}, con:[60,95],  src:'equine canter' },
+  hs_gallop:{ rom:{sh:[34,58], el:[60,90], ca:[90,122], hi:[34,58], st:[50,74], ta:[52,82]}, con:[45,90],  src:'equine gallop' },
 };
 const QUAD_MOTIONS=[
   // ——— Locomotion — one engine, the real footfall patterns ———
@@ -1075,18 +1178,40 @@ const QUAD_MOTIONS=[
                      chest:(0.10*coil - 0.16*fire)*A, head:(0.12*coil - 0.26*fire)*A, tail:(0.30*coil - 0.30*fire)*A });
     QUAD_LEGS.forEach(L=>qPaw(L, 0, (L.front?0.55:0.20)*LL*fire*A,
       ((L.front ? 0.30 : -0.14)*fire + (L.front ? -0.08 : 0.16)*coil)*LL*A)); }},
-  // Rearing: the whole animal pivots about the hind paws, so those stay planted and everything else goes up.
-  {id:'rear', name:'Rear Up', cat:'Action', type:'stay', dur:1.80, build:(t,P)=>{
-    const A=P.amp, k=bump((t/1.80*P.speed)%1,0.5,0.42)*A;
-    const LL=qPose({ pitch:-1.05*k, y:0.04*k, chest:0.20*k, head:-0.10*k, tail:0.25*k });
-    QUAD_LEGS.forEach(L=> L.front ? qPaw(L, 0, 0.95*LL*k, 0.30*LL*k) : qPaw(L, 0, 0, -0.10*LL*k)); }},
+  // Rearing — see quadRear(): a pivot about the HIND HOOVES with a crouch first, not a pitch about the pelvis.
+  {id:'rear', name:'Rear Up', cat:'Action', type:'stay', dur:1.80, build:(t,P)=> quadRear(t,P,{dur:1.80})},
   {id:'paw', name:'Paw Swipe', cat:'Action', type:'stay', dur:0.90, build:(t,P)=>{
-    const A=P.amp, u=(((t/0.90)*P.speed)%1+1)%1, up=ramp(u,0.05,0.34), strike=bump(u,0.56,0.22);
-    const LL=qPose({ pitch:-0.14*up*A, y:-0.06*up*A, chestY:-0.10*up*A, headY:-0.14*up*A, head:-0.10*up*A });
+    // A real swat has WEIGHT: wind up (coil back, paw cocks up & behind, weight loads onto the planted legs) →
+    // power stroke (paw drives forward+down and sweeps ACROSS as the shoulders whip round, wrist snapping through)
+    // → follow-through past the target, then settle. The old version just ramped the paw up and poked — no
+    // anticipation, no follow-through, no weight shift, and it ended with the paw still hanging in the air.
+    const A=P.amp, u=(((t/0.90)*P.speed)%1+1)%1;
+    const lift  = ramp(u,0.06,0.24) * (1 - ramp(u,0.60,0.90));   // fore-paw off the ground: up by u=0.24, back down by 0.90
+    const cock  = bump(u,0.24,0.22);                             // wind-up peak — paw drawn up & back, body coils
+    const strike= bump(u,0.50,0.17);                            // power stroke — sharp, forward/down/across
+    const follow= bump(u,0.66,0.18);                           // follow-through past the strike
+    const S = QUAD_LEGS[0].side==='L' ? 1 : -1;                // swipe side (QUAD_LEGS[0] is the striking fore-limb)
+    const LL=qPose({
+      pitch: ( 0.06*cock - 0.12*strike + 0.02*follow)*A,        // nose-up coil → nose-down lunge → settle
+      y:     (-0.05*cock - 0.03*strike)*A,                      // sink slightly as weight loads onto the planted legs
+      chest: (-0.05*cock + 0.07*strike)*A,                      // chest coils then thrusts into the blow
+      head:  (-0.05*cock - 0.11*strike)*A,                      // gaze drops onto the target through the strike
+      headY: ( 0.10*cock - 0.05*strike)*A,
+      roll:  ( 0.05*cock + 0.10*strike)*A*S,                    // lean into the swipe
+      turn:  (-0.06*cock + 0.13*strike)*A*S                     // shoulders wind up, then whip round with the paw
+    });
     QUAD_LEGS.forEach(L=>{
-      if(L===QUAD_LEGS[0]) qPaw(L, -0.20*LL*strike*A, (0.75*up + 0.20*strike)*LL*A, (0.20*up + 0.34*strike)*LL*A);
-      else qPaw(L, 0, 0, L.front ? 0.04*LL*up : -0.04*LL*up);
-    }); }},
+      if(L===QUAD_LEGS[0]){                                     // the striking fore-paw
+        const dx = ( 0.18*cock - 0.46*strike + 0.08*follow)*LL*A*S;   // cock OUT/back → sweep hard ACROSS the body
+        const dy = ( 0.85*lift  - 0.62*strike)*LL*A;                  // high on the wind-up, SWATS DOWN through the strike
+        const dz = (-0.22*cock  + 0.50*strike + 0.10*follow)*LL*A;    // draw back, then drive forward past the target
+        qPaw(L, dx, dy, dz);
+        sw(L.foot, AX.x, (-0.35*cock + 0.75*strike)*A);              // wrist cocks back then snaps down through the blow
+      } else {                                                  // three planted legs take the shifted weight
+        qPaw(L, 0, 0, (L.front ? 0.02 : -0.03)*LL*strike*A);
+      }
+    });
+    animRoot.updateMatrixWorld(true); }},
   {id:'scratch', name:'Scratch (hind leg)', cat:'Action', type:'stay', dur:1.10, build:(t,P)=>{
     const A=P.amp, u=(((t/1.10)*P.speed)%1+1)%1, k=bump(u,0.5,0.46), buzz=Math.sin(TAU*u*7);
     const LL=qPose({ roll:0.18*k*A, y:-0.14*k*A, head:0.18*k*A, headZ:-0.30*k*A, tail:0.20*k });
@@ -1137,6 +1262,27 @@ const QUAD_MOTIONS=[
       sw(L.hip,  AX.z, 0.25*r*(L.side==='L'?1:-1));
     });
     animRoot.updateMatrixWorld(true); }},
+  // ——— HORSE gait set (species preset; the shared Locomotion gaits above are dog-derived) ———
+  // Same engine, equine settings. Footfalls: even 4-beat lateral-sequence walk (LH LF RH RF), 2-beat diagonal trot
+  // with a short suspension, 3-beat right-lead canter (LH · RH+LF · RF · suspension), transverse right-lead gallop
+  // (LH RH LF RF · suspension) [Hildebrand65]. Duty factors .62/.42/.38/.30 [Hildebrand65; Clayton04]. The back
+  // barely flexes (lumbar flex-ext ROM ≈ 6-7° walk/trot, ≈ 15° canter/gallop [Faber00/01]) — a fraction of a dog's.
+  // Head: nods TWICE per stride at the walk (once per forelimb stance), is held still at the trot, and dips ONCE
+  // per stride at canter/gallop as the leading foreleg lands [Dunbar08]. Joint ranges via per-motion hip/knee/lower
+  // multipliers on the shared curves: elbow smaller and carpus larger than a dog's at the walk, all rising with
+  // speed; hind hip stays modest [Back&Clayton13]. Tail carried, swishing gently (not a dog wag).
+  {id:'hs_walk', name:'Horse Walk', cat:'Horse', type:'move', dur:1.10, build:(t,P)=>
+    quadGaitN(t,P,1.10,{gait:'walk', duty:0.62, stride:0.42, hip:0.80, knee:0.92, lower:0.78,
+                        spine:0.04, spinePh:0.0, yaw:1, headBeats:2, headBob:4, tail:2, bob:0.010})},
+  {id:'hs_trot', name:'Horse Trot', cat:'Horse', type:'move', dur:0.70, build:(t,P)=>
+    quadGaitN(t,P,0.70,{gait:'trot', duty:0.42, stride:0.56, hip:0.88, knee:1.08, lower:1.00,
+                        spine:0.03, yaw:1, headBob:1, tail:2, bob:0.014, flight:0.025})},
+  {id:'hs_canter', name:'Horse Canter', cat:'Horse', type:'move', dur:0.60, build:(t,P)=>
+    quadGaitN(t,P,0.60,{gait:'canter', duty:0.38, stride:0.62, hip:0.98, knee:1.12, lower:1.05,
+                        spine:0.11, spinePh:0.15, yaw:1, headBeats:1, headBob:5, tail:3, bob:0.024, flight:0.05})},
+  {id:'hs_gallop', name:'Horse Gallop', cat:'Horse', type:'move', dur:0.46, build:(t,P)=>
+    quadGaitN(t,P,0.46,{gait:'gallop', duty:0.30, stride:0.76, hip:1.06, knee:1.16, lower:1.10,
+                        spine:0.12, spinePh:0.10, yaw:1, headBeats:1, headBob:6, headOff:0.08, tail:3, bob:0.028, flight:0.09})},
 ];
 
 // ═════ BIRD — the ground, and the wing beat ══════════════════════════════════════════════════════
@@ -4822,6 +4968,22 @@ function envUpDown(u, riseEnd, fallStart){
   return 0.5+0.5*Math.cos(Math.PI*(u-fallStart)/(1-fallStart));
 }
 const ELEPHANT_MOTIONS=[
+  // ——— Locomotion ———
+  {id:'eleph_walk', name:'Walk', cat:'Locomotion', type:'move', dur:2.20, build:(t,P)=>{ resetPose();
+    const cyc=(t/2.20)*P.speed;
+    // Elephants use a LATERAL-SEQUENCE 4-beat walk (LH→LF→RH→RF), slow, with columnar legs — modest hip swing,
+    // small knee bend, and very little vertical bob. The trunk swings loosely side-to-side, the ears sway.
+    const ph={backleg:0.0, frontleg:0.25, R_backleg:0.5, R_frontleg:0.75};
+    QUAD_LEGS.forEach(leg=> legDrive(leg, cyc+ph[leg.hip], 0.22, 0.26, P));
+    sw('chest', AX.z, Math.sin(TAU*cyc)*0.03*P.amp);                                  // slow shoulder roll toward the stance side
+    sw('Hips',  AX.z, Math.sin(TAU*cyc+0.5)*0.028*P.amp);                             // hindquarters counter-sway
+    for(let i=0;i<8;i++){ sw(ELEPHANT_TRUNK[i], AX.z, Math.sin(TAU*cyc - i*0.20)*0.05*ETW[i]*P.amp);    // trunk swings side to side, distal lags
+                          sw(ELEPHANT_TRUNK[i], AX.x, Math.sin(TAU*cyc*2 - i*0.15)*0.018*ETW[i]*P.amp); } // slight fore-aft swing with the step
+    earFlap(Math.sin(TAU*cyc)*0.07*P.amp);                                            // ears sway gently with the gait
+    QUAD_TAIL.forEach((tb,i)=> sw(tb, AX.y, Math.sin(TAU*cyc + i*0.4)*0.05*P.amp));
+    sw('head', AX.x, Math.sin(TAU*cyc*2)*0.018*P.amp);                                // gentle head bob
+    setRootY(Math.abs(Math.sin(TAU*cyc*2))*0.006*P.amp);                              // minimal bob — heavy, columnar
+  }},
   // ——— Idle / ambient ———
   {id:'eleph_sway', name:'Idle Sway', cat:'Idle', type:'idle', dur:4.2, build:(t,P)=>{ resetPose();
     const a=TAU*(t/4.2)*P.speed;
@@ -4839,12 +5001,20 @@ const ELEPHANT_MOTIONS=[
   }},
   // ——— Trunk behaviours ———  (+AX.x curls DOWN/under, -AX.x raises UP — verified in-app)
   {id:'eleph_curl', name:'Trunk Curl (to mouth)', cat:'Trunk', type:'action', dur:3.6, build:(t,P)=>{ resetPose();
-    const u=((t/3.6)*P.speed)%1; const env=0.5-0.5*Math.cos(TAU*u);            // 0->1->0
-    // raise the proximal half toward horizontal, curl the distal half back up under the head → tip to the mouth.
-    // distal leads (tip->base bending wave): scale distal onset by the eased env earlier.
-    for(let i=0;i<8;i++){ const prox=(8-i)/8, dist=(i+1)/8;
-      sw(ELEPHANT_TRUNK[i], AX.x, (-env*0.28*prox + env*0.30*dist)*ETW[i]*P.amp); }
-    sw('head', AX.x, -env*0.09*P.amp);                                         // head dips to meet the trunk
+    const u=((t/3.6)*P.speed)%1; const env=envUpDown(u,0.42,0.60);           // curl up -> hold at the mouth -> unfurl
+    // A curl-to-mouth is ONE sense of bend the whole way (forward, up, then back toward the face): from hanging down
+    // the trunk sweeps forward and up and the distal half closes a tight loop whose tip lands at the mouth, just
+    // under the trunk base between the tusks. −AX.x is that forward/up sense; curvature grows toward the tip
+    // (muscular-hydrostat pseudo-joint sits ~60-70% down), total ≈ 275° over the eight segments.
+    // Tuned on the rigged elephant with the FK harness (its trunk rests with a ~90° backward hook at the tip, so the
+    // animator preview shows a tighter loop than the mesh does): under-chin loop, tip lands 0.13 trunk-lengths below
+    // the root at the mouth. +AX.x = curl back/under; the negative distal values straighten that rest hook so the tip
+    // points UP into the mouth instead of continuing to curl.
+    // (the full-strength profile 0.15/0.55/0.85/1.00/0.35/-0.30/-0.65/-0.60 over-curled: tip above the tusks + tusk skin
+    // dragged by trunk01/02 — the half-way frame of that was the right shape, so this is ~0.65 of it, proximal eased most)
+    const A=[0.06,0.32,0.58,0.70,0.28,-0.22,-0.45,-0.42];
+    for(let i=0;i<8;i++) sw(ELEPHANT_TRUNK[i], AX.x, env*A[i]*P.amp);
+    sw('head', AX.x, -env*0.12*P.amp);                                         // head dips a little to meet the tip
   }},
   {id:'eleph_reach', name:'Trunk Reach (forward)', cat:'Trunk', type:'action', dur:3.2, build:(t,P)=>{ resetPose();
     const u=((t/3.2)*P.speed)%1; const env=0.5-0.5*Math.cos(TAU*u);
@@ -4925,13 +5095,59 @@ const GIRAFFE_MOTIONS=[
     girEars(env*0.10*P.amp);
   }},
   {id:'gir_drink', name:'Drink (splay & lower)', cat:'Neck', type:'action', dur:6.5, build:(t,P)=>{ resetPose();
-    const u=((t/6.5)*P.speed)%1; const s=envUpDown(u,0.32,0.72);
-    sw('frontleg', AX.z,  s*0.34*P.amp); sw('R_frontleg', AX.z, -s*0.34*P.amp);   // front legs SPLAY out to the sides
-    sw('frontleg', AX.x,  s*0.14*P.amp); sw('R_frontleg', AX.x,  s*0.14*P.amp);   // ...and forward
-    sw('frontleg0', AX.x,-s*0.22*P.amp); sw('R_frontleg0', AX.x,-s*0.22*P.amp);   // knees bend, front lowers
-    neckBend(s*0.40*P.amp);                                                       // neck folds down to the water
-    sw('head', AX.x, s*0.30*P.amp);
-    if(u>0.40 && u<0.70) sw('head', AX.x, Math.sin(TAU*t*3)*0.03*P.amp);          // sip
+    const u=((t/6.5)*P.speed)%1;
+    // THREE strict phases (user): (1) front legs step OUT to the sides, (2) THEN the front BOWS down and the knees
+    // bend, (3) THEN the neck bends down. Trapezoid envelope each (rise a→b, hold to c, fall to d) so they reverse
+    // in order coming back up. The DROP is a play-bow PITCH about the pelvis (drops the shoulders over the planted
+    // forefeet, rump stays up, feet don't lift) — NOT setRootY, which the Stitcher's grounding cancels.
+    const seg=(a,b,c,d)=> u<a?0 : u<b?0.5-0.5*Math.cos(Math.PI*(u-a)/(b-a)) : u<c?1 : u<d?0.5+0.5*Math.cos(Math.PI*(u-c)/(d-c)) : 0;
+    const outE  = seg(0.05,0.22,0.86,0.98);   // (1) legs step OUT to the sides
+    const bowE  = seg(0.26,0.48,0.74,0.92);   // (2) THEN the front bows down (pitch) + knees bend
+    const neckE = seg(0.52,0.66,0.72,0.90);   // (3) THEN the neck bends down
+    // (2) pitch the body nose-DOWN over the forefeet (play bow) — this qstand()s then pitches, so it runs first.
+    // GENTLE lean only. 1.15 rad was a dog's play-bow — on the giraffe it stood the rump straight up in the air
+    // (a headstand). A drinking giraffe's back slopes ~20°; the front comes down from the LEG SPLAY, not a bow.
+    // The front comes down by pitching about the HIPS (rear end stays tall, back slopes ~28°) — NOT by dropping the
+    // whole body: a uniform setRootY lowered the rear hips too, and the rear legs, now too long, got swung straight
+    // back with the hooves in the air. At 0.50 rad the shoulder (0.35 ahead of the pelvis) drops ~0.17, which is what
+    // the 32° splay needs (L(1−cosθ)≈0.15) to land the front hooves on the floor, with a hair left to bend the knees.
+    const LL=qPose({ pitch: bowE*0.50*P.amp, chest: bowE*0.08*P.amp, tail:-bowE*0.06*P.amp });
+    // LEGS STAY VERTICAL UNDER THE TILTED BODY. The legs are children of the pitched body, so the bow rotates them
+    // ~66° forward with it; asking the sagittal solver to undo that whole swing per leg made it OVERSHOOT (rear feet
+    // 0.5 behind rest, 0.3 in the air) and CROSS the hind legs — the giraffe hung in mid-air with twisted rear legs.
+    // Counter-rotate each hip by the pitch it inherited (front legs also inherit the extra chest pitch) so every leg
+    // hangs straight down again; the solver then only makes small reach corrections and behaves.
+    sw('frontleg',   AX.x, -bowE*(0.50+0.08)*P.amp); sw('R_frontleg', AX.x, -bowE*(0.50+0.08)*P.amp);
+    sw('backleg',    AX.x, -bowE*0.50*P.amp);        sw('R_backleg',  AX.x, -bowE*0.50*P.amp);
+    // A MODEST shoulder pivot so the legs visibly hinge OUT at the shoulder. Kept small on purpose: the leg IK is
+    // sagittal-only and cannot re-plant a leg swung far out — a 0.50 abduction floated the front feet 0.45, and the
+    // 3D solver I tried on top of it lifted ALL FOUR feet and CROSSED the hind legs (the giraffe hung in mid-air).
+    // A REAL splay (~30°, a visible V — NOT the near-horizontal split 0.25+bow produced). A leg abducted by θ only
+    // reaches L·cosθ down, so drop the body by exactly L(1−cosθ) so the straight splayed legs' feet land ON the
+    // floor (plus a touch more with the lean so the knees bend). Planted feet stay the lowest point, so the app's
+    // grounding leaves this drop alone.
+    const th = 0.55*P.amp*outE;   // (no setRootY — the shoulder drop comes from the pitch above; the rear stays planted and tall)
+    sw('frontleg',   AX.z,  th);
+    sw('R_frontleg', AX.z, -th);
+    // the HIND legs swing out a little too (user) — a modest spread (~40% of the front's) to widen the base. Small
+    // enough that its arc-lift (~0.02) leaves the rear hooves planted; the rear planting solver ignores lateral.
+    const thB = 0.22*P.amp*outE;
+    sw('backleg',   AX.z,  thB);
+    sw('R_backleg', AX.z, -thB);
+    // plant the forefeet with the plain sagittal solver (the version the user approved), sliding a touch forward
+    // with the bow so the target stays under the shoulder. Hind feet stay put.
+    qPaw(QUAD_LEGS[0], 0, 0, (bowE*0.05 + outE*0.03)*LL);
+    qPaw(QUAD_LEGS[1], 0, 0, (bowE*0.05 + outE*0.03)*LL);
+    qPaw(QUAD_LEGS[2], 0,0,0); qPaw(QUAD_LEGS[3], 0,0,0);
+    // (3) the long neck pivots DOWN around its BASE joint as a straight unit — base does nearly all the rotation.
+    const nb=neckE*1.55*P.amp;
+    sw('neck01', AX.x, nb*1.00); sw('neck02', AX.x, nb*0.10); sw('neck03', AX.x, nb*0.08); sw('neck04', AX.x, nb*0.06);
+    // The head's REST tilt (~63° forward of the neck, to look ahead when standing) is what carried the nose past
+    // straight-down and back up under the neck once the neck pointed down (measured: nose ended ABOVE the eyes,
+    // pointing back). A drinking giraffe straightens its head INTO LINE with the neck to reach — so counter-rotate
+    // the head to undo that rest tilt; the nose then points where the neck points and is the LOWEST point.
+    sw('head', AX.x, -neckE*1.60*P.amp);   // -1.10 left the muzzle ~55° back toward the chest; -1.60 aims it straight down
+    if(u>0.64 && u<0.76) sw('head', AX.x, Math.sin(TAU*t*3)*0.03*P.amp);          // sips
   }},
 ];
 
@@ -4953,50 +5169,312 @@ function waveChain(bones, axis, cyc, o){ const {amp=0.2, waves=1.2, ampRamp=1.4,
     const a=amp*Math.pow(frac+base,ampRamp);
     sw(bones[i], axis, Math.sin(TAU*(cyc - waves*frac) + phase)*a); } }
 
+// ═════ AQUATIC — swimming physics ═══════════════════════════════════════════════════════════════════
+// SPEED comes from the tail beat, not from a guess. Every efficient swimmer cruises at a Strouhal number
+// St = f·A/U of 0.25–0.35 (Triantafyllou 1993; Taylor, Nudds & Thomas 2003) with a tail-tip excursion A of about
+// 0.2 body lengths peak-to-peak — so a swimmer covers ≈ 0.6–0.7 body lengths PER TAIL BEAT whatever its size, and a
+// burst (bigger A, faster f) nearer 0.9. FISH undulate LATERALLY (about the vertical): carangiform swimmers put the
+// wave amplitude in the rear half of the body with one wavelength ≈ L; a fast start is an S- or C-bend that is then
+// straightened by one violent tail sweep (Weihs 1973; Domenici & Blake 1997). CETACEANS undulate DORSO-VENTRALLY
+// (about the lateral axis) in the thunniform style: the front two-thirds stays stiff and the peduncle + fluke do the
+// work (Fish 1993); they turn by BANKING with the flippers, not by bending. Aerial behaviours (leap, porpoise, breach)
+// are ballistic: the root follows a parabola and the body pitches from nose-up at exit to nose-down at re-entry.
+// A swimmer has no feet, so the Stitcher cannot synthesise a stride for it: locomotion clips carry their OWN travel in
+// the root track (as climbs do), along the body axis — +Z is the nose on these templates and in the Stitcher.
+const AQ_L = () => { let L=0; for(const n of boneList){ const p=restLocalP[n]; if(n==='head'||/^(spine0[2-9]|tail|tailfin|fluke)$/.test(n)) L+=p.length(); } return L||1; };
+// Move the root 'lengths' body lengths per cycle along the body axis, pitched by 'pitch' (+ = nose DOWN). 'prog'
+// lets a burst accelerate (0..1 distance fraction at this instant) instead of the default constant rate.
+function aqTravel(t, dur, lengths, pitch, prog){
+  const d = lengths*AQ_L()*(prog ?? (t/dur)), th = pitch||0;
+  animRoot.position.z += d*Math.cos(th); animRoot.position.y -= d*Math.sin(th);
+}
+const aqPitch = a => sw('spine01', AX.x, a);     // + = nose DOWN  (rotation about +X carries the +Z nose toward −Y)
+const aqYaw   = a => sw('spine01', AX.y, a);     // + = nose to the animal's LEFT (+X, the 'pect'/'flipper' side)
+const aqRoll  = a => sw('spine01', AX.z, a);     // + = dorsal tips to the RIGHT (rolls right)
+const aqUp    = m => { animRoot.position.y += m*AQ_L(); };
+// Sustained bend of the whole body chain (a turn holds a curve while the wave rides on top of it)
+const aqBend  = (bones, axis, a, ramp) => bones.forEach((b,i)=> sw(b, axis, a*(ramp ? (i+1)/bones.length : 1)));
+const FISH_TAILY = ['tail','tailfin'];
+
 const FISH_MOTIONS=[
+  // ——— Locomotion: the body wave + the travel it produces ———
   {id:'fish_swim', name:'Swim', cat:'Locomotion', type:'move', dur:1.1, build:(t,P)=>{ resetPose();
     const cyc=(t/1.1)*P.speed; waveChain(FISH_BODY, AX.y, cyc, {amp:0.24*P.amp, waves:1.05, ampRamp:1.6});
-    sw('head', AX.y, Math.sin(TAU*cyc)*0.05*P.amp);
-    sw('pect', AX.y, Math.sin(TAU*cyc)*0.06*P.amp); sw('R_pect', AX.y, -Math.sin(TAU*cyc)*0.06*P.amp);
+    sw('head', AX.y, Math.sin(TAU*cyc)*0.05*P.amp);                                  // recoil: the head yaws a little, opposite the tail
+    sw('pect', AX.y, 0.08+Math.sin(TAU*cyc)*0.06*P.amp); sw('R_pect', AX.y, -0.08-Math.sin(TAU*cyc)*0.06*P.amp);
+    aqTravel(t, 1.1, 0.65*P.speed);                                                    // St≈0.3, A≈0.2 L → 0.65 L per beat
+  }},
+  {id:'fish_cruise', name:'Cruise (slow)', cat:'Locomotion', type:'move', dur:2.2, build:(t,P)=>{ resetPose();
+    // an unhurried cruise: slow, low-amplitude beat, the pectorals doing more of the steering (sculling)
+    const cyc=(t/2.2)*P.speed, a=TAU*cyc; waveChain(FISH_BODY, AX.y, cyc, {amp:0.15*P.amp, waves:1.0, ampRamp:1.6});
+    sw('head', AX.y, Math.sin(a)*0.03*P.amp);
+    sw('pect', AX.y, 0.18+Math.sin(a*2)*0.14*P.amp); sw('R_pect', AX.y, -0.18-Math.sin(a*2+0.6)*0.14*P.amp);
+    sw('pelvic', AX.y, Math.sin(a*2+1.2)*0.08*P.amp);
+    aqTravel(t, 2.2, 0.42*P.speed);                                                    // smaller A → ~0.4 L per beat
   }},
   {id:'fish_dart', name:'Dart (burst)', cat:'Locomotion', type:'move', dur:0.55, build:(t,P)=>{ resetPose();
     const cyc=(t/0.55)*P.speed; waveChain(FISH_BODY, AX.y, cyc, {amp:0.36*P.amp, waves:1.15, ampRamp:1.7});
     sw('head', AX.y, Math.sin(TAU*cyc)*0.07*P.amp);
+    sw('pect', AX.y, -0.12); sw('R_pect', AX.y, 0.12);                                // pectorals pressed back at speed
+    aqTravel(t, 0.55, 0.85*P.speed);                                                   // bigger A → ~0.85 L per beat
   }},
-  {id:'fish_turn', name:'Turn', cat:'Locomotion', type:'move', dur:1.6, build:(t,P)=>{ resetPose();
-    const cyc=(t/1.6)*P.speed; const bend=0.10*P.amp;                       // sustained curve one way + swim wave
-    for(let i=0;i<FISH_BODY.length;i++) sw(FISH_BODY[i], AX.y, bend);
-    waveChain(FISH_BODY, AX.y, cyc, {amp:0.14*P.amp, waves:1.0, ampRamp:1.5});
-    sw('pect', AX.x, 0.15*P.amp);                                            // bank into the turn
+  {id:'fish_burst', name:'Burst (S-start)', cat:'Locomotion', type:'move', dur:0.9, build:(t,P)=>{ resetPose();
+    // A fast start: the body coils into an S (front one way, rear the other), one violent straightening tail sweep
+    // launches it, then three quick beats. Distance accelerates — most of the 2 L is covered after the launch.
+    const A=P.amp, u=(((t/0.9)*P.speed)%1+1)%1, coil=bump(u,0.10,0.11), sweep=bump(u,0.24,0.10);
+    const front=['spine02','spine03'], rear=['spine04','tail','tailfin'];
+    aqBend(front, AX.y,  0.42*coil*A); aqBend(rear, AX.y, -0.55*coil*A, true);        // the S
+    aqBend(rear, AX.y,  0.75*sweep*A, true); sw('head', AX.y, -0.10*coil*A);           // the sweep: tail whips through to the far side
+    const beat=ramp(u,0.26,0.34)*(1-ramp(u,0.92,1.0));
+    waveChain(FISH_BODY, AX.y, (u-0.26)*3.2, {amp:0.34*beat*A, waves:1.15, ampRamp:1.7});
+    sw('pect', AX.y, -0.15*beat); sw('R_pect', AX.y, 0.15*beat);
+    aqTravel(t, 0.9, 2.0*P.speed, 0, 0.06*u + 0.94*smooth(lramp(u,0.18,1.0))*u);    // slow, then away
   }},
+  {id:'fish_cstart', name:'Startle (C-start)', cat:'Action', type:'stay', dur:0.7, build:(t,P)=>{ resetPose();
+    // The escape response (Domenici & Blake 1997): stage 1 the whole body bends into a C in ~40 ms, stage 2 it
+    // straightens with a tail sweep that spins the fish ~80° and throws it clear, then two quick beats.
+    const A=P.amp, u=(((t/0.7)*P.speed)%1+1)%1, c=bump(u,0.14,0.14), st2=ramp(u,0.14,0.36);
+    aqBend(FISH_BODY, AX.y, 0.34*c*A, true); sw('head', AX.y, 0.12*c*A);
+    aqYaw(1.35*st2*A);                                                                 // the pivot happens during the straightening
+    const beat=ramp(u,0.36,0.44)*(1-ramp(u,0.9,1.0));
+    waveChain(FISH_BODY, AX.y, (u-0.36)*4, {amp:0.30*beat*A, waves:1.15, ampRamp:1.7});
+    // a short lunge away along the NEW heading (the root has yawed, so travel along its turned axis)
+    const d=0.45*AQ_L()*smooth(lramp(u,0.30,0.95))*A, y=1.35*st2*A;
+    animRoot.position.z += d*Math.cos(y); animRoot.position.x += d*Math.sin(y);
+  }},
+  {id:'fish_turn', name:'Turn Left', cat:'Locomotion', type:'move', dur:1.6, build:(t,P)=> fishTurn(t,P, 1)},
+  {id:'fish_turnR', name:'Turn Right', cat:'Locomotion', type:'move', dur:1.6, build:(t,P)=> fishTurn(t,P,-1)},
+  {id:'fish_dive', name:'Dive', cat:'Locomotion', type:'move', dur:2.0, build:(t,P)=>{ resetPose();
+    const A=P.amp, u=(((t/2.0)*P.speed)%1+1)%1, th=0.45*A*ramp(u,0,0.3);              // nose goes down ~26° and stays there
+    aqPitch(th); sw('head', AX.x, 0.10*th);
+    waveChain(FISH_BODY, AX.y, (t/2.0)*P.speed*2, {amp:0.22*A, waves:1.05, ampRamp:1.6});   // two beats per clip
+    sw('pect', AX.x, -0.25*A*ramp(u,0,0.3)); sw('R_pect', AX.x, -0.25*A*ramp(u,0,0.3));    // pectorals angled to plane down
+    aqTravel(t, 2.0, 1.2*P.speed, th);
+  }},
+  {id:'fish_ascend', name:'Ascend / Rise', cat:'Locomotion', type:'move', dur:2.0, build:(t,P)=>{ resetPose();
+    const A=P.amp, u=(((t/2.0)*P.speed)%1+1)%1, th=-0.45*A*ramp(u,0,0.3);
+    aqPitch(th); sw('head', AX.x, 0.10*th);
+    waveChain(FISH_BODY, AX.y, (t/2.0)*P.speed*2, {amp:0.22*A, waves:1.05, ampRamp:1.6});
+    sw('pect', AX.x, 0.25*A*ramp(u,0,0.3)); sw('R_pect', AX.x, 0.25*A*ramp(u,0,0.3));
+    aqTravel(t, 2.0, 1.2*P.speed, th);
+  }},
+  {id:'fish_glide', name:'Glide / Coast', cat:'Locomotion', type:'move', dur:2.4, build:(t,P)=>{ resetPose();
+    // burst-and-coast: the body goes straight and stiff, the paired fins spread as planes, and the fish loses way
+    const A=P.amp, u=(((t/2.4)*P.speed)%1+1)%1;
+    sw('pect', AX.y, 0.45*A); sw('R_pect', AX.y, -0.45*A); sw('pelvic', AX.y, 0.20*A);
+    waveChain(FISH_BODY, AX.y, (t/2.4)*P.speed, {amp:0.03*A, waves:0.8, ampRamp:1.3});   // the faintest ripple
+    sw('tailfin', AX.y, Math.sin(TAU*u*1.5)*0.04*A);
+    aqTravel(t, 2.4, 0.55*P.speed, 0, 1-(1-u)*(1-u));                                    // decelerating coast
+  }},
+  // ——— Actions ———
+  {id:'fish_feed', name:'Feed / Bite', cat:'Action', type:'stay', dur:1.4, build:(t,P)=>{ resetPose();
+    // Suction feeding: a short lunge, the mouth gapes wide and fast, the head tips up a touch, then it closes; twice.
+    const A=P.amp, u=(((t/1.4)*P.speed)%1+1)%1;
+    let gape=0, lunge=0; for(const c of [0.30,0.72]){ gape+=bump(u,c,0.10); lunge+=bump(u,c-0.04,0.14); }
+    sw('jaw',  AX.x,  0.55*gape*A);                                                    // lower jaw drops
+    sw('head', AX.x, -0.12*gape*A);                                                    // head tips up into the gape
+    aqBend(FISH_TAILY, AX.y, Math.sin(TAU*u*4)*0.12*lunge*A, true);                   // a tail flick drives each lunge
+    sw('pect', AX.y, 0.20*A+0.15*gape); sw('R_pect', AX.y, -0.20*A-0.15*gape);         // pectorals flare to brake after the bite
+    animRoot.position.z += 0.12*AQ_L()*lunge*A;
+  }},
+  {id:'fish_flash', name:'Flash (roll)', cat:'Action', type:'stay', dur:1.6, build:(t,P)=>{ resetPose();
+    // The feeding / display flash: the fish rolls onto its side (the flank catches the light) and rights itself.
+    const A=P.amp, u=(((t/1.6)*P.speed)%1+1)%1, k=bump(u,0.45,0.32);
+    aqRoll(1.45*k*A);
+    waveChain(FISH_BODY, AX.y, u*1.5, {amp:0.12*A, waves:1.0, ampRamp:1.5});
+    sw('pect', AX.y, 0.25*k*A); sw('R_pect', AX.y, 0.10*k*A);
+  }},
+  {id:'fish_leap', name:'Leap (jump)', cat:'Action', type:'stay', dur:2.0, build:(t,P)=>{ resetPose();
+    // Wind-up: nose comes up and two hard beats; flight: a parabola, the body stiff and pitching from nose-up at exit
+    // to nose-down at re-entry (it rotates about its own mass centre in the air); then it swims out of the splash.
+    const A=P.amp, u=(((t/2.0)*P.speed)%1+1)%1;
+    const wind=ramp(u,0.02,0.22), v=lramp(u,0.26,0.66), fly=(u>0.26&&u<0.66)?1:0, out=ramp(u,0.66,0.86);
+    const th = -0.55*wind*(1-lramp(u,0.26,0.30)) + fly*(-0.70+1.35*v) + (u>=0.66 ? 0.65*(1-out) : 0);
+    aqPitch(th*A);
+    const beat = (ramp(u,0.06,0.12)*(1-ramp(u,0.24,0.30))) + ramp(u,0.68,0.76)*(1-ramp(u,0.9,1));
+    waveChain(FISH_BODY, AX.y, u*7, {amp:0.34*beat*A, waves:1.15, ampRamp:1.7});
+    waveChain(FISH_TAILY, AX.y, u*3, {amp:0.06*fly*A, waves:0.5, ampRamp:1.0});     // a flick in the air
+    sw('pect', AX.y, -0.15*fly); sw('R_pect', AX.y, 0.15*fly);
+    aqUp(1.15*A*4*v*(1-v)*fly);                                                        // the parabola (back to the start height)
+    const dz=1.5*AQ_L()*A; animRoot.position.z += dz*(0.08*ramp(u,0.1,0.26) + 0.72*smooth(v) + 0.20*ramp(u,0.66,1.0));
+  }},
+  // ——— Idles ———
   {id:'fish_hover', name:'Hover', cat:'Idle', type:'idle', dur:3.0, build:(t,P)=>{ resetPose();
     const a=TAU*(t/3.0)*P.speed;
     sw('pect', AX.y, 0.10+Math.sin(a)*0.12*P.amp); sw('R_pect', AX.y, -0.10-Math.sin(a)*0.12*P.amp);  // fanning to hold station
     waveChain(FISH_BODY, AX.y, (t/3.0)*P.speed, {amp:0.05*P.amp, waves:0.7, ampRamp:1.3});
     sw('tailfin', AX.y, Math.sin(a*1.3)*0.05*P.amp);
   }},
+  {id:'fish_rest', name:'Rest (settled)', cat:'Idle', type:'idle', dur:5.0, build:(t,P)=>{ resetPose();
+    // settled low in the water, nose a shade down, fins barely sculling; one lazy tail flick to hold position
+    const A=P.amp, u=(((t/5.0)*P.speed)%1+1)%1, a=TAU*u;
+    aqPitch(0.08*A);
+    sw('pect', AX.y, 0.22+Math.sin(a*3)*0.06*A); sw('R_pect', AX.y, -0.22-Math.sin(a*3+0.9)*0.06*A);
+    sw('pelvic', AX.y, 0.10*A); sw('dorsal', AX.x, -0.06*A);
+    waveChain(FISH_BODY, AX.y, u*0.7, {amp:0.025*A, waves:0.6, ampRamp:1.2});
+    aqBend(FISH_TAILY, AX.y, Math.sin(TAU*lramp(u,0.55,0.75))*0.18*bump(u,0.65,0.12)*A, true);
+    sw('jaw', AX.x, 0.06*A*(0.5+0.5*Math.sin(a*6)));                                  // slow gulping
+  }},
+  {id:'fish_backpaddle', name:'Hover Back-paddle', cat:'Idle', type:'move', dur:2.0, build:(t,P)=>{ resetPose();
+    // reversing: the pectorals row forward (reverse scull), the tail counter-flicks, nose a touch up
+    const A=P.amp, u=(((t/2.0)*P.speed)%1+1)%1, a=TAU*u*2;
+    aqPitch(-0.06*A);
+    sw('pect', AX.y, 0.30+Math.sin(a)*0.30*A); sw('R_pect', AX.y, -0.30-Math.sin(a)*0.30*A);
+    sw('pect', AX.x, Math.cos(a)*0.15*A); sw('R_pect', AX.x, Math.cos(a)*0.15*A);
+    aqBend(FISH_TAILY, AX.y, Math.sin(a*0.5+1)*0.10*A, true);
+    aqTravel(t, 2.0, -0.25*P.speed);
+  }},
+  {id:'fish_alert', name:'Alert (freeze)', cat:'Idle', type:'idle', dur:2.4, build:(t,P)=>{ resetPose();
+    // fins flared and rigid, nothing moves — then one quick flick and a re-settle
+    const A=P.amp, u=(((t/2.4)*P.speed)%1+1)%1, flick=bump(u,0.62,0.06);
+    sw('dorsal', AX.x, -0.30*A); sw('pelvic', AX.y, 0.25*A);
+    sw('pect', AX.y, 0.40*A); sw('R_pect', AX.y, -0.40*A);
+    aqBend(FISH_TAILY, AX.y, 0.35*flick*A, true); sw('head', AX.y, -0.06*flick*A);
+    waveChain(FISH_BODY, AX.y, u*0.5, {amp:0.012*A, waves:0.5, ampRamp:1.2});
+  }},
 ];
+// A swimming turn: the body holds a curve toward the turn (front joints a little, rear more), the wave rides on it,
+// the fish banks into the turn and spreads the INSIDE pectoral as a brake; the heading swings ~60° over the clip.
+function fishTurn(t,P,s){ resetPose();
+  const A=P.amp, u=(((t/1.6)*P.speed)%1+1)%1, cyc=u*1.6;
+  aqBend(FISH_BODY, AX.y, 0.10*s*A, true);
+  waveChain(FISH_BODY, AX.y, cyc, {amp:0.14*A, waves:1.0, ampRamp:1.5});
+  aqRoll(-0.28*s*A*bump(u,0.5,0.55)); aqYaw(1.05*s*A*smooth(u));
+  sw(s>0?'pect':'R_pect', AX.y, 0.35*s*A); sw(s>0?'R_pect':'pect', AX.y, 0.08*s*A);   // inside fin out (brake), outside fin tucked
+  sw('head', AX.y, 0.06*s*A);
+  const d=0.6*AQ_L()*u*A, y=1.05*s*A*smooth(u)*0.5;                                  // travel bends round with the heading
+  animRoot.position.z += d*Math.cos(y); animRoot.position.x += d*Math.sin(y);
+}
+
+// ═════ CETACEAN ═════
+const CET_TAIL=['tail','fluke'];
+// The fluke stroke: thunniform — the front stays stiff, the peduncle + fluke carry the wave (ampRamp high, base low).
+function cetStroke(cyc, amp, o){ waveChain(CET_BODY, AX.x, cyc, Object.assign({amp, waves:0.85, ampRamp:2.1, base:0.10}, o||{})); }
 const CETACEAN_MOTIONS=[
   {id:'cet_swim', name:'Swim', cat:'Locomotion', type:'move', dur:1.5, build:(t,P)=>{ resetPose();
-    const cyc=(t/1.5)*P.speed; waveChain(CET_BODY, AX.x, cyc, {amp:0.20*P.amp, waves:0.85, ampRamp:1.7});  // dorso-ventral
+    const cyc=(t/1.5)*P.speed; cetStroke(cyc, 0.22*P.amp);
     sw('flipper', AX.z, Math.sin(TAU*cyc)*0.05*P.amp); sw('R_flipper', AX.z, -Math.sin(TAU*cyc)*0.05*P.amp);
     sw('head', AX.x, Math.sin(TAU*cyc)*0.03*P.amp);
+    aqTravel(t, 1.5, 0.65*P.speed);
   }},
-  {id:'cet_dive', name:'Dive', cat:'Locomotion', type:'move', dur:2.0, build:(t,P)=>{ resetPose();
-    const u=((t/2.0)*P.speed)%1; const pitch=-0.35*Math.sin(Math.PI*Math.min(u/0.6,1))*P.amp;  // nose down then level
-    sw('spine01', AX.x, pitch); sw('head', AX.x, pitch*0.5);
-    waveChain(CET_BODY, AX.x, (t/2.0)*P.speed, {amp:0.16*P.amp, waves:0.8, ampRamp:1.6});
+  {id:'cet_sprint', name:'Sprint', cat:'Locomotion', type:'move', dur:0.8, build:(t,P)=>{ resetPose();
+    const cyc=(t/0.8)*P.speed; cetStroke(cyc, 0.28*P.amp);
+    sw('flipper', AX.z, -0.12*P.amp); sw('R_flipper', AX.z, 0.12*P.amp);              // flippers pressed to the body
+    sw('head', AX.x, Math.sin(TAU*cyc)*0.04*P.amp);
+    aqTravel(t, 0.8, 0.85*P.speed);
   }},
-  {id:'cet_surface', name:'Surface / Breach', cat:'Locomotion', type:'move', dur:2.0, build:(t,P)=>{ resetPose();
-    const u=((t/2.0)*P.speed)%1; const pitch=0.40*Math.sin(Math.PI*Math.min(u/0.6,1))*P.amp;   // nose UP to breach
-    sw('spine01', AX.x, pitch); sw('head', AX.x, pitch*0.5);
-    waveChain(CET_BODY, AX.x, (t/2.0)*P.speed, {amp:0.20*P.amp, waves:0.8, ampRamp:1.7});
+  {id:'cet_porpoise', name:'Porpoise (leaping travel)', cat:'Locomotion', type:'move', dur:1.4, build:(t,P)=>{ resetPose();
+    // Fast travel with a low clearing leap each cycle: two hard strokes, out at ~30° nose-up, over the top, back in
+    // nose-down (Au & Weihs 1980 — cheaper than swimming at the surface at speed).
+    const A=P.amp, u=(((t/1.4)*P.speed)%1+1)%1, v=lramp(u,0.30,0.72), fly=(u>0.30&&u<0.72)?1:0;
+    const th = fly ? (-0.50+1.05*v) : (u<0.30 ? -0.50*ramp(u,0.12,0.30) : 0.55*(1-ramp(u,0.72,0.9)));
+    aqPitch(th*A);
+    const beat = 1 - 0.7*fly;
+    cetStroke(u*2.2, 0.26*beat*A);
+    sw('flipper', AX.z, -0.08*A); sw('R_flipper', AX.z, 0.08*A);
+    aqUp(0.55*A*4*v*(1-v)*fly);
+    aqTravel(t, 1.4, 1.9*P.speed);
   }},
+  {id:'cet_dive', name:'Dive (fluke up)', cat:'Locomotion', type:'move', dur:2.4, build:(t,P)=>{ resetPose();
+    // The terminal dive: the back ARCHES as the head goes down, the peduncle rises and the fluke clears the surface,
+    // then the whole animal drives down at ~40°.
+    const A=P.amp, u=(((t/2.4)*P.speed)%1+1)%1, arch=bump(u,0.30,0.26), down=ramp(u,0.18,0.55);
+    const th=0.70*down*A; aqPitch(th); sw('head', AX.x, 0.15*down*A);
+    aqBend(['spine03','spine04'], AX.x, 0.18*arch*A); aqBend(CET_TAIL, AX.x, 0.55*arch*A, true);   // fluke lifts
+    cetStroke(u*2.0, 0.20*A*(1-arch*0.8)*ramp(u,0.35,0.55)+0.06*A);
+    sw('flipper', AX.x, 0.20*down*A); sw('R_flipper', AX.x, 0.20*down*A);                          // flippers planed down
+    aqTravel(t, 2.4, 1.0*P.speed, th);
+  }},
+  {id:'cet_surface', name:'Surface & Blow', cat:'Locomotion', type:'move', dur:2.6, build:(t,P)=>{ resetPose();
+    // Rise nose-up, level off high in the water, a beat of stillness for the blow, then the back rolls over and down.
+    const A=P.amp, u=(((t/2.6)*P.speed)%1+1)%1, rise=ramp(u,0,0.30), lvl=ramp(u,0.30,0.46), roll=ramp(u,0.62,0.92);
+    const th=(-0.40*rise*(1-lvl) + 0.35*roll)*A; aqPitch(th);
+    sw('head', AX.x, -0.10*bump(u,0.52,0.10)*A);                                       // the blow: head lifts a touch
+    aqBend(['spine03','spine04'], AX.x, 0.14*roll*A); aqBend(CET_TAIL, AX.x, 0.25*roll*A, true);  // back arches as it goes under
+    cetStroke(u*2.0, 0.18*A*(1-0.8*bump(u,0.52,0.14)));
+    aqUp(0.25*A*(lvl*(1-roll)));                                                    // high in the water for the blow, back to the start depth by the end (a clean loop)
+    aqTravel(t, 2.6, 0.9*P.speed, 0);
+  }},
+  {id:'cet_glide', name:'Glide / Coast', cat:'Locomotion', type:'move', dur:3.0, build:(t,P)=>{ resetPose();
+    const A=P.amp, u=(((t/3.0)*P.speed)%1+1)%1;
+    sw('flipper', AX.z, 0.10*A); sw('R_flipper', AX.z, -0.10*A);                        // flippers spread as planes
+    cetStroke(u*0.8, 0.04*A);
+    aqTravel(t, 3.0, 0.6*P.speed, 0, 1-(1-u)*(1-u));
+  }},
+  {id:'cet_turn', name:'Turn Left (bank)', cat:'Locomotion', type:'move', dur:2.0, build:(t,P)=> cetTurn(t,P, 1)},
+  {id:'cet_turnR', name:'Turn Right (bank)', cat:'Locomotion', type:'move', dur:2.0, build:(t,P)=> cetTurn(t,P,-1)},
+  // ——— Actions ———
+  {id:'cet_breach', name:'Breach', cat:'Action', type:'stay', dur:3.2, build:(t,P)=>{ resetPose();
+    // Wind-up under the surface (nose down, two huge strokes), exit at ~60° nose-up, a twist in the air, and it falls
+    // on its side into the splash; then it rights itself and swims on.
+    const A=P.amp, u=(((t/3.2)*P.speed)%1+1)%1, wind=ramp(u,0.02,0.20), up=ramp(u,0.20,0.30), v=lramp(u,0.30,0.68), fly=(u>0.30&&u<0.68)?1:0, out=ramp(u,0.68,0.95);
+    const th = 0.45*wind*(1-up) - 1.05*up*(1-fly)*(u<0.68?1:0) + fly*(-1.05+1.35*v) + (u>=0.68 ? 0.30*(1-out) : 0);
+    aqPitch(th*A);
+    aqRoll(2.1*A*(fly ? smooth(v) : (u>=0.68 ? (1-out) : 0)));                          // the twist, unwound in the water
+    const beat = ramp(u,0.06,0.12)*(1-ramp(u,0.26,0.31)) + ramp(u,0.70,0.80)*(1-ramp(u,0.92,1));
+    cetStroke(u*3.5, 0.32*beat*A);
+    sw('flipper', AX.z, 0.45*fly*A); sw('R_flipper', AX.z, -0.45*fly*A);                 // flippers thrown out in the air
+    aqUp(1.25*A*4*v*(1-v)*fly);
+    animRoot.position.z += 1.1*AQ_L()*A*(0.10*ramp(u,0.05,0.30) + 0.75*smooth(v) + 0.15*ramp(u,0.68,1.0));
+  }},
+  {id:'cet_spyhop', name:'Spy-hop', cat:'Action', type:'stay', dur:3.6, build:(t,P)=>{ resetPose();
+    // Rises to vertical with the head out of the water, treads with quick small fluke strokes, looks about, sinks back.
+    const A=P.amp, u=(((t/3.6)*P.speed)%1+1)%1, up=ramp(u,0.05,0.32)*(1-ramp(u,0.70,0.95));
+    aqPitch(-1.35*up*A); aqUp(0.45*up*A);
+    aqYaw(0.30*A*Math.sin(TAU*lramp(u,0.35,0.70))*up);                                 // the look-around
+    cetStroke(u*7.0, (0.06+0.10*up)*A, {waves:0.6});
+    sw('flipper', AX.z, 0.25*up*A); sw('R_flipper', AX.z, -0.25*up*A);                  // flippers out for balance
+  }},
+  {id:'cet_tailslap', name:'Tail Slap (lobtail)', cat:'Action', type:'stay', dur:2.4, build:(t,P)=>{ resetPose();
+    // Head-down, peduncle raised, the fluke lifted clear and slammed onto the water — three times.
+    const A=P.amp, u=(((t/2.4)*P.speed)%1+1)%1, set=ramp(u,0,0.18)*(1-ramp(u,0.86,1));
+    aqPitch(0.55*set*A); aqUp(-0.06*set*A);
+    let lift=0; for(const c of [0.30,0.52,0.74]){ const w=lramp(u,c-0.11,c+0.06); if(w>0&&w<1) lift += (w<0.7 ? smooth(w/0.7) : 1-smooth((w-0.7)/0.3)*1.35); }
+    lift*=set;
+    aqBend(['spine04'], AX.x, 0.25*lift*A); aqBend(CET_TAIL, AX.x, 0.65*lift*A, true);
+    sw('flipper', AX.z, 0.15*set*A); sw('R_flipper', AX.z, -0.15*set*A);
+  }},
+  {id:'cet_pecslap', name:'Pec Slap (roll)', cat:'Action', type:'stay', dur:2.8, build:(t,P)=>{ resetPose();
+    // Rolls onto its side and raises the upper flipper high, slapping it down twice, then rolls back.
+    const A=P.amp, u=(((t/2.8)*P.speed)%1+1)%1, side=ramp(u,0.02,0.26)*(1-ramp(u,0.80,0.98));
+    aqRoll(1.45*side*A);
+    let raise=0; for(const c of [0.42,0.66]){ const w=lramp(u,c-0.12,c+0.05); if(w>0&&w<1) raise += (w<0.75 ? smooth(w/0.75) : 1-smooth((w-0.75)/0.25)*1.25); }
+    raise*=side;
+    sw('flipper', AX.z, 1.25*raise*A); sw('R_flipper', AX.z, -0.10*side*A);
+    cetStroke(u*2.0, 0.05*A);
+  }},
+  {id:'cet_roll', name:'Barrel Roll', cat:'Action', type:'stay', dur:1.8, build:(t,P)=>{ resetPose();
+    const A=P.amp, u=(((t/1.8)*P.speed)%1+1)%1;
+    aqRoll(TAU*smooth(u)*A);
+    cetStroke(u*1.6, 0.14*A);
+    sw('flipper', AX.z, 0.30*A*Math.sin(TAU*u)); sw('R_flipper', AX.z, -0.30*A*Math.sin(TAU*u));
+    animRoot.position.z += 0.5*AQ_L()*u*A;
+  }},
+  // ——— Idles ———
   {id:'cet_idle', name:'Idle Glide', cat:'Idle', type:'idle', dur:3.4, build:(t,P)=>{ resetPose();
-    const cyc=(t/3.4)*P.speed; waveChain(CET_BODY, AX.x, cyc, {amp:0.07*P.amp, waves:0.7, ampRamp:1.5});
+    const cyc=(t/3.4)*P.speed; cetStroke(cyc, 0.07*P.amp, {waves:0.7, ampRamp:1.6});
     const a=TAU*cyc; sw('flipper', AX.z, Math.sin(a)*0.04*P.amp); sw('R_flipper', AX.z, -Math.sin(a)*0.04*P.amp);
   }},
+  {id:'cet_log', name:'Logging (rest at surface)', cat:'Idle', type:'idle', dur:6.0, build:(t,P)=>{ resetPose();
+    // resting at the surface: high in the water, almost still, an occasional exhale and a slow fluke sway
+    const A=P.amp, u=(((t/6.0)*P.speed)%1+1)%1, a=TAU*u;
+    aqUp(0.12*A); aqPitch(-0.03*A);
+    cetStroke(u*0.5, 0.025*A, {waves:0.5});
+    sw('flipper', AX.z, 0.08*A+Math.sin(a*2)*0.03*A); sw('R_flipper', AX.z, -0.08*A-Math.sin(a*2+1)*0.03*A);
+    sw('head', AX.x, -0.06*bump(u,0.5,0.06)*A);
+  }},
 ];
+function cetTurn(t,P,s){ resetPose();
+  // Cetaceans turn by BANKING: roll into the turn, the inside flipper depressed, a little lateral flex, the heading
+  // swings ~60° over the clip while the fluke keeps stroking.
+  const A=P.amp, u=(((t/2.0)*P.speed)%1+1)%1, bank=bump(u,0.5,0.55);
+  aqRoll(-0.55*s*A*bank); aqYaw(1.05*s*A*smooth(u));
+  aqBend(CET_BODY, AX.y, 0.05*s*A*bank, true);
+  cetStroke(u*1.4, 0.18*A);
+  sw(s>0?'flipper':'R_flipper', AX.z, -0.35*s*A*bank); sw(s>0?'R_flipper':'flipper', AX.z, 0.10*s*A*bank);
+  const d=0.7*AQ_L()*u*A, y=1.05*s*A*smooth(u)*0.5;
+  animRoot.position.z += d*Math.cos(y); animRoot.position.x += d*Math.sin(y);
+}
 const SNAKE_MOTIONS=[
   {id:'snake_slither', name:'Slither', cat:'Locomotion', type:'move', dur:2.2, build:(t,P)=>{ resetPose();
     const cyc=(t/2.2)*P.speed; waveChain(SNAKE_BODY, AX.y, cyc, {amp:0.16*P.amp, waves:2.6, ampRamp:0.25, base:0.5});

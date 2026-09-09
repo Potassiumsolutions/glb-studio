@@ -63,7 +63,7 @@
 <body>
 <div id="app">
   <div class="side">
-    <h1>Character Rigger <span class="appver">v1.1.0</span></h1>
+    <h1>Character Rigger <span class="appver">v1.0.0</span></h1>
     <div class="tag">Rig your own textured characters onto a standard, retargetable skeleton for the GLB Stitcher.</div>
 
     <div class="card">
@@ -147,7 +147,7 @@
         </g>
       </svg>
       <div>
-        <div><b>Character Rigger</b> v1.1.0 · part of GLB Studio</div>
+        <div><b>Character Rigger</b> v1.0.0 · part of GLB Studio</div>
         <div class="appfoot-sub">© <span class="cred-year">2026</span> Paul A.T. Ramey · <b>KSOL Designs</b> · <a href="https://www.ksoldesigns.com" target="_blank" rel="noopener">ksoldesigns.com</a></div>
       </div>
     </div>
@@ -456,17 +456,65 @@ function autoFit(){
     const wingYmin=mMin.y+0.52*H, wL=[], wR=[];
     for(let v=0; v<NV; v++){ const x=P.getX(v)-cxm, y=P.getY(v), z=P.getZ(v);
       if(y>wingYmin){ if(x> bodyHW*1.1) wL.push(new THREE.Vector3(P.getX(v),y,z)); else if(x< -bodyHW*1.1) wR.push(new THREE.Vector3(P.getX(v),y,z)); } }
-    const placeWing=(pre, verts)=>{
-      const chain=[pre+'wing',pre+'wing0',pre+'wing1',pre+'wing2'].filter(n=>IDX[n]!=null);
-      if(!chain.length || verts.length<50) return;                 // no wing detected → keep the body-box fallback
+    const placeWing=(pre, verts, side)=>{
+      const rootN=pre+'wing', outer=[pre+'wing0',pre+'wing1',pre+'wing2'].filter(n=>IDX[n]!=null);
+      if(IDX[rootN]==null || verts.length<50) return;              // no wing detected → keep the body-box fallback
       const span=verts.map(p=>({p, s:Math.abs(p.x-cxm)})).sort((a,b)=>a.s-b.s);
       const sLo=span[0].s, sHi=span[span.length-1].s, rng=(sHi-sLo)||1;
-      for(let k=0;k<chain.length;k++){ const f0=k/chain.length, f1=(k+1)/chain.length;
-        let seg=span.filter(o=>{ const t=(o.s-sLo)/rng; return t>=f0 && t<(k===chain.length-1?1.0001:f1); });
+      // ROOT at the WING–BODY JUNCTION (the hinge at the body edge): centroid of the innermost few % of wing verts.
+      // At the body edge the wing pivots from the shoulder, yet the bone SEGMENT runs OUT along the membrane (not into
+      // the torso) so the skin binds wing verts to the wing and body verts to the chest — minimal tearing on a beat.
+      const base=span.slice(0, Math.max(1,(span.length*0.06)|0));
+      const bc=base.reduce((a,o)=>{a.x+=o.p.x;a.y+=o.p.y;a.z+=o.p.z;return a;},{x:0,y:0,z:0});
+      jointPos[IDX[rootN]].set(bc.x/base.length, bc.y/base.length, bc.z/base.length);
+      // wing0 / wing1 / wing2 trace OUT along the detected wing membrane, base → tip
+      for(let k=0;k<outer.length;k++){ const f0=0.10+k*0.30, f1=0.10+(k+1)*0.30;
+        let seg=span.filter(o=>{ const t=(o.s-sLo)/rng; return t>=f0 && t<(k===outer.length-1?1.0001:f1); });
         if(!seg.length) seg=[span[Math.min(span.length-1,Math.floor(((f0+f1)/2)*span.length))]];
         const c=seg.reduce((a,o)=>{a.x+=o.p.x;a.y+=o.p.y;a.z+=o.p.z;return a;},{x:0,y:0,z:0});
-        jointPos[IDX[chain[k]]].set(c.x/seg.length, c.y/seg.length, c.z/seg.length); } };
-    placeWing('', wL); placeWing('R_', wR);
+        jointPos[IDX[outer[k]]].set(c.x/seg.length, c.y/seg.length, c.z/seg.length); } };
+    placeWing('', wL, 1); placeWing('R_', wR, -1);
+    // STRAIGHTEN THE LEGS into vertical columns at the detected feet, so the rest is a NEUTRAL stand (hip→foot
+    // straight down). A non-neutral leg rest (legs angled back) makes the retargeted walk play from a reared base;
+    // vertical legs let the quad gait read as a level four-beat walk. Each chain's X/Z is snapped to its foot; Y kept.
+    const footV=[]; for(let v=0; v<NV; v++){ const y=P.getY(v); if(y < mMin.y + 0.10*H) footV.push([P.getX(v),P.getZ(v)]); }
+    if(footV.length>20 && IDX['frontleg2']!=null && IDX['backleg2']!=null){
+      const splitZ=(jointPos[IDX['frontleg2']].z + jointPos[IDX['backleg2']].z)/2;   // front/back divide
+      const frontIsHi = jointPos[IDX['frontleg2']].z > splitZ;                         // is the front leg the +Z side?
+      const quad={FL:[],FR:[],BL:[],BR:[]};
+      for(const [x,z] of footV){ const fb=((z>splitZ)===frontIsHi)?'F':'B'; const lr=(x>cxm)?'L':'R'; quad[fb+lr].push([x,z]); }
+      const ctr=a=>a.length?[a.reduce((s,p)=>s+p[0],0)/a.length, a.reduce((s,p)=>s+p[1],0)/a.length]:null;
+      const feet={FL:ctr(quad.FL),FR:ctr(quad.FR),BL:ctr(quad.BL),BR:ctr(quad.BR)};
+      // keep the HIP at the body and run the knee/ankle/foot straight down to the detected foot (a clean vertical leg).
+      // Snapping the WHOLE chain to the foot's X/Z (old behaviour) tore the hip away from the body → skin tearing.
+      const straighten=(chain, foot)=>{ if(!foot || IDX[chain[0]]==null) return;
+        const hip=jointPos[IDX[chain[0]]].clone(); const footP=new THREE.Vector3(foot[0], mMin.y, foot[1]);
+        for(let i=1;i<chain.length;i++){ const idx=IDX[chain[i]]; if(idx!=null) jointPos[idx].lerpVectors(hip, footP, i/(chain.length-1)); } };
+      straighten(['frontleg','frontleg0','frontleg1','frontleg2'], feet.FL);
+      straighten(['R_frontleg','R_frontleg0','R_frontleg1','R_frontleg2'], feet.FR);
+      straighten(['backleg','backleg0','backleg1','backleg2'], feet.BL);
+      straighten(['R_backleg','R_backleg0','R_backleg1','R_backleg2'], feet.BR);
+      // place the HEAD/muzzle at the mesh's front-most cluster, so the neck sits naturally. A head left up at the
+      // withers makes the chest aim UP → the retargeted walk rears the front. Front = the side the front feet are on.
+      if(IDX['head']!=null && IDX['chest']!=null){
+        const frontZdir = frontIsHi ? 1 : -1;
+        const zKey = v => frontZdir>0 ? P.getZ(v) : -P.getZ(v);
+        // find the actual NOSE TIP (front-most vertex), then average a small neighbourhood around it — averaging the
+        // whole front slab pulls the point UP into the forehead/ears and makes the head aim up (rearing the walk).
+        let tipV=-1, zmax=-1e9; for(let v=0; v<NV; v++){ const zk=zKey(v); if(zk>zmax){ zmax=zk; tipV=v; } }
+        const tx=P.getX(tipV), ty=P.getY(tipV), tz=P.getZ(tipV), R=0.10*mSize.y;
+        let mx=0,my=0,mz=0,mn=0;
+        for(let v=0; v<NV; v++){ const dx=P.getX(v)-tx, dy=P.getY(v)-ty, dz=P.getZ(v)-tz;
+          if(dx*dx+dy*dy+dz*dz < R*R){ mx+=P.getX(v); my+=P.getY(v); mz+=P.getZ(v); mn++; } }
+        if(mn>10){ const muzzle=new THREE.Vector3(mx/mn,my/mn,mz/mn); const chestP=jointPos[IDX['chest']].clone();
+          if(IDX['headend']!=null) jointPos[IDX['headend']].copy(muzzle);
+          jointPos[IDX['head']].copy(chestP.lerp(muzzle,0.55));
+          const hp=jointPos[IDX['head']];                                 // ears just above the head, mirrored L/R
+          if(IDX['earend']!=null)   jointPos[IDX['earend']].set(hp.x+0.05*mSize.x, hp.y+0.10*mSize.y, hp.z-0.03*mSize.z);
+          if(IDX['R_earend']!=null) jointPos[IDX['R_earend']].set(hp.x-0.05*mSize.x, hp.y+0.10*mSize.y, hp.z-0.03*mSize.z);
+        }
+      }
+    }
   } else {
     // quad/bird: fit the skeleton's bounding box INTO the mesh's, per axis, so it spans the whole animal (nose→tail,
     // back→feet) with the feet on the ground. Non-uniform because a horse/lion is proportioned nothing like the dog
@@ -636,9 +684,27 @@ function computeSkin(){
   const skinIndex=new Uint16Array(n*4), skinWeight=new Float32Array(n*4);
   const falloff=parseFloat($('#falloff').value)||3;
   const d=new Float32Array(NB);
+  // FRONT-LEG chest-bleed guard: the front-leg segment runs right past the breast/lower chest, so distance-to-segment
+  // alone lets it grab body verts — then the chest is dragged when the leg swings (a very visible pull). Mirror the
+  // chestweight post-fix at RIG time: a front-leg segment may only own a vertex that lies ALONG the leg (below the
+  // shoulder) and CLOSE to the leg axis. For verts ABOVE the shoulder or OFF the axis, inflate the leg's distance so
+  // the chest/spine wins instead. Graded, so the real shoulder/armpit stays smooth. Front legs only = low regression risk.
+  const leg=[];
+  for(let b=0;b<NB;b++){ if(!/frontleg/i.test(TEMPLATE[b].name)){ leg.push(null); continue; }
+    const a=segs[b].a, bb=segs[b].b; const dx=bb.x-a.x,dy=bb.y-a.y,dz=bb.z-a.z;
+    const L=Math.hypot(dx,dy,dz)||1e-6; leg.push({tx:a.x,ty:a.y,tz:a.z, ux:dx/L,uy:dy/L,uz:dz/L, L}); }
   for(let v=0; v<n; v++){
     const px=pos.getX(v), py=pos.getY(v), pz=pos.getZ(v);
-    for(let b=0;b<NB;b++){ d[b]=distToSegment(px,py,pz, segs[b].a, segs[b].b); }
+    for(let b=0;b<NB;b++){ let db=distToSegment(px,py,pz, segs[b].a, segs[b].b);
+      const g=leg[b];
+      if(g){ const along=(px-g.tx)*g.ux+(py-g.ty)*g.uy+(pz-g.tz)*g.uz;   // projection onto the leg axis (0=shoulder)
+        const cx=g.tx+g.ux*along, cy=g.ty+g.uy*along, cz=g.tz+g.uz*along;
+        const perp=Math.hypot(px-cx,py-cy,pz-cz);
+        const fAbove = along<0 ? Math.min(1, -along/(0.30*g.L)) : 0;     // above the shoulder joint
+        const fPerp  = Math.max(0, Math.min(1, (perp-0.45*g.L)/(0.50*g.L))); // off the leg axis
+        const f=Math.max(fAbove,fPerp); if(f>0) db*=(1+6*f);             // body vert → push the leg out of contention
+      }
+      d[b]=db; }
     // top 4 nearest
     const order=[...Array(NB).keys()].sort((i,j)=>d[i]-d[j]).slice(0,4);
     let wsum=0; const w=order.map(b=>{ const ww=1/Math.pow(d[b]+1e-4, falloff); wsum+=ww; return ww; });
@@ -656,7 +722,20 @@ function buildBones(){
     const c=PRIMARY_CHILD[b.name];
     let q;
     if(c!=null){ const d=jointPos[IDX[c]].clone().sub(jointPos[IDX[b.name]]); if(d.lengthSq()<1e-9) d.set(0,1,0); d.normalize();
-      q=new THREE.Quaternion().setFromUnitVectors(_up, d); }
+      // LEG-ROLL FIX: setFromUnitVectors gives the minimal rotation from +Y to the aim, whose ROLL (twist about
+      // the bone) is uncontrolled — and comes out DIFFERENT for the left vs right legs, so a symmetric walk swings
+      // one leg forward and the other sideways ("legs bent to one side"). For leg bones, build the orientation with
+      // a FIXED roll instead: +Y = aim, +X = world-X projected perpendicular to the aim (the template convention the
+      // Stitcher retarget expects), +Z = X×Y. Left/right then get mirrored, consistent roll. (Matches rollfix.mjs.)
+      if(/(front|back)leg/i.test(b.name)){
+        const Y=d.clone();
+        let X=new THREE.Vector3(1,0,0).addScaledVector(Y,-Y.x);
+        if(X.lengthSq()<1e-6){ const wz=new THREE.Vector3(0,0,1); X=wz.addScaledVector(Y,-wz.dot(Y)); }
+        X.normalize(); const Z=new THREE.Vector3().crossVectors(X,Y).normalize();
+        q=new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(X,Y,Z));
+      } else {
+        q=new THREE.Quaternion().setFromUnitVectors(_up, d);
+      } }
     else { q=(b.parent!=null?worldQuat[b.parent]:new THREE.Quaternion()).clone(); }
     worldQuat[b.name]=q;
   }
