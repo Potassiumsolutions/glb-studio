@@ -5573,7 +5573,7 @@ const FLOOR_CONTACT = { fitpushup:{rep:1}, fitplank:{hands:1,toes:1}, floordown:
   sniff:{nose:1}, graze:{nose:1}, drink:{nose:1},
   // Quad lying poses: the body drop is authored on the template; stop it at THIS character's own belly (level body)
   // or flank (rolled onto the side), measured off its rest mesh — a deep-bodied rhino otherwise sinks through the floor.
-  liedown:{lie:1}, sleep:{lie:1}, getup:{lie:1} };
+  liedown:{lie:1}, sleep:{lie:1}, getup:{lie:1}, gir_liedown:{lie:1}, gir_sleep:{lie:1}, gir_getup:{lie:1} };
 const _gcV1=new THREE.Vector3(), _gcV2=new THREE.Vector3(), _gcV3=new THREE.Vector3(), _gcQ1=new THREE.Quaternion(), _gcQ2=new THREE.Quaternion();
 function _ccdToward(bone, endEff, target){
   bone.updateWorldMatrix(true,false);
@@ -5628,6 +5628,22 @@ function floorContactPose(root, spec, floorY){
     const f = spec._lieFrac!=null ? spec._lieFrac : 1;
     const target = (1-f)*hHoof + f*hBelly;
     { const ps=hips.parent?hips.parent.getWorldScale(_gcV2).y:1; hips.position.y += (target-hy)/(ps||1); hips.updateWorldMatrix(true,true); }
+    // KNEELING (the front is folded but the rump is still up): the folded forelegs must reach the ground — a long-legged
+    // rig's knees hang in the air from the template's pitch. Pitch the body nose-down ABOUT THE HIND HOOVES by just enough
+    // to put the lowest fore contact (knee or hoof) on the floor, fading out as the rump comes down.
+    if(f < 0.9){ const fl=['frontleg1','R_frontleg1','frontleg2','R_frontleg2'].map(n=>B(n)).filter(Boolean); root.updateMatrixWorld(true);
+      let foreLow=Infinity; for(const b of fl) foreLow=Math.min(foreLow, b.getWorldPosition(_gcV3).y);
+      const hb=[B('backleg2'),B('R_backleg2')].filter(Boolean), shB=B('frontleg');
+      const gap=foreLow-spec._lie.hipsFloor;
+      if(hb.length && shB && isFinite(gap) && gap>0.01){
+        const mid=()=>{ const m=new THREE.Vector3(); for(const b of hb) m.add(b.getWorldPosition(new THREE.Vector3())); return m.divideScalar(hb.length); };
+        const m0=mid(), shp=shB.getWorldPosition(new THREE.Vector3()); const wb=Math.max(0.1, Math.hypot(shp.z-m0.z, shp.x-m0.x));
+        const p=Math.asin(Math.min(0.9, gap/wb))*(1-f);
+        const pw=hips.parent.getWorldQuaternion(new THREE.Quaternion()), q=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0), p);
+        hips.quaternion.premultiply(pw.clone().invert().multiply(q).multiply(pw)); hips.updateWorldMatrix(true,true);
+        const m1=mid(); const dW=m0.sub(m1); const ps=hips.parent.getWorldScale(new THREE.Vector3());
+        const dL=dW.applyQuaternion(pw.clone().invert()); dL.x/=(ps.x||1); dL.y/=(ps.y||1); dL.z/=(ps.z||1);
+        hips.position.add(dL); hips.updateWorldMatrix(true,true); } }
     // Once the body is down, a leg that folds less compactly on THIS rig (long cannons) can poke through the floor: fold it
     // further from the knee/stifle down until the hoof is back at floor level — the hip is left as authored.
     if(f > 0.3){ const legs=[]; for(const [k,sh,ft] of [['frontleg0','frontleg1','frontleg2'],['R_frontleg0','R_frontleg1','R_frontleg2'],['backleg0','backleg1','backleg2'],['R_backleg0','R_backleg1','R_backleg2']]){ const e=B(ft); if(e) legs.push({chain:[k,sh], end:e}); }

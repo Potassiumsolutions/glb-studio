@@ -840,7 +840,7 @@ function qPivotHind(){
 let QLIE_FRAC = 0;                              // how far DOWN the lying pose is this frame (0 standing, 1 rump on the ground) — bakeClip stores it
 function quadLie(kf, kh, o){
   o = o || {}; const side = o.side ?? 1, ease = 1 - 0.55*(o.ease||0); QLIE_FRAC = Math.max(0, Math.min(1, kh));
-  const LL = qPose({ pitch: 0.18*kf*(1-kh) + 0.04*kh, chest: (o.chest ?? -0.06*kf*(1-kh) - 0.05*kh),
+  const LL = qPose({ pitch: 0.25*kf*(1-kh) + 0.04*kh, chest: (o.chest ?? -0.06*kf*(1-kh) - 0.05*kh),
                      head: (o.head ?? (-0.18*kf*(1-kh) - 0.06*kh)), headY: (o.headY||0)*side, tail: (o.tail ?? 0.10*kh) });
   qPivotHind();                                            // the kneel pitches the front down about the hind hooves (pitch only — the pivot must not chase the roll)
   sw('Hips', AX.z, -(0.18*kh + (o.roll||0))*side);         // then the roll onto the near hip, about the root (+Z rolls RIGHT, so the sign follows the leg side)
@@ -5154,7 +5154,7 @@ const ELEPHANT_MOTIONS=[
 // quadrupeds, which avoids their long limbs interfering; the body & long neck swing SIDE-TO-SIDE to
 // counterbalance the one-sided leg support. Iconic drink = front legs SPLAY wide + the neck folds to the
 // ground. Neck bends distributed, base bends most. Drive the joints — no solver (see the animal method).
-const GIRAFFE_TEMPLATE=[{"name":"Hips","parent":null,"t":[0,0.55,-0.25],"q":[0.699546,0,0,0.714588]},{"name":"chest","parent":"Hips","t":[0,0.470106,0],"q":[-0.516653,0,0,0.856195]},{"name":"neck01","parent":"chest","t":[0,0.111803,0],"q":[-0.070889,0,0,0.997484]},{"name":"neck02","parent":"neck01","t":[0,0.126491,0],"q":[-0.038377,0,0,0.999263]},{"name":"neck03","parent":"neck02","t":[0,0.123693,0],"q":[0.023237,0,0,0.99973]},{"name":"neck04","parent":"neck03","t":[0,0.104403,0],"q":[0.163657,0,0,0.986517]},{"name":"head","parent":"neck04","t":[0,0.086023,0],"q":[0.519463,0,0,0.854493]},{"name":"headend","parent":"head","t":[0,0.070711,0],"q":[0,0,0,1]},{"name":"ear","parent":"head","t":[0.05,-0.016971,-0.048083],"q":[0,0,0,1]},{"name":"R_ear","parent":"head","t":[-0.05,-0.016971,-0.048083],"q":[0,0,0,1]},{"name":"tail","parent":"Hips","t":[0,-0.030206,0.00936],"q":[-0.879749,0,0,-0.475438]},{"name":"tailstart","parent":"tail","t":[0,0.09434,0],"q":[-0.156168,0,0,0.98773]},{"name":"tail1","parent":"tailstart","t":[0,0.123693,0],"q":[-0.08083,0,0,0.996728]},{"name":"tail2","parent":"tail1","t":[0,0.120416,0],"q":[0,0,0,1]},{"name":"tail3","parent":"tail2","t":[0,0.120416,0],"q":[0,0,0,1]},{"name":"frontleg","parent":"chest","t":[0.09,-0.035777,-0.026833],"q":[-0.69713,-0.16232,-0.687598,-0.121943]},{"name":"frontleg0","parent":"frontleg","t":[0,0.170587,0],"q":[-0.021869,-0.706226,0.019602,0.707377]},{"name":"frontleg1","parent":"frontleg0","t":[0,0.180278,0],"q":[-0.001458,0,0,0.999999]},{"name":"frontleg2","parent":"frontleg1","t":[0,0.190263,0],"q":[0,0,0,1]},{"name":"R_frontleg","parent":"chest","t":[-0.09,-0.035777,-0.026833],"q":[-0.69713,0.16232,0.687598,-0.121943]},{"name":"R_frontleg0","parent":"R_frontleg","t":[0,0.170587,0],"q":[-0.021869,0.706226,-0.019602,0.707377]},{"name":"R_frontleg1","parent":"R_frontleg0","t":[0,0.180278,0],"q":[-0.001458,0,0,0.999999]},{"name":"R_frontleg2","parent":"R_frontleg1","t":[0,0.190263,0],"q":[0,0,0,1]},{"name":"backleg","parent":"Hips","t":[0.09,0.02978,0.010636],"q":[0.475833,-0.494228,-0.504855,0.523874]},{"name":"backleg0","parent":"backleg","t":[0,0.170587,0],"q":[0.021869,0.706226,0.019602,0.707377]},{"name":"backleg1","parent":"backleg0","t":[0,0.180278,0],"q":[0.001458,0,0,0.999999]},{"name":"backleg2","parent":"backleg1","t":[0,0.190263,0],"q":[0,0,0,1]},{"name":"R_backleg","parent":"Hips","t":[-0.09,0.02978,0.010636],"q":[0.475833,0.494228,0.504855,0.523874]},{"name":"R_backleg0","parent":"R_backleg","t":[0,0.170587,0],"q":[0.021869,-0.706226,-0.019602,0.707377]},{"name":"R_backleg1","parent":"R_backleg0","t":[0,0.180278,0],"q":[0.001458,0,0,0.999999]},{"name":"R_backleg2","parent":"R_backleg1","t":[0,0.190263,0],"q":[0,0,0,1]}];
+const GIRAFFE_TEMPLATE=[{"name":"Hips","parent":null,"t":[0,0.55,-0.25],"q":[0.699546,0,0,0.714588]},{"name":"chest","parent":"Hips","t":[0,0.470106,0],"q":[-0.516653,0,0,0.856195]},{"name":"neck01","parent":"chest","t":[0,0.111803,0],"q":[-0.070889,0,0,0.997484]},{"name":"neck02","parent":"neck01","t":[0,0.126491,0],"q":[-0.038377,0,0,0.999263]},{"name":"neck03","parent":"neck02","t":[0,0.123693,0],"q":[0.023237,0,0,0.99973]},{"name":"neck04","parent":"neck03","t":[0,0.104403,0],"q":[0.163657,0,0,0.986517]},{"name":"head","parent":"neck04","t":[0,0.086023,0],"q":[0.519463,0,0,0.854493]},{"name":"headend","parent":"head","t":[0,0.070711,0],"q":[0,0,0,1]},{"name":"ear","parent":"head","t":[0.05,-0.016971,-0.048083],"q":[0,0,0,1]},{"name":"R_ear","parent":"head","t":[-0.05,-0.016971,-0.048083],"q":[0,0,0,1]},{"name":"tail","parent":"Hips","t":[0,-0.030206,0.00936],"q":[-0.879749,0,0,-0.475438]},{"name":"tailstart","parent":"tail","t":[0,0.09434,0],"q":[-0.156168,0,0,0.98773]},{"name":"tail1","parent":"tailstart","t":[0,0.123693,0],"q":[-0.08083,0,0,0.996728]},{"name":"tail2","parent":"tail1","t":[0,0.120416,0],"q":[0,0,0,1]},{"name":"tail3","parent":"tail2","t":[0,0.120416,0],"q":[0,0,0,1]},{"name":"frontleg","parent":"chest","t":[0.09,-0.035777,-0.026833],"q":[-0.9791505588988856,-0.02855085050396923,0.006740141838270097,-0.20100429494043154]},{"name":"frontleg0","parent":"frontleg","t":[0,0.170587,0],"q":[-0.0016030110729499045,0.0008138799051456425,0.029324425322587312,0.9995682672056472]},{"name":"frontleg1","parent":"frontleg0","t":[0,0.180278,0],"q":[-0.001458,0,0,0.999999]},{"name":"frontleg2","parent":"frontleg1","t":[0,0.190263,0],"q":[0,0,0,1]},{"name":"R_frontleg","parent":"chest","t":[-0.09,-0.035777,-0.026833],"q":[-0.9791505588988856,0.02855085050396923,-0.006740141838270097,-0.20100429494043154]},{"name":"R_frontleg0","parent":"R_frontleg","t":[0,0.170587,0],"q":[-0.0016030110729499045,-0.0008138799051456425,-0.029324425322587312,0.9995682672056472]},{"name":"R_frontleg1","parent":"R_frontleg0","t":[0,0.180278,0],"q":[-0.001458,0,0,0.999999]},{"name":"R_frontleg2","parent":"R_frontleg1","t":[0,0.190263,0],"q":[0,0,0,1]},{"name":"backleg","parent":"Hips","t":[0.09,0.02978,0.010636],"q":[0.6934511350282729,0.020962887635056326,-0.020521653003596096,0.7199068281395864]},{"name":"backleg0","parent":"backleg","t":[0,0.170587,0],"q":[0.0016030110729499045,-0.0008138799051456425,0.029324425322587312,0.9995682672056472]},{"name":"backleg1","parent":"backleg0","t":[0,0.180278,0],"q":[0.001458,0,0,0.999999]},{"name":"backleg2","parent":"backleg1","t":[0,0.190263,0],"q":[0,0,0,1]},{"name":"R_backleg","parent":"Hips","t":[-0.09,0.02978,0.010636],"q":[0.6934511350282729,-0.020962887635056326,0.020521653003596096,0.7199068281395864]},{"name":"R_backleg0","parent":"R_backleg","t":[0,0.170587,0],"q":[0.0016030110729499045,0.0008138799051456425,-0.029324425322587312,0.9995682672056472]},{"name":"R_backleg1","parent":"R_backleg0","t":[0,0.180278,0],"q":[0.001458,0,0,0.999999]},{"name":"R_backleg2","parent":"R_backleg1","t":[0,0.190263,0],"q":[0,0,0,1]}];
 const GIRAFFE_PAWS=['frontleg2','R_frontleg2','backleg2','R_backleg2'];
 const GIRAFFE_NECK=['neck01','neck02','neck03','neck04'];              // base->head
 const GNW=[1.15,1.0,0.85,0.7];                                        // neck bend weight (base bends most)
@@ -5171,6 +5171,75 @@ const GIRAFFE_MOTIONS=[
     sw('head', AX.x, Math.sin(TAU*cyc*2)*0.03*P.amp);                        // gentle fore-aft head bob
     QUAD_TAIL.forEach((tb,i)=> sw(tb, AX.y, Math.sin(TAU*cyc + i*0.4)*0.05*P.amp));
     setRootY(Math.abs(Math.sin(TAU*cyc))*0.01*P.amp);
+  }},
+  // ——— Gallop. A giraffe has exactly two gaits, the pacing walk and the gallop (Dagg & Foster 1976) — no trot, no
+  // canter. The gallop is TRANSVERSE (LH RH LF RF, one suspension after the forelegs push off), the long hind legs
+  // swing wide and land outside the forehooves, and the NECK is part of the engine: it rocks forward as the forelegs
+  // land and back as the hind legs drive (~15° peak to peak), throwing the head's mass to help lift the forehand.
+  {id:'gir_gallop', name:'Gallop', cat:'Locomotion', type:'move', dur:1.0, build:(t,P)=>{ resetPose();
+    const cyc=(t/1.0)*P.speed, a=TAU*cyc, A=P.amp;
+    // legDrive touches down at phase 0.75 (fore) / 0.25 (hind): LH at cyc 0, RH 0.10, LF 0.50, RF 0.60
+    const ph={backleg:0.25, R_backleg:0.15, frontleg:0.25, R_frontleg:0.15};
+    QUAD_LEGS.forEach(leg=> legDrive(leg, cyc+ph[leg.hip], 0.50, 0.72, P));
+    sw('backleg', AX.z, 0.06*A); sw('R_backleg', AX.z, -0.06*A);          // hind legs track wide of the forelegs
+    sw('Hips', AX.x, 0.07*Math.sin(a-1.88)*A);                              // nose-down as the forelegs land (cyc≈0.55), nose-up on the hind drive
+    neckBend(0.055*Math.sin(a-1.88)*A);                                     // the neck rocks forward onto the landing, back with the drive (~12° peak to peak over the four joints)
+    sw('head', AX.x, -0.05*Math.sin(a-1.88)*A);                             // the head stays near level through it
+    QUAD_TAIL.forEach((tb,i)=> sw(tb, AX.x, -(0.22+0.12*Math.sin(a+i*0.5))*A));   // tail up and streaming
+    girEars(-0.15*A);
+    setRootY(Math.max(0, Math.sin(a-4.4))*0.05*A);                          // the suspension after the fore push-off
+  }},
+  // ——— Necking: male sparring. Braced wide, the neck is wound to one side then swung across in a wide arc so the head
+  // (ossicones) clubs the rival's flank; the body counter-rolls into each blow. Two swings.
+  {id:'gir_neck', name:'Necking (sparring)', cat:'Action', type:'stay', dur:3.0, build:(t,P)=>{ resetPose();
+    const A=P.amp, u=(((t/3.0)*P.speed)%1+1)%1, env=ramp(u,0.0,0.15)*(1-ramp(u,0.88,1));
+    const swing=Math.sin(TAU*u*2-0.6);                                      // −1 wound up, +1 across
+    neckSway(0.42*swing*env*A);
+    neckBend(0.10*(0.5-0.5*Math.cos(TAU*u*2))*env*A);                       // dips through the swing
+    sw('head', AX.z, 0.35*swing*env*A); sw('head', AX.y, 0.20*swing*env*A);
+    sw('chest', AX.z, -0.08*swing*env*A); sw('Hips', AX.y, 0.05*swing*env*A);
+    sw('frontleg', AX.z, 0.12*env*A); sw('R_frontleg', AX.z, -0.12*env*A);   // braced wide
+    QUAD_TAIL.forEach((tb,i)=> sw(tb, AX.y, Math.sin(TAU*u*2+i*0.5)*0.15*env*A));
+  }},
+  // ——— Alert: the classic stare — neck drawn tall, ears forward, one slow scan, then it relaxes.
+  {id:'gir_alert', name:'Alert (stare)', cat:'Idle', type:'idle', dur:4.0, build:(t,P)=>{ resetPose();
+    const A=P.amp, u=(((t/4.0)*P.speed)%1+1)%1, up=ramp(u,0.02,0.18)*(1-ramp(u,0.85,1));
+    neckBend(-0.06*up*A); sw('head', AX.x, -0.10*up*A);
+    sw('head', AX.y, 0.35*Math.sin(TAU*lramp(u,0.25,0.75))*up*A);
+    girEars(0.35*up*A);
+  }},
+  // ——— Kick: the giraffe's defence is a foreleg lifted high with the knee flexed and driven straight down like a hammer
+  // (it kills lions). The weight rocks back as the leg comes up and forward into the strike.
+  {id:'gir_kick', name:'Kick (front chop)', cat:'Action', type:'stay', dur:1.3, build:(t,P)=>{ resetPose();
+    const A=P.amp, u=(((t/1.3)*P.speed)%1+1)%1, lift=ramp(u,0.08,0.34)*(1-ramp(u,0.46,0.56)), strike=bump(u,0.55,0.10);
+    sw('frontleg',  AX.x, -(0.70*lift - 0.25*strike)*A);                    // leg swings forward-up, then hammers down
+    sw('frontleg0', AX.x, -(0.90*lift)*A);                                  // knee up and flexed
+    sw('frontleg1', AX.x,  (1.10*lift)*A);                                  // hoof tucked back under the knee
+    sw('Hips', AX.x, (-0.05*lift + 0.06*strike)*A);                         // rocks back, then into the blow
+    neckBend((-0.06*lift + 0.10*strike)*A); sw('head', AX.x, (-0.12*lift + 0.15*strike)*A);
+    girEars(-0.30*lift*A);
+  }},
+  // ——— Lying. A giraffe lies STERNAL with the legs folded under (kneel first, hind legs to one side) and keeps its neck
+  // up; real sleep — head laid back on the rump — lasts only minutes. It rises hindquarters first.
+  {id:'gir_liedown', name:'Lie Down', cat:'Posture', type:'stay', dur:3.0, lie:true, build:(t,P)=>{
+    const A=P.amp, u=(t/3.0*P.speed)%1, kf=ramp(u,0.08,0.45)*A, kh=ramp(u,0.40,0.85)*A;
+    quadLie(kf, kh, {head:0, chest:0}); neckBend(-0.04*kh*A); }},
+  {id:'gir_sleep', name:'Sleep (head on rump)', cat:'Posture', type:'stay', dur:6.0, lie:true, build:(t,P)=>{
+    const A=P.amp, u=(t/6.0*P.speed)%1, br=Math.sin(TAU*u*2), k=ramp(u,0.05,0.35)*(1-ramp(u,0.80,0.98));
+    quadLie(A, A, {head:0, chest:0});
+    neckBend(-0.50*k*A); neckSway(-0.26*k*A);                                // neck curled BACK over the body, out to one side, head to the rump
+    sw('head', AX.x, (0.85*k + br*0.01)*A); sw('head', AX.z, -0.25*k*A);       // chin tucks down onto the rump
+    girEars(-0.1*k*A); }},
+  {id:'gir_getup', name:'Get Up', cat:'Posture', type:'stay', dur:2.4, lie:true, build:(t,P)=>{
+    const A=P.amp, u=(t/2.4*P.speed)%1, kh=(1-ramp(u,0.05,0.50))*A, kf=(1-ramp(u,0.35,0.85))*A;
+    quadLie(kf, kh, {head:0, chest:0}); }},
+  // ——— Tail swish: flies. A fast lateral whip that lifts the tail, with ear flicks.
+  {id:'gir_tailswish', name:'Tail Swish (flies)', cat:'Idle', type:'idle', dur:2.6, build:(t,P)=>{ resetPose();
+    const A=P.amp, u=(((t/2.6)*P.speed)%1+1)%1, a=TAU*u;
+    const whip=Math.sin(a*2)*bump(u,0.35,0.30)+Math.sin(a*2+1)*bump(u,0.80,0.15);
+    QUAD_TAIL.forEach((tb,i)=> { sw(tb, AX.y, whip*(0.25+0.12*i)*A); sw(tb, AX.x, -Math.abs(whip)*0.10*A); });
+    girEars(Math.sin(a*3)*0.25*bump(u,0.5,0.4)*A);
+    sw('chest', AX.z, Math.sin(a)*0.02*A); neckSway(Math.sin(a+0.5)*0.02*A);
   }},
   {id:'gir_idle', name:'Idle', cat:'Idle', type:'idle', dur:5.0, build:(t,P)=>{ resetPose();
     const a=TAU*(t/5.0)*P.speed;
