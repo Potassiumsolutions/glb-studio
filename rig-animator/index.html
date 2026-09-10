@@ -834,6 +834,102 @@ function qPivotHind(){
   animRoot.position.add(_qpvA);
   animRoot.updateMatrixWorld(true);
 }
+// The lying shape. kf = 0..1 the forelegs' kneel, kh = 0..1 the hind fold + rump drop.
+//   o.side ±1 which side the hind legs go to (the body rolls onto that hip); o.roll extra roll (sleep on the side);
+//   o.ease relaxes the folds (a sleeping animal lets its legs out); o.head/chest/headY/tail extra head & tail pose.
+let QLIE_FRAC = 0;                              // how far DOWN the lying pose is this frame (0 standing, 1 rump on the ground) — bakeClip stores it
+function quadLie(kf, kh, o){
+  o = o || {}; const side = o.side ?? 1, ease = 1 - 0.55*(o.ease||0); QLIE_FRAC = Math.max(0, Math.min(1, kh));
+  const LL = qPose({ pitch: 0.18*kf*(1-kh) + 0.04*kh, chest: (o.chest ?? -0.06*kf*(1-kh) - 0.05*kh),
+                     head: (o.head ?? (-0.18*kf*(1-kh) - 0.06*kh)), headY: (o.headY||0)*side, tail: (o.tail ?? 0.10*kh) });
+  qPivotHind();                                            // the kneel pitches the front down about the hind hooves (pitch only — the pivot must not chase the roll)
+  sw('Hips', AX.z, -(0.18*kh + (o.roll||0))*side);         // then the roll onto the near hip, about the root (+Z rolls RIGHT, so the sign follows the leg side)
+  rootLift(-0.70*kh*LL);                                   // and the rump comes down (clamped per character in the Stitcher)
+  QUAD_LEGS.forEach(L=>{
+    const s = (L.side==='L' ? 1 : -1)*side;                // +1 = the leg on the side the animal lies toward
+    if(L.front){
+      // KNEEL: humerus back, elbow flexed (forearm forward-down to the carpus on the ground), carpus folded back so the
+      // cannon lies under the chest, hoof pointing backward
+      sw(L.hip,  AX.x,  1.10*kf*ease);                     // humerus swung well back (a rig whose humerus rests forward folds less compactly from the same delta)
+      sw(L.knee, AX.x, -2.30*kf*ease);
+      sw(L.shin, AX.x,  2.60*kf*ease);
+      sw(L.foot, AX.x,  0.30*kf);
+      sw(L.hip,  AX.z,  0.10*kf*s + (s<0 ? (o.abFarF||0)*kh*side : 0));   // knees a little apart; on the side, the upper foreleg droops onto the lower one
+    } else if(kh < 0.02){ qPaw(L, 0, 0, 0); }               // still standing on them
+    else {
+      // HIND FOLD to one side: femur forward and laid out sideways, stifle folded back, hock eased; the leg on the
+      // far side tucks under, the near-side leg lies out on the ground
+      sw(L.hip,  AX.x, -0.85*kh*ease);
+      sw(L.hip,  AX.z,  (s>0 ? (o.abNear ?? 0.55) : (o.abFar ?? 0.25))*kh*side);   // sternal: both tucked to one side; on the side: the near leg lies flat, the upper leg droops onto it
+      sw(L.knee, AX.x,  1.45*kh*ease);                     // stifle folds back (hock behind)
+      sw(L.shin, AX.x, -1.25*kh*ease);                     // hock folds the foot FORWARD under the body
+    }
+  });
+  animRoot.updateMatrixWorld(true);
+  return LL;
+}
+// ═════ HEAD TO THE GROUND (sniff / graze / drink) — the physics ═══════════════════════════════════════
+// A horse or a rhino gets its nose to the ground with STRAIGHT forelegs swung FORWARD from the shoulder — never folded
+// (an elbow buckling forward is what a solver does when asked for an unreachable paw, not what an animal does).
+// Swinging the straight leg to a world angle θ lowers the shoulder by L(1 − cos θ); the body pitches nose-down about
+// the HIND hooves by exactly the p that keeps the fore hooves on the floor (L(1 − cos θ) = wheelbase · sin p), and the
+// neck + head make up the rest of the reach. The head is never pushed under the ground: the neck/head flex is bisected
+// until the nose stops AT the floor. (The Stitcher re-checks that per character — FLOOR_CONTACT nose — because a
+// rhino's nose already hangs low and a horse's neck is long, so the same flex lands differently on each.)
+//   d = 0..1 how far down; o.theta = foreleg world angle at full depth (rad); o.headLift = a small upward head bob
+//   (lapping / chewing) applied AFTER the floor solve so it can only lift the nose; o.headY = side-to-side sweep.
+const _qhdN = new THREE.Vector3(), _qhdS = new THREE.Vector3();
+let QHD_FRAC = 1;                              // the nose height this frame INTENDS (1 = standing, ~0 = on the floor) — bakeClip stores it
+function quadHeadDown(d, o){
+  o = o || {}; const LL = QUAD_LEGLEN(); QHD_FRAC = Math.max(0.02, 1 - d);
+  const pf = QUAD_PAW0['frontleg2'], pb = QUAD_PAW0['backleg2'];
+  const wb = (pf && pb) ? Math.abs(pf.z - pb.z) : LL*1.4;
+  // the foreleg as it stands: length r shoulder→paw and its rest world angle (+ = forward; this rig's rests angled BACK)
+  qstand(); boneByName['frontleg'].getWorldPosition(_qhdS);
+  const r = pf ? _qhdS.distanceTo(pf) : LL, phi0 = pf ? Math.atan2(pf.z - _qhdS.z, _qhdS.y - pf.y) : 0;
+  // the legs swing first (done by half depth), then the neck keeps lowering — so the leg is already forward by the
+  // time the neck flex pulls the shoulder down (an animal never has its leg still pointing back when the chest sinks)
+  const thW = phi0 + ((o.theta ?? 0.55) - phi0)*Math.min(1, d*2);        // planned straight-foreleg world angle at this depth
+  const drop = r*(Math.cos(phi0) - Math.cos(thW));                        // how much a straight leg at that angle lowers the shoulder
+  const p = drop > 0 ? Math.asin(Math.min(0.9, drop/wb)) : 0;             // body pitch (about the hind hooves) that keeps the fore hooves down
+  const build = k => {
+    qPose({ pitch:p, chest:0.42*d*k, head:0.45*d*k, headY:o.headY||0, tail:o.tail||0 });   // neck does the reach; the head only tips (a tucked head reads as a bow)
+    qPivotHind();
+    // The forelegs hang from the CHEST bone, so the neck flex above also swung them and lowered the shoulder. Solve
+    // each leg from where its shoulder actually is: the straight-leg angle that puts the hoof on the floor (at least
+    // the planned splay), applied as ONE rotation at the shoulder — no fold, ever.
+    QUAD_LEGS.forEach(L=>{ if(!L.front){ qPaw(L, 0, 0, 0); return; }
+      animRoot.updateMatrixWorld(true);
+      boneByName[L.hip].getWorldPosition(_qhdS); boneByName[L.foot].getWorldPosition(_qhdN);
+      const hs = _qhdS.y - QUAD_FLOOR;
+      const now = Math.atan2(_qhdN.z - _qhdS.z, _qhdS.y - _qhdN.y);
+      const need = hs < r ? Math.acos(Math.max(-1, Math.min(1, hs/r))) : 0;   // |angle| that puts the hoof exactly on the floor
+      const want = thW >= 0 ? Math.max(thW, need) : thW;                        // forward: at least that; still swinging back→fwd: keep the plan
+      sw(L.hip, AX.x, -(want - now)); });
+    animRoot.updateMatrixWorld(true);
+    // hooves still floating (shoulder too high for a straight leg) → the whole body comes down that much and the HIND
+    // legs flex to absorb it (never lift); a hair under → the solver takes it up
+    let sum = 0, n = 0; for(const L of QUAD_LEGS){ if(!L.front) continue; boneByName[L.foot].getWorldPosition(_qhdN); sum += _qhdN.y; n++; }
+    const e = n ? sum/n - QUAD_FLOOR : 0;
+    if(e > 0.001){ rootLift(-e); QUAD_LEGS.forEach(L=>{ if(!L.front) qPaw(L, 0, 0, 0); }); }
+    animRoot.updateMatrixWorld(true);
+    qPawsToFloor(); QUAD_LEGS.forEach(L=>{ if(L.front) levelPaw(L); }); animRoot.updateMatrixWorld(true);
+  };
+  build(1);
+  const nose = boneByName['headend'];
+  if(nose && d > 0.01){
+    nose.getWorldPosition(_qhdN);
+    const target = QUAD_FLOOR + 0.02*LL;                                  // nose ON the floor (a hair above), never under
+    // bisect the neck/head flex scale so the nose lands ON the target: down if it went under, UP (to 2.5×) if the
+    // template's short neck fell short — the clip's nose track then carries that height to every character
+    // (only DOWN: the template's short, steep neck cannot reach the floor without curling — the clip's nose track carries
+    // the INTENDED height, and the Stitcher solves each character's own neck to it)
+    if(_qhdN.y < target){ let lo = 0, hi = 1; for(let i = 0; i < 9; i++){ const k = (lo+hi)/2; build(k); nose.getWorldPosition(_qhdN); if(_qhdN.y < target) hi = k; else lo = k; } build(lo); }
+  }
+  if(o.headLift) sw('head', AX.x, -o.headLift);                            // lapping / chewing lifts the muzzle a little
+  animRoot.updateMatrixWorld(true);
+  return LL;
+}
 // ═════ REAR — the physics ═════════════════════════════════════════════════════════════════════════
 // A rearing animal PIVOTS ABOUT ITS HIND HOOVES: they are its only contact, so every other point moves on an arc
 // about the line between them. (The old version pitched about the pelvis and left the hips where they stood, so
@@ -1044,26 +1140,26 @@ const QUAD_MOTIONS=[
   // hanging in the air.
   {id:'sit', name:'Sit', cat:'Posture', type:'stay', dur:1.80, build:(t,P)=>quadSit(ramp(t/1.80,0.05,0.55)*P.amp)},
   {id:'sitstand', name:'Stand Up from Sit', cat:'Posture', type:'stay', dur:1.60, build:(t,P)=>quadSit((1-ramp(t/1.60,0.15,0.75))*P.amp)},
-  // Lying down: the whole body sinks until the chest and belly take the weight, forelimbs folded forward,
-  // hind limbs tucked to one side.
-  {id:'liedown', name:'Lie Down', cat:'Posture', type:'stay', dur:2.20, build:(t,P)=>{
-    const A=P.amp, k=ramp(t/2.20,0.10,0.70)*A, LL=qPose({ y:-0.72*k, pitch:0.06*k, chest:-0.05*k, head:-0.05*k, tail:0.10*k, roll:0.10*k });
-    QUAD_LEGS.forEach(L => L.front ? qPaw(L,0,0,0.30*LL*k) : qPaw(L, 0.10*LL*k, 0, 0.34*LL*k)); }},
-  {id:'sleep', name:'Sleep (curled)', cat:'Posture', type:'stay', dur:4.00, build:(t,P)=>{
-    const A=P.amp, br=Math.sin(TAU*t/4.00*P.speed), LL=qPose({ y:-0.78*A, roll:0.28*A, turn:0.20*A,
-      chest:-0.30*A + br*0.016*A, head:0.55*A, headY:0.45*A, tail:0.55*A, tailY:0.40*A });
-    // Legs FOLDED against the curled body by joints, not IK to world-fixed standing spots: the curl rolls/
-    // turns/drops the body, so those targets went unreachable and the breathing re-solve flipped a hind leg
-    // ~80°/frame (a twitch on an otherwise-still sleeping dog). A static fold has nothing to re-solve.
-    QUAD_LEGS.forEach(L => {
-      sw(L.hip,  AX.x, (L.front? -0.40 : 0.50)*A);
-      sw(L.knee, AX.x, (L.front?  1.30 : 1.40)*A);
-      sw(L.shin, AX.x, (L.front?  0.50 : 0.60)*A);
-    });
-    animRoot.updateMatrixWorld(true); }},
-  {id:'getup', name:'Get Up', cat:'Posture', type:'stay', dur:1.80, build:(t,P)=>{
-    const A=P.amp, k=(1-ramp(t/1.80,0.10,0.80))*A, LL=qPose({ y:-0.72*k, chest:-0.05*k, head:-0.05*k, roll:0.10*k });
-    QUAD_LEGS.forEach(L => L.front ? qPaw(L,0,0,0.30*LL*k) : qPaw(L, 0.10*LL*k, 0, 0.34*LL*k)); }},
+  // ═════ LYING DOWN / SLEEP / GET UP — the physics ═════
+  // A quadruped lies down the way a cow or a horse does: it KNEELS first — the forelegs fold with the carpus to the
+  // ground and the cannons folded BACK under the chest (hooves pointing backward, never forward) — then the hind legs
+  // fold to ONE side and the rump comes down, the body rolling a little onto that hip. Every fold is driven from the
+  // joints (elbow flexes forward toward the shoulder, carpus folds back, stifle folds back, leg laid out sideways at
+  // the hip); nothing is solved to a paw spot, because a solver asked for an unreachable spot is what bent these legs
+  // the wrong way. Sleep is the same shape rolled further onto the side with the legs eased out and the head down.
+  // The body height is authored on the template; the Stitcher stops each character at ITS OWN belly / flank
+  // (FLOOR_CONTACT lie) so a deep-bodied rhino does not sink through the floor.
+  {id:'liedown', name:'Lie Down', cat:'Posture', type:'stay', dur:2.20, lie:true, build:(t,P)=>{
+    const A=P.amp, u=(t/2.20*P.speed)%1, kf=ramp(u,0.08,0.45)*A, kh=ramp(u,0.38,0.82)*A;
+    quadLie(kf, kh, {}); }},
+  {id:'sleep', name:'Sleep (on side)', cat:'Posture', type:'stay', dur:4.00, lie:true, build:(t,P)=>{
+    const A=P.amp, br=Math.sin(TAU*t/4.00*P.speed);
+    // on the side (≈85°): the legs come straight off the belly and lie along the ground, half let out; head down
+    quadLie(A, A, {roll:1.30*A, ease:0.6*A, abNear:0.0, abFar:0.9, abFarF:0.8, head:0.32*A + br*0.02*A, chest:-0.10*A + br*0.016*A, headY:0.25*A, tail:0.45*A}); }},
+  {id:'getup', name:'Get Up', cat:'Posture', type:'stay', dur:1.80, lie:true, build:(t,P)=>{
+    // horse-style: the front comes up first, then the hindquarters push up
+    const A=P.amp, u=(t/1.80*P.speed)%1, kf=(1-ramp(u,0.08,0.55))*A, kh=(1-ramp(u,0.30,0.85))*A;
+    quadLie(kf, kh, {}); }},
   // The play bow / downward stretch: forelimbs slide forward and the chest drops to the ground while the
   // hindquarters stay up. It is the same shape whether a dog is inviting play or a cat is stretching.
   {id:'stretch', name:'Stretch (play bow)', cat:'Posture', type:'stay', dur:2.40, build:(t,P)=>{
@@ -1082,19 +1178,15 @@ const QUAD_MOTIONS=[
   // Getting a nose to the floor is a FORELIMB problem, not a neck one. This rig's foreleg is nearly
   // straight standing (7% slack), so the shoulders cannot just sink — a dog steps its forefeet forward and
   // lets the chest come down between them, which is what actually lowers the head.
-  {id:'sniff', name:'Sniff the Ground', cat:'Feeding', type:'stay', dur:2.60, build:(t,P)=>{
+  {id:'sniff', name:'Sniff the Ground', cat:'Feeding', type:'stay', dur:2.60, nose:true, build:(t,P)=>{
     const A=P.amp, u=(t/2.60*P.speed)%1, d=(ramp(u,0.05,0.30)-ramp(u,0.72,0.95))*A;
-    const LL=qPose({ pitch:0.30*d, chest:0.22*d, head:0.40*d, headY:Math.sin(TAU*u*3)*0.20*d, y:-0.30*d, tail:-0.12*d });
-    qFeet({ fz: 0.42*LL*d, hz: -0.05*LL*d }); }},
-  {id:'graze', name:'Graze / Eat', cat:'Feeding', type:'stay', dur:3.00, build:(t,P)=>{
-    const A=P.amp, u=(t/3.00*P.speed)%1, d=(ramp(u,0.05,0.25)-ramp(u,0.80,0.98))*A, chew=Math.sin(TAU*u*8)*d;
-    const LL=qPose({ pitch:0.34*d, chest:0.26*d, head:0.46*d + chew*0.05, y:-0.34*d,
-                     headY:Math.sin(TAU*u*1.5)*0.14*d, tail:-0.10*d });
-    qFeet({ fz: 0.46*LL*d, hz: -0.05*LL*d }); }},
-  {id:'drink', name:'Drink (lap)', cat:'Feeding', type:'stay', dur:2.20, build:(t,P)=>{
+    quadHeadDown(d, {theta:0.50, headY:Math.sin(TAU*u*3)*0.20*d, tail:-0.12*d}); }},
+  {id:'graze', name:'Graze / Eat', cat:'Feeding', type:'stay', dur:3.00, nose:true, build:(t,P)=>{
+    const A=P.amp, u=(t/3.00*P.speed)%1, d=(ramp(u,0.05,0.25)-ramp(u,0.80,0.98))*A, chew=0.5+0.5*Math.sin(TAU*u*8);
+    quadHeadDown(d, {theta:0.55, headLift:0.05*chew*d, headY:Math.sin(TAU*u*1.5)*0.14*d, tail:-0.10*d}); }},
+  {id:'drink', name:'Drink (lap)', cat:'Feeding', type:'stay', dur:2.20, nose:true, build:(t,P)=>{
     const A=P.amp, u=(t/2.20*P.speed)%1, d=(ramp(u,0.05,0.25)-ramp(u,0.85,1.0))*A, lap=Math.max(0,Math.sin(TAU*u*7));
-    const LL=qPose({ pitch:0.36*d, chest:0.28*d, head:(0.50 + 0.06*lap)*d, y:-0.36*d, tail:-0.06*d });
-    qFeet({ fz: 0.48*LL*d, hz: -0.05*LL*d }); }},
+    quadHeadDown(d, {theta:0.55, headLift:0.05*lap*d, tail:-0.06*d}); }},
   {id:'chew', name:'Chew', cat:'Feeding', type:'stay', dur:1.60, build:(t,P)=>{
     const A=P.amp, u=(t/1.60*P.speed)%1, c=Math.sin(TAU*u*5);
     qIdle(t,P,1.60,{amount:0.4, head:-0.10*A + c*0.055*A}); }},
@@ -5941,8 +6033,15 @@ function armClearance(){
 const BAKE_FPS=30;
 function bakeClip(m, D, params){
   const n=Math.max(2,Math.round(D*BAKE_FPS)); const times=[]; for(let i=0;i<n;i++) times.push(i/BAKE_FPS);
-  const q={}; for(const bn of boneList) q[bn]=[]; const root=[];
+  const q={}; for(const bn of boneList) q[bn]=[]; const root=[]; const noseF=[];
+  // Head-to-ground clips also carry the NOSE HEIGHT as a fraction of its standing height (1 = standing, 0 = on the floor), so
+  // the Stitcher can solve each character's own neck to that height — joint angles alone land a rhino's low-hung head under
+  // the ground and a horse's long neck short of it.
+  let noseRest=null; if(m.nose && boneByName['headend']) noseRest=1;   // the fraction comes from the builder's INTENT (QHD_FRAC), not the template's reach
+  const lieF=[];
   for(let i=0;i<n;i++){ setRootY(0); animRoot.position.set(0,0,0); m.build(times[i], params); armClearance(); animRoot.updateMatrixWorld(false);
+    if(noseRest) noseF.push(+QHD_FRAC.toFixed(4));
+    if(m.lie) lieF.push(+QLIE_FRAC.toFixed(4));
     for(const bn of boneList){ const b=boneByName[bn]; q[bn].push(b.quaternion.x,b.quaternion.y,b.quaternion.z,b.quaternion.w); }
     root.push(animRoot.position.x, animRoot.position.y, animRoot.position.z);
   }
@@ -5965,7 +6064,10 @@ function bakeClip(m, D, params){
     const vals=[]; for(let i=0;i<n;i++) vals.push((base.x+root[i*3])*100, (base.y+root[i*3+1])*100, (base.z+root[i*3+2])*100);
     tracks.push({ name:rootBone+'.position', type:'vector', times:times.slice(), values:vals });
   }
-  return { name:'RigAnimator|'+m.name, duration:D, tracks, uuid:crypto.randomUUID(), blendMode:2500 };
+  const out={ name:'RigAnimator|'+m.name, duration:D, tracks, uuid:crypto.randomUUID(), blendMode:2500 };
+  if(noseRest && noseF.length===n) out.nose={ times:times.slice(), frac:noseF };
+  if(m.lie && lieF.length===n) out.lie={ times:times.slice(), frac:lieF };   // lying intent: the Stitcher rests the belly/flank on the floor when this is 1
+  return out;
 }
 function skeletonEntry(){
   // Rest pose for retargeting MUST be per-bone LOCAL (position + quaternion) — the Stitcher captures the

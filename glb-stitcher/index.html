@@ -5566,7 +5566,14 @@ const FLOOR_CONTACT = { fitpushup:{rep:1}, fitplank:{hands:1,toes:1}, floordown:
   // Quad rear/roar: the trunk pitches upright but the HIND paws must stay on the floor. Retarget carries only
   // joint angles, so on a mesh whose legs differ in length from the template the SAME fold reaches BELOW the
   // floor — re-plant the hind paws on THIS character's own skeleton (see the hindpaws branch below).
-  dragon_roar:{hindpaws:1}, peg_rear:{hindpaws:1}, rear:{hindpaws:1} };
+  dragon_roar:{hindpaws:1}, peg_rear:{hindpaws:1}, rear:{hindpaws:1},
+  // Quad head-to-ground (sniff/graze/drink): the clip stops the TEMPLATE's nose at the floor, but a rhino's head already
+  // hangs low and a horse's neck is long — the same neck flex puts their nose under the ground. Clamp the nose per
+  // character: never more than ~an inch below the fore hooves (see the nose branch below).
+  sniff:{nose:1}, graze:{nose:1}, drink:{nose:1},
+  // Quad lying poses: the body drop is authored on the template; stop it at THIS character's own belly (level body)
+  // or flank (rolled onto the side), measured off its rest mesh — a deep-bodied rhino otherwise sinks through the floor.
+  liedown:{lie:1}, sleep:{lie:1}, getup:{lie:1} };
 const _gcV1=new THREE.Vector3(), _gcV2=new THREE.Vector3(), _gcV3=new THREE.Vector3(), _gcQ1=new THREE.Quaternion(), _gcQ2=new THREE.Quaternion();
 function _ccdToward(bone, endEff, target){
   bone.updateWorldMatrix(true,false);
@@ -5580,8 +5587,117 @@ function _ccdToward(bone, endEff, target){
   bone.updateWorldMatrix(true,true);
 }
 function _avgY(bones){ let s=0,n=0; const v=new THREE.Vector3(); for(const b of bones){ if(b){ s+=b.getWorldPosition(v).y; n++; } } return n?s/n:null; }
+// Belly height above the floor and body half-width, from the character's REST mesh (bind pose = standing): the belly is
+// the lowest point of a thin mid-sagittal slab between the fore and hind hooves (the legs sit off the midline), the
+// half-width the widest point of the torso. Both in the skeleton's own (normalised) frame.
+function _lieBodyMetrics(charRoot, hipsY, fz, hz, xc){
+  let mesh=null; charRoot.traverse(o=>{ if(!mesh && o.isSkinnedMesh && o.geometry && o.geometry.attributes.position) mesh=o; });
+  if(!mesh) return null;
+  const P=mesh.geometry.attributes.position, n=P.count, step=Math.max(1, Math.floor(n/60000));
+  const zLo=Math.min(fz,hz)+0.33*Math.abs(fz-hz), zHi=Math.max(fz,hz)-0.33*Math.abs(fz-hz);   // middle third only: thighs / forearms crowd the ends
+  // geometry → the character root's frame (a hand-exported rig can carry a transform on its mesh node)
+  mesh.updateWorldMatrix(true,false); charRoot.updateWorldMatrix(true,false);
+  const M=new THREE.Matrix4().copy(charRoot.matrixWorld).invert().multiply(mesh.matrixWorld); const V=new THREE.Vector3();
+  let belly=Infinity, half=0;
+  for(let i=0;i<n;i+=step){ V.set(P.getX(i), P.getY(i), P.getZ(i)).applyMatrix4(M); const x=V.x, y=V.y, z=V.z;
+    if(z<zLo||z>zHi) continue;
+    if(Math.abs(x-(xc||0))<0.07*hipsY && y>0.30*hipsY) belly=Math.min(belly,y);   // a slab on the body's own midline (a rig can sit off x=0), above knee height so no leg is counted
+    if(y>0.35*hipsY && y<hipsY*1.05) half=Math.max(half,Math.abs(x-(xc||0))); }
+  if(!isFinite(belly)) return null;
+  return { belly, half };
+}
 function floorContactPose(root, spec, floorY){
   const B=n=>root.getObjectByName(n);
+  if(spec.lie){
+    // Lying: the body's lowest point must rest ON the floor — the belly when level, the flank when rolled onto the side.
+    // Raise the Hips if the authored drop went deeper than this character's body allows (never lower them: a body
+    // that is still on its way down is fine where it is).
+    const hips=B('Hips'); if(!hips || !spec._lie) return;
+    root.updateMatrixWorld(true);
+    const q=hips.getWorldQuaternion(new THREE.Quaternion()); const lat=new THREE.Vector3(1,0,0).applyQuaternion(q);   // the body's lateral axis now
+    const r=Math.min(1, Math.abs(lat.y));                                                                              // 0 level … 1 fully on the side
+    const clearance=(1-r)*spec._lie.belly + r*spec._lie.half;                                                         // lowest point below the Hips
+    const hy=hips.getWorldPosition(_gcV3).y;
+    // two ways to rest: on the HIND hooves (standing / kneeling — the planted legs carry the body) or on the BELLY/FLANK
+    // (lying). The clip says how far down it intends to be (spec._lieFrac, 0..1); blend the two Hips heights by it, so the
+    // body neither sinks through the floor (a deep body) nor floats above it (the retarget scales the template's drop by
+    // leg length, not by body depth), and the folded legs are free to tuck wherever they land.
+    let hindLow=Infinity; for(const nm of ['backleg2','R_backleg2']){ const bn=B(nm); if(bn) hindLow=Math.min(hindLow, bn.getWorldPosition(_gcV1).y); }
+    const hHoof = isFinite(hindLow) ? hy + (spec._lie.hipsFloor - hindLow) : hy;    // Hips height that puts the lower hind hoof on the floor
+    const hBelly = spec._lie.hipsFloor + clearance;                                 // Hips height that rests the belly / flank on the floor
+    const f = spec._lieFrac!=null ? spec._lieFrac : 1;
+    const target = (1-f)*hHoof + f*hBelly;
+    { const ps=hips.parent?hips.parent.getWorldScale(_gcV2).y:1; hips.position.y += (target-hy)/(ps||1); hips.updateWorldMatrix(true,true); }
+    // Once the body is down, a leg that folds less compactly on THIS rig (long cannons) can poke through the floor: fold it
+    // further from the knee/stifle down until the hoof is back at floor level — the hip is left as authored.
+    if(f > 0.3){ const legs=[]; for(const [k,sh,ft] of [['frontleg0','frontleg1','frontleg2'],['R_frontleg0','R_frontleg1','R_frontleg2'],['backleg0','backleg1','backleg2'],['R_backleg0','R_backleg1','R_backleg2']]){ const e=B(ft); if(e) legs.push({chain:[k,sh], end:e}); }
+      const gy=spec._lie.hipsFloor;
+      for(let pass=0; pass<8; pass++){ root.updateMatrixWorld(true); let any=false; for(const l of legs){ const e=l.end.getWorldPosition(_gcV3); if(e.y >= gy-0.005) continue; any=true; const tgt=new THREE.Vector3(e.x, gy, e.z); for(const bn of l.chain){ const bone=B(bn); if(bone) _ccdToward(bone, l.end, tgt); } } if(!any) break; } }
+    return;
+  }
+  if(spec.nose){
+    // Head-to-ground: if the nose (headend) is more than ~an inch below the fore hooves, lift it back — the head first,
+    // then the chest for what is left (CCD toward a point straight above the nose, so the head only pitches up).
+    const nose=B('headend')||B('head'); if(!nose) return;
+    root.updateMatrixWorld(true);
+    const hoofY=_avgY([B('frontleg2'),B('R_frontleg2')]); const limit=(hoofY==null?0:hoofY)-0.03;
+    // spec._noseTarget = the height the clip INTENDS for this frame (from the source clip's nose track, scaled to this
+    // character's own standing nose height) — solve to it both ways; without it only lift a nose that went under.
+    const want = (spec._noseTarget!=null) ? Math.max(limit, spec._noseTarget) : null;
+    const chestB=B('chest'); const cq0=chestB?chestB.getWorldQuaternion(new THREE.Quaternion()):null;
+    // Solve the nose HEIGHT directly: a world-X (nose-down) pitch of the chest, bisected until the nose sits at the goal,
+    // then the head for what is left. (CCD toward a point straight below the nose only swings it along an arc once the
+    // neck already points down, and stalls well short.)
+    root.updateMatrixWorld(true);
+    { const e0=nose.getWorldPosition(_gcV3); const goal = want!=null ? want : (e0.y < limit ? limit : null);
+      if(goal!=null && Math.abs(e0.y-goal) >= 0.005){
+        const pitchTo=(bone, lo, hi)=>{ if(!bone||!bone.parent) return; const pw=bone.parent.getWorldQuaternion(new THREE.Quaternion()), q0=bone.quaternion.clone();
+          const setD=d=>{ const q=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0), d); bone.quaternion.copy(q0).premultiply(pw.clone().invert().multiply(q).multiply(pw)); bone.updateWorldMatrix(true,true); return nose.getWorldPosition(_gcV3).y; };
+          // nose height falls as the pitch grows (+X = nose down) while the nose is ahead of the joint; bracket then bisect
+          let yl=setD(lo), yh=setD(hi); if((yl-goal)*(yh-goal) > 0){ setD(Math.abs(yl-goal)<Math.abs(yh-goal)?lo:hi); return; }
+          for(let i=0;i<18;i++){ const m=(lo+hi)/2; const ym=setD(m); if((ym-goal)*(yl-goal) > 0){ lo=m; yl=ym; } else { hi=m; yh=ym; } }
+          setD((lo+hi)/2); };
+        pitchTo(B('chest'), -0.5, 0.55); root.updateMatrixWorld(true);                                   // bounded: a neck only flexes so far — a nose left a little high beats a head curled under the chest
+        if(Math.abs(nose.getWorldPosition(_gcV3).y-goal) >= 0.005) pitchTo(B('head'), -0.5, 0.45);
+      } }
+    // The forelegs hang from the CHEST bone, so the neck solve just swung them too (a vertical leg gone short, which no
+    // shoulder rotation can fix): give each foreleg back its world orientation by undoing the chest's correction on it.
+    if(chestB && cq0){ root.updateMatrixWorld(true); const cq1=chestB.getWorldQuaternion(new THREE.Quaternion()); const inv=cq0.clone().multiply(cq1.clone().invert());   // world delta⁻¹
+      for(const nm of ['frontleg','R_frontleg']){ const lb=B(nm); if(!lb||!lb.parent) continue; const pw=lb.parent.getWorldQuaternion(new THREE.Quaternion()); lb.quaternion.premultiply(pw.clone().invert().multiply(inv).multiply(pw)); lb.updateWorldMatrix(true,true); } }
+    // This character's retargeted HIND legs may not land where the template's did either: plant each hind hoof at its
+    // standing spot (frame 0) from the hip, and re-level it — no lift exemption, a drinking animal keeps all four down.
+    if(spec._hindAnchors){ const hl=[]; for(const nm of ['backleg2','R_backleg2']){ const e=B(nm); if(e) hl.push({chain:[nm.replace('2',''), nm.replace('2','0'), nm.replace('2','1')], end:e, nm}); }
+      if(spec._hindQ0){ for(const l of hl) for(const bn of l.chain){ const bone=B(bn); const q=spec._hindQ0[bn]; if(bone&&q){ bone.quaternion.copy(q); } } root.updateMatrixWorld(true); }   // start from STANDING legs (the retarget may have folded them), then only the small hip correction is needed
+      // a standing leg reaches its spot by pivoting at the HIP alone (the pelvis moved a little): let the hip do it first,
+      // then the whole chain takes up any residual — CCD through all three joints at once creeps toward a straight-leg target
+      for(let pass=0; pass<14; pass++){ root.updateMatrixWorld(true); for(const l of hl){ const anc=spec._hindAnchors[l.nm]; if(!anc) continue; const e=l.end.getWorldPosition(_gcV3); const tgt=new THREE.Vector3(anc.x, anc.y, anc.z); if(e.distanceTo(tgt)<0.005) continue; for(const bn of (pass<6 ? [l.chain[0]] : l.chain)){ const bone=B(bn); if(bone) _ccdToward(bone, l.end, tgt); } } }
+      if(spec._hindRest){ root.updateMatrixWorld(true); for(const l of hl){ const fr=spec._hindRest[l.nm]; if(!fr||!l.end.parent) continue; l.end.parent.updateWorldMatrix(true,false); l.end.quaternion.copy(l.end.parent.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(fr)); l.end.updateWorldMatrix(false,false); } } }
+    // Then put each fore hoof back on
+    // the floor from the SHOULDER (the first CCD bone takes the whole correction → the leg stays straight), at its
+    // current x,z (the splay is authored; only the height is corrected).
+    if(hoofY!=null){ const fl=[]; if(B('frontleg2')) fl.push({chain:['frontleg','frontleg0','frontleg1'], end:B('frontleg2')}); if(B('R_frontleg2')) fl.push({chain:['R_frontleg','R_frontleg0','R_frontleg1'], end:B('R_frontleg2')});
+      const gy=spec._hoof0!=null?spec._hoof0:hoofY;
+      for(let pass=0; pass<3; pass++){ root.updateMatrixWorld(true);
+        for(const l of fl){ const e=l.end.getWorldPosition(_gcV3); if(Math.abs(e.y-gy) < 0.005) continue; const tgt=new THREE.Vector3(e.x, gy, e.z);
+          for(const bn of l.chain){ const bone=B(bn); if(bone) _ccdToward(bone, l.end, tgt); } } }
+      // A near-vertical leg cannot be lowered by rotation (a rig whose chest pivots low LIFTS its shoulders as the neck
+      // drops): if the fore hooves still float, pitch the whole body nose-down ABOUT THE HIND HOOVES by just enough to
+      // bring them to the floor — the croup stays, the hind hooves never move, the front comes down (what the animal does).
+      root.updateMatrixWorld(true); let fmin=Infinity; for(const l of fl) fmin=Math.min(fmin, l.end.getWorldPosition(_gcV3).y-gy);
+      const hips=B('Hips'), hb=[B('backleg2'),B('R_backleg2')].filter(Boolean), shB=B('frontleg');
+      if(hips && hips.parent && shB && hb.length && isFinite(fmin) && fmin>0.005){
+        const mid=()=>{ const m=new THREE.Vector3(); for(const b of hb) m.add(b.getWorldPosition(new THREE.Vector3())); return m.divideScalar(hb.length); };
+        const m0=mid(), shp=shB.getWorldPosition(new THREE.Vector3()); const wb=Math.max(0.1, Math.hypot(shp.z-m0.z, shp.x-m0.x));
+        const p=Math.asin(Math.min(0.9, fmin/wb));
+        const pw=hips.parent.getWorldQuaternion(new THREE.Quaternion()), q=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0), p);   // +X pitch carries the +Z nose down
+        hips.quaternion.premultiply(pw.clone().invert().multiply(q).multiply(pw)); hips.updateWorldMatrix(true,true);
+        const m1=mid(); const dW=m0.sub(m1); const ps=hips.parent.getWorldScale(new THREE.Vector3());
+        const dL=dW.applyQuaternion(pw.clone().invert()); dL.x/=(ps.x||1); dL.y/=(ps.y||1); dL.z/=(ps.z||1);
+        hips.position.add(dL); hips.updateWorldMatrix(true,true);
+        // the fore hooves should now sit on the floor; one more pass takes up any residual
+        for(let pass=0; pass<2; pass++){ root.updateMatrixWorld(true); for(const l of fl){ const e=l.end.getWorldPosition(_gcV3); if(Math.abs(e.y-gy) < 0.005) continue; const tgt=new THREE.Vector3(e.x, gy, e.z); for(const bn of l.chain){ const bone=B(bn); if(bone) _ccdToward(bone, l.end, tgt); } } } } }
+    return;
+  }
   if(spec.hindpaws){
     // Quad rear: plant each HIND paw on the floor (y=0) by folding its own leg chain — the body pitch/height
     // the author baked is left untouched (no hip move); a paw that is legitimately LIFTED (up past ~6 cm) is
@@ -5649,20 +5765,71 @@ function floorContactPose(root, spec, floorY){
 }
 function torsoHoriz(root){ const h=root.getObjectByName('Hips'), n=root.getObjectByName('neck')||root.getObjectByName('Spine02'); if(!h||!n) return 0;
   const d=n.getWorldPosition(_gcV1).clone().sub(h.getWorldPosition(_gcV2)); const L=d.length()||1; return 1-Math.min(1,Math.abs(d.y)/L); }   // 0 = standing (vertical), 1 = planked (horizontal)
-function bakeFloorContact(clip, root, spec){
+function bakeFloorContact(clip, root, spec, srcClip){
   const N=Math.max(4, Math.round((clip.duration||1)*30));
   const times=[]; for(let i=0;i<N;i++) times.push((N===1?0:i/(N-1))*(clip.duration||1));
   const mixer=new THREE.AnimationMixer(root); mixer.clipAction(clip).play();
   const B=n=>root.getObjectByName(n);
+  // three.js's mixer skips writing a bone whose interpolated value did not change since its last update — so during a
+  // HELD pose the per-frame corrections below would ACCUMULATE instead of being reset each frame. Play the clip on a
+  // pristine reference clone and copy its pose into the working skeleton every frame.
+  const ref=root.clone(true); const refMixer=new THREE.AnimationMixer(ref); refMixer.clipAction(clip).play();
+  const refBones={}; ref.traverse(o=>{ if(o.isBone) refBones[o.name]=o; });
+  const poseAt=t=>{ refMixer.setTime(t); for(const nm in refBones){ const b=B(nm), r=refBones[nm]; if(b){ b.position.copy(r.position); b.quaternion.copy(r.quaternion); b.scale.copy(r.scale); } } root.updateMatrixWorld(true); };
+  if(spec.lie){
+    const bones=[...new Set(clip.tracks.filter(t=>t.name.endsWith('.quaternion')).map(t=>t.name.replace('.quaternion','')))];
+    const rec={}; bones.forEach(b=>rec[b]=[]); const hipsRec=[]; const hipsB=B('Hips');
+    // measure STANDING off the rest pose (a get-up starts lying, so frame 0 is no use)
+    { const rest=srcClip&&srcClip.__rest; if(rest){ root.traverse(o=>{ if(o.isBone && rest[o.name]){ o.position.fromArray(rest[o.name].p); o.quaternion.fromArray(rest[o.name].q); } }); root.updateMatrixWorld(true); } else poseAt(0); }
+    { const hy=hipsB?hipsB.getWorldPosition(_gcV3).y:0; const fz=B('frontleg2')?B('frontleg2').getWorldPosition(_gcV1).z:0.5, hz=B('backleg2')?B('backleg2').getWorldPosition(_gcV1).z:-0.5;
+      const hoof=_avgY([B('frontleg2'),B('R_frontleg2'),B('backleg2'),B('R_backleg2')])||0;
+      const xs=['frontleg2','R_frontleg2','backleg2','R_backleg2'].map(n=>B(n)).filter(Boolean).map(b=>b.getWorldPosition(_gcV1).x); const xc=xs.length?xs.reduce((a,b)=>a+b,0)/xs.length:0;
+      const m=(srcClip&&srcClip.__charRoot) ? _lieBodyMetrics(srcClip.__charRoot, hy, fz, hz, xc) : null;
+      // belly / half-width relative to the Hips: how far the body reaches below the Hips when level / on its side
+      spec._lie = m ? { belly:Math.max(0.05, m.belly - hoof), half:Math.max(0.05, m.half), hipsFloor:hoof } : null;
+      if(spec._lie){ spec._lie.belly = hy - hoof - spec._lie.belly; }   // convert belly HEIGHT into the drop below the Hips
+    }
+    const lt=srcClip&&srcClip.lie&&srcClip.lie.frac&&srcClip.lie.times ? srcClip.lie : null;
+    const lieAt=t=>{ if(!lt) return 1; const T=lt.times, Fq=lt.frac; if(t<=T[0]) return Fq[0]; for(let k=1;k<T.length;k++){ if(t<=T[k]){ const a=(t-T[k-1])/((T[k]-T[k-1])||1); return Fq[k-1]+(Fq[k]-Fq[k-1])*a; } } return Fq[Fq.length-1]; };
+    for(let i=0;i<N;i++){ poseAt(times[i]); spec._lieFrac=lieAt(times[i]); floorContactPose(root, spec, 0);
+      bones.forEach(b=>{ const bn=B(b); const q=bn?bn.quaternion:{x:0,y:0,z:0,w:1}; rec[b].push(q.x,q.y,q.z,q.w); });
+      if(hipsB) hipsRec.push(hipsB.position.x, hipsB.position.y, hipsB.position.z); }
+    spec._lie=null; spec._lieFrac=null; mixer.stopAllAction();
+    let nt=clip.tracks.map(t=>{ if(t.name.endsWith('.quaternion')){ const b=t.name.replace('.quaternion',''); if(rec[b]&&rec[b].length===N*4) return new THREE.QuaternionKeyframeTrack(t.name, times.slice(), rec[b]); }
+      if(t.name==='Hips.position' && hipsRec.length===N*3) return new THREE.VectorKeyframeTrack(t.name, times.slice(), hipsRec.slice()); return t; });
+    if(hipsB && hipsRec.length===N*3 && !clip.tracks.some(t=>t.name==='Hips.position')) nt.push(new THREE.VectorKeyframeTrack('Hips.position', times.slice(), hipsRec.slice()));
+    return new THREE.AnimationClip(clip.name, clip.duration, nt);
+  }
+  if(spec.nose){
+    // Quad head-to-ground: clamp the nose every frame on this mesh (no torso gate); only head/chest rotations change.
+    const bones=[...new Set(clip.tracks.filter(t=>t.name.endsWith('.quaternion')).map(t=>t.name.replace('.quaternion','')))];
+    const rec={}; bones.forEach(b=>rec[b]=[]); const hipsRec=[]; const hipsB=B('Hips');   // the body drop (floating fore hooves) lives in the Hips position track
+    // this character's own standing nose height above its fore hooves (frame 0 = standing)
+    const nt0=srcClip&&srcClip.nose&&srcClip.nose.frac&&srcClip.nose.times ? srcClip.nose : null;
+    let noseRest=null, hoof0=0; if(nt0){ poseAt(0); const nb=B('headend')||B('head'); const hy=_avgY([B('frontleg2'),B('R_frontleg2')]); if(nb){ hoof0=(hy==null?0:hy); noseRest=nb.getWorldPosition(_gcV3).y-hoof0; spec._hoof0=hoof0; spec._hind0=_avgY([B('backleg2'),B('R_backleg2')]);
+        spec._hindAnchors={}; spec._hindRest={}; for(const nm of ['backleg2','R_backleg2']){ const b=B(nm); if(b){ const p=b.getWorldPosition(new THREE.Vector3()); spec._hindAnchors[nm]={x:p.x,y:p.y,z:p.z}; spec._hindRest[nm]=b.getWorldQuaternion(new THREE.Quaternion()); } }
+        spec._hindQ0={}; for(const bn of ['backleg','backleg0','backleg1','R_backleg','R_backleg0','R_backleg1']){ const b=B(bn); if(b) spec._hindQ0[bn]=b.quaternion.clone(); } } }
+    const fracAt=t=>{ const T=nt0.times, Fq=nt0.frac; if(t<=T[0]) return Fq[0]; for(let k=1;k<T.length;k++){ if(t<=T[k]){ const a=(t-T[k-1])/((T[k]-T[k-1])||1); return Fq[k-1]+(Fq[k]-Fq[k-1])*a; } } return Fq[Fq.length-1]; };
+    for(let i=0;i<N;i++){ poseAt(times[i]);
+      spec._noseTarget = (noseRest!=null && noseRest>0.05) ? hoof0 + fracAt(times[i])*noseRest : null;
+      floorContactPose(root, spec, 0);
+      bones.forEach(b=>{ const bn=B(b); const q=bn?bn.quaternion:{x:0,y:0,z:0,w:1}; rec[b].push(q.x,q.y,q.z,q.w); });
+      if(hipsB) hipsRec.push(hipsB.position.x, hipsB.position.y, hipsB.position.z); }
+    spec._noseTarget=null; spec._hoof0=null; spec._hind0=null; spec._hindAnchors=null; spec._hindRest=null; spec._hindQ0=null; mixer.stopAllAction();
+    let nt=clip.tracks.map(t=>{ if(t.name.endsWith('.quaternion')){ const b=t.name.replace('.quaternion',''); if(rec[b]&&rec[b].length===N*4) return new THREE.QuaternionKeyframeTrack(t.name, times.slice(), rec[b]); }
+      if(t.name==='Hips.position' && hipsRec.length===N*3) return new THREE.VectorKeyframeTrack(t.name, times.slice(), hipsRec.slice()); return t; });
+    if(hipsB && hipsRec.length===N*3 && !clip.tracks.some(t=>t.name==='Hips.position')) nt.push(new THREE.VectorKeyframeTrack('Hips.position', times.slice(), hipsRec.slice()));
+    return new THREE.AnimationClip(clip.name, clip.duration, nt);
+  }
   if(spec.hindpaws){
     // Quad rear: re-plant the hind paws every frame on this mesh (no torso-horizontal gate — the rear is upright,
     // not planked). Only the hind-leg bone rotations change; the body pitch/height are left as authored.
     const bones=[...new Set(clip.tracks.filter(t=>t.name.endsWith('.quaternion')).map(t=>t.name.replace('.quaternion','')))];
     const rec={}; bones.forEach(b=>rec[b]=[]);
     // Anchor each hind paw at its STANDING x,z (first frame) so it stays planted (no fore-aft slide) through the rear.
-    mixer.setTime(0); root.updateMatrixWorld(true);
+    poseAt(0);
     spec._anchors={}; spec._footRest={}; for(const nm of ['backleg2','R_backleg2']){ const b=B(nm); if(b){ const p=b.getWorldPosition(new THREE.Vector3()); spec._anchors[nm]={x:p.x, z:p.z}; spec._footRest[nm]=b.getWorldQuaternion(new THREE.Quaternion()); } }   // also capture the STANDING hoof world attitude → re-level the planted foot (see floorContactPose)
-    for(let i=0;i<N;i++){ mixer.setTime(times[i]); root.updateMatrixWorld(true); floorContactPose(root, spec, 0);
+    for(let i=0;i<N;i++){ poseAt(times[i]); floorContactPose(root, spec, 0);
       bones.forEach(b=>{ const bn=B(b); const q=bn?bn.quaternion:{x:0,y:0,z:0,w:1}; rec[b].push(q.x,q.y,q.z,q.w); }); }
     mixer.stopAllAction();
     const nt=clip.tracks.map(t=>{ if(t.name.endsWith('.quaternion')){ const b=t.name.replace('.quaternion',''); if(rec[b]&&rec[b].length===N*4) return new THREE.QuaternionKeyframeTrack(t.name, times.slice(), rec[b]); } return t; });
@@ -5671,13 +5838,13 @@ function bakeFloorContact(clip, root, spec){
   // CONSTANT floor = the lowest a contact naturally reaches (the dip bottom), over the horizontal frames only,
   // so the hands/toes stay planted while the body dips (a real push-up rep) instead of riding down with it.
   let floorY=Infinity, anyHoriz=false;
-  for(let i=0;i<N;i++){ mixer.setTime(times[i]); root.updateMatrixWorld(true); if(torsoHoriz(root)<0.5) continue; anyHoriz=true;
+  for(let i=0;i<N;i++){ poseAt(times[i]); if(torsoHoriz(root)<0.5) continue; anyHoriz=true;
     for(const nm of ['LeftHand','RightHand','LeftToeBase','RightToeBase']){ const b=B(nm); if(b) floorY=Math.min(floorY, b.getWorldPosition(_gcV1).y); } }
   if(!anyHoriz || !isFinite(floorY)) return clip;   // never horizontal → nothing to plant
   const bones=[...new Set(clip.tracks.filter(t=>t.name.endsWith('.quaternion')).map(t=>t.name.replace('.quaternion','')))];
   const hasHipsPos=clip.tracks.some(t=>t.name==='Hips.position');
   const rec={}; bones.forEach(b=>rec[b]=[]); const hipsRec=[];
-  for(let i=0;i<N;i++){ mixer.setTime(times[i]); root.updateMatrixWorld(true);
+  for(let i=0;i<N;i++){ poseAt(times[i]);
     const factor=torsoHoriz(root);
     const orig={}; bones.forEach(b=>{ const bn=B(b); if(bn) orig[b]=bn.quaternion.clone(); });
     const origHip=B('Hips')?B('Hips').position.clone():null;
@@ -5750,7 +5917,7 @@ function nlRebuild(c){
   }
   let retClip=retargetMotion({...c.srcMeta, clip:json}, libRig);
   const shortId=(c.srcMeta.id||'').replace(/^ra_[a-z]+_/,'').replace(/_\d+_\d+_\d+$/,'');
-  if(FLOOR_CONTACT[shortId]){ try{ const gc=skeletonClone(libRig.root); gc.position.set(0,0,0); gc.rotation.set(0,0,0); gc.scale.set(1,1,1); retClip=bakeFloorContact(retClip, gc, FLOOR_CONTACT[shortId]); }catch(e){} }
+  if(FLOOR_CONTACT[shortId]){ try{ const gc=skeletonClone(libRig.root); gc.position.set(0,0,0); gc.rotation.set(0,0,0); gc.scale.set(1,1,1); json.__charRoot=libRig.root; json.__rest=libRig.rest; retClip=bakeFloorContact(retClip, gc, FLOOR_CONTACT[shortId], json); delete json.__charRoot; delete json.__rest; }catch(e){} }
   c.mixer.stopAllAction();
   c.action=c.mixer.clipAction(retClip); c.action.clampWhenFinished=true; c.duration=retClip.duration;
   computeTravel(c); finalizeAdvance(c); c._norm=true; recomputeAllNorm(); computeSharedFrame();
@@ -5781,7 +5948,7 @@ async function addMotionClip(meta){
   // only carries rotations, so it otherwise floats/pikes on a differently-proportioned rig).
   const shortId=(meta.id||'').replace(/^ra_[a-z]+_/,'').replace(/_\d+_\d+_\d+$/,'');
   if(FLOOR_CONTACT[shortId]){ try{ const gcRoot=skeletonClone(libRig.root); gcRoot.position.set(0,0,0); gcRoot.rotation.set(0,0,0); gcRoot.scale.set(1,1,1);
-    const _m=retClip.__match; retClip=bakeFloorContact(retClip, gcRoot, FLOOR_CONTACT[shortId]); if(_m) retClip.__match=_m; }catch(e){ console.warn('floor-contact bake failed:', e); } }
+    const _m=retClip.__match; clipJSON.__charRoot=libRig.root; clipJSON.__rest=libRig.rest; retClip=bakeFloorContact(retClip, gcRoot, FLOOR_CONTACT[shortId], clipJSON); delete clipJSON.__charRoot; delete clipJSON.__rest; if(_m) retClip.__match=_m; }catch(e){ console.warn('floor-contact bake failed:', e); } }
   const root=skeletonClone(libRig.root);
   root.position.set(0,0,0); root.rotation.set(0,0,0); root.scale.set(1,1,1);   // rig root may be mid-frame-scaled; start the clone neutral (else baseScale double-applies)
   root.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.receiveShadow=false; o.frustumCulled=false; } });
