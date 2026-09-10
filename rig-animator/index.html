@@ -5568,12 +5568,12 @@ const CETACEAN_MOTIONS=[
   {id:'cet_turnR', name:'Turn Right (bank)', cat:'Locomotion', type:'move', dur:2.0, build:(t,P)=> cetTurn(t,P,-1)},
   // ——— Actions ———
   {id:'cet_breach', name:'Breach', cat:'Action', type:'stay', dur:3.2, build:(t,P)=>{ resetPose();
-    // Wind-up under the surface (nose down, two huge strokes), exit at ~60° nose-up, a twist in the air, and it falls
-    // on its side into the splash; then it rights itself and swims on.
+    // Wind-up under the surface (nose down, two huge strokes), exit at ~60° nose-up, over the top in one front-to-back
+    // ARC (nose-up going out, nose-down coming in) and back into the water head first; then it swims on. No roll — the
+    // arc reads as a sideways fall once a roll is added, so the flight is kept in the vertical plane.
     const A=P.amp, u=(((t/3.2)*P.speed)%1+1)%1, wind=ramp(u,0.02,0.20), up=ramp(u,0.20,0.30), v=lramp(u,0.30,0.68), fly=(u>0.30&&u<0.68)?1:0, out=ramp(u,0.68,0.95);
     const th = 0.45*wind*(1-up) - 1.05*up*(1-fly)*(u<0.68?1:0) + fly*(-1.05+1.35*v) + (u>=0.68 ? 0.30*(1-out) : 0);
     aqPitch(th*A);
-    aqRoll(2.1*A*(fly ? smooth(v) : (u>=0.68 ? (1-out) : 0)));                          // the twist, unwound in the water
     const beat = ramp(u,0.06,0.12)*(1-ramp(u,0.26,0.31)) + ramp(u,0.70,0.80)*(1-ramp(u,0.92,1));
     cetStroke(u*3.5, 0.32*beat*A);
     sw('flipper', AX.z, 0.45*fly*A); sw('R_flipper', AX.z, -0.45*fly*A);                 // flippers thrown out in the air
