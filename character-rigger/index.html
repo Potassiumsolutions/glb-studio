@@ -675,7 +675,28 @@ function distToSegment(px,py,pz, a, b){
 // each bone's "segment" for weighting = from its joint to its primary child (leaf → small sphere around joint)
 function boneSegments(){
   return TEMPLATE.map((b,i)=>{ const c=PRIMARY_CHILD[b.name];
-    const a=jointPos[i], bb=(c!=null)?jointPos[IDX[c]]:jointPos[i].clone().add(new THREE.Vector3(0,0.04,0));
+    const a=jointPos[i]; let bb;
+    if(c!=null) bb=jointPos[IDX[c]];
+    else {
+      // LEAF bone (hand, paw, fin, nose): a 4 cm vertical stub used to bind it, so everything past the joint — an ape's long
+      // fingers, a fish's tail fin — was owned mostly by the PARENT segment and smeared whenever the joint turned. Extend the
+      // leaf along its own bone direction (parent → joint) by 30% of the parent's length, so the extremity belongs to it.
+      const p=b.parent!=null?jointPos[IDX[b.parent]]:null;
+      const dir=p?a.clone().sub(p):new THREE.Vector3(0,-1,0); const L=p?dir.length():0.1;
+      if(dir.lengthSq()<1e-9) dir.set(0,1,0); dir.normalize();
+      // Point the stub INTO THE MESH beyond the joint rather than blindly along the parent: a paw runs forward from the
+      // wrist while the shank came straight down, so a down-pointing stub left the toes unowned and smeared. Average the
+      // offsets of the vertices around the joint (those not back up the parent) and reach as far as they go.
+      let len=Math.max(0.04, 0.5*L);
+      // Paws/feet only: a hand's mesh neighbourhood can include a thigh it hangs against (the ape), which would aim the
+      // hand stub into the leg — hands keep the plain parent-direction stub, which their fingers follow anyway.
+      if(meshGeo && /leg2$|ToeBase$|Foot$/.test(b.name)){ const P=meshGeo.attributes.position, R=Math.max(0.06, 0.6*L), R2=R*R; const m=new THREE.Vector3(); let cnt=0; const v=new THREE.Vector3();
+        for(let k=0;k<P.count;k++){ v.set(P.getX(k)-a.x, P.getY(k)-a.y, P.getZ(k)-a.z); if(v.lengthSq()>R2 || v.dot(dir)<-0.1*R) continue; m.add(v); cnt++; }
+        if(cnt>20 && m.lengthSq()>1e-8){ m.normalize(); if(m.dot(dir)>-0.2){ dir.copy(m); let far=0;
+          for(let k=0;k<P.count;k++){ v.set(P.getX(k)-a.x, P.getY(k)-a.y, P.getZ(k)-a.z); if(v.lengthSq()>R2*4) continue; const t=v.dot(dir); if(t>far && v.clone().addScaledVector(dir,-t).lengthSq()<R2) far=t; }
+          len=Math.max(0.04, Math.min(1.5*L, far)); } } }
+      bb=a.clone().addScaledVector(dir, len);
+    }
     return {a, b:bb}; });
 }
 function computeSkin(){
@@ -683,7 +704,6 @@ function computeSkin(){
   const segs=boneSegments(); const NB=segs.length;
   const skinIndex=new Uint16Array(n*4), skinWeight=new Float32Array(n*4);
   const falloff=parseFloat($('#falloff').value)||3;
-  const d=new Float32Array(NB);
   // FRONT-LEG chest-bleed guard: the front-leg segment runs right past the breast/lower chest, so distance-to-segment
   // alone lets it grab body verts — then the chest is dragged when the leg swings (a very visible pull). Mirror the
   // chestweight post-fix at RIG time: a front-leg segment may only own a vertex that lies ALONG the leg (below the
@@ -693,9 +713,28 @@ function computeSkin(){
   for(let b=0;b<NB;b++){ if(!/frontleg/i.test(TEMPLATE[b].name)){ leg.push(null); continue; }
     const a=segs[b].a, bb=segs[b].b; const dx=bb.x-a.x,dy=bb.y-a.y,dz=bb.z-a.z;
     const L=Math.hypot(dx,dy,dz)||1e-6; leg.push({tx:a.x,ty:a.y,tz:a.z, ux:dx/L,uy:dy/L,uz:dz/L, L}); }
+  // BONE RADIUS: a distance is judged against how thick the bone's body part is — a belly vertex 20 cm from the spine is
+  // well inside the torso, a fingertip 5 cm from a thigh is not part of the thigh. Fractions of the model height.
+  const H=modelHeight||2;
+  const radius=TEMPLATE.map(b=>{ const n=b.name;
+    if(/^(Hips|Spine|Spine0[12]|chest|neck|Head|head|saddle|spine0[1-4])$/.test(n)) return 0.11*H;
+    if(/(UpLeg|Arm$|Shoulder|^frontleg$|^R_frontleg$|^backleg$|^R_backleg$|neck0[1-4])/.test(n)) return 0.06*H;
+    if(/(^Left|^Right)(Leg|ForeArm)$|leg[01]$/.test(n)) return 0.045*H;
+    if(/(Hand|Foot|ToeBase|leg2$|head_end|headfront|headend|earend|ear)/.test(n)) return 0.03*H;
+    return 0.035*H; });
+  // SURFACE DISTANCE: straight-line distance cannot tell a fingertip resting against a thigh from the thigh's own skin
+  // (an ape's hands hang on its legs). Measure each bone's reach along the MESH as well: from the skin nearest the bone's
+  // axis outward over the surface. Skin that belongs to the bone's own body part is a short walk from it; the thigh
+  // reaches a finger only by way of hip → torso → arm → hand, many radii further. Bones far away over the surface are
+  // pushed out of the blend on a smooth ramp (the surface distance is continuous, so no seam can tear), while every
+  // vertex within a few radii keeps the plain straight-line blend that bends joints smoothly.
+  const geo=geodesicReach(pos, n, segs, radius);           // geo[b*n+v] in units of bone b's radius (Infinity = no path)
+  const GEO_FREE=4, GEO_FAR=8, GEO_PENALTY=20;
+  const d=new Float32Array(NB);
   for(let v=0; v<n; v++){
     const px=pos.getX(v), py=pos.getY(v), pz=pos.getZ(v);
-    for(let b=0;b<NB;b++){ let db=distToSegment(px,py,pz, segs[b].a, segs[b].b);
+    let gmin=Infinity; for(let b=0;b<NB;b++) gmin=Math.min(gmin, geo[b*n+v]);
+    for(let b=0;b<NB;b++){ let db=distToSegment(px,py,pz, segs[b].a, segs[b].b)/radius[b];
       const g=leg[b];
       if(g){ const along=(px-g.tx)*g.ux+(py-g.ty)*g.uy+(pz-g.tz)*g.uz;   // projection onto the leg axis (0=shoulder)
         const cx=g.tx+g.ux*along, cy=g.ty+g.uy*along, cz=g.tz+g.uz*along;
@@ -704,20 +743,67 @@ function computeSkin(){
         const fPerp  = Math.max(0, Math.min(1, (perp-0.45*g.L)/(0.50*g.L))); // off the leg axis
         const f=Math.max(fAbove,fPerp); if(f>0) db*=(1+6*f);             // body vert → push the leg out of contention
       }
+      if(gmin<Infinity){ const r=Math.max(0, Math.min(1, (geo[b*n+v]-GEO_FREE)/(GEO_FAR-GEO_FREE))); if(r>0) db*=(1+GEO_PENALTY*r); }   // a loose part (no path from any bone) keeps the plain rule
       d[b]=db; }
-    // top 4 nearest
-    const order=[...Array(NB).keys()].sort((i,j)=>d[i]-d[j]).slice(0,4);
-    let wsum=0; const w=order.map(b=>{ const ww=1/Math.pow(d[b]+1e-4, falloff); wsum+=ww; return ww; });
-    for(let k=0;k<4;k++){ skinIndex[v*4+k]=order[k]||0; skinWeight[v*4+k]=(w[k]||0)/(wsum||1); }
+    // Keep the 4 nearest, but CONTINUOUSLY: the 5th bone's weight is subtracted from the kept four, so the 4th fades to
+    // nothing as it approaches the 5th instead of snapping in and out between neighbouring vertices (that snap left a
+    // chest vertex at 20% arm beside one at 0% — a tear every time the arm swung).
+    const order=[...Array(NB).keys()].sort((i,j)=>d[i]-d[j]);
+    const raw=b=>1/Math.pow(d[b]+1e-4, falloff); const w5=order.length>4 ? raw(order[4]) : 0;
+    let wsum=0; const w=order.slice(0,4).map(b=>{ const ww=Math.max(0, raw(b)-w5); wsum+=ww; return ww; });
+    if(wsum<=0){ w[0]=1; wsum=1; }
+    for(let k=0;k<4;k++){ skinIndex[v*4+k]=order[k]||0; skinWeight[v*4+k]=(w[k]||0)/wsum; }
   }
   return {skinIndex, skinWeight};
+}
+// Per-bone shortest-path distance over the mesh surface (Dijkstra from the skin nearest the bone's axis), in units of
+// that bone's radius. Vertices are welded by position first (glTF splits them at UV seams). Returns a flat array
+// geo[b*n+v]; Infinity where no path exists (a separate piece of mesh).
+function geodesicReach(pos, n, segs, radius){
+  const NB=segs.length;
+  const rep=new Int32Array(n); const key=new Map(); const reps=[];
+  for(let v=0;v<n;v++){ const k=pos.getX(v).toFixed(5)+','+pos.getY(v).toFixed(5)+','+pos.getZ(v).toFixed(5);
+    let r=key.get(k); if(r===undefined){ r=v; key.set(k,v); reps.push(v); } rep[v]=r; }
+  const idx=meshGeo.index ? meshGeo.index.array : null; const nt=idx ? Math.floor(idx.length/3) : Math.floor(n/3);
+  const tri=t=>idx ? [rep[idx[t*3]],rep[idx[t*3+1]],rep[idx[t*3+2]]] : [rep[t*3],rep[t*3+1],rep[t*3+2]];
+  const deg=new Int32Array(n); for(let t=0;t<nt;t++){ const [a,b,c]=tri(t); deg[a]+=2; deg[b]+=2; deg[c]+=2; }
+  const start=new Int32Array(n+1); for(let v=0;v<n;v++) start[v+1]=start[v]+deg[v];
+  const nbr=new Int32Array(start[n]); const elen=new Float32Array(start[n]); const fill=new Int32Array(n);
+  const L=(a,b)=>Math.hypot(pos.getX(a)-pos.getX(b), pos.getY(a)-pos.getY(b), pos.getZ(a)-pos.getZ(b));
+  const link=(a,b)=>{ const i=start[a]+fill[a]++; nbr[i]=b; elen[i]=L(a,b); };
+  for(let t=0;t<nt;t++){ const [a,b,c]=tri(t); link(a,b); link(a,c); link(b,a); link(b,c); link(c,a); link(c,b); }
+  // seeds: 9 samples along each bone, each snapped to the nearest welded vertex (the bone's own skin is always nearer
+  // its axis than anything resting against that skin)
+  const samples=[]; for(let b=0;b<NB;b++) for(let i=0;i<9;i++){ const t=(i+0.5)/9; samples.push({b, x:segs[b].a.x+(segs[b].b.x-segs[b].a.x)*t, y:segs[b].a.y+(segs[b].b.y-segs[b].a.y)*t, z:segs[b].a.z+(segs[b].b.z-segs[b].a.z)*t, best:Infinity, v:-1}); }
+  for(const v of reps){ const px=pos.getX(v), py=pos.getY(v), pz=pos.getZ(v);
+    for(const s of samples){ const dd=(px-s.x)*(px-s.x)+(py-s.y)*(py-s.y)+(pz-s.z)*(pz-s.z); if(dd<s.best){ s.best=dd; s.v=v; } } }
+  const geo=new Float32Array(NB*n).fill(Infinity);
+  const cost=new Float64Array(n);
+  const hc=[], hv=[];
+  const push=(c,v)=>{ hc.push(c); hv.push(v); let i=hc.length-1; while(i>0){ const p=(i-1)>>1; if(hc[p]<=hc[i]) break; [hc[p],hc[i]]=[hc[i],hc[p]]; [hv[p],hv[i]]=[hv[i],hv[p]]; i=p; } };
+  const pop=()=>{ const c=hc[0], v=hv[0]; const lc=hc.pop(), lv=hv.pop(); if(hc.length){ hc[0]=lc; hv[0]=lv; let i=0; for(;;){ const l=2*i+1, r=l+1; let m=i; if(l<hc.length&&hc[l]<hc[m]) m=l; if(r<hc.length&&hc[r]<hc[m]) m=r; if(m===i) break; [hc[m],hc[i]]=[hc[i],hc[m]]; [hv[m],hv[i]]=[hv[i],hv[m]]; i=m; } } return [c,v]; };
+  for(let b=0;b<NB;b++){ const r=radius[b]; cost.fill(Infinity); hc.length=0; hv.length=0;
+    for(const s of samples){ if(s.b!==b||s.v<0) continue; const c=Math.sqrt(s.best)/r; if(c<cost[s.v]){ cost[s.v]=c; push(c,s.v); } }
+    while(hc.length){ const [c,u]=pop(); if(c>cost[u]) continue;
+      for(let i=start[u]; i<start[u+1]; i++){ const w=nbr[i]; const nc=c+elen[i]/r; if(nc<cost[w]){ cost[w]=nc; push(nc,w); } } }
+    const o=b*n; for(let v=0;v<n;v++) geo[o+v]=cost[rep[v]];
+  }
+  return geo;
 }
 
 // ---------- build a THREE.Skeleton from the fitted joints (standard names/hierarchy) ----------
 const _up=new THREE.Vector3(0,1,0);
+// The TEMPLATE's own world rest orientation per bone (rotation only). The retarget in the Stitcher transfers each bone's
+// rotation in its PARENT's frame, which assumes the fitted rig's bone frames are ROLLED the same way as the template's —
+// so every fitted bone copies the template bone's roll (its X axis), not just the legs.
+function templateWorldQuats(){
+  const qs={};
+  for(const b of TEMPLATE){ const q=new THREE.Quaternion(...b.q); qs[b.name]= b.parent ? qs[b.parent].clone().multiply(q) : q; }
+  return qs;
+}
 function buildBones(){
   // world orientation: +Y aims at primary child; leaf inherits parent
-  const worldQuat={}, bones={};
+  const worldQuat={}, bones={}; const tplQ=templateWorldQuats();
   for(const b of TEMPLATE){
     const c=PRIMARY_CHILD[b.name];
     let q;
@@ -727,13 +813,20 @@ function buildBones(){
       // one leg forward and the other sideways ("legs bent to one side"). For leg bones, build the orientation with
       // a FIXED roll instead: +Y = aim, +X = world-X projected perpendicular to the aim (the template convention the
       // Stitcher retarget expects), +Z = X×Y. Left/right then get mirrored, consistent roll. (Matches rollfix.mjs.)
-      if(/(front|back)leg/i.test(b.name)){
+      if(/(front|back)leg/i.test(b.name) || !/^(biped|bird)/.test(rigType)){ // FIXED ROLL: +Y = aim, +X = the TEMPLATE bone's world X projected perpendicular to the aim (for the
+        // leg bones of the quad family that is world X — the earlier leg-only rule — but a fish tail, a whale spine or a
+        // neck bone whose template X is not world X now matches its template too; setFromUnitVectors left their roll to
+        // chance, which the Stitcher's parent-frame retarget turned into sideways bends).
         const Y=d.clone();
-        let X=new THREE.Vector3(1,0,0).addScaledVector(Y,-Y.x);
-        if(X.lengthSq()<1e-6){ const wz=new THREE.Vector3(0,0,1); X=wz.addScaledVector(Y,-wz.dot(Y)); }
+        const tx=new THREE.Vector3(1,0,0).applyQuaternion(tplQ[b.name]||new THREE.Quaternion());
+        let X=tx.clone().addScaledVector(Y,-tx.dot(Y));
+        if(X.lengthSq()<1e-6){ const tz=new THREE.Vector3(0,0,1).applyQuaternion(tplQ[b.name]||new THREE.Quaternion()); X=tz.addScaledVector(Y,-tz.dot(Y)); }
+        if(X.lengthSq()<1e-6){ X=new THREE.Vector3(1,0,0).addScaledVector(Y,-Y.x); }
         X.normalize(); const Z=new THREE.Vector3().crossVectors(X,Y).normalize();
         q=new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(X,Y,Z));
       } else {
+        // biped / bird: the fitted rest (arms hanging) sits far from the template's T-pose, so 'the template's X' is not a
+        // usable roll reference there — keep the minimal rotation, which the biped retarget was tuned against
         q=new THREE.Quaternion().setFromUnitVectors(_up, d);
       } }
     else { q=(b.parent!=null?worldQuat[b.parent]:new THREE.Quaternion()).clone(); }
