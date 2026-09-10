@@ -5224,12 +5224,14 @@ const GIRAFFE_MOTIONS=[
   {id:'gir_liedown', name:'Lie Down', cat:'Posture', type:'stay', dur:3.0, lie:true, build:(t,P)=>{
     const A=P.amp, u=(t/3.0*P.speed)%1, kf=ramp(u,0.08,0.45)*A, kh=ramp(u,0.40,0.85)*A;
     quadLie(kf, kh, {head:0, chest:0}); neckBend(-0.04*kh*A); }},
-  {id:'gir_sleep', name:'Sleep (head on rump)', cat:'Posture', type:'stay', dur:6.0, lie:true, build:(t,P)=>{
+  {id:'gir_sleep', name:'Sleep (dozing)', cat:'Posture', type:'stay', dur:6.0, lie:true, build:(t,P)=>{
+    // a giraffe dozes SITTING, neck up and drooping forward, eyes half closed; the head-on-rump deep sleep lasts minutes and
+    // reads as a broken neck on this rig, so the resting pose is the drowsy sternal one
     const A=P.amp, u=(t/6.0*P.speed)%1, br=Math.sin(TAU*u*2), k=ramp(u,0.05,0.35)*(1-ramp(u,0.80,0.98));
     quadLie(A, A, {head:0, chest:0});
-    neckBend(-0.58*k*A); neckSway(-0.20*k*A);                                // neck curled BACK over the body, a little to one side, head to the rump
-    sw('head', AX.x, (0.55*k + br*0.01)*A);                                    // chin tucks down onto the rump (no head roll — it read as a twisted neck)
-    girEars(-0.1*k*A); }},
+    neckBend((0.09*k + br*0.006)*A); sw('head', AX.x, (0.35*k + br*0.01)*A);   // neck droops, head nods down
+    girEars(-0.25*k*A);
+    QUAD_TAIL.forEach((tb,i)=> sw(tb, AX.y, Math.sin(TAU*u*3+i*0.5)*0.04*A)); }},
   {id:'gir_getup', name:'Get Up', cat:'Posture', type:'stay', dur:2.4, lie:true, build:(t,P)=>{
     const A=P.amp, u=(t/2.4*P.speed)%1, kh=(1-ramp(u,0.05,0.50))*A, kf=(1-ramp(u,0.35,0.85))*A;
     quadLie(kf, kh, {head:0, chest:0}); }},
