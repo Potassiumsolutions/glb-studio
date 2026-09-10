@@ -443,6 +443,18 @@
       <div id="expanseControls" style="display:none;margin-top:12px">
         <button class="btn ghost" id="expSetBtn" style="width:100%;margin-top:0">✨ Scene sets (matched ground · horizon · sky)</button>
         <div class="hint" style="margin:4px 0 8px">Photo-real themed sets — the ground, distant horizon and sky are all colour-matched so it reads as one continuous place.</div>
+        <div id="waterControls" style="margin:6px 0 10px;padding:8px;border:1px dashed var(--line,#252c37);border-radius:8px">
+          <label class="toggle" style="margin-top:0"><input type="checkbox" id="waterOn"> 🌊 Water surface (transparent sea level)</label>
+          <div id="waterOpts" style="display:none">
+            <label class="toggle"><input type="checkbox" id="waterAuto" checked> Auto level — just over the active character's back</label>
+            <div class="range-row"><label class="block" style="margin:0;flex:1">Level</label><input type="range" id="waterLevel" min="0.1" max="30" step="0.1" value="1.5" style="flex:2"><span class="val" id="waterLevelV">1.5</span></div>
+            <div class="range-row"><label class="block" style="margin:0;flex:1">Opacity</label><input type="range" id="waterOpacity" min="0.1" max="0.95" step="0.05" value="0.55" style="flex:2"><span class="val" id="waterOpacityV">0.55</span></div>
+            <div class="range-row"><label class="block" style="margin:0;flex:1">Waves</label><input type="range" id="waterWave" min="0" max="1" step="0.05" value="0.35" style="flex:2"><span class="val" id="waterWaveV">0.35</span></div>
+            <div class="range-row"><label class="block" style="margin:0;flex:1">Haze</label><input type="range" id="waterFog" min="0" max="1" step="0.05" value="0.25" style="flex:2"><span class="val" id="waterFogV">0.25</span></div>
+            <div class="swatch" style="margin-top:6px"><input type="color" id="waterColor" value="#2f8fc0"><span class="hint" style="margin:0">Water colour (the haze follows it)</span></div>
+            <div class="hint" style="margin:4px 0 0">Swimmers sit just under the surface, so a whale's <b>breach</b> bursts through it; props marked as floating ride on top. The <b>Ocean surface</b> and <b>Underwater reef</b> scene sets switch this on with matched seabed + horizon.</div>
+          </div>
+        </div>
         <label class="block" style="margin-top:6px">Preset (procedural)</label>
         <select id="envPreset"></select>
         <label class="block">Backdrop image (wide panorama, optional)</label>
@@ -933,7 +945,7 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 
 const $ = s => document.querySelector(s);
-const APP_NAME='GLB Stitcher', APP_VERSION='1.8.15', APP_BUILD='2026-09-09';   // version shown in About + footer
+const APP_NAME='GLB Stitcher', APP_VERSION='1.9.0', APP_BUILD='2026-09-10';   // version shown in About + footer
 // Bump APP_BUILD whenever the app or the bundled motion library changes. It is printed to the console and
 // shown in the footer so "am I running the current version?" can be answered by looking, not by guessing —
 // a stale browser tab kept an old build alive twice while the files on disk were already up to date.
@@ -1016,6 +1028,38 @@ const envBackdrop = new THREE.Mesh(new THREE.CylinderGeometry(1,1,1,72,1,true),
 envGroup.add(envBackdrop);
 let envGroundTex=null, envBackTex=null, envHW=40, curEnvPreset=null, envGroundCustom=false, envBackCustom=false;
 let envDispTex=null, envNormTex=null, envGroundSrc=null, envGroundAR=1;   // displacement/normal source for terrain relief + image aspect
+// ---------- Water surface (marine scenes): a transparent, gently rolling sea-level plane inside the expanse ----------
+// Lives in envGroup so it only exists in the open expanse. Characters are still grounded at y=0 (the seabed), the
+// surface floats ABOVE them: auto level = 92% of the active character's rest height, so a swim sits just under it
+// and a breach/leap clears it. Scene fog (tinted from the water colour) gives the underwater haze.
+const WATER_SEG=96;
+const waterMesh=new THREE.Mesh(new THREE.PlaneGeometry(1,1,WATER_SEG,WATER_SEG),
+  new THREE.MeshPhysicalMaterial({ color:0x2f8fc0, transparent:true, opacity:0.55, roughness:0.12, metalness:0.05, side:THREE.DoubleSide, depthWrite:false }));
+waterMesh.rotation.x=-Math.PI/2; waterMesh.visible=false; waterMesh.renderOrder=5; envGroup.add(waterMesh);
+let waterFrame=0, waterLastGS=0;
+function waterOn(){ return envGroup.visible && !!($('#waterOn')&&$('#waterOn').checked); }
+function waterAutoLevel(){
+  let c=null; try{ const ch=(typeof activeChar==='function')?activeChar():null; if(ch && typeof charClips==='function') c=charClips(ch)[0]||null; }catch(e){}
+  if(!c && typeof clips!=='undefined' && clips.length) c=clips[Math.min(clips.length-1, Math.max(0, (typeof selIndex==='number')?selIndex:0))];
+  const h = c && c.root ? (c.restH||0)*(c.root.scale.y||1) : 0;     // rest height × applied size (stable: NOT the per-frame pose)
+  return h>0.05 ? h*0.92 : 1.5; }
+function waterLevel(){ const auto=$('#waterAuto')&&$('#waterAuto').checked;
+  if(auto){ const L=waterAutoLevel(); if($('#waterLevel')){ $('#waterLevel').value=L.toFixed(1); $('#waterLevelV').textContent=L.toFixed(1); } return L; }
+  return parseFloat(($('#waterLevel')||{}).value)||1.5; }
+function sizeWater(){ if(!waterMesh.visible) return; const gs=Math.max(20, parseFloat($('#envGroundSize').value)||80);
+  if(gs!==waterLastGS){ waterMesh.geometry.dispose(); waterMesh.geometry=new THREE.PlaneGeometry(gs,gs,WATER_SEG,WATER_SEG); waterLastGS=gs; waterTick(0); }
+  waterMesh.position.y=waterLevel(); }
+function applyWater(){ const on=waterOn(); waterMesh.visible=on;
+  if($('#waterOpts')) $('#waterOpts').style.display=($('#waterOn')&&$('#waterOn').checked)?'block':'none';
+  const m=waterMesh.material; m.color.set(($('#waterColor')||{}).value||'#2f8fc0'); m.opacity=parseFloat(($('#waterOpacity')||{}).value)||0.55; m.needsUpdate=true;
+  const fog=parseFloat(($('#waterFog')||{}).value)||0;
+  if(on && fog>0){ const c=new THREE.Color(m.color.getHex()).lerp(new THREE.Color(0x061c30),0.35); scene.fog=new THREE.FogExp2(c.getHex(), 0.004+fog*0.045); } else scene.fog=null;
+  sizeWater(); waterTick(0); if(typeof reconformProps==='function') reconformProps(); renderFrame(); }
+function waterTick(t){ if(!waterMesh.visible) return; const amp=(parseFloat(($('#waterWave')||{}).value)||0)*0.12; const pos=waterMesh.geometry.attributes.position; const gs=waterLastGS||80;
+  for(let i=0;i<pos.count;i++){ const x=pos.getX(i)/gs*Math.PI*2, y=pos.getY(i)/gs*Math.PI*2;
+    pos.setZ(i, amp*(Math.sin(x*7+t*1.6)*0.6 + Math.sin(y*5-t*1.1)*0.4 + Math.sin((x+y)*11+t*2.3)*0.25)); }
+  pos.needsUpdate=true; waterMesh.geometry.computeVertexNormals(); }
+
 
 // ---------- Runner: a scrolling wall + floor for an endless side-scroll ----------
 const RUN_LEN=600, RUN_DEPTH=30;                    // long enough to never run off; the texture scroll conveys distance
@@ -1963,6 +2007,7 @@ function surfaceHeightAt(x, z){
 // platform stacks on top). Excludes the prop itself. Gated by the same "Stand on obstacles" master switch.
 function propBaseHeight(p){
   const gy=terrainHeightAt(p.x, p.z);
+  if(p.float && typeof waterMesh!=='undefined' && waterMesh.visible) return Math.max(gy, waterMesh.position.y-(p.floatSink||0));   // floating prop (beach ball, buoy…) rides the water surface
   if(!standOnObstacles()) return gy;
   let wraps=null;
   for(const q of props){ if(q!==p && q.walkable){ q.wrap.updateMatrixWorld(true); (wraps||(wraps=[])).push(q.wrap); } }
@@ -2058,6 +2103,7 @@ function sizeEnv(){
     envBackdrop.geometry.dispose(); envBackdrop.geometry=new THREE.CylinderGeometry(R,R,R*2,72,1,true); envBackdrop.position.set(0,0,0);
     envLastGS=gs; applyEnvTiling(); rebuildEnvRelief();   // re-displace the fresh geometry to match the terrain
   }
+  sizeWater();
   const s=Math.max(6,dist*2.2);   // shadow frustum stays tight on the subject, not the whole huge ground
   key.shadow.camera.left=-s;key.shadow.camera.right=s;key.shadow.camera.top=s;key.shadow.camera.bottom=-s;
   key.shadow.camera.near=0.01;key.shadow.camera.far=Math.max(dist*8,R*1.4);key.shadow.camera.updateProjectionMatrix();
@@ -2108,6 +2154,7 @@ function setScene(type){
   else if(type==='runner'){ bgMat.map=null; bgMat.color.set($('#bgColor').value); bgMat.needsUpdate=true; runnerDefaults(); frameCurrent(); sizeRunner(); }
   else if(type==='corridor'){ bgMat.map=null; bgMat.color.set($('#bgColor').value); bgMat.needsUpdate=true; corridorDefaults(); frameCurrent(); sizeCorridor(); }
   else { fitBackground(); }
+  applyWater();   // water only exists inside the expanse (also clears the haze fog elsewhere)
   syncShadow(); renderFrame();
 }
 $('#sceneType').addEventListener('change', e=>setScene(e.target.value));
@@ -2130,6 +2177,9 @@ $('#envGroundTile').addEventListener('input', ()=>{ $('#envGroundTileV').textCon
 const reposeEnv=()=>{ if(clips.length && !rendering && !previewing) refreshView(); else renderFrame(); };  // re-ground characters on the new terrain
 $('#envGroundSize').addEventListener('input', ()=>{ $('#envGroundSizeV').textContent=$('#envGroundSize').value; sizeEnv(); reposeEnv(); });
 $('#envRelief').addEventListener('input', ()=>{ $('#envReliefV').textContent=parseFloat($('#envRelief').value).toFixed(1); rebuildEnvRelief(); reposeEnv(); });
+['waterOn','waterAuto'].forEach(id=>{ const el=$('#'+id); if(el) el.addEventListener('change', applyWater); });
+['waterLevel','waterOpacity','waterWave','waterFog'].forEach(id=>{ const el=$('#'+id); if(!el) return; el.addEventListener('input', ()=>{ const v=$('#'+id+'V'); if(v) v.textContent=el.value; if(id==='waterLevel'&&$('#waterAuto')) $('#waterAuto').checked=false; applyWater(); }); });
+if($('#waterColor')) $('#waterColor').addEventListener('input', applyWater);
 $('#envGroundFit').addEventListener('change', ()=>{ rebuildEnvRelief(); reposeEnv(); });
 wireDrop($('#envBgDrop'), $('#envBgInput'), fs=>{ const f=fs.find(x=>x.type.startsWith('image')); if(f) loadEnvTex(f,'back'); });
 wireDrop($('#envGroundDrop'), $('#envGroundInput'), fs=>{ const f=fs.find(x=>x.type.startsWith('image')); if(f) loadEnvTex(f,'ground'); });
@@ -2173,6 +2223,11 @@ async function applyExpanseSet(set){
     envBackdrop.material.map=t; envBackdrop.material.color.set(0xffffff); envBackdrop.material.needsUpdate=true;
     $('#envBgThumb').src=set.backdrop; $('#envBgThumb').style.display='block';
   }catch(e){ envBackCustom=false; }
+  if(set.water){ const w=set.water; const put=(id,v)=>{ const el=$('#'+id); if(!el||v==null) return; el.value=v; const vv=$('#'+id+'V'); if(vv) vv.textContent=v; };
+    if($('#waterOn')) $('#waterOn').checked=true; if($('#waterAuto')) $('#waterAuto').checked=(w.level==null);
+    put('waterLevel',w.level); put('waterOpacity',w.opacity); put('waterWave',w.wave); put('waterFog',w.fog); if(w.color&&$('#waterColor')) $('#waterColor').value=w.color; }
+  else if($('#waterOn')) $('#waterOn').checked=false;   // a dry set switches the water off
+  applyWater();
   applyEnvTiling(); rebuildEnvRelief(); reposeEnv(); renderFrame();
 }
 async function applyRoomSet(set){
@@ -2264,7 +2319,7 @@ function newPropId(pref){ return pref+Date.now().toString(36)+Math.floor(Math.ra
 // obstacles we remember the obId (rebuilt fresh); for loaded GLBs we keep a cloned Object3D.
 let propClipboard=null;
 let lastClipKind=null;   // 'prop' | 'node' — which clipboard Ctrl+V should paste on the main page
-function descOfProp(p){ return { obId:p.obId||null, name:p.name, scale:p.scale, rotY:p.rotY, lift:p.lift||0,
+function descOfProp(p){ return { obId:p.obId||null, pk:p.pk||null, walkable:!!p.walkable, float:!!p.float, floatSink:p.floatSink||0, name:p.name, scale:p.scale, rotY:p.rotY, lift:p.lift||0,
     x:p.x, z:p.z, clone:p.obId?null:p.wrap.children[0].clone(true) }; }
 function copyProps(list){ if(!list||!list.length) return; propClipboard=list.map(descOfProp);
   setStatus('Copied '+list.length+' prop'+(list.length>1?'s':'')); }
@@ -2274,7 +2329,7 @@ function spawnFromDesc(c, dx, dz, quiet){
   let np;
   if(c.obId){ np=spawnObstacle(c.obId, c.x+dx, c.z+dz, c.rotY); if(!np) return null; }
   else { const wrap=new THREE.Group(); wrap.add(c.clone.clone(true)); propGroup.add(wrap);
-         np={ id:newPropId('pr'), name:c.name, obId:null, wrap, scale:c.scale, rotY:c.rotY, x:c.x+dx, z:c.z+dz, lift:c.lift||0 };
+         np={ id:newPropId('pr'), name:c.name, obId:null, pk:c.pk||null, walkable:!!c.walkable, float:!!c.float, floatSink:c.floatSink||0, wrap, scale:c.scale, rotY:c.rotY, x:c.x+dx, z:c.z+dz, lift:c.lift||0 };
          props.push(np); }
   np.scale=c.scale; np.rotY=c.rotY; np.lift=c.lift||0; updatePropTransform(np);
   if(!quiet){ setSingleSel(np.id); renderPropList(); renderFrame(); }
@@ -2296,11 +2351,11 @@ function duplicateProps(list){ if(!list||!list.length) return; pushUndo(); const
 function nudgePropLift(p, dy){ if(!p) return; p.lift=Math.max(0, +(p.lift||0)+dy); updatePropTransform(p); renderPropList(); renderFrame(); }
 // ----- Undo / redo for scene edits (add / delete / move / clear / paste). Snapshots rebuild props from descriptors. -----
 function clearPropsSilent(){ for(const p of props) propGroup.remove(p.wrap); props.length=0; clearSel(); }
-function snapshotScene(){ return props.map(p=>({ obId:p.obId||null, name:p.name, x:p.x, z:p.z, scale:p.scale, rotY:p.rotY, lift:p.lift||0, walkable:!!p.walkable, clone:p.obId?null:p.wrap.children[0].clone(true) })); }
+function snapshotScene(){ return props.map(p=>({ obId:p.obId||null, pk:p.pk||null, float:!!p.float, floatSink:p.floatSink||0, name:p.name, x:p.x, z:p.z, scale:p.scale, rotY:p.rotY, lift:p.lift||0, walkable:!!p.walkable, clone:p.obId?null:p.wrap.children[0].clone(true) })); }
 function restoreScene(snap){ clearPropsSilent();
   for(const d of snap){ let np;
     if(d.obId){ np=spawnObstacle(d.obId, d.x, d.z, d.rotY); }
-    else { const wrap=new THREE.Group(); wrap.add(d.clone.clone(true)); propGroup.add(wrap); np={ id:newPropId('pr'), name:d.name, obId:null, wrap, x:d.x, z:d.z }; props.push(np); }
+    else { const wrap=new THREE.Group(); wrap.add(d.clone.clone(true)); propGroup.add(wrap); np={ id:newPropId('pr'), name:d.name, obId:null, pk:d.pk||null, float:!!d.float, floatSink:d.floatSink||0, wrap, x:d.x, z:d.z }; props.push(np); }
     if(np){ np.scale=d.scale; np.rotY=d.rotY; np.lift=d.lift; np.walkable=d.walkable; updatePropTransform(np); }
   }
   renderPropList(); renderFrame();
@@ -2659,6 +2714,23 @@ const OBSTACLE_CATS=[
   {name:'Underwater', em:'🐚', ids:['coral_brain','coral_fan','kelp','clam','starfish','anchor','shipwreck','bubbles','rock_arch','urchin','conch','amphora','anemone']},
   {name:'Medieval & Fantasy', em:'🏰', ids:['castle','tower','portcullis','banner','well','brazier','catapult','throne','drawbridge','jousting','lance','helmet','shield','haybale','quintain','market_stall','weapon_rack','anvil','cart','wall','treasure']},
 ];
+// ---- Expansion-pack SCENE PROPS (GLB set dressing shipped inside a pack) + pack CHARACTERS (rigged GLBs) ----
+// Declared here (before buildObstacleGrid runs) so the grid can list them; filled by registerPack() further down.
+let obSpawn=0;
+const importedObstacles=new Map();    // pack prop id -> {def:{id,name,em,cat,catEm,scale,walkable,float,floatSink}, buf, template}
+const importedChars=[];               // [{packId,name,file,skeleton,icon}] — the GLB bytes stay in IndexedDB until loaded
+async function packTemplate(o){ if(o.template) return o.template; if(o.loading) return o.loading;
+  o.loading=(async()=>{ const gltf=await loader.parseAsync(o.buf,''); const root=gltf.scene; root.updateMatrixWorld(true);
+    const box=new THREE.Box3().setFromObject(root), ctr=box.getCenter(new THREE.Vector3()); root.position.set(-ctr.x,-box.min.y,-ctr.z);   // centre X/Z, base on y=0
+    root.traverse(m=>{ if(m.isMesh){ m.castShadow=true; m.receiveShadow=true; m.frustumCulled=false; } }); o.template=root; return root; })();
+  return o.loading; }
+function spawnPackProp(o, x, z, rotY){ const wrap=new THREE.Group(); wrap.add(o.template.clone(true)); propGroup.add(wrap); const d=o.def;
+  const p={ id:newPropId('ob'), name:d.name||d.id, obId:null, pk:d.id, wrap, scale:d.scale||1, rotY:rotY||0, x:x||0, z:z||0, lift:0, walkable:!!d.walkable, float:!!d.float, floatSink:d.floatSink||0 };
+  props.push(p); updatePropTransform(p); return p; }
+async function addPackObstacle(id){ const o=importedObstacles.get(id); if(!o) return;
+  try{ await packTemplate(o); }catch(e){ console.warn('pack prop failed',id,e); setStatus('Could not load prop “'+(o.def.name||id)+'”'); return; }
+  pushUndo(); const px=(camState&&camState.pivotX)||0; const off=((obSpawn++)%6)*1.6-4; const p=spawnPackProp(o, px+off, 1.5, 0);
+  setSingleSel(p.id); renderPropList(); renderFrame(); setStatus('Added '+p.name+(p.float?' — it floats on the water surface':' — drag it in the preview to place it')); }
 function spawnObstacle(id,x,z,rotY){ const o=OBSTACLES.find(t=>t.id===id); if(!o) return null;
   const root=o.build(); root.traverse(m=>{ if(m.isMesh){ m.castShadow=true; m.receiveShadow=true; m.frustumCulled=false; } });
   const wrap=new THREE.Group(); wrap.add(root); propGroup.add(wrap);
@@ -2666,7 +2738,6 @@ function spawnObstacle(id,x,z,rotY){ const o=OBSTACLES.find(t=>t.id===id); if(!o
   if(o.stage){ p.stage=true; p.skirt=root.getObjectByName('__skirt'); p.lift=o.stageH0||0.75; }   // elevated stage: start raised, skirt fills to floor
   props.push(p); updatePropTransform(p); return p; }
 function wallZ(){ if(corridorOn()) return -corrDepth()/2; if(runnerOn()) return -(parseFloat(($('#runnerWallDist')||{}).value)||3); return null; }
-let obSpawn=0;
 function addObstacle(id){
   pushUndo();
   const px=(camState&&camState.pivotX)||0; let p, snapped=false;
@@ -2717,6 +2788,14 @@ function buildObstacleGrid(){ const host=$('#obstacleGrid'); if(!host) return; h
     d.innerHTML=`<summary><span class="chev">▶</span><span class="em">📦</span>More<span class="cnt">${rest.length}</span></summary>`;
     const grid=document.createElement('div'); grid.className='obs-grid'; rest.forEach(o=>grid.appendChild(mkBtn(o)));
     d.appendChild(grid); host.appendChild(d); }
+  // Expansion-pack scene props: one collapsible category per pack theme (e.g. "Marine Animals 1")
+  if(importedObstacles.size){ const groups={}; for(const [,o] of importedObstacles){ const gname=o.def.cat||'Expansion props'; (groups[gname]=groups[gname]||[]).push(o.def); }
+    for(const [gname,items] of Object.entries(groups)){ const d=document.createElement('details'); d.className='obs-cat';
+      d.innerHTML=`<summary><span class="chev">▶</span><span class="em">${items[0].catEm||'✦'}</span>${gname}<span class="cnt">${items.length}</span></summary>`;
+      const grid=document.createElement('div'); grid.className='obs-grid';
+      items.slice().sort((a,b)=>(a.name||a.id).localeCompare(b.name||b.id)).forEach(o=>{ const b=document.createElement('button'); b.title='Add '+(o.name||o.id)+' (expansion pack)'+(o.float?' — floats on water':'');
+        b.innerHTML=`<span class="em">${o.em||'✦'}</span>${o.name||o.id}`; b.onclick=()=>addPackObstacle(o.id); grid.appendChild(b); });
+      d.appendChild(grid); host.appendChild(d); } }
 }
 function buildObstacleSetGrid(){ const host=$('#obstacleSetGrid'); if(!host) return; host.innerHTML='';
   for(const s of OBSTACLE_SETS){ const b=document.createElement('button'); b.title='Drop the '+s.name+' pack';
@@ -3822,7 +3901,7 @@ rebuildPropPresets();
 const isEnsemble=()=>$('#ensemble')&&$('#ensemble').checked;
 // Dev hook for headless / in-browser verification (module scope is otherwise unreachable from the console).
 window.__dbg={ get clips(){return clips}, get characters(){return characters}, get scene(){return scene}, get camera(){return camera}, get canvas(){return canvasEl}, heldPropOf, get weaponSel(){return weaponSel}, get weaponClipboard(){return weaponClipboard} };
-function refreshView(){ applyCharProps(); if(!clips.length){ renderFrame(); return; } if(isEnsemble()) showEnsemble(); else showClip(selIndex); }
+function refreshView(){ applyCharProps(); if(typeof sizeWater==='function') sizeWater(); if(!clips.length){ renderFrame(); return; } if(isEnsemble()) showEnsemble(); else showClip(selIndex); }
 
 // ---------- Ensemble (multiple characters on stage at once) ----------
 let ensembleRoots=new Set();
@@ -4916,6 +4995,7 @@ function renderFrame(){
   updatePropSelBox();
   updateModelRing();
   updateGrids();
+  if(waterMesh.visible) waterTick((previewing||rendering)? (waterFrame++)/30 : 0);   // rolling waves during preview/render, still otherwise
   const trans=transparentBg();
   renderer.setClearAlpha(trans?0:1);
   renderer.autoClear=false; renderer.clear();
@@ -6352,18 +6432,18 @@ async function renderSampleCard(){
   const card=$('#sampleCard'); if(!card) return;
   // probe the tiny README, not the big GLBs — a HEAD on a large static file gets ERR_ABORTED on some hosts
   let ok=false; try{ const r=await fetch(SAMPLE_DIR+'README.txt',{cache:'no-store'}); ok=r.ok; }catch(e){}
-  if(!ok){ card.style.display='none'; return; }
   const host=$('#sampleModels'); host.innerHTML='';
-  for(const s of SAMPLE_CHARS){
-    const row=document.createElement('div'); row.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:6px';
-    row.innerHTML=`<span style="font-size:16px">${s.icon}</span>`
-      +`<div style="flex:1;min-width:0"><div style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.name}</div>`
-      +`<div class="hint" style="margin:0">${s.skeleton}</div></div>`
+  const row=(icon,name,sub,onLoad,fromPack)=>{ const el=document.createElement('div'); el.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:6px';
+    el.innerHTML=`<span style="font-size:16px">${icon}</span>`
+      +`<div style="flex:1;min-width:0"><div style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${name}${fromPack?' <span class="hint" style="margin:0" title="from an expansion pack">✦</span>':''}</div>`
+      +`<div class="hint" style="margin:0">${sub}</div></div>`
       +`<button class="btn sm" style="width:auto;flex:none;padding:4px 14px;font-size:12px">Load</button>`;
-    row.querySelector('button').onclick=()=>loadSampleModel(s);
-    host.appendChild(row);
-  }
-  card.style.display='block';
+    el.querySelector('button').onclick=onLoad; host.appendChild(el); };
+  if(ok) for(const s of SAMPLE_CHARS) row(s.icon, s.name, s.skeleton, ()=>loadSampleModel(s), false);
+  const packChars=(typeof importedChars!=='undefined')?importedChars:[];
+  if(packChars.length){ const h=document.createElement('div'); h.className='hint'; h.style.margin='8px 0 4px'; h.textContent='✦ From your expansion packs'; host.appendChild(h);
+    for(const e of packChars) row(e.icon||'✦', e.name, e.skeleton||'rigged', ()=>loadPackCharacter(e), true); }
+  card.style.display=(ok||packChars.length)?'block':'none';
 }
 renderSampleCard();
 
@@ -6395,13 +6475,15 @@ function applyImportedMotions(){
 
 function registerPack(P){
   importedPacks.push({ id:P.id, name:P.name||P.id, category:P.category||'', version:P.version||1,
-    counts:{ motions:(P.motions||[]).length, props:(P.props||[]).length, scenes:(P.scenes||[]).length } });
+    counts:{ motions:(P.motions||[]).length, props:(P.props||[]).length, scenes:(P.scenes||[]).length, characters:(P.characters||[]).length, sceneProps:(P.sceneProps||[]).length } });
   for(const m of (P.motions||[])) if(!importedMotions.some(x=>x.id===m.id)) importedMotions.push(m);
   for(const id in (P.shards||{})) importedShards.set(id, P.shards[id]);
   Object.assign(importedPoses, P.poses||{});
   Object.assign(importedSkeletons, P.skeletons||{});
   for(const pr of (P.props||[])) if(pr.glb) importedProps.set(pr.name, { buf:b64ToBuf(pr.glb), label:pr.label||pr.name, em:pr.em||'' });
   for(const sc of (P.scenes||[])){ if(sc && sc.kind && sc.set && SCENE_SETS[sc.kind] && !SCENE_SETS[sc.kind].some(s=>s.id===sc.set.id)){ SCENE_SETS[sc.kind].push(sc.set); importedSceneList.push(sc); } }
+  for(const ch of (P.characters||[])) if(ch && ch.name && !importedChars.some(x=>x.packId===P.id && x.name===ch.name)) importedChars.push({ packId:P.id, name:ch.name, file:ch.file||(ch.name+'.glb'), skeleton:ch.skeleton||'', icon:ch.icon||'✦' });
+  for(const sp of (P.sceneProps||[])) if(sp && sp.id && (sp.buf||sp.glb) && !importedObstacles.has(sp.id)) importedObstacles.set(sp.id, { def:sp, buf: sp.buf || b64ToBuf(sp.glb), template:null });
 }
 
 function refreshAfterImport(){
@@ -6410,6 +6492,8 @@ function refreshAfterImport(){
   if(Array.isArray(libIndex) && typeof renderMotionLib==='function') renderMotionLib();
   rebuildPropPresets();
   if(setPickerKind && typeof buildSetGrid==='function') buildSetGrid(setPickerKind);   // refresh an open scene picker
+  if(typeof buildObstacleGrid==='function') buildObstacleGrid();   // pack scene props get their own category
+  if(typeof renderSampleCard==='function') renderSampleCard();      // pack characters appear with the samples
   renderPacksUI();
 }
 
@@ -6420,12 +6504,23 @@ function packDB(){ return new Promise((res,rej)=>{ const q=indexedDB.open('glbSt
 async function packPut(P){ const db=await packDB(); return new Promise((res,rej)=>{ const t=db.transaction('packs','readwrite'); t.objectStore('packs').put(P); t.oncomplete=()=>res(); t.onerror=()=>rej(t.error); }); }
 async function packGetAll(){ const db=await packDB(); return new Promise((res,rej)=>{ const t=db.transaction('packs','readonly'); const r=t.objectStore('packs').getAll(); r.onsuccess=()=>res(r.result||[]); r.onerror=()=>rej(r.error); }); }
 async function packDelete(id){ const db=await packDB(); return new Promise((res,rej)=>{ const t=db.transaction('packs','readwrite'); t.objectStore('packs').delete(id); t.oncomplete=()=>res(); t.onerror=()=>rej(t.error); }); }
+async function packGet(id){ const db=await packDB(); return new Promise((res,rej)=>{ const t=db.transaction('packs','readonly'); const r=t.objectStore('packs').get(id); r.onsuccess=()=>res(r.result||null); r.onerror=()=>rej(r.error); }); }
+// Load a rigged character shipped inside an installed pack (bytes read from IndexedDB on demand).
+async function loadPackCharacter(e){ setStatus('Loading '+e.name+' from '+(importedPacks.find(p=>p.id===e.packId)||{}).name+'…');
+  let P=null; try{ P=await packGet(e.packId); }catch(err){ console.warn(err); }
+  const ch=P && (P.characters||[]).find(c=>c.name===e.name); if(!ch || !(ch.buf||ch.glb)){ setStatus('Character “'+e.name+'” is missing from its pack — re-import the pack'); return; }
+  const buf=ch.buf||b64ToBuf(ch.glb);
+  await addGLBs([ new File([buf], e.file||(e.name+'.glb'), {type:'model/gltf-binary'}) ], e.name); }
 
 async function importPackFromText(text, srcName){
   let P; try{ P=JSON.parse(text); }catch(e){ setStatus('“'+srcName+'” is not a valid pack file (.json)'); return; }
-  if(!P || (!P.motions && !P.props && !P.scenes)){ setStatus('“'+srcName+'” doesn’t look like an expansion pack'); return; }
+  if(!P || (!P.motions && !P.props && !P.scenes && !P.characters && !P.sceneProps)){ setStatus('“'+srcName+'” doesn’t look like an expansion pack'); return; }
   if(!P.id) P.id='pack_'+Date.now().toString(36)+Math.floor(Math.random()*1e4).toString(36);
   if(importedPacks.some(p=>p.id===P.id)){ setStatus('Already installed: '+(P.name||P.id)); return; }
+  // GLB payloads (characters / scene props) go into IndexedDB as raw bytes — a third smaller than base64 and no
+  // re-decode on every boot; only the small metadata stays in memory until a character is actually loaded.
+  for(const ch of (P.characters||[])) if(ch && ch.glb){ ch.buf=b64ToBuf(ch.glb); delete ch.glb; }
+  for(const sp of (P.sceneProps||[])) if(sp && sp.glb){ sp.buf=b64ToBuf(sp.glb); delete sp.glb; }
   try{ await packPut(P); }catch(e){ console.warn('pack persist failed',e); setStatus('Could not save the pack in this browser'); return; }
   registerPack(P); refreshAfterImport();
   setStatus('✅ Imported “'+(P.name||srcName)+'” — '+(P.motions||[]).length+' motions'+((P.props||[]).length?', '+(P.props||[]).length+' props':'')+((P.scenes||[]).length?', '+(P.scenes||[]).length+' scenes':'')+' added');
@@ -6441,7 +6536,7 @@ function renderPacksUI(){
     +'<input type="file" id="packInput" accept=".json,application/json" hidden multiple>';
   if(importedPacks.length){ h+='<div style="margin-top:6px;display:flex;flex-direction:column;gap:4px">';
     for(const p of importedPacks){ const c=p.counts||{};
-      const bits=[c.motions?c.motions+' motions':'', c.props?c.props+' props':'', c.scenes?c.scenes+' scenes':''].filter(Boolean).join(' · ');
+      const bits=[c.characters?c.characters+' characters':'', c.motions?c.motions+' motions':'', c.sceneProps?c.sceneProps+' scene props':'', c.props?c.props+' hand props':'', c.scenes?c.scenes+' scenes':''].filter(Boolean).join(' · ');
       h+='<div style="display:flex;align-items:center;gap:6px;font-size:12px;background:var(--panel2,#161b23);border:1px solid var(--line,#252c37);border-radius:6px;padding:4px 8px">'
         +'<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(p.name||p.id)+' <span class="hint">· '+bits+'</span></span>'
         +'<button type="button" class="btn sm ghost" data-rm="'+p.id+'" title="Remove this pack" style="width:auto;flex:none;padding:2px 8px;font-size:12px">✕</button></div>';
@@ -6457,7 +6552,7 @@ function renderPacksUI(){
 
 async function bootPacks(){ try{ const saved=await packGetAll(); for(const P of saved) registerPack(P); }catch(e){ console.warn('pack load failed',e); } }
 
-bootPacks().then(()=>{ renderPacksUI(); rebuildPropPresets(); studioRefresh(); });
+bootPacks().then(()=>{ renderPacksUI(); rebuildPropPresets(); buildObstacleGrid(); renderSampleCard(); studioRefresh(); });
 if(window.StudioLib) StudioLib.onChange(studioRefresh);
 
 // ==================== Save / Load project ====================
