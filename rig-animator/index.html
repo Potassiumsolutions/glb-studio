@@ -5227,8 +5227,8 @@ const GIRAFFE_MOTIONS=[
   {id:'gir_sleep', name:'Sleep (head on rump)', cat:'Posture', type:'stay', dur:6.0, lie:true, build:(t,P)=>{
     const A=P.amp, u=(t/6.0*P.speed)%1, br=Math.sin(TAU*u*2), k=ramp(u,0.05,0.35)*(1-ramp(u,0.80,0.98));
     quadLie(A, A, {head:0, chest:0});
-    neckBend(-0.50*k*A); neckSway(-0.26*k*A);                                // neck curled BACK over the body, out to one side, head to the rump
-    sw('head', AX.x, (0.85*k + br*0.01)*A); sw('head', AX.z, -0.25*k*A);       // chin tucks down onto the rump
+    neckBend(-0.58*k*A); neckSway(-0.20*k*A);                                // neck curled BACK over the body, a little to one side, head to the rump
+    sw('head', AX.x, (0.55*k + br*0.01)*A);                                    // chin tucks down onto the rump (no head roll — it read as a twisted neck)
     girEars(-0.1*k*A); }},
   {id:'gir_getup', name:'Get Up', cat:'Posture', type:'stay', dur:2.4, lie:true, build:(t,P)=>{
     const A=P.amp, u=(t/2.4*P.speed)%1, kh=(1-ramp(u,0.05,0.50))*A, kf=(1-ramp(u,0.35,0.85))*A;
