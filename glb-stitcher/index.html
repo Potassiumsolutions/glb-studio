@@ -933,7 +933,7 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 
 const $ = s => document.querySelector(s);
-const APP_NAME='GLB Stitcher', APP_VERSION='1.8.14', APP_BUILD='2026-09-09';   // version shown in About + footer
+const APP_NAME='GLB Stitcher', APP_VERSION='1.8.15', APP_BUILD='2026-09-09';   // version shown in About + footer
 // Bump APP_BUILD whenever the app or the bundled motion library changes. It is printed to the console and
 // shown in the footer so "am I running the current version?" can be answered by looking, not by guessing —
 // a stale browser tab kept an old build alive twice while the files on disk were already up to date.
@@ -1412,6 +1412,7 @@ function applyScenery(type){
   syncShadow(); renderFrame();
 }
 // manualPhase = distance scrolled by the speed slider; travelX/Z = how far the camera followed the character
+let _tread={p:0,x:0,y:0,px:0};   // incremental treadmill scroll for the flat backdrops (see updateScenery)
 function updateScenery(manualPhase, travelX, travelZ){
   // Scroll the backdrop by how far the character moved ACROSS THE VIEW, not just its world-X. A quadruped
   // travels along Z (it faces −Z), so keying the scroll off travelX alone left the world sliding the wrong
@@ -1420,6 +1421,29 @@ function updateScenery(manualPhase, travelX, travelZ){
   const _cwd=new THREE.Vector3(); camera.getWorldDirection(_cwd); _cwd.y=0;
   let _rx=1, _rz=0; if(_cwd.lengthSq()>1e-6){ _cwd.normalize(); _rx=-_cwd.z; _rz=_cwd.x; }  // right = forward × up
   const travelH = travelX*_rx + travelZ*_rz;
+  // FLAT BACKDROP (screen-space quad) scroll. Its axes are the camera's own right (R) and up (U) from the world
+  // matrix — the flattened getWorldDirection() above loses the TOP-DOWN view (looking straight down it has no
+  // horizontal heading, so travel along Z never scrolled the backdrop at all: the dolphin sat over a still backdrop
+  // with only the treadmill drifting it sideways → "sliding diagonally backwards"). Project the character's travel
+  // and its facing onto R/U = on-screen motion + on-screen facing. A backdrop has no parallax of its own, so its
+  // texture must slide OPPOSITE to the character: the speed-slider treadmill opposite to the way it FACES, the
+  // camera-follow travel opposite to the way it MOVES across the view (the old code had both sliding WITH the
+  // motion → a dolphin swimming across the underwater backdrop read as swimming backwards). The vertical (U) term
+  // fades out for a level camera so a wall/sky backdrop's horizon stays put; camera-facing characters keep each
+  // surface's old default treadmill direction so existing head-on renders are unchanged.
+  const _cm=camera.matrixWorld.elements, _R=new THREE.Vector3(_cm[0],_cm[1],_cm[2]).normalize(), _U=new THREE.Vector3(_cm[4],_cm[5],_cm[6]).normalize();
+  const _wV=1-Math.min(1, Math.abs(_U.y)/0.6);                         // 0 = level camera … 1 = looking straight down
+  const bdX=travelX*_R.x+travelZ*_R.z, bdY=(travelX*_U.x+travelZ*_U.z)*_wV;   // on-screen travel (right, up)
+  const _fw=rotY({x:0,z:1}, heading+renderRotCarry);
+  let tX=_fw.x*_R.x+_fw.z*_R.z, tY=(_fw.x*_U.x+_fw.z*_U.z)*_wV, tFb=false;   // on-screen facing (right, up)
+  if(Math.hypot(tX,tY)<0.25){ const _bl=Math.hypot(bdX,bdY);           // toward/away from the camera: follow whatever
+    if(_bl>0.3){ tX=bdX/_bl; tY=bdY/_bl; } else tFb=true; }             // on-screen drift there is, else the old default
+  // The treadmill is accumulated INCREMENTALLY along the current on-screen facing: a facing that changes between
+  // clips (a carried turn) must bend the scroll path, not jump it. Reset whenever the phase restarts at 0.
+  if(manualPhase===0) _tread={p:0,x:0,y:0,px:0};
+  { const _dp=manualPhase-_tread.p; _tread.p=manualPhase;
+    _tread.x+=_dp*(tFb?-1:tX); _tread.y+=_dp*(tFb?0:tY);               // procedural backdrop (old default: image slides right)
+    _tread.px+=_dp*(tFb?1:tX); }                                        // photo background  (old default: image slides left)
   if(runnerOn()){   // endless side-scroll: keep the strip around the character, scroll the wall+floor textures
     runnerGroup.position.x = (camState&&camState.pivotX)||0;
     const off = manualPhase*0.12 + travelH*0.5;
@@ -1434,13 +1458,13 @@ function updateScenery(manualPhase, travelX, travelZ){
   }
   if(scenery==='none' || !sceneryTex || !scenerySpec){
     // no procedural scenery → pan an uploaded photo background instead (fake forward motion)
-    if(bgTexture){ bgScrollX = (manualPhase*0.12 + travelH*0.5); buildBgMatrix(); }
+    if(bgTexture){ bgScrollX = (_tread.px*0.12 + bdX*0.5); buildBgMatrix(); }   // uv+offset: growing = image slides left
     return;
   }
   const P=scenerySpec.parallax, amt=(manualPhase*0.2 + travelH*0.5)*P;
   if(scenerySpec.ground){ sceneryTex.offset.set(manualPhase*0.1 - travelH*0.35, 0); }   // ground now follows real travel (projected), not just the manual slider
   else if(scenerySpec.axis==='y'){ sceneryTex.offset.set(0, amt); }        // climb scrolls vertically
-  else { sceneryTex.offset.set(-amt, 0); }                                 // backdrops/walls scroll horizontally
+  else { sceneryTex.offset.set((_tread.x*0.2 + bdX*0.5)*P, (_tread.y*0.2 + bdY*0.5)*P); }   // backdrop: growing offset = image slides left/down → opposite to the facing + the on-screen travel
   if(sceneryNormalTex) sceneryNormalTex.offset.copy(sceneryTex.offset);
 }
 $('#scenery').addEventListener('change', e=>applyScenery(e.target.value));
