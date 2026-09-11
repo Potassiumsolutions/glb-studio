@@ -945,7 +945,7 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 
 const $ = s => document.querySelector(s);
-const APP_NAME='GLB Stitcher', APP_VERSION='1.9.0', APP_BUILD='2026-09-10';   // version shown in About + footer
+const APP_NAME='GLB Stitcher', APP_VERSION='1.9.1', APP_BUILD='2026-09-10';   // version shown in About + footer
 // Bump APP_BUILD whenever the app or the bundled motion library changes. It is printed to the console and
 // shown in the footer so "am I running the current version?" can be answered by looking, not by guessing —
 // a stale browser tab kept an old build alive twice while the files on disk were already up to date.
@@ -1055,9 +1055,15 @@ function applyWater(){ const on=waterOn(); waterMesh.visible=on;
   const fog=parseFloat(($('#waterFog')||{}).value)||0;
   if(on && fog>0){ const c=new THREE.Color(m.color.getHex()).lerp(new THREE.Color(0x061c30),0.35); scene.fog=new THREE.FogExp2(c.getHex(), 0.004+fog*0.045); } else scene.fog=null;
   sizeWater(); waterTick(0); if(typeof reconformProps==='function') reconformProps(); renderFrame(); }
+// Ripples travel PAST the swimmer from nose to tail (opposite its world facing) — a world-X wave read as the whole
+// scene drifting sideways from the top view (a pinned in-place swimmer looked like it was moving left instead of
+// forward). Cross-wise ripples are standing waves so nothing travels sideways.
 function waterTick(t){ if(!waterMesh.visible) return; const amp=(parseFloat(($('#waterWave')||{}).value)||0)*0.12; const pos=waterMesh.geometry.attributes.position; const gs=waterLastGS||80;
+  const hd=((typeof heading==='number')?heading:0)+((typeof renderRotCarry==='number')?renderRotCarry:0);
+  const fx=Math.sin(hd), fy=-Math.cos(hd);   // world facing rotY((0,0,1),hd)=(sin,cos) in plane-local coords (local y = world −z)
   for(let i=0;i<pos.count;i++){ const x=pos.getX(i)/gs*Math.PI*2, y=pos.getY(i)/gs*Math.PI*2;
-    pos.setZ(i, amp*(Math.sin(x*7+t*1.6)*0.6 + Math.sin(y*5-t*1.1)*0.4 + Math.sin((x+y)*11+t*2.3)*0.25)); }
+    const along=x*fx+y*fy, cross=x*fy-y*fx;   // along = toward the nose; phase +t → crests move tail-ward
+    pos.setZ(i, amp*(Math.sin(along*7+t*1.6)*0.6 + Math.sin(cross*5)*Math.cos(t*1.1)*0.4 + Math.sin((along*0.8+cross*0.6)*11+t*2.3)*0.25)); }
   pos.needsUpdate=true; waterMesh.geometry.computeVertexNormals(); }
 
 
