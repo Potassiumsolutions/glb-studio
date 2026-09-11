@@ -604,6 +604,7 @@
       <label class="block">Scene length (ensemble)</label>
       <select id="sceneLen"><option value="0" selected>Auto (longest character)</option><option value="5">5s</option><option value="10">10s</option><option value="15">15s</option><option value="20">20s</option></select>
       <label class="toggle"><input type="checkbox" id="camFollow" checked> Camera follows the character</label>
+      <label class="toggle"><input type="checkbox" id="camAir" checked> Camera tilts up to keep big jumps &amp; breaches in frame</label>
       <label class="toggle"><input type="checkbox" id="camMain"> Camera locks onto the ★ main character (show-all)</label>
       <label class="toggle"><input type="checkbox" id="skeleton"> Show skeleton wireframe</label>
       <div class="hint" style="margin-top:2px">
@@ -945,7 +946,7 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 
 const $ = s => document.querySelector(s);
-const APP_NAME='GLB Stitcher', APP_VERSION='1.9.1', APP_BUILD='2026-09-10';   // version shown in About + footer
+const APP_NAME='GLB Stitcher', APP_VERSION='1.9.2', APP_BUILD='2026-09-11';   // version shown in About + footer
 // Bump APP_BUILD whenever the app or the bundled motion library changes. It is printed to the console and
 // shown in the footer so "am I running the current version?" can be answered by looking, not by guessing —
 // a stale browser tab kept an old build alive twice while the files on disk were already up to date.
@@ -2233,6 +2234,7 @@ async function applyExpanseSet(set){
     if($('#waterOn')) $('#waterOn').checked=true; if($('#waterAuto')) $('#waterAuto').checked=(w.level==null);
     put('waterLevel',w.level); put('waterOpacity',w.opacity); put('waterWave',w.wave); put('waterFog',w.fog); if(w.color&&$('#waterColor')) $('#waterColor').value=w.color; }
   else if($('#waterOn')) $('#waterOn').checked=false;   // a dry set switches the water off
+  if(set.groundSize && $('#envGroundSize')){ $('#envGroundSize').value=set.groundSize; $('#envGroundSizeV').textContent=set.groundSize; sizeEnv(); }   // a tight set (show arena) pulls the horizon in
   applyWater();
   applyEnvTiling(); rebuildEnvRelief(); reposeEnv(); renderFrame();
 }
@@ -5048,6 +5050,7 @@ async function produceFrames(fps,loops,hold,spin,trans, emit, abort){
     if(doTrans) snapshotCanvas();          // grab previous clip's final frame
     const c=clips[ci]; renderRotCarry=carry.rot; showClip(ci); setPlayingClip(c.id);   // apply carried heading, then light up the current node/block
     const baseTargetY=camState.targetY;   // framed look-at height at clip start
+    let airBase=NaN, airLift=0, airPrev=0;   // in-clip vertical excursion follow (breach / leap) — see render1
     let baseDy=null;   // D.y at the clip's first frame — the vertical follow tracks the SMOOTH travel height (climb/fall), NOT the live hips (which bob every gait step and made the whole scene lurch vertically → nausea)
     $('#ovLbl').textContent=`Clip ${ci+1} / ${clips.length}`;
     const spd=clipSpeed(c);                        // per-clip playback speed (slow-mo / fast-forward)
@@ -5090,7 +5093,17 @@ async function produceFrames(fps,loops,hold,spin,trans, emit, abort){
       if(follow){ camState.pivotX=D.x; camState.pivotZ=D.z;
         if(baseDy===null) baseDy=D.y;
         camState.targetY=baseTargetY+(D.y-baseDy); }  // pan up a climb / down a fall (smooth) — but do NOT chase the per-step gait bob (that lurched the scene vertically)
-      if(spin||follow||driftMode!=='off'){ let sY=0; if(spin){ spinYaw+=dt*0.4; sY=spinYaw; }
+      // Big vertical excursions WITHIN a clip (a breach, a leap): tilt the look-at up by however far the hips rise above the
+      // clip's own start height beyond a gait-bob allowance (35% of body height), smoothed so it never lurches. Ordinary
+      // walks never cross the allowance, so they are untouched; works with or without camera-follow. Opt-out: #camAir.
+      let airNeed=false;
+      if(c.hips && $('#camAir') && $('#camAir').checked){ const _ap=new THREE.Vector3(); c.hips.getWorldPosition(_ap);
+        if(clipFrame===0 || !Number.isFinite(airBase)) airBase=_ap.y;
+        const allow=0.35*((c.restH||1)*(c.root.scale.y||1)), want=Math.max(0, _ap.y-airBase-allow);
+        airLift += (want-airLift)*0.35; if(airLift<0.002) airLift=0;
+        airNeed = airLift>0 || airPrev>0; airPrev=airLift;
+        if(airNeed) camState.targetY = (follow ? camState.targetY : baseTargetY) + airLift; }
+      if(spin||follow||driftMode!=='off'||airNeed){ let sY=0; if(spin){ spinYaw+=dt*0.4; sY=spinYaw; }
         applyRenderDrift(driftMode, frame/driftTotal, sY); }
       if(reliefWall.visible) positionReliefWall();
       if(c.scroll!==false){                                 // background moves only while THIS clip has scroll on
