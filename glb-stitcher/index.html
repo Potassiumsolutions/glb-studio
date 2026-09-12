@@ -469,6 +469,11 @@
         <div class="hint" style="margin:2px 0 0">Set <b>tiling = 1</b> to lay a single terrain photo flat across the whole ground (it's set to 1 automatically when you drop a ground image).</div>
         <label class="block">Ground size (how far the terrain extends)</label>
         <div class="range-row"><input type="range" id="envGroundSize" min="20" max="400" step="10" value="80"><span class="val" id="envGroundSizeV">80</span></div>
+        <label class="block">Backdrop size <span class="hint" style="text-transform:none;letter-spacing:0">(taller = skyline/hills loom larger)</span></label>
+        <div class="range-row"><input type="range" id="envBackH" min="0.5" max="3" step="0.1" value="1"><span class="val" id="envBackHV">1.0</span></div>
+        <label class="block">Backdrop distance <span class="hint" style="text-transform:none;letter-spacing:0">(lower = horizon pulls in closer)</span></label>
+        <div class="range-row"><input type="range" id="envBackR" min="0.4" max="1.2" step="0.05" value="1"><span class="val" id="envBackRV">1.00</span></div>
+        <div class="hint" style="margin:2px 0 0">Grows or pulls in the wrap-around backdrop (the city skyline, hills, horizon) <b>without</b> resizing the ground — so skyscrapers can loom large and close over a normal-sized floor.</div>
         <label class="block">Ground fit (for a dropped image)</label>
         <select id="envGroundFit">
           <option value="cover" selected>Cover (fill, keep shape, crop edges)</option>
@@ -946,7 +951,7 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 
 const $ = s => document.querySelector(s);
-const APP_NAME='GLB Stitcher', APP_VERSION='1.9.2', APP_BUILD='2026-09-11';   // version shown in About + footer
+const APP_NAME='GLB Stitcher', APP_VERSION='1.9.3', APP_BUILD='2026-09-12';   // version shown in About + footer
 // Bump APP_BUILD whenever the app or the bundled motion library changes. It is printed to the console and
 // shown in the footer so "am I running the current version?" can be answered by looking, not by guessing —
 // a stale browser tab kept an old build alive twice while the files on disk were already up to date.
@@ -1028,6 +1033,7 @@ const envBackdrop = new THREE.Mesh(new THREE.CylinderGeometry(1,1,1,72,1,true),
   new THREE.MeshBasicMaterial({ side:THREE.BackSide, depthWrite:false, fog:false }));
 envGroup.add(envBackdrop);
 let envGroundTex=null, envBackTex=null, envHW=40, curEnvPreset=null, envGroundCustom=false, envBackCustom=false;
+let envBackHMul=1, envBackRMul=1;   // backdrop-only scale: height (skyline looms larger) + radius (horizon pulls in), independent of ground size
 let envDispTex=null, envNormTex=null, envGroundSrc=null, envGroundAR=1;   // displacement/normal source for terrain relief + image aspect
 // ---------- Water surface (marine scenes): a transparent, gently rolling sea-level plane inside the expanse ----------
 // Lives in envGroup so it only exists in the open expanse. Characters are still grounded at y=0 (the seabed), the
@@ -2105,10 +2111,14 @@ function sizeEnv(){
   // stays put and characters/props can be placed & travel across it. The backdrop sits at the ground's edge = horizon.
   const gs=Math.max(20, parseFloat($('#envGroundSize').value)||80);
   const R=gs*0.5; envHW=R;
-  if(gs!==envLastGS){   // rebuild geometry only when the ground SIZE changes (not every reframe → keeps the CPU displacement)
+  const bR=R*envBackRMul;                      // backdrop radius (horizon distance) — independent of the ground
+  const key=gs+'|'+envBackHMul.toFixed(2)+'|'+envBackRMul.toFixed(2);
+  if(key!==envLastGS){   // rebuild geometry only when ground SIZE or a backdrop multiplier changes (not every reframe → keeps the CPU displacement)
     envGround.geometry.dispose(); envGround.geometry=new THREE.PlaneGeometry(gs,gs,ENV_GROUND_SEG,ENV_GROUND_SEG); envGround.position.set(0,0,0);
-    envBackdrop.geometry.dispose(); envBackdrop.geometry=new THREE.CylinderGeometry(R,R,R*2,72,1,true); envBackdrop.position.set(0,0,0);
-    envLastGS=gs; applyEnvTiling(); rebuildEnvRelief();   // re-displace the fresh geometry to match the terrain
+    // Backdrop: its own radius (bR) and height (bR*2*heightMul). Centered at y=0 so the panorama's horizon stays at
+    // ground level; a taller cylinder makes the skyline/hills loom larger, a smaller radius pulls the horizon in close.
+    envBackdrop.geometry.dispose(); envBackdrop.geometry=new THREE.CylinderGeometry(bR,bR,bR*2*envBackHMul,72,1,true); envBackdrop.position.set(0,0,0);
+    envLastGS=key; applyEnvTiling(); rebuildEnvRelief();   // re-displace the fresh geometry to match the terrain
   }
   sizeWater();
   const s=Math.max(6,dist*2.2);   // shadow frustum stays tight on the subject, not the whole huge ground
@@ -2183,6 +2193,8 @@ $('#envPreset').addEventListener('change', e=>{ envGroundCustom=false; envBackCu
 $('#envGroundTile').addEventListener('input', ()=>{ $('#envGroundTileV').textContent=$('#envGroundTile').value; applyEnvTiling(); renderFrame(); });
 const reposeEnv=()=>{ if(clips.length && !rendering && !previewing) refreshView(); else renderFrame(); };  // re-ground characters on the new terrain
 $('#envGroundSize').addEventListener('input', ()=>{ $('#envGroundSizeV').textContent=$('#envGroundSize').value; sizeEnv(); reposeEnv(); });
+$('#envBackH')?.addEventListener('input', ()=>{ envBackHMul=parseFloat($('#envBackH').value)||1; $('#envBackHV').textContent=envBackHMul.toFixed(1); sizeEnv(); renderFrame(); });
+$('#envBackR')?.addEventListener('input', ()=>{ envBackRMul=parseFloat($('#envBackR').value)||1; $('#envBackRV').textContent=envBackRMul.toFixed(2); sizeEnv(); renderFrame(); });
 $('#envRelief').addEventListener('input', ()=>{ $('#envReliefV').textContent=parseFloat($('#envRelief').value).toFixed(1); rebuildEnvRelief(); reposeEnv(); });
 ['waterOn','waterAuto'].forEach(id=>{ const el=$('#'+id); if(el) el.addEventListener('change', applyWater); });
 ['waterLevel','waterOpacity','waterWave','waterFog'].forEach(id=>{ const el=$('#'+id); if(!el) return; el.addEventListener('input', ()=>{ const v=$('#'+id+'V'); if(v) v.textContent=el.value; if(id==='waterLevel'&&$('#waterAuto')) $('#waterAuto').checked=false; applyWater(); }); });
@@ -6433,7 +6445,7 @@ async function renderStudioLibrary(){
 // ---------- Bundled sample characters — load a ready-made rig straight from its URL ----------
 // The public build ships these under ../samples/ ; we probe for them and only show the card when
 // they're actually reachable, so a standalone/dev copy without the folder just hides it.
-const SAMPLE_DIR='../samples/';
+let SAMPLE_DIR='../samples/';   // repo build serves samples one level up (glb-studio/samples); a ./samples/ next to this file also works for a standalone/dev copy
 const SAMPLE_CHARS=[
   {name:'Human',            file:'Human (biped).glb',    skeleton:'biped',      icon:'🧍'},
   {name:'Dog',              file:'Dog (quadruped).glb',  skeleton:'quadruped',  icon:'🐾'},
@@ -6450,7 +6462,7 @@ async function loadSampleModel(s){
 async function renderSampleCard(){
   const card=$('#sampleCard'); if(!card) return;
   // probe the tiny README, not the big GLBs — a HEAD on a large static file gets ERR_ABORTED on some hosts
-  let ok=false; try{ const r=await fetch(SAMPLE_DIR+'README.txt',{cache:'no-store'}); ok=r.ok; }catch(e){}
+  let ok=false; for(const dir of ['../samples/','./samples/']){ try{ const r=await fetch(dir+'README.txt',{cache:'no-store'}); if(r.ok){ SAMPLE_DIR=dir; ok=true; break; } }catch(e){} }
   const host=$('#sampleModels'); host.innerHTML='';
   const row=(icon,name,sub,onLoad,fromPack)=>{ const el=document.createElement('div'); el.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:6px';
     el.innerHTML=`<span style="font-size:16px">${icon}</span>`

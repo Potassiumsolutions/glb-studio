@@ -1545,6 +1545,67 @@ const BIRD_FLIGHT_MOTIONS=[
     tuckLegs(0.75*(1-reach));
     BIRD_LEGS.forEach(L=>{ sw(L[0],AX.x, 0.70*reach*A); sw(L[2],AX.x, 0.35*reach*A); });   // feet swing forward for the perch
     setRootY((0.30 - 0.30*ramp(u,0.5,1))*A); }},
+  // ——— Perched (on the FLIGHT rig, for a wings-FOLDED mesh) ———
+  // A bird modelled in a perched pose (Character Rigger 'Bird → Perched') already has its wings folded in the
+  // MESH, on the same 35-bone sig as the flight rig. So the right perched idle here touches ONLY the body /
+  // head / tail and leaves every wing bone at rest: retargeted, a zero wing-delta keeps the mesh's own folded
+  // wings exactly as modelled (foldWings/perchPose would instead re-aim them and hunch a folded wing). On a
+  // spread-wing flight mesh this same clip just stands with wings out — harmless, and not a pose you'd pick there.
+  {id:'perch', name:'Perched Idle', cat:'Perched', type:'stay', dur:3.20, build:(t,P)=>{
+    resetPose(); const A=P.amp, u=(t/3.20*P.speed)%1, br=Math.sin(TAU*u*2);
+    // Built for a model whose wings are FOLDED in the mesh (Meshy perched/at-rest sculpt). Touch ONLY the body /
+    // head / tail and leave every wing bone at rest: a zero wing-delta keeps the mesh's own folded wings exactly
+    // as modelled. (On a wings-OPEN mesh this same clip just stands with wings out — pair it with a folded model.)
+    sw(BIRD_BODY,AX.x, br*0.025*A);
+    sw(BIRD_NECK[0],AX.x, -br*0.040*A);
+    sw(BIRD_HEAD,AX.y, (Math.round(Math.sin(TAU*u)*2)/2)*0.30*A);              // stepped = saccadic
+    BIRD_TAIL.forEach((tb,i)=>sw(tb,AX.x, Math.sin(TAU*u + i*0.4)*0.035*A));
+    birdGround(); }},
+  // More perched behaviours for a FOLDED-wing mesh: same body/head/tail/leg motion as the perched set below,
+  // but built on resetPose() with NO wingPose — the wing bones never move, so the mesh's folded wings stay put.
+  // (The versions in BIRD_PERCHED_MOTIONS fold+accent the wings for the spread-wing flight mesh; these don't.)
+  {id:'perchpeck', name:'Peck / Feed (perched)', cat:'Perched', type:'stay', dur:0.90, build:(t,P)=>{
+    resetPose(); const A=P.amp, u=(((t/0.90)*P.speed)%1+1)%1, d=Math.max(0,Math.sin(TAU*u));
+    sw(BIRD_NECK[0],AX.x, d*0.95*A); sw(BIRD_HEAD,AX.x, d*0.55*A); sw(BIRD_BODY,AX.x, d*0.22*A);
+    BIRD_TAIL.forEach(tb=>sw(tb,AX.x,-d*0.20*A)); birdGround(); }},
+  {id:'perchlook', name:'Look Around (perched)', cat:'Perched', type:'stay', dur:2.80, build:(t,P)=>{
+    resetPose(); const A=P.amp, u=(t/2.80*P.speed)%1;
+    const step=(Math.floor(u*4)%4), tgt=[0.6,-0.2,-0.7,0.15][step], k=smooth(clamp((u*4)%1/0.35,0,1)), prev=[0.15,0.6,-0.2,-0.7][step];
+    sw(BIRD_HEAD,AX.y,(prev + (tgt-prev)*k)*A); sw(BIRD_NECK[0],AX.y,(prev + (tgt-prev)*k)*0.35*A);
+    sw(BIRD_HEAD,AX.z, Math.sin(TAU*u*2)*0.18*A); birdGround(); }},
+  {id:'perchpreen', name:'Preen (perched)', cat:'Perched', type:'stay', dur:2.60, build:(t,P)=>{
+    resetPose(); const A=P.amp, u=(t/2.60*P.speed)%1, k=bump(u,0.5,0.42), nib=Math.sin(TAU*u*9);
+    sw(BIRD_NECK[0],AX.y, 0.85*k*A); sw(BIRD_NECK[0],AX.x, 0.55*k*A);
+    sw(BIRD_HEAD,AX.y, 0.55*k*A); sw(BIRD_HEAD,AX.x, (0.35 + 0.12*nib)*k*A);
+    sw(BIRD_BODY,AX.z, 0.10*k*A); birdGround(); }},
+  {id:'perchcall', name:'Call / Screech (perched)', cat:'Perched', type:'stay', dur:1.60, build:(t,P)=>{
+    resetPose(); const A=P.amp, u=(t/1.60*P.speed)%1, k=Math.max(0,Math.sin(TAU*u*2))*(u<0.75?1:0);
+    sw(BIRD_NECK[0],AX.x, -0.55*k*A); sw(BIRD_HEAD,AX.x, -0.35*k*A); sw(BIRD_BODY,AX.x, -0.14*k*A);
+    BIRD_TAIL.forEach(tb=>sw(tb,AX.x, 0.22*k*A)); birdGround(); }},
+  {id:'perchalert', name:'Alert (perched)', cat:'Perched', type:'stay', dur:2.40, build:(t,P)=>{
+    resetPose(); const A=P.amp, u=(t/2.40*P.speed)%1, k=ramp(u,0.05,0.35)-ramp(u,0.75,1);
+    BIRD_LEGS.forEach(L=>{ sw(L[0],AX.x,0.30*k*A); sw(L[1],AX.x,-0.45*k*A); sw(L[2],AX.x,0.18*k*A); });
+    sw(BIRD_BODY,AX.x, 0.20*k*A); sw(BIRD_NECK[0],AX.x, -0.30*k*A);
+    sw(BIRD_HEAD,AX.y, Math.sin(TAU*u*3)*0.20*k*A); birdGround(); }},
+  {id:'perchruffle', name:'Ruffle / Shake (perched)', cat:'Perched', type:'stay', dur:1.00, build:(t,P)=>{
+    resetPose(); const A=P.amp, u=(t/1.00*P.speed)%1, env=bump(u,0.45,0.40), w=Math.sin(TAU*u*7);
+    sw(BIRD_BODY,AX.z, w*0.16*env*A); sw(BIRD_BODY,AX.y, -w*0.10*env*A);
+    sw(BIRD_HEAD,AX.y, w*0.45*env*A); sw(BIRD_NECK[0],AX.y, w*0.20*env*A);
+    BIRD_TAIL.forEach(tb=>sw(tb,AX.y, -w*0.25*env*A)); birdGround(); }},
+  {id:'perchwalk', name:'Walk (perched)', cat:'Perched', type:'move', dur:0.80, build:(t,P)=>{
+    resetPose(); const A=P.amp, u=(((t/0.80)*P.speed)%1+1)%1;
+    BIRD_LEGS.forEach((L,i)=>{ const p=(u + i*0.5)%1, sw0=Math.sin(TAU*p);
+      sw(L[0],AX.x, -sw0*0.40*A); sw(L[1],AX.x, Math.max(0,sw0)*0.65*A); sw(L[2],AX.x, -Math.max(0,sw0)*0.30*A); });
+    sw(BIRD_BODY,AX.x, 0.10*A); sw(BIRD_BODY,AX.z, Math.sin(TAU*u)*0.07*A);
+    sw(BIRD_NECK[0],AX.x, Math.sin(TAU*u)*0.16*A); sw(BIRD_HEAD,AX.x, -Math.sin(TAU*u)*0.14*A);
+    birdGround('up'); }},
+  {id:'perchhop', name:'Hop (perched)', cat:'Perched', type:'move', dur:0.60, build:(t,P)=>{
+    resetPose(); const A=P.amp, u=(((t/0.60)*P.speed)%1+1)%1;
+    const j=jumpProfile(u,{crouchEnd:0.24,takeoff:0.36,land:0.72,dip:0.10,height:0.16,absorb:0.07});
+    BIRD_LEGS.forEach(L=>{ sw(L[0],AX.x, (0.55*j.crouch + 0.45*j.flight)*A);
+                           sw(L[1],AX.x,-(0.85*j.crouch + 0.70*j.flight)*A);
+                           sw(L[2],AX.x, (0.35*j.crouch + 0.30*j.flight)*A); });
+    sw(BIRD_BODY,AX.x, (0.16*j.crouch - 0.20*j.air)*A); setRootY(j.y*A); }},
 ];
 const BIRD_PERCHED_MOTIONS=[
   // ——— Perched ———
