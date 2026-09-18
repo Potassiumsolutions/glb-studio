@@ -46,8 +46,18 @@
   .tag{font-size:10px;padding:1px 6px;border-radius:20px;background:#22304a;color:#a9c2ee;margin-left:6px}
   @media (max-width:720px){ .flow,.tab .n{display:none} }
   /* About / instructions */
-  #about{position:absolute;inset:0;z-index:40;background:rgba(4,6,10,.72);display:none;align-items:flex-start;justify-content:center;overflow:auto;padding:34px 18px}
-  #about.open{display:flex}
+  #about,#upgrades{position:absolute;inset:0;z-index:40;background:rgba(4,6,10,.72);display:none;align-items:flex-start;justify-content:center;overflow:auto;padding:34px 18px}
+  #about.open,#upgrades.open{display:flex}
+  .updrop{border:1.5px dashed var(--line);border-radius:12px;padding:20px;text-align:center;color:var(--muted);font-size:13px;cursor:pointer;background:#12161d;transition:border-color .15s;display:block}
+  .updrop:hover,.updrop.hot{border-color:var(--accent)}
+  .modcard{display:flex;align-items:center;gap:12px;border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-top:12px;background:#12161d}
+  .modcard .mic{font-size:26px;width:40px;text-align:center}
+  .modcard .mmeta{flex:1;min-width:0}
+  .modcard .mmeta .mnm{font-weight:700}
+  .modcard .mmeta .msub{color:var(--muted);font-size:12px;margin-top:2px}
+  .modbadge{font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px}
+  .modbadge.on{background:#1e3a2a;color:#7fe0a8}
+  .modbadge.off{background:#3a2a1e;color:#e0b87f}
   .sheet{width:min(880px,100%);background:var(--bar);border:1px solid var(--line);border-radius:16px;box-shadow:0 24px 70px rgba(0,0,0,.5);overflow:hidden}
   .sheet-hd{position:sticky;top:0;display:flex;align-items:center;justify-content:space-between;padding:16px 22px;background:linear-gradient(135deg,rgba(91,140,255,.16),rgba(55,208,160,.12));border-bottom:1px solid var(--line);z-index:2}
   .sheet-hd h1{margin:0;font-size:19px;letter-spacing:.2px}
@@ -76,12 +86,14 @@
       <div class="tab" data-tool="rig"><span>🧍</span> Rig <span class="n">1</span></div>
       <div class="tab" data-tool="animate"><span>🐾</span> Animate <span class="n">2</span></div>
       <div class="tab" data-tool="stitch"><span>🎬</span> Stitch <span class="n">3</span></div>
+      <div class="tab" data-tool="tabletop"><span>🎲</span> Tabletop <span class="n">4</span></div>
     </nav>
-    <span class="flow">Rig a model → <b>Library</b> → Animate &amp; Stitch</span>
+    <span class="flow">Rig &amp; animate → <b>Library</b> → Stitch films or play on the <b>Tabletop</b></span>
     <div class="spacer"></div>
     <div class="lib" id="libBtn" title="Studio Library — shared between all tools">
       <span class="dot">◆</span> Library:&nbsp;<b id="cModels">0</b>&nbsp;models&nbsp;·&nbsp;<b id="cMotions">0</b>&nbsp;motions
     </div>
+    <div class="lib" id="upgradesBtn" title="Unlock expansion packs" style="gap:6px">✨&nbsp;Upgrades</div>
     <div class="lib" id="aboutBtn" title="How KSOL Designs GLB Studio works" style="gap:6px">❔&nbsp;About</div>
   </header>
   <main>
@@ -150,13 +162,30 @@
       </div>
     </div>
   </div>
+
+  <div id="upgrades">
+    <div class="sheet">
+      <div class="sheet-hd">
+        <div><h1>✨ Upgrades &amp; expansion packs</h1><div class="sub">Unlock extra content — imports with a key from Patreon</div></div>
+        <span class="x" id="upgradesX">✕ Close</span>
+      </div>
+      <div class="sheet-body">
+        <p class="lead">The <b>🎲 Tabletop</b> tab comes free with square boards, three classic games and the map builder. Expansion packs add hex boards, more terrain, battle-scale maps and race games — download the <span class="pill2">.studiokey</span> from <a href="https://www.patreon.com/KsolDesigns" target="_blank" rel="noopener">Patreon</a>, import it here, and it unlocks on this device.</p>
+        <label class="updrop" id="keyDrop">Import an upgrade <b>.studiokey</b><br><span class="tag" style="margin:0">drop it here or click to choose</span>
+          <input type="file" id="keyInput" accept=".studiokey,.json,application/json" hidden></label>
+        <div id="modList"></div>
+        <div class="callout" style="margin-top:16px">Get keys at <a href="https://www.patreon.com/KsolDesigns" target="_blank" rel="noopener">patreon.com/KsolDesigns</a>. Unlocks are stored in this browser; re-import a key anytime.</div>
+      </div>
+    </div>
+  </div>
 </div>
 <script src="studio-lib.js"></script>
 <script>
   const TOOLS = {
-    rig:     '../character-rigger/index.html',
-    animate: '../rig-animator/index.html',
-    stitch:  '../glb-stitcher/index.html',
+    rig:      '../character-rigger/index.html',
+    animate:  '../rig-animator/index.html',
+    stitch:   '../glb-stitcher/index.html',
+    tabletop: '../tabletop/index.html',
   };
   const frame = document.getElementById('frame');
   const tabs = [...document.querySelectorAll('.tab')];
@@ -189,7 +218,52 @@
   document.getElementById('aboutBtn').addEventListener('click', ()=>about.classList.add('open'));
   document.getElementById('aboutX').addEventListener('click', ()=>about.classList.remove('open'));
   about.addEventListener('click', e=>{ if(e.target===about) about.classList.remove('open'); });
-  document.addEventListener('keydown', e=>{ if(e.key==='Escape'){ about.classList.remove('open'); drawer.classList.remove('open'); } });
+
+  // ---- Upgrades: import an expansion .studiokey → unlock content in the 🎲 Tabletop tab ----
+  // Keys write ids into localStorage['studio.tabletop.exp']; the Tabletop iframe (same origin) reads them.
+  const EXPANSIONS = {
+    terrain:    { icon:'⛰', name:'Terrain Pack',     blurb:'Hex boards, desert / mountains / wetlands themes & textures, extra Extend terrains, and farmland.' },
+    battlemaps: { icon:'⚔', name:'Battle Maps Pack', blurb:'Battle (D&D 5-ft) scale mode plus real-world satellite / relief / night / antique base maps.' },
+    race:       { icon:'🏁', name:'Race Games',       blurb:'Roll-and-move race games on the tabletop (Derby Loop — with more to come).' },
+  };
+  const ttExp = ()=>{ try{ return new Set(JSON.parse(localStorage.getItem('studio.tabletop.exp')||'[]').filter(id=>EXPANSIONS[id])); }catch(e){ return new Set(); } };
+  const ttSave = s => localStorage.setItem('studio.tabletop.exp', JSON.stringify([...s]));
+  const reloadTabletop = ()=>{ if(location.hash.slice(1)==='tabletop'){ try{ frame.contentWindow.location.reload(); }catch(e){ show('tabletop'); } } };
+  const upgrades = document.getElementById('upgrades');
+  document.getElementById('upgradesBtn').addEventListener('click', ()=>{ renderExpList(); upgrades.classList.add('open'); });
+  document.getElementById('upgradesX').addEventListener('click', ()=>upgrades.classList.remove('open'));
+  upgrades.addEventListener('click', e=>{ if(e.target===upgrades) upgrades.classList.remove('open'); });
+  function renderExpList(){
+    const box=document.getElementById('modList'); box.innerHTML=''; const on=ttExp();
+    for(const id in EXPANSIONS){ const X=EXPANSIONS[id], have=on.has(id);
+      const card=document.createElement('div'); card.className='modcard';
+      card.innerHTML=`<div class="mic">${X.icon}</div>
+        <div class="mmeta"><div class="mnm">${X.name}</div><div class="msub">${X.blurb}</div></div>
+        <span class="modbadge ${have?'on':'off'}">${have?'Unlocked':'Locked'}</span>`;
+      if(have){ const rm=document.createElement('span'); rm.className='x'; rm.textContent='Remove'; rm.style.marginLeft='10px'; rm.style.cursor='pointer';
+        rm.onclick=()=>{ if(confirm('Lock '+X.name+' again? (re-import the key to unlock it)')){ const s=ttExp(); s.delete(id); ttSave(s); renderExpList(); reloadTabletop(); } };
+        card.appendChild(rm); }
+      box.appendChild(card);
+    }
+  }
+  async function importKeyText(text, name){
+    let K; try{ K=JSON.parse(text); }catch(e){ alert('“'+name+'” is not a valid upgrade key.'); return; }
+    const id = K && (K.unlock || K.module);   // accept unlock (expansion) or legacy module id
+    if(!K || (K.format!=='ksol-studio-expansion' && K.format!=='ksol-studio-module') || !EXPANSIONS[id]){ alert('“'+name+'” isn’t a GLB Studio expansion key.'); return; }
+    const X=EXPANSIONS[id], s=ttExp();
+    if(s.has(id)){ alert(X.name+' is already unlocked.'); return; }
+    s.add(id); ttSave(s); renderExpList(); reloadTabletop();
+    alert('✅ Unlocked '+X.icon+' '+X.name+' — open the 🎲 Tabletop tab to use it.');
+  }
+  (function wireKeyImport(){
+    const drop=document.getElementById('keyDrop'), inp=document.getElementById('keyInput');
+    inp.addEventListener('change', async ()=>{ for(const f of inp.files){ try{ await importKeyText(await f.text(), f.name); }catch(e){ console.error(e); } } inp.value=''; });
+    ['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{ e.preventDefault(); drop.classList.add('hot'); }));
+    ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{ e.preventDefault(); drop.classList.remove('hot'); }));
+    drop.addEventListener('drop', async e=>{ for(const f of (e.dataTransfer?.files||[])){ try{ await importKeyText(await f.text(), f.name); }catch(err){ console.error(err); } } });
+  })();
+
+  document.addEventListener('keydown', e=>{ if(e.key==='Escape'){ about.classList.remove('open'); upgrades.classList.remove('open'); drawer.classList.remove('open'); } });
   const fmtDate = t => new Date(t).toLocaleDateString(undefined,{month:'short',day:'numeric'});
   const kb = n => n>=1e6 ? (n/1e6).toFixed(1)+' MB' : Math.max(1,Math.round(n/1024))+' KB';
   const SK_ICON = {biped:'🧍', quadruped:'🐾', quad:'🐾', bird:'🐦'};

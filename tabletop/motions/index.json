@@ -1,0 +1,50 @@
+[
+ {
+  "file": "walk_biped.json",
+  "role": "walk"
+ },
+ {
+  "file": "walk_quad.json",
+  "role": "walk"
+ },
+ {
+  "file": "walk_dragon.json",
+  "role": "walk"
+ },
+ {
+  "file": "walk_pegasus.json",
+  "role": "walk"
+ },
+ {
+  "file": "walk_elephant.json",
+  "role": "walk"
+ },
+ {
+  "file": "walk_giraffe.json",
+  "role": "walk"
+ },
+ {
+  "file": "walk_reptile.json",
+  "role": "walk"
+ },
+ {
+  "file": "walk_bird.json",
+  "role": "walk"
+ },
+ {
+  "file": "fly_bird.json",
+  "role": "fly"
+ },
+ {
+  "file": "fly_dragon.json",
+  "role": "fly"
+ },
+ {
+  "file": "fly_pegasus.json",
+  "role": "fly"
+ },
+ {
+  "file": "walk_snake.json",
+  "role": "walk"
+ }
+]
