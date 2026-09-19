@@ -292,6 +292,10 @@
             <option value="quad">Quad-Fold Board (18")</option>
             <option value="quadLarge">Large Quad-Fold Board (20")</option>
           </optgroup>
+          <optgroup label="Home printing — Letter 8½×11 (print at 100%)">
+            <option value="letter">🖨 Letter Sheet · Portrait (8½×11)</option>
+            <option value="letterLand">🖨 Letter Sheet · Landscape (11×8½)</option>
+          </optgroup>
           <optgroup label="Hex mat sets — one image">
             <option value="flower">🌸 Flower Mat (7 hex)</option>
             <option value="invader">👾 Invader Mat (13 hex)</option>
@@ -341,6 +345,13 @@
         </select>
         <label class="row" style="gap:4px;cursor:pointer"><input type="checkbox" id="bGenStream" checked> <span class="mini">💧 stream</span></label>
         <label class="row" style="gap:4px;cursor:pointer"><input type="checkbox" id="bGenRoad" checked> <span class="mini">🛣 road</span></label>
+      </div>
+      <div class="row wrap" id="bTownSizeRow" style="align-items:center;display:none">
+        <label class="fld" style="margin:0">🏰 Settlement size</label>
+        <input type="number" id="bTownW" value="10" min="3" max="60" style="width:56px" title="How many cells wide the whole castle/town/village is">
+        <span class="mini">×</span>
+        <input type="number" id="bTownH" value="10" min="3" max="60" style="width:56px" title="How many cells tall">
+        <span class="mini">cells — each map piece shows the portion that falls on it; <b>Extend</b> reveals the rest.</span>
       </div>
       <div class="row wrap" style="align-items:center">
         <label class="fld" style="margin:0">🍂 Season</label>
@@ -470,8 +481,9 @@
       </div>
       <div class="row wrap"><button class="btn sec" id="bMiniClear">Clear minis</button>
         <button class="btn sec bdtool" id="bMeasureTool">📏 Measure</button>
-        <button class="btn sec bdtool" id="bGridLinesTool">▦ 5-ft grid</button></div>
-      <div class="mini">📏 Measure — click a start then an end cell for the distance in feet &amp; squares (5 ft per cell). ▦ 5-ft grid draws crisp cell outlines over the terrain.</div>
+        <button class="btn sec bdtool" id="bGridLinesTool">▦ 5-ft grid</button>
+        <button class="btn sec bdtool on" id="bRulerTool">📐 Ruler: on</button></div>
+      <div class="mini">📏 Measure — click a start then an end cell for the distance in feet &amp; squares (5 ft per cell). ▦ 5-ft grid draws crisp cell outlines over the terrain. 📐 Ruler shows inch (or cell) marks along the X &amp; Y edges + a scale bar, so you can verify the print size.</div>
       <div class="divider"></div>
       <label class="fld">◈ Subdivide — split cells into equal smaller pieces for finer detail. Turn it on, then click cells (or Subdivide all).</label>
       <div class="row wrap" style="align-items:center">
@@ -643,7 +655,7 @@ import { buildTileMesh, stepAngle as tileStepAngle, pathRibbonAlong, wallRibbonA
 
 const BGC = window.BGC, GAMES = window.BGC_GAMES;
 const TE = window.TileEngine, TLIB = window.TileLibrary;
-const APP_VERSION = 'v0.37';
+const APP_VERSION = 'v0.45';
 const CREDITS = `<b>Ksol Designs</b> — Paul A.T. Ramey<br>www.ksoldesigns.com<br>Built with GLB Studio · Tabletop<br><span class="ver">${APP_VERSION}</span>`;
 try{ document.getElementById('verBadge').textContent = APP_VERSION; }catch(e){}
 console.log('%c[Tabletop] '+APP_VERSION, 'font-weight:bold;color:#4f8cff');
@@ -1631,6 +1643,9 @@ function bBuildClick(ev){
   const pi=bPickProp(ev); if(pi>=0){ bSelectPropAt(pi); return; }
   if(bld.scale==='battle' && !bld.sel && !bld.tool){ const si=bPickStructure(ev); if(si>=0){ bToggleStructure(si); return; } }   // click a building → pop its roof
   if(typeof bClickSettlement==='function' && bClickSettlement(ev)) return;        // click a town/castle/village → zoom into its 5-ft battle map
+  if(TGC_HEXMAT[bld.tgc] && !bld.sel && !bld.tool && !bld.propKind && !bld.propGlb){   // flower/invader: click a ＋ slot to add a unit, or click a mat to select it
+    const g=bHexMatGhostAt(ev); if(g){ bPushUndo(); bAddHexMatUnit(g); bRender(); bFit(); bStatus(`Added a <b>${TGC[bld.tgc].name}</b> unit — now <b>${bld.tgcCenters.length}</b> units. Click a ＋ slot for more, or ◀▶▲▼.`); return; }
+    const u=bHexMatUnitAt(ev); if(u>=0){ bSelectHexMatUnit(u); return; } }
   const si=bPickStroke(ev); if(si>=0){ bSelectStroke(si); return; }
   if(bld.selStroke!=null) bSelectStroke(null);
   if(bld.selProp!=null){ bld.selProp=null; bRender(); }
@@ -2293,7 +2308,8 @@ const bld = { grid:'square', cols:8, rows:8, seed:7, q0:0, r0:0, board:new Map()
               props:[], propKind:null, propGlb:null, dragProp:null, propMode:'3d', propScale:1, selProp:null, wallMode:'3d', variant:'auto', miniTeam:null, measA:null, measB:null, gridLines:false, structures:[], structKey:'',
               subdiv:new Map(), subN:2, subHexMode:'tri', subTool:false,
               subpaint:new Map(), subPaintOn:false, subPaint:'water',
-              theme:'mixed', genStream:true, genRoad:true, extTerrain:'match', extFeature:'bare', repaintOn:false, tgc:'', tgcCell:1, tgcCenters:[], tgcFillTheme:'' };  // theme/stream/road drive ✨ Generate; extTerrain/extFeature drive ➕ Extend; repaintOn = click a tile to overwrite its variant; tgc = chosen The-Game-Crafter print component
+              theme:'mixed', genStream:true, genRoad:true, extTerrain:'match', extFeature:'bare', repaintOn:false, tgc:'', tgcCell:1, tgcCenters:[], tgcFillTheme:'', ruler:'on', selUnit:0, _exporting:false,
+              sheetsX:1, sheetsY:1, sheetCX:0, sheetCZ:0 };   // rect hex/square mats tile into sheetsX×sheetsY printable sheets (Extend adds a sheet); sheetC* = field-centre offset for directional growth  // theme/stream/road drive ✨ Generate; extTerrain/extFeature drive ➕ Extend; repaintOn = click a tile to overwrite its variant; tgc = chosen The-Game-Crafter print component; ruler = show inch/cell dimension rulers; selUnit = which flower/invader unit is selected for directional Extend
   // subdiv = baseKey→{mode,n}; subpaint = baseKey→{subIndex:biome}; subPaintOn = paint-sub-cells mode
   // draw = freeform strokes {type,pts,mode?}; playMode=grid|drawn; selStroke=selected drawn line; baseMap={src,crop,shape,aspect,tex}; gridScale=grid density;
   // props = [{kind,x,z,scale,mode,rot}] placed props; propKind=active prop to place; propMode=3d|2d; wallMode=3d|2d for newly drawn walls
@@ -2318,13 +2334,15 @@ function bCells(){
 // hexes whose CENTRE falls inside the mat's finished rectangle (+ half a hex so edges crop to half-hexes). Centred
 // on the origin; 1 world hex point-to-point = tgcCell inches. Fills a rectangle properly (offset layout), unlike a
 // sheared axial q,r block — so an 18" mat holds ~24×21 one-inch hexes, not a 28×39 parallelogram.
+function bSheetW(){ const c=TGC[bld.tgc]; return c?c.finished[0]/(bld.tgcCell||1):1; }   // one printable sheet, in world units
+function bSheetH(){ const c=TGC[bld.tgc]; return c?c.finished[1]/(bld.tgcCell||1):1; }
 function bHexMatFieldCells(){
   const c=TGC[bld.tgc]; if(!c) return [];
-  const cell=bld.tgcCell||1, g=bGridObj();
-  const halfW=c.finished[0]/cell/2, halfH=c.finished[1]/cell/2, m=0.5;
-  const QW=Math.ceil(halfW/0.75)+2, QH=Math.ceil(halfH/0.8660254)+QW+2, out=[];
-  for(let q=-QW;q<=QW;q++) for(let r=-QH;r<=QH;r++){ const w=g.world({q,r});
-    if(Math.abs(w.x)<=halfW+m && Math.abs(w.z)<=halfH+m) out.push({q,r}); }
+  const g=bGridObj(), cx=bld.sheetCX||0, cz=bld.sheetCZ||0;
+  const halfW=bSheetW()*(bld.sheetsX||1)/2, halfH=bSheetH()*(bld.sheetsY||1)/2, m=0.5;   // whole nx×ny sheet field, offset so Extend grows directionally
+  const QC=Math.ceil((Math.abs(cx)+halfW)/0.75)+2, QR=Math.ceil((Math.abs(cz)+halfH)/0.8660254)+QC+2, out=[];
+  for(let q=-QC;q<=QC;q++) for(let r=-QR;r<=QR;r++){ const w=g.world({q,r});
+    if(Math.abs(w.x-cx)<=halfW+m && Math.abs(w.z-cz)<=halfH+m) out.push({q,r}); }
   return out;
 }
 function bRecenter(){ const g=bGridObj(); let mnx=1e9,mxx=-1e9,mnz=1e9,mxz=-1e9;
@@ -2619,6 +2637,77 @@ function bRenderMeasure(){ if(bld.tool!=='measure' || !bld.measA) return; const 
   const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints([a,b]), new THREE.LineBasicMaterial({color:0x6fe0ff, depthTest:false})); line.renderOrder=29; builderGroup.add(line);
   const d=cellDist(bld.measA,bld.measB); const lab=bMakeLabelSprite(`${d*FT_PER_CELL} ft · ${d} sq`);
   lab.position.set((a.x+b.x)/2, TILE_TOP+1.1, (a.z+b.z)/2); builderGroup.add(lab); }
+
+/* ---- 📐 DIMENSION RULER: inch (or cell) ticks along the X & Y edges + a 1-unit scale bar, so the print
+   size is verifiable at a glance. 1 hex point-to-point = 1 world unit; bWorldToInch converts to real inches
+   for the chosen print component (hexes stay 1" point-to-point, matching TGC's tile/flower/invader templates). */
+function bWorldToInch(){ const c=TGC[bld.tgc];
+  if(!c) return {per:1, unit:'cell'};                    // no print size chosen → count in cells
+  if(c.fit) return {per:1, unit:'in'};                   // flower / invader: fixed 1" hexes
+  if(c.kind==='tile') return {per:c.finished[0], unit:'in'};
+  return {per:(bld.tgcCell||1), unit:'in'}; }            // mats/boards: cell = tgcCell inches
+function bRulerExtent(){ const c=TGC[bld.tgc];
+  if(c && c.kind==='mat' && !c.fit && bld.grid==='hex'){ const hw=bSheetW()*(bld.sheetsX||1)/2, hh=bSheetH()*(bld.sheetsY||1)/2;   // whole nx×ny sheet board (scene frame)
+    const cx=(bld.sheetCX||0)-bld.off.x, cz=(bld.sheetCZ||0)-bld.off.z;
+    return {x0:cx-hw, x1:cx+hw, z0:cz-hh, z1:cz+hh}; }
+  let cells=[...bld.board.keys()].map(k=>{ const [q,r]=k.split(',').map(Number); return {q,r}; }); if(!cells.length) cells=bCells();
+  let mnx=1e9,mxx=-1e9,mnz=1e9,mxz=-1e9; const cor=bGridObj().corners();
+  for(const cc of cells){ const w=bWorld(cc); for(const cn of cor){ const x=w.x+cn[0], z=w.z+cn[1]; if(x<mnx)mnx=x;if(x>mxx)mxx=x;if(z<mnz)mnz=z;if(z>mxz)mxz=z; } }
+  if(mnx>mxx) return {x0:-1,x1:1,z0:-1,z1:1};
+  return {x0:mnx,x1:mxx,z0:mnz,z1:mxz}; }
+function bMakeTickLabel(text){ const cv=document.createElement('canvas'); cv.width=96; cv.height=48; const x=cv.getContext('2d');
+  x.font='bold 30px system-ui,Arial'; x.textAlign='center'; x.textBaseline='middle';
+  x.lineWidth=6; x.strokeStyle='rgba(8,11,16,0.92)'; x.strokeText(text,48,24); x.fillStyle='#ffe9b0'; x.fillText(text,48,24);
+  const tex=new THREE.CanvasTexture(cv); tex.anisotropy=4;
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,depthTest:false,transparent:true})); sp.renderOrder=31; sp.scale.set(0.72,0.36,1); return sp; }
+function bRulerDims(){ const wt=bWorldToInch(), ext=bRulerExtent();
+  return { wIn:(ext.x1-ext.x0)*wt.per, hIn:(ext.z1-ext.z0)*wt.per, unit:wt.unit, per:wt.per }; }
+function bRenderRuler(){ if(bld.ruler==='off' || TGC_HEXMAT[bld.tgc]) return;       // flower/invader use the ＋/select UI, not a ruler
+  if(bld._exporting && bld.ruler!=='print') return;                                 // 'on' = screen only; 'print' = also baked into the export
+  const wt=bWorldToInch(), ext=bRulerExtent();
+  const perW=1/wt.per; if(!isFinite(perW)||perW<=0) return;                       // world units per 1 inch/cell
+  const wSpanIn=(ext.x1-ext.x0)*wt.per, hSpanIn=(ext.z1-ext.z0)*wt.per;
+  // Hex-filled mats CLIP the view to the finished rectangle, and global clip planes can't be opted out per
+  // object — so the ruler is drawn just INSIDE the board edges (ticks point inward) to stay visible.
+  const y=TILE_TOP+0.06, inset=0.06, tick=0.34, col=0xffe08a, seg=[];
+  const addLine=(x1,z1,x2,z2)=>seg.push(x1,y,z1, x2,y,z2);
+  const stepIn = Math.max(wSpanIn,hSpanIn)>26?5 : Math.max(wSpanIn,hSpanIn)>13?2 : 1;   // thin labels on big boards
+  const zX=ext.z1-inset; addLine(ext.x0,zX, ext.x1,zX);                            // X ruler along the bottom (inside)
+  for(let n=0; n*perW<=(ext.x1-ext.x0)+0.02; n++){ const X=ext.x0+n*perW, big=(n%stepIn===0);
+    addLine(X,zX, X,zX-(big?tick:tick*0.5));                                       // ticks point inward (−z)
+    if(big){ const l=bMakeTickLabel(''+n); l.position.set(X,y+0.02,zX-tick-0.30); builderGroup.add(l); } }
+  const xY=ext.x0+inset; addLine(xY,ext.z0, xY,ext.z1);                            // Y ruler along the left (inside)
+  for(let n=0; n*perW<=(ext.z1-ext.z0)+0.02; n++){ const Z=ext.z0+n*perW, big=(n%stepIn===0);
+    addLine(xY,Z, xY+(big?tick:tick*0.5),Z);                                       // ticks point inward (+x)
+    if(big){ const l=bMakeTickLabel(''+n); l.position.set(xY+tick+0.32,y+0.02,Z); builderGroup.add(l); } }
+  const g=new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(seg,3));
+  builderGroup.add(new THREE.LineSegments(g, new THREE.LineBasicMaterial({color:col,transparent:true,opacity:0.95,depthTest:false})));
+  // 1-unit scale bar (cyan, end caps) + a units label, tucked just inside the top-left corner
+  const sbZ=ext.z0+inset+0.32, s0=ext.x0+inset, s1=ext.x0+inset+perW, sc=[s0,y,sbZ,s1,y,sbZ, s0,y,sbZ-0.12,s0,y,sbZ+0.12, s1,y,sbZ-0.12,s1,y,sbZ+0.12];
+  const sg=new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.Float32BufferAttribute(sc,3));
+  builderGroup.add(new THREE.LineSegments(sg, new THREE.LineBasicMaterial({color:0x6fe0ff,depthTest:false})));
+  const unit=wt.unit==='in'?'in':'cell'; const sl=bMakeTickLabel('1 '+unit); sl.position.set((s0+s1)/2,y+0.02,sbZ+0.34); builderGroup.add(sl); }
+// 3-state ruler: off → on (screen only) → on+print (baked into the export image) → off …
+const RULER_STATES=['off','on','print'];
+// multi-sheet rect board: dashed pink lines showing where the print sheets are cut (screen aid, never exported)
+function bRenderSheetGuides(){ if(bld._exporting) return; const c=TGC[bld.tgc];
+  if(!(c && c.kind==='mat' && !c.fit && bld.grid==='hex')) return;
+  const nx=bld.sheetsX||1, ny=bld.sheetsY||1; if(nx*ny<2) return;
+  const sw=bSheetW(), sh=bSheetH(), hw=sw*nx/2, hh=sh*ny/2;
+  const cx=(bld.sheetCX||0)-bld.off.x, cz=(bld.sheetCZ||0)-bld.off.z, y=TILE_TOP+0.075, seg=[];
+  for(let i=1;i<nx;i++){ const X=cx-hw+i*sw; seg.push(X,y,cz-hh, X,y,cz+hh); }
+  for(let j=1;j<ny;j++){ const Z=cz-hh+j*sh; seg.push(cx-hw,y,Z, cx+hw,y,Z); }
+  if(!seg.length) return;
+  const g=new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(seg,3));
+  const m=new THREE.LineSegments(g, new THREE.LineDashedMaterial({color:0xff5aa0, dashSize:0.45, gapSize:0.28, transparent:true, depthTest:false}));
+  m.computeLineDistances(); m.renderOrder=22; builderGroup.add(m); }
+function bRulerSet(v){ bld.ruler = v!=null ? v : RULER_STATES[(RULER_STATES.indexOf(bld.ruler)+1)%3];
+  const b=document.getElementById('bRulerTool');
+  if(b){ b.classList.toggle('on', bld.ruler!=='off'); b.textContent = '📐 Ruler: '+(bld.ruler==='print'?'on+print':bld.ruler); }
+  bRender();
+  bStatus(bld.ruler==='off' ? '📐 Ruler <b>off</b>.'
+        : bld.ruler==='print' ? '📐 Ruler <b>on + print</b> — shows on screen AND is baked into the exported image.'
+        : '📐 Ruler <b>on</b> — shows on screen only (not in the exported print).'); }
 /* ============================================================================
    STUDIO LIBRARY PROPS — real GLB models from GLB Studio, placeable + movable.
    Sources: built-in scene props / held items (studio-assets junction → GLB Stitcher),
@@ -2939,7 +3028,7 @@ function bRender(){
   // hex-filled mat: CLIP the live view to the mat's exact finished rectangle (e.g. 18×18) so the board on screen
   // IS that size with half-hexes squared off at the edges — matching the print. Everything else: no clipping.
   { const cc=TGC[bld.tgc];
-    if(cc && cc.kind==='mat' && !cc.fit && bld.grid==='hex'){ const cell=bld.tgcCell||1, hw=cc.finished[0]/cell/2, hh=cc.finished[1]/cell/2;
+    if(cc && cc.kind==='mat' && !cc.fit && bld.grid==='hex'){ const hw=bSheetW()*(bld.sheetsX||1)/2, hh=bSheetH()*(bld.sheetsY||1)/2;   // clip to the WHOLE nx×ny sheet board
       renderer.clippingPlanes=[ new THREE.Plane(new THREE.Vector3(-1,0,0),hw), new THREE.Plane(new THREE.Vector3(1,0,0),hw),
                                 new THREE.Plane(new THREE.Vector3(0,0,-1),hh), new THREE.Plane(new THREE.Vector3(0,0,1),hh) ];
     } else renderer.clippingPlanes=[]; }
@@ -2977,6 +3066,9 @@ function bRender(){
   bRenderSubdiv();                                                  // finer-grid overlays on subdivided cells
   bRenderGridLines();                                               // 5-ft grid overlay (cell outlines) when toggled on
   bRenderMeasure();                                                 // the ruler (measure tool) — line + ft/squares label
+  bRenderRuler();                                                   // 📐 inch/cell dimension ruler along X & Y + scale bar
+  bRenderHexMatGhosts();                                            // flower/invader: selected-unit ring + ＋ ghost slots
+  bRenderSheetGuides();                                             // multi-sheet rect board: pink dashed lines where the print sheets cut
   if(PLAYB) for(const [,p] of pb.pawns) builderGroup.add(p.mesh);   // keep pawns on top of a re-render
   bInfo();
 }
@@ -3135,7 +3227,11 @@ function bPlaceNorthArrow(){ const arrow=bNorthArrow();
 function bInfo(){ const el=document.getElementById('bInfo'); if(!el) return;
   const gr=TE.boardToGraph(bld.grid, bld.board, bDefs(), bld.zones);
   const walk=gr.walkNetworks[0]?gr.walkNetworks[0].length:0;
-  el.innerHTML=`<b>${gr.nodeCount}</b> tiles · ${gr.linkCount} links · longest road/trail route <b>${walk}</b> tiles`; }
+  let dim='';
+  if(bld.ruler!=='off'){ const d=bRulerDims(); const u=d.unit==='in'?'in':'cells';
+    const hx = bld.grid==='hex' ? `${d.per.toFixed(2)}" hexes (pt-to-pt)` : `${d.per.toFixed(2)}" cells`;
+    dim = ` · <b>📐 ${d.wIn.toFixed(1)} × ${d.hIn.toFixed(1)} ${u}</b>${TGC[bld.tgc]?` · ${hx}`:''}`; }
+  el.innerHTML=`<b>${gr.nodeCount}</b> tiles · ${gr.linkCount} links · longest road/trail route <b>${walk}</b> tiles${dim}`; }
 
 /* ---- picking ---- */
 const _bPickPlane=new THREE.Plane(new THREE.Vector3(0,1,0), -TILE_TOP), _bHit=new THREE.Vector3();
@@ -3201,21 +3297,71 @@ function bFit(){ const R=(bld.radius||6);
   if(camMode==='top'){ applyView({ pos:new THREE.Vector3(0, R*2.3, 0.01), tgt:new THREE.Vector3(0,0,0), up:new THREE.Vector3(0,0,-1) }, true); return; }
   applyView({ pos:new THREE.Vector3(R*0.85,R*1.15+2,R*1.15), tgt:new THREE.Vector3(0,0,0), up:new THREE.Vector3(0,1,0) }, true); }
 const SETTLE_THEMES={castle:'🏰 Castle',town:'🏘 Town',village:'🛖 Village'};
+// On flower/invader mats a named single-terrain theme fills as its base biome (clean, consistent, tiles unit-to-unit).
+// (mixed + wetlands keep the varied map generator; settlement themes are handled separately.)
+const FLOWER_THEME_MAP={grassland:'biome:plains', forest:'biome:forest', desert:'biome:sand', mountains:'biome:mountains'};
 const BIOME_FILL_NAMES={plains:'Grass / Plains',forest:'Forest',sand:'Desert',water:'Water',mountains:'Mountains',snow:'Snow',rocks:'Rocky',dirt:'Dirt'};
+/* ==== PLANNED SETTLEMENT: a castle/town/village generated ONCE at a chosen size (in cells), stored, and then
+   REVEALED piece-by-piece — each map component shows only the portion of the plan that lands on it, so a big
+   castle can span many flower units / print sheets and fill in as you Extend. ==== */
+let _settlePlan=null;
+function bSettleRegionCells(w,h,anchor){                                  // ~w×h WORLD-rectangle block of cells centred on `anchor`
+  const g=bGridObj(), aw=g.world(anchor);
+  const halfW=(bld.grid==='hex'? w*0.75 : w)/2, halfH=(bld.grid==='hex'? h*0.8660254 : h)/2, m=0.35, out=[];
+  for(let dq=-w-3; dq<=w+3; dq++) for(let dr=-h-3; dr<=h+3; dr++){ const c={q:anchor.q+dq, r:anchor.r+dr}, wc=g.world(c);
+    if(Math.abs(wc.x-aw.x)<=halfW+m && Math.abs(wc.z-aw.z)<=halfH+m) out.push(c); }
+  return out; }
+function bAnchorCell(){ const g=bGridObj(), cx=bld.sheetCX||0, cz=bld.sheetCZ||0; let best=null,bd=Infinity;
+  for(const c of bFillCells()){ const w=g.world(c); const d=(w.x-cx)**2+(w.z-cz)**2; if(d<bd){bd=d;best=c;} } return best||bHexMatCenter(); }
+function bBuildSettlePlan(type,w,h){                                      // generate the FULL settlement once → _settlePlan
+  const anchor=bAnchorCell(), cells=bSettleRegionCells(w,h,anchor), tmp=new Map();
+  const r=TE.generateSettlement(bld.grid, tmp, cells, bDefs(), {seed:bld.seed, settlementType:type});
+  const tiles=new Map(); for(const [k,v] of tmp) tiles.set(k,{defId:v.defId, rot:v.rot||0});
+  _settlePlan={ type, seed:bld.seed, w, h, anchor, tiles, walls:Array.isArray(r.draw)?r.draw:[], props:Array.isArray(r.props)?r.props:[], buildings:r.buildings||0 };
+  return _settlePlan; }
+function bClipStrokesToRevealed(strokes, revealed){                       // keep only wall/road segments over revealed cells
+  const g=bGridObj(), C=[]; for(const k of revealed){ const [q,r]=k.split(',').map(Number); const w=g.world({q,r}); C.push([w.x,w.z]); }
+  const near=(x,z)=>{ for(const c of C){ if((c[0]-x)**2+(c[1]-z)**2 <= 0.58*0.58) return true; } return false; };
+  const out=[]; for(const s of strokes){ let cur=null;
+    for(let i=0;i<s.pts.length-1;i++){ const a=s.pts[i], b=s.pts[i+1], mx=(a[0]+b[0])/2, mz=(a[1]+b[1])/2;
+      if(near(mx,mz)){ if(!cur) cur={type:s.type, mode:s.mode, pts:[a.slice()]}; cur.pts.push(b.slice()); }
+      else { if(cur&&cur.pts.length>=2) out.push(cur); cur=null; } }
+    if(cur&&cur.pts.length>=2) out.push(cur); }
+  return out; }
+function bRevealSettlePlan(){                                             // fill the CURRENT piece from the plan; land elsewhere
+  if(!_settlePlan) return 0;
+  const foot=bFillCells(), revealed=new Set(), ground=[]; bld.board.clear();
+  for(const c of foot){ const k=TE.keyOf(c);
+    if(_settlePlan.tiles.has(k)){ bld.board.set(k, {..._settlePlan.tiles.get(k)}); revealed.add(k); } else ground.push(c); }
+  if(ground.length) TE.generateBiomeFill(bld.grid, bld.board, ground, bDefs(), {seed:_settlePlan.seed, biome:'green', append:true});   // surrounding land (green abuts city/plains/village/forest naturally)
+  bld.draw = bClipStrokesToRevealed(_settlePlan.walls, revealed);
+  bld.props = (_settlePlan.props||[]).filter(p=>{ const g=bGridObj(); for(const k of revealed){ const [q,r]=k.split(',').map(Number); const w=g.world({q,r}); if((w.x-p.x)**2+(w.z-p.z)**2<=0.5*0.5) return true; } return false; }).map(p=>({...p, rot:p.rot||0}));
+  return revealed.size; }
 function bGenerateMap(){ bPushUndo();
-  if(TGC_HEXMAT[bld.tgc]){ bTgcFit(); bld.tgcCenters=[bHexMatCenter()]; bld.tgcFillTheme=bld.theme; }   // fresh single flower/invader unit; Extend adds more
-  if(bld.theme && bld.theme.startsWith('biome:')){    // single-biome base-terrain fill (desert tiles, all-forest flower mat, etc.)
-    const biome=bld.theme.slice(6);
-    const r=TE.generateBiomeFill(bld.grid, bld.board, bCells(), bDefs(), {seed:bld.seed, biome});
+  if(!SETTLE_THEMES[bld.theme]) _settlePlan=null;                        // a non-settlement generate clears any planned settlement
+  // On the SMALL flower/invader mats, a named terrain theme fills as its base biome (clean + consistent across
+  // units) instead of the full map generator — whose rivers/rocks/forest ratios are tuned for a big map and jam
+  // a 7-hex flower with water + rock + almost no grass. Rect boards/mats keep the full generator.
+  let eff = bld.theme;
+  if(TGC_HEXMAT[bld.tgc]){ bTgcFit(); bld.tgcCenters=[bHexMatCenter()]; bld.selUnit=0;
+    eff = FLOWER_THEME_MAP[bld.theme] || bld.theme; bld.tgcFillTheme = eff; }
+  if(eff && eff.startsWith('biome:')){                // single-biome base-terrain fill (desert tiles, all-forest flower mat, clean grassland, etc.)
+    const biome=eff.slice(6);
+    const r=TE.generateBiomeFill(bld.grid, bld.board, bFillCells(), bDefs(), {seed:bld.seed, biome});
     bld.draw=[]; bld.pen=[]; bld.props=[]; bld.selStroke=null; bld.selProp=null; if(TGC_HEXMAT[bld.tgc]) bTrimToHexMatShape(); bRender(); bFit();
-    bStatus(`Filled the board with <b>${BIOME_FILL_NAMES[biome]||biome}</b> — ${r.placed} base tiles. Pick a 🖨 Print size + <b>Export</b> for a single-biome tile set / mat.`); return;
+    bStatus(`Filled the board with <b>${BIOME_FILL_NAMES[biome]||biome}</b> — ${r.placed} base tiles${TGC_HEXMAT[bld.tgc]?' · <b>Extend</b> (◀▶▲▼ or a ＋ slot) adds matching units':''}. Pick a 🖨 Print size + <b>Export</b>.`); return;
   }
-  if(SETTLE_THEMES[bld.theme]){                       // whole-map settlement themes → the settlement generator
-    const r=TE.generateSettlement(bld.grid, bld.board, bCells(), bDefs(), {seed:bld.seed, settlementType:bld.theme});
-    bld.draw = Array.isArray(r.draw) ? r.draw : []; bld.pen=[]; bld.props=[]; bld.selStroke=null; bld.selProp=null; if(TGC_HEXMAT[bld.tgc]) bTrimToHexMatShape(); bRender(); bFit();
-    bStatus(`Generated a <b>${SETTLE_THEMES[bld.theme]}</b> <b>#${bld.seed}</b> — ${r.buildings} buildings · tip: switch to <b>⚔ Battle (5 ft)</b> to explore it · press <b>✨ Generate</b> for another`); return;
+  if(SETTLE_THEMES[bld.theme]){                       // settlement themes → plan the whole thing at the chosen size, reveal this piece's portion
+    const w=Math.max(3,Math.min(60, parseInt(document.getElementById('bTownW')?.value)||10));
+    const h=Math.max(3,Math.min(60, parseInt(document.getElementById('bTownH')?.value)||10));
+    const plan=bBuildSettlePlan(bld.theme, w, h);
+    bld.pen=[]; bld.selStroke=null; bld.selProp=null;
+    const shown=bRevealSettlePlan();
+    if(TGC_HEXMAT[bld.tgc]) bTrimToHexMatShape(); bRender(); bFit();
+    const total=plan.tiles.size, partial = shown<total;
+    bStatus(`Planned a <b>${w}×${h}</b> <b>${SETTLE_THEMES[bld.theme]}</b> <b>#${bld.seed}</b> (${plan.buildings} buildings)${partial?` — this piece shows <b>${shown} of ${total}</b> cells; <b>Extend</b> (◀▶▲▼${TGC_HEXMAT[bld.tgc]?' or a ＋ slot':''}) reveals the rest`:''} · press <b>✨ Generate</b> for another`); return;
   }
-  const r=TE.generateMap(bld.grid, bld.board, bCells(), bDefs(), {seed:bld.seed, theme:bld.theme, stream:bld.genStream, road:bld.genRoad, battle:bld.scale==='battle'});
+  const r=TE.generateMap(bld.grid, bld.board, bFillCells(), bDefs(), {seed:bld.seed, theme:bld.theme, stream:bld.genStream, road:bld.genRoad, battle:bld.scale==='battle'});
   bld.draw = Array.isArray(r.draw) ? r.draw : []; bld.pen=[]; bld.props=[]; bld.selStroke=null; bld.selProp=null; if(TGC_HEXMAT[bld.tgc]) bTrimToHexMatShape(); bRender(); bFit();
   const themeName = ({mixed:'Mixed',forest:'Forest',grassland:'Grassland',desert:'Desert',mountains:'Mountains',wetlands:'Wetlands'})[bld.theme]||bld.theme;
   bStatus(`Generated <b>${themeName}</b> map <b>#${bld.seed}</b> — ${Math.max(0,r.settlements)} settlement${r.settlements===1?'':'s'}, ${r.rivers} stream${r.rivers===1?'':'s'} · press <b>✨ Generate</b> for another, or type a <b>seed</b> to revisit one`); }
@@ -3291,6 +3437,10 @@ const TGC = {
   matLarge: {name:'Large Square Mat',   kind:'mat',  grid:null,     finished:[10,10],     img:[3075,3075]},
   quad:     {name:'Quad-Fold Board',    kind:'mat',  grid:null,     finished:[18,18],     img:[5475,5475]},
   quadLarge:{name:'Large Quad-Fold Board', kind:'mat', grid:null,   finished:[20,20],     img:[6075,6075]},
+  // Home printing: US Letter. `finished` is the reliably-printable area (¼" margin) so it prints at 100% on any
+  // inkjet/laser without clipping; `img` is the full 8½×11 sheet @300 DPI. `home:true` → white margin + cut border.
+  letter:    {name:'Home Sheet · Letter 8½×11 (portrait)',  kind:'mat', grid:null, finished:[8,10.5], img:[2550,3300], home:true},
+  letterLand:{name:'Home Sheet · Letter 11×8½ (landscape)', kind:'mat', grid:null, finished:[10.5,8], img:[3300,2550], home:true},
   flower:   {name:'Flower Mat',  kind:'mat', grid:'hex', finished:[2.5,2.75], img:[825,900],  fit:[3,3]},
   invader:  {name:'Invader Mat', kind:'mat', grid:'hex', finished:[4,3.5],    img:[1275,1125],fit:[5,5]},
 };
@@ -3307,12 +3457,12 @@ function bTgcSelect(id){
     bld.board.clear(); bld.zones.clear(); bld.draw=[]; bld.pen=[]; bld.props=[]; bld.subdiv.clear(); bld.subpaint.clear(); bld.selStroke=null; bld.selProp=null; bld.sel=null;
     bBuildPalette(); }
   if(c.kind==='mat') bTgcFit();
-  if(TGC_HEXMAT[id]) bld.tgcCenters=[bHexMatCenter()];   // seed one unit so the flower/invader OUTLINE shows before Generate
+  if(TGC_HEXMAT[id]) bld.tgcCenters=[bHexMatCenter()]; bld.selUnit=0;   // seed one unit so the flower/invader OUTLINE shows before Generate
   bTgcInfo(); bRender(); bFit();
 }
 function bTgcFit(){                                                      // auto-fit the grid to the chosen mat/board (cells filling the component)
   const c=TGC[bld.tgc]; if(!c || c.kind!=='mat') return;
-  bld.q0=0; bld.r0=0;
+  bld.q0=0; bld.r0=0; bld.sheetsX=1; bld.sheetsY=1; bld.sheetCX=0; bld.sheetCZ=0; _settlePlan=null;   // one sheet until Extend adds more; a print-size change drops any planned settlement
   if(c.fit){ bld.grid='hex'; bld.cols=c.fit[0]; bld.rows=c.fit[1]; }     // flower / invader = a small fixed hex layout
   else { const cell=bld.tgcCell||1;
     if(bld.grid==='hex'){
@@ -3328,7 +3478,10 @@ function bTgcInfo(){ const c=TGC[bld.tgc], el=document.getElementById('bTgcInfo'
   if(c.kind==='tile'){ el.innerHTML=`<b>${c.name}</b> — each cell prints as a <b>${c.img[0]}×${c.img[1]}px</b> tile (${c.finished[0]}×${c.finished[1]} in, 300 DPI + bleed). Export → a <b>ZIP of one PNG per tile</b> for The Game Crafter. <b>Extend</b> keeps this size.`; }
   else if(c.fit){ el.innerHTML=`<b>${c.name}</b> — one <b>${c.img[0]}×${c.img[1]}px</b> hex-mat image (${c.finished[0]}×${c.finished[1]} in).`; }
   else if(bld.grid==='hex'){ const cell=bld.tgcCell||1; const ac=Math.round(c.finished[0]/(cell*0.75)), ar=Math.round(c.finished[1]/(cell*0.8660254));
-    el.innerHTML=`<b>${c.name}</b> (<b>${c.finished[0]}×${c.finished[1]} in</b>) — filled with ≈${ac}×${ar} <b>${cell}" hexes</b>, edges <b>squared off to half-hexes</b>; exports as one <b>${c.img[0]}×${c.img[1]}px</b> image.`; }
+    const nx=bld.sheetsX||1, ny=bld.sheetsY||1, multi=nx*ny>1;
+    const home=c.home?` Print at <b>100% / Actual Size</b> on any home printer (¼" margin, dashed trim guide).`:'';
+    const sheets=multi?` Now <b>${nx}×${ny}=${nx*ny} sheets</b> — exports one image per sheet; laid edge-to-edge the half-hexes complete.`:` <b>Extend</b> (◀▶▲▼) tiles more sheets that complete at the seam.`;
+    el.innerHTML=`<b>${c.name}</b> (<b>${c.finished[0]}×${c.finished[1]} in</b> each) — filled with ≈${ac}×${ar} <b>${cell}" hexes</b>, edges <b>half-hexes at the seam</b>.${home}${sheets}`; }
   else { el.innerHTML=`<b>${c.name}</b> — fills with ${bld.cols}×${bld.rows} <b>square</b> cells (${bld.tgcCell||1}" each); exports as one <b>${c.img[0]}×${c.img[1]}px</b> image (${c.finished[0]}×${c.finished[1]} in).`; }
 }
 /* ---- render the builder scene straight-down into outW×outH px (flat top-down print look) ---- */
@@ -3340,16 +3493,28 @@ function bTgcRenderRegion(cx,cz,fw,fh,outW,outH,upAngle){
   // bleed past the map edge should read as land, not the dark editor tray — hide the ground plane + clear to an
   // opaque neutral ground tone (interior tiles fill the frame with real terrain, so this only shows on edge tiles).
   const savedBg=scene.background, savedClear=new THREE.Color(); renderer.getClearColor(savedClear); const savedA=renderer.getClearAlpha();
-  const savedClip=renderer.clippingPlanes; renderer.clippingPlanes=[];   // exports crop via their own ortho frustum — never inherit the live-view mat clip
+  const homeC = TGC[bld.tgc] && TGC[bld.tgc].home;                      // home Letter sheet → clean WHITE margin (not land bleed)
+  const savedClip=renderer.clippingPlanes;
+  if(homeC){ const c=TGC[bld.tgc], hw=c.finished[0]/(bld.tgcCell||1)/2, hh=c.finished[1]/(bld.tgcCell||1)/2;   // clip to the PRINTABLE rect so the ¼" margin renders white
+    renderer.clippingPlanes=[ new THREE.Plane(new THREE.Vector3(1,0,0), -(cx-hw)), new THREE.Plane(new THREE.Vector3(-1,0,0), (cx+hw)),
+                              new THREE.Plane(new THREE.Vector3(0,0,1), -(cz-hh)), new THREE.Plane(new THREE.Vector3(0,0,-1), (cz+hh)) ];
+  } else renderer.clippingPlanes=[];                                    // TGC bleed: fill the frame edge-to-edge (no clip)
   const gp=builderGroup.getObjectByName('bGroundPlane'); const gpVis=gp?gp.visible:true; if(gp) gp.visible=false;
-  scene.background=null; renderer.setClearColor(0x7d8a58, 1);
+  scene.background=null; renderer.setClearColor(homeC?0xffffff:0x7d8a58, 1);
   renderer.setPixelRatio(1); renderer.setSize(rw,rh,false); renderer.render(scene,ocam);
   const cv=document.createElement('canvas'); cv.width=outW; cv.height=outH; const x=cv.getContext('2d');
   x.imageSmoothingEnabled=true; x.imageSmoothingQuality='high'; x.drawImage(renderer.domElement,0,0,rw,rh,0,0,outW,outH);
+  if(homeC){ const c=TGC[bld.tgc], mx=Math.round((outW-c.finished[0]*300)/2), my=Math.round((outH-c.finished[1]*300)/2);   // dashed trim guide at the printable border
+    x.strokeStyle='#b9b9b9'; x.lineWidth=2; x.setLineDash([16,11]); x.strokeRect(mx+1, my+1, outW-2*mx-2, outH-2*my-2); x.setLineDash([]); }
   renderer.setPixelRatio(oldPR); renderer.setSize(old.x,old.y,false);
   scene.background=savedBg; renderer.setClearColor(savedClear, savedA); renderer.clippingPlanes=savedClip; if(gp) gp.visible=gpVis;
   return cv;
 }
+// render ONE printable sheet (i,j) of a multi-sheet rect hex board, in the scene (bWorld) frame
+function bTgcRenderSheet(c, i, j){ const cell=bld.tgcCell||1, iw=c.img[0], ih=c.img[1], sw=bSheetW(), sh=bSheetH();
+  const cx=(bld.sheetCX + sw*(i+0.5-(bld.sheetsX||1)/2)) - bld.off.x;
+  const cz=(bld.sheetCZ + sh*(j+0.5-(bld.sheetsY||1)/2)) - bld.off.z;
+  return bTgcRenderRegion(cx, cz, iw/(300*cell), ih/(300*cell), iw, ih); }
 function bTgcCellFootprint(){ const cs=bGridObj().corners(); let mnx=1e9,mxx=-1e9,mnz=1e9,mxz=-1e9;
   for(const c of cs){ mnx=Math.min(mnx,c[0]);mxx=Math.max(mxx,c[0]);mnz=Math.min(mnz,c[1]);mxz=Math.max(mxz,c[1]); } return {w:mxx-mnx, h:mxz-mnz}; }
 function bTgcSceneBBox(){ let mnx=1e9,mxx=-1e9,mnz=1e9,mxz=-1e9; const cs=bGridObj().corners();
@@ -3407,9 +3572,12 @@ const HEXMAT_CELLS = {
 };
 // hex-flower / invader tiling lattice: extending drops ANOTHER whole unit at these axial offsets so units
 // INTERLOCK perfectly (verified: flower index-7, invader index-13 sublattices fully tile the hex plane).
+// A flower/invader tiles as a HEX lattice → each unit has SIX interlocking neighbours: the 4 cardinals PLUS
+// the two diagonals (NE = E+N, SW = −(E+N)), all at the same centre-to-centre distance. The ＋ ghost slots
+// use every entry here, so all 6 open neighbours are clickable (the N/S/E/W buttons drive the 4 cardinals).
 const HEXMAT_EXT = {
-  flower:  {E:[3,-1], W:[-3,1], N:[-1,-2], S:[1,2]},
-  invader: {E:[4,-1], W:[-4,1], N:[-1,-3], S:[1,3]},
+  flower:  {E:[3,-1], W:[-3,1], N:[-1,-2], S:[1,2], NE:[2,-3], SW:[-2,3]},
+  invader: {E:[4,-1], W:[-4,1], N:[-1,-3], S:[1,3], NE:[3,-4], SW:[-3,4]},
 };
 function bHexMatCenter(){ return { q: bld.q0+Math.floor(bld.cols/2), r: bld.r0+Math.floor(bld.rows/2) }; }
 function bHexMatShapeCells(){ const set=new Set();
@@ -3447,7 +3615,7 @@ async function bTgcExport(){
   if(!bld.board.size){ bStatus('Generate or build a map first, then export.',true); return; }
   const wantSheet=document.getElementById('bTgcSheet').checked;
   bStatus('Rendering print artwork…'); await new Promise(r=>setTimeout(r,40));
-  const savedFlat=bld.boardFlat; setTileFlat(true); bld.boardFlat=true; bRender();
+  const savedFlat=bld.boardFlat; bld._exporting=true; setTileFlat(true); bld.boardFlat=true; bRender();   // _exporting hides edit aids (ghosts + screen-only ruler)
   try{
     if(c.kind==='mat'){
       if(TGC_HEXMAT[bld.tgc]){
@@ -3461,9 +3629,15 @@ async function bTgcExport(){
           const cv=bTgcRenderHexMat(c, centers[0]); bDownload(await bCanvasBlob(cv), `tgc_${bld.tgc}_${cv.width}x${cv.height}.png`);
           bStatus(`🖨 Exported <b>${c.name}</b> — one <b>${cv.width}×${cv.height}px</b> image, die-aligned to the TGC template, ready to upload.`);
         }
+      } else if(bld.grid==='hex' && (bld.sheetsX*bld.sheetsY)>1){        // rect hex board grown into a grid of sheets → one image per sheet, cut at seams (half-hexes complete on neighbours)
+        const nx=bld.sheetsX, ny=bld.sheetsY, files=[];
+        for(let j=0;j<ny;j++) for(let i=0;i<nx;i++){ const cv=bTgcRenderSheet(c,i,j); files.push({name:`${bld.tgc}_sheet_r${j+1}c${i+1}_${cv.width}x${cv.height}.png`, data:await bCanvasBytes(cv)}); }
+        bDownload(new Blob([bZip(files)],{type:'application/zip'}), `tgc_${bld.tgc}_${nx}x${ny}sheets.zip`);
+        bStatus(`🖨 Exported <b>${nx}×${ny} = ${nx*ny} sheets</b> of ${c.name} (${c.img[0]}×${c.img[1]}px each) in a ZIP — ${c.home?'print at <b>100% / Actual Size</b>, trim the margin,':'print/cut'} then lay them edge-to-edge and the half-hexes complete into whole hexes.`);
       } else {
-        const cv=bTgcRenderWhole(c); bDownload(await bCanvasBlob(cv), `tgc_${bld.tgc}_${cv.width}x${cv.height}.png`);
-        bStatus(`🖨 Exported <b>${c.name}</b> — one <b>${cv.width}×${cv.height}px</b> full-bleed image, ready to upload to The Game Crafter (or print).`);
+        const cv = bld.grid==='hex' ? bTgcRenderSheet(c,0,0) : bTgcRenderWhole(c);
+        bDownload(await bCanvasBlob(cv), `tgc_${bld.tgc}_${cv.width}x${cv.height}.png`);
+        bStatus(`🖨 Exported <b>${c.name}</b> — one <b>${cv.width}×${cv.height}px</b> image${c.home?', print at <b>100% / Actual Size</b>':', full-bleed'} — ready to ${c.home?'print at home':'upload to The Game Crafter'}. <b>Extend</b> (◀▶▲▼) adds more tiling sheets.`);
       }
     } else {
       const cells=[...bld.board.keys()].map(k=>{ const [q,r]=k.split(',').map(Number); return {q,r}; });
@@ -3474,19 +3648,20 @@ async function bTgcExport(){
       bStatus(`🖨 Exported <b>${c.name}</b> — <b>${cells.length}</b> tile PNGs (${c.img[0]}×${c.img[1]}px each)${wantSheet?' + letter print sheets':''} in a ZIP for The Game Crafter's bulk uploader.`);
     }
   }catch(e){ bStatus('Export failed: '+(e&&e.message||e), true); console.error(e); }
-  setTileFlat(savedFlat); bld.boardFlat=savedFlat; bRender();
+  bld._exporting=false; setTileFlat(savedFlat); bld.boardFlat=savedFlat; bRender();
 }
 document.getElementById('bTgcSel').onchange=(e)=> bTgcSelect(e.target.value);
 document.getElementById('bTgcCell').onchange=(e)=>{ bld.tgcCell=+e.target.value||1; bTgcFit(); bTgcInfo(); bRender(); bFit(); };
 document.getElementById('bTgcExport').onclick=bTgcExport;
 window.__bTgc={ TGC, sel:bTgcSelect, fit:bTgcFit, state:()=>({tgc:bld.tgc,grid:bld.grid,cols:bld.cols,rows:bld.rows,cell:bld.tgcCell,tiles:bld.board.size}),
-  whole:(preview)=>{ const c=TGC[bld.tgc]; const sf=bld.boardFlat; setTileFlat(true); bld.boardFlat=true; bRender(); const cv=TGC_HEXMAT[bld.tgc]?bTgcRenderHexMat(c,(bld.tgcCenters&&bld.tgcCenters[0])||bHexMatCenter()):bTgcRenderWhole(c); setTileFlat(sf); bld.boardFlat=sf; bRender(); return preview?cv.toDataURL('image/png'):{w:cv.width,h:cv.height}; },
-  tile:(idx)=>{ const c=TGC[bld.tgc]; const keys=[...bld.board.keys()]; const k=keys[Math.min(idx||0,keys.length-1)]||keys[Math.floor(keys.length/2)]; const [q,r]=k.split(',').map(Number); const sf=bld.boardFlat; setTileFlat(true); bld.boardFlat=true; bRender(); const cv=bTgcRenderTile({q,r},c); setTileFlat(sf); bld.boardFlat=sf; bRender(); return {w:cv.width,h:cv.height,url:cv.toDataURL('image/png')}; } };
+  whole:(preview)=>{ const c=TGC[bld.tgc]; const sf=bld.boardFlat; bld._exporting=true; setTileFlat(true); bld.boardFlat=true; bRender(); const cv=TGC_HEXMAT[bld.tgc]?bTgcRenderHexMat(c,(bld.tgcCenters&&bld.tgcCenters[0])||bHexMatCenter()):bTgcRenderWhole(c); bld._exporting=false; setTileFlat(sf); bld.boardFlat=sf; bRender(); return preview?cv.toDataURL('image/png'):{w:cv.width,h:cv.height}; },
+  tile:(idx)=>{ const c=TGC[bld.tgc]; const keys=[...bld.board.keys()]; const k=keys[Math.min(idx||0,keys.length-1)]||keys[Math.floor(keys.length/2)]; const [q,r]=k.split(',').map(Number); const sf=bld.boardFlat; bld._exporting=true; setTileFlat(true); bld.boardFlat=true; bRender(); const cv=bTgcRenderTile({q,r},c); bld._exporting=false; setTileFlat(sf); bld.boardFlat=sf; bRender(); return {w:cv.width,h:cv.height,url:cv.toDataURL('image/png')}; } };
 /* extend the map in a direction: add a new block of cells that MATCHES the terrain at the seam then drifts */
 function bGenerateNextSection(dir){
   if(bld.baseMap){ bStatus('Extend works on generated/built maps — remove the base map first.',true); return; }
   if(!bld.board.size){ bStatus('Generate or build a map first, then extend it.',true); return; }
   if(TGC_HEXMAT[bld.tgc]){ bExtendHexMat(dir); return; }   // flower/invader → add another whole interlocking unit
+  { const _c=TGC[bld.tgc]; if(_c && _c.kind==='mat' && !_c.fit && bld.grid==='hex'){ bExtendHexSheet(dir); return; } }   // rect hex board/mat → add a printable SHEET that tiles at the seam
   bPushUndo();
   const E=6, g=bGridObj(); let newCells;
   if(dir==='E'){ newCells=bCellsRange(bld.q0+bld.cols, bld.q0+bld.cols+E, bld.r0, bld.r0+bld.rows); bld.cols+=E; }
@@ -3509,28 +3684,105 @@ function bGenerateNextSection(dir){
   const fName=bld.extFeature==='bare'?'':` + ${bld.extFeature}`;
   bStatus(`Extended ${({E:'east',W:'west',N:'north',S:'south'})[dir]} — added ${r.added} ${tName}${fName} tiles, blended at the seam. Extend again to keep growing.`);
 }
+// EXTEND a rectangular hex board/mat by one PRINTABLE SHEET: grow the field one sheet in `dir`, fill the new
+// cells (seam-matched to the existing terrain). The board becomes an sheetsX×sheetsY grid; export slices it into
+// one image per sheet, and because it's ONE continuous hex field the sheet cuts leave half-hexes that COMPLETE
+// on the neighbouring sheet (design flows across, two sheets laid together mirror the half-hex into a whole one).
+function bExtendHexSheet(dir){
+  bPushUndo();
+  const before=new Set(bld.board.keys()); const g=bGridObj(); const sw=bSheetW(), sh=bSheetH();
+  if(dir==='E'){ bld.sheetsX++; bld.sheetCX+=sw/2; } else if(dir==='W'){ bld.sheetsX++; bld.sheetCX-=sw/2; }
+  else if(dir==='S'){ bld.sheetsY++; bld.sheetCZ+=sh/2; } else { bld.sheetsY++; bld.sheetCZ-=sh/2; }
+  if(_settlePlan){ const shown=bRevealSettlePlan(); bRender(); bFit();    // planned settlement → reveal the newly-covered portion (walls fill in toward the plan's real perimeter)
+    bStatus(`Extended ${({E:'east',W:'west',N:'north',S:'south'})[dir]} — <b>${bld.sheetsX}×${bld.sheetsY} sheets</b>, now showing <b>${shown} of ${_settlePlan.tiles.size}</b> cells of the ${_settlePlan.w}×${_settlePlan.h} ${SETTLE_THEMES[_settlePlan.type]}. Keep extending to reveal the rest.`); return; }
+  const newCells=bHexMatFieldCells().filter(c=>!before.has(TE.keyOf(c)));
+  const cmp = dir==='E' ? (a,b)=>g.world(a).x-g.world(b).x : dir==='W' ? (a,b)=>g.world(b).x-g.world(a).x
+            : dir==='S' ? (a,b)=>g.world(a).z-g.world(b).z : (a,b)=>g.world(b).z-g.world(a).z;
+  newCells.sort(cmp);
+  const theme=bld.tgcFillTheme||bld.theme||'';
+  if(theme.startsWith('biome:')){
+    TE.generateBiomeFill(bld.grid, bld.board, newCells, bDefs(), {seed:1+Math.floor(Math.random()*9999), biome:theme.slice(6), append:true});
+  } else {
+    const priorStrokes=bld.draw.filter(s=>s.type==='road'||s.type==='river'||s.type==='trail').map(s=>({type:s.type, end:s.pts[s.pts.length-1]}));
+    const r=TE.generateNextSection(bld.grid, bld.board, bDefs(), newCells, {seed:1+Math.floor(Math.random()*9999), terrain:bld.extTerrain, feature:bld.extFeature, priorStrokes});
+    if(Array.isArray(r.draw) && r.draw.length) bld.draw=bld.draw.concat(r.draw);
+    if(Array.isArray(r.props) && r.props.length) bld.props=bld.props.concat(r.props.map(p=>({...p, rot:p.rot||0})));
+  }
+  bRender(); bFit();
+  const nm=TGC[bld.tgc].name;
+  bStatus(`Extended ${({E:'east',W:'west',N:'north',S:'south'})[dir]} — the board is now <b>${bld.sheetsX}×${bld.sheetsY} = ${bld.sheetsX*bld.sheetsY} sheets</b> of ${nm}. <b>Export</b> gives one print image per sheet; laid edge-to-edge the half-hexes complete and the terrain flows across the seam.`);
+}
 // EXTEND a flower/invader print: drop ANOTHER whole unit at the interlocking lattice offset for `dir`, filled to
 // match the base, and grow the board to fit. Each unit exports as its own TGC flower/invader image.
+// --- flower / invader unit helpers: the shape is a lattice of 7- (or 13-) hex units. You SELECT a unit
+// (click it) then add another N/S/E/W of it, or click a ＋ ghost slot — so the shape holds instead of
+// sprawling from "whichever unit is furthest" (the old bug that made multi-directional growth break down).
+function bHexMatOccupied(c){ return (bld.tgcCenters||[]).some(u=>u.q===c.q && u.r===c.r); }
+function bHexMatOpenSlots(){ const exts=HEXMAT_EXT[bld.tgc]; if(!exts) return [];
+  const src=(bld.tgcCenters&&bld.tgcCenters.length)?bld.tgcCenters:[bHexMatCenter()];
+  const out=[], seen=new Set();
+  for(const u of src){ for(const d in exts){ const o=exts[d]; const c={q:u.q+o[0], r:u.r+o[1]}, k=c.q+','+c.r;
+    if(!seen.has(k) && !bHexMatOccupied(c)){ seen.add(k); out.push(c); } } }
+  return out; }
+function bHexMatUnitAt(ev){ const hit=bPickCell(ev); if(!hit||hit.cell===undefined) return -1;
+  const cells=HEXMAT_CELLS[bld.tgc]||[], src=bld.tgcCenters||[];
+  for(let i=0;i<src.length;i++){ const u=src[i]; for(const o of cells){ if(u.q+o[0]===hit.cell.q && u.r+o[1]===hit.cell.r) return i; } }
+  return -1; }
+function bHexMatGhostAt(ev){ const r=renderer.domElement.getBoundingClientRect();
+  ndc.x=((ev.clientX-r.left)/r.width)*2-1; ndc.y=-((ev.clientY-r.top)/r.height)*2+1; ray.setFromCamera(ndc,camera);
+  if(!ray.ray.intersectPlane(_bPickPlane,_bHit)) return null;
+  let best=null,bd=Infinity; for(const c of bHexMatOpenSlots()){ const w=bWorld(c); const dx=w.x-_bHit.x, dz=w.z-_bHit.z, d=dx*dx+dz*dz; if(d<bd){bd=d;best=c;} }
+  return (best && bd<=1.1*1.1) ? best : null; }
+function bGrowRangeToBoard(){ let mnq=1e9,mxq=-1e9,mnr=1e9,mxr=-1e9;
+  for(const k of bld.board.keys()){ const [q,r]=k.split(',').map(Number); mnq=Math.min(mnq,q);mxq=Math.max(mxq,q);mnr=Math.min(mnr,r);mxr=Math.max(mxr,r); }
+  if(mnq>mxq) return; bld.q0=mnq-1; bld.r0=mnr-1; bld.cols=(mxq-mnq)+3; bld.rows=(mxr-mnr)+3;
+  document.getElementById('bCols').value=bld.cols; document.getElementById('bRows').value=bld.rows; }
+// cells to fill for a Generate/Extend: flower/invader → the true multi-unit SHAPE; everything else → the field/block
+function bFillCells(){ return TGC_HEXMAT[bld.tgc] ? [...bHexMatShapeCells()].map(k=>{ const [q,r]=k.split(',').map(Number); return {q,r}; }) : bCells(); }
+// re-fill a flower/invader after a unit is added, per the chosen theme:
+//   castle/town/village → regenerate ONE settlement over the WHOLE shape → the walls & wards GROW outward to
+//     enclose the new unit (fixes "the castle crammed into 7 hexes / held its old wall shape").
+//   biome / mixed / map theme → fill only the NEW unit's cells so the existing terrain is kept.
+function bHexMatRefill(){
+  const theme=bld.tgcFillTheme||'mixed';
+  if(_settlePlan){ bRevealSettlePlan(); return; }                        // planned settlement → reveal the portion now covered by the units
+  if(SETTLE_THEMES[theme]){ const r=TE.generateSettlement(bld.grid, bld.board, bFillCells(), bDefs(), {seed:bld.seed, settlementType:theme});
+    bld.draw=Array.isArray(r.draw)?r.draw:[]; bld.props=[]; bld.selStroke=null; return; }
+  const nc=bld.tgcCenters[bld.tgcCenters.length-1];
+  const cells = nc ? HEXMAT_CELLS[bld.tgc].map(o=>({q:nc.q+o[0], r:nc.r+o[1]})) : bFillCells();
+  const biome = (theme.startsWith('biome:')) ? theme.slice(6) : 'plains';
+  TE.generateBiomeFill(bld.grid, bld.board, cells, bDefs(), {seed:1+Math.floor(Math.random()*9999), biome, append:true}); }
+function bAddHexMatUnit(center){ if(bHexMatOccupied(center)) return false;
+  if(!bld.tgcCenters) bld.tgcCenters=[]; bld.tgcCenters.push(center); bld.selUnit=bld.tgcCenters.length-1;   // chain from the new unit
+  bHexMatRefill();                                                       // fill per the theme (settlement grows; biome/mixed fills the new unit)
+  bGrowRangeToBoard(); return true; }
+function bSelectHexMatUnit(i){ bld.selUnit=i; bRender();
+  bStatus(`Selected mat <b>#${i+1}</b> of ${bld.tgcCenters.length} — press <b>◀ West ▶ East ▲ North ▼ South</b> to add the next unit beside it, or click a cyan <b>＋ slot</b>.`); }
 function bExtendHexMat(dir){
   const off=HEXMAT_EXT[bld.tgc] && HEXMAT_EXT[bld.tgc][dir]; if(!off) return;
-  if(!bld.tgcCenters||!bld.tgcCenters.length) bld.tgcCenters=[bHexMatCenter()];
+  if(!bld.tgcCenters||!bld.tgcCenters.length) bld.tgcCenters=[bHexMatCenter()]; bld.selUnit=0;
   bPushUndo();
-  const g=bGridObj(), wof=c=>g.world(c);
-  const score=c=>{ const w=wof(c); return dir==='E'?w.x: dir==='W'?-w.x: dir==='S'?w.z: -w.z; };   // grow from the unit furthest in `dir`
-  let base=bld.tgcCenters[0]; for(const c of bld.tgcCenters) if(score(c)>score(base)) base=c;
-  const nc={q:base.q+off[0], r:base.r+off[1]};
-  const cells=HEXMAT_CELLS[bld.tgc].map(o=>({q:nc.q+o[0], r:nc.r+o[1]}));
-  const biome=(bld.tgcFillTheme&&bld.tgcFillTheme.startsWith('biome:'))?bld.tgcFillTheme.slice(6):'plains';
-  TE.generateBiomeFill(bld.grid, bld.board, cells, bDefs(), {seed:1+Math.floor(Math.random()*9999), biome, append:true});
-  bld.tgcCenters.push(nc);
-  let mnq=1e9,mxq=-1e9,mnr=1e9,mxr=-1e9;                                // grow range to the bounding box of all cells (+1 margin)
-  for(const k of bld.board.keys()){ const [q,r]=k.split(',').map(Number); mnq=Math.min(mnq,q);mxq=Math.max(mxq,q);mnr=Math.min(mnr,r);mxr=Math.max(mxr,r); }
-  bld.q0=mnq-1; bld.r0=mnr-1; bld.cols=(mxq-mnq)+3; bld.rows=(mxr-mnr)+3;
-  document.getElementById('bCols').value=bld.cols; document.getElementById('bRows').value=bld.rows;
+  // grow from the SELECTED unit so the shape builds where you intend; fall back to the one furthest in `dir`.
+  let base=bld.tgcCenters[bld.selUnit];
+  if(!base){ const g=bGridObj(), score=c=>{ const w=g.world(c); return dir==='E'?w.x: dir==='W'?-w.x: dir==='S'?w.z: -w.z; };
+    base=bld.tgcCenters[0]; for(const c of bld.tgcCenters) if(score(c)>score(base)) base=c; }
+  let nc={q:base.q+off[0], r:base.r+off[1]}, guard=40;
+  while(bHexMatOccupied(nc) && guard-->0) nc={q:nc.q+off[0], r:nc.r+off[1]};     // chain past occupied slots (no overlap)
+  bAddHexMatUnit(nc);
   bRender(); bFit();
-  bStatus(`Added a <b>${TGC[bld.tgc].name}</b> unit to the ${({E:'east',W:'west',N:'north',S:'south'})[dir]} — now <b>${bld.tgcCenters.length}</b> interlocking units. <b>Export</b> gives one print image per unit.`);
+  bStatus(`Added a <b>${TGC[bld.tgc].name}</b> unit to the <b>${({E:'east',W:'west',N:'north',S:'south'})[dir]}</b> of mat #${bld.selUnit+1} — now <b>${bld.tgcCenters.length}</b> interlocking units. Click any mat to grow from it instead; <b>Export</b> gives one image per unit.`);
 }
-function bClear(){ bPushUndo(); bld.board.clear(); bld.zones.clear(); bld.draw=[]; bld.pen=[]; bld.props=[]; bld.subdiv.clear(); bld.subpaint.clear(); bld.selStroke=null; bld.selProp=null; bld.q0=0; bld.r0=0; bld.tgcCenters=[]; bRender(); bStatus("Cleared"); }
+// ghost ＋ slots + selected-unit ring, drawn while a flower/invader print size is active
+function bRenderHexMatGhosts(){ if(!TGC_HEXMAT[bld.tgc] || bld._exporting) return;   // ＋ slots + selection ring are edit aids — never printed
+  const src=bld.tgcCenters||[];
+  if(src[bld.selUnit]){ const w=bWorld(src[bld.selUnit]); const pts=[];
+    for(let i=0;i<=40;i++){ const a=i/40*Math.PI*2; pts.push(new THREE.Vector3(w.x+1.4*Math.cos(a), TILE_TOP+0.09, w.z+1.4*Math.sin(a))); }
+    const ring=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({color:0x51ff9a, transparent:true, depthTest:false})); ring.renderOrder=20; builderGroup.add(ring); }
+  for(const c of bHexMatOpenSlots()){ const w=bWorld(c); const hp=[];
+    for(let i=0;i<=6;i++){ const a=i*Math.PI/3; hp.push(new THREE.Vector3(w.x+0.85*Math.cos(a), TILE_TOP+0.07, w.z+0.85*Math.sin(a))); }
+    const rim=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(hp), new THREE.LineBasicMaterial({color:0x6fe0ff, transparent:true, opacity:0.55, depthTest:false})); rim.renderOrder=20; builderGroup.add(rim);
+    const l=bMakeTickLabel('＋'); l.position.set(w.x, TILE_TOP+0.11, w.z); l.scale.set(0.85,0.42,1); l.renderOrder=32; builderGroup.add(l); } }
+function bClear(){ bPushUndo(); bld.board.clear(); bld.zones.clear(); bld.draw=[]; bld.pen=[]; bld.props=[]; bld.subdiv.clear(); bld.subpaint.clear(); bld.selStroke=null; bld.selProp=null; bld.q0=0; bld.r0=0; bld.tgcCenters=[]; bld.selUnit=0; bld.sheetsX=1; bld.sheetsY=1; bld.sheetCX=0; bld.sheetCZ=0; _settlePlan=null; if(TGC[bld.tgc]&&TGC[bld.tgc].kind==='mat') bTgcFit(); bRender(); bStatus("Cleared"); }
 function bSaveBoard(){ const data=TE.serializeBoard(bld.grid, bld.board, bld.zones, {cols:bld.cols,rows:bld.rows,seed:bld.seed,q0:bld.q0,r0:bld.r0}); data.draw=bld.draw; data.props=bld.props;
   data.subdiv=[...bld.subdiv].map(([k,s])=>{ const [q,r]=k.split(',').map(Number); return {q,r,mode:s.mode,n:s.n}; });
   data.subpaint=[...bld.subpaint].map(([k,m])=>{ const [q,r]=k.split(',').map(Number); return {q,r,paint:m}; });
@@ -3706,6 +3958,7 @@ document.querySelectorAll('#bMiniSeg .bminitool').forEach(b=> b.onclick=()=>bMin
 document.getElementById('bMiniClear').onclick=bMiniClear;
 document.getElementById('bMeasureTool').onclick=bMeasureSet;
 document.getElementById('bGridLinesTool').onclick=()=>bGridLinesSet();
+document.getElementById('bRulerTool').onclick=()=>bRulerSet();
 // 🎨 Terrain-look picker (1/2/3) and 🍂 Season dropdown are the same control (bld.variant) — keep them synced.
 const _seasonName=['🌱 Spring / Summer','🍂 Autumn','🌲 Winter (pine)'];
 function bSetVariant(v){ bld.variant = v;
@@ -3743,7 +3996,8 @@ document.getElementById('bCols').onchange=(e)=>{ bld.cols=Math.max(2,Math.min(96
 document.getElementById('bRows').onchange=(e)=>{ bld.rows=Math.max(2,Math.min(96,+e.target.value||8)); bRender(); bFit(); };
 document.getElementById('bSeed').onchange=(e)=>{ bld.seed=Math.max(1,+e.target.value||1); if(bld.board.size||bld.draw.length) bGenerateMap(); };
 document.getElementById('bBlend').onchange=(e)=>{ bld.blend=e.target.checked; };
-document.getElementById('bTheme').onchange=(e)=>{ bld.theme=e.target.value; };
+document.getElementById('bTheme').onchange=(e)=>{ bld.theme=e.target.value; bSyncTownSizeRow(); };
+function bSyncTownSizeRow(){ const row=document.getElementById('bTownSizeRow'); if(row) row.style.display = SETTLE_THEMES[bld.theme] ? '' : 'none'; }
 document.getElementById('bGenStream').onchange=(e)=>{ bld.genStream=e.target.checked; };
 document.getElementById('bGenRoad').onchange=(e)=>{ bld.genRoad=e.target.checked; };
 document.getElementById('bExtTerrain').onchange=(e)=>{ bld.extTerrain=e.target.value; };
