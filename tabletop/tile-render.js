@@ -26,7 +26,15 @@ const BIOME_TEXTURE = {
   mountains: ['mountains_rocky.jpg'],
   snow:      ['snow_field.jpg'],
   sand:      ['sand_dune.jpg','sand_dune_2.jpg','sand_dune_3.jpg'] };   // Gemini-painted: golden dunes + cracked hardpan + red desert (v0.19)
-export function biomeVariantCount(biome){ const a=BIOME_TEXTURE[biome]; if(a) return a.length; return PROC_VARIANTS[biome]||0; }
+export function biomeVariantCount(biome){ if(biome==='mountains') return 2; const a=BIOME_TEXTURE[biome]; if(a) return a.length; return PROC_VARIANTS[biome]||0; }   // mountains: 0 rocky · 1 snow-capped (paint snowcaps deliberately)
+// snow settled between the crags — soft white patches + a faint overall frost, painted over the rocky top for
+// the snow-capped mountains variant (variant 1). Reads as an alpine snowy mountainside from above.
+function _snowDust(x,S){
+  for(let i=0;i<70;i++){ const px=Math.random()*S, py=Math.random()*S, r=6+Math.random()*26;
+    const g=x.createRadialGradient(px,py,0,px,py,r);
+    g.addColorStop(0,'rgba(246,250,255,.92)'); g.addColorStop(0.6,'rgba(236,244,252,.6)'); g.addColorStop(1,'rgba(236,244,252,0)');
+    x.fillStyle=g; x.beginPath(); x.arc(px,py,r,0,6.28); x.fill(); }
+  x.fillStyle='rgba(240,246,252,.14)'; x.fillRect(0,0,S,S); }                                   // faint overall frost
 const _texCache = {};
 // town-ground bases get a PROCEDURAL top (no PNG) — a blank colored ground you build a town on with props.
 // feather the painted top's rim to transparent so tiles blend — the mask follows the TILE SHAPE:
@@ -137,6 +145,11 @@ const PROC_CLOSEUP = {                                   // top-down ground at ~
   snowclose: (x,S)=>{ x.fillStyle='#e9f0f7'; x.fillRect(0,0,S,S);
     for(let i=0;i<20;i++){ x.fillStyle='rgba(180,200,220,.25)'; x.beginPath(); x.arc(Math.random()*S,Math.random()*S,12+Math.random()*30,0,6.28); x.fill(); }
     for(let i=0;i<900;i++){ x.fillStyle='rgba(255,255,255,.8)'; x.fillRect(Math.random()*S,Math.random()*S,1.5,1.5); } },
+  snowyrock: (x,S)=>{ PROC_CLOSEUP.rock(x,S);                                                        // bedrock with settled snow between the stones
+    for(let i=0;i<38;i++){ const px=Math.random()*S,py=Math.random()*S,r=10+Math.random()*30;
+      const g=x.createRadialGradient(px,py,0,px,py,r); g.addColorStop(0,'rgba(246,250,255,.95)'); g.addColorStop(0.6,'rgba(236,244,252,.7)'); g.addColorStop(1,'rgba(236,244,252,0)');
+      x.fillStyle=g; x.beginPath(); x.arc(px,py,r,0,6.28); x.fill(); }
+    for(let i=0;i<500;i++){ x.fillStyle='rgba(255,255,255,.7)'; x.fillRect(Math.random()*S,Math.random()*S,1.5,1.5); } },
   dirtclose: (x,S)=>{ x.fillStyle='#8a6a44'; x.fillRect(0,0,S,S);
     for(let i=0;i<1600;i++){ const v=Math.random(); x.fillStyle=v<0.5?`rgba(60,44,26,${0.12+Math.random()*0.3})`:`rgba(180,150,110,${0.12+Math.random()*0.25})`;
       x.beginPath(); x.arc(Math.random()*S,Math.random()*S,Math.random()*3+0.6,0,6.28); x.fill(); }
@@ -151,8 +164,9 @@ function biomeTexture(biome, variant, gridKind, feather, edgeColor){
   variant = variant || 0; gridKind = gridKind || 'square';
   const ckey = _scale+':'+biome+':'+variant+':'+gridKind+':'+(edgeColor!=null?('e'+edgeColor):(feather!==false?'f':'o'));
   if (ckey in _texCache) return _texCache[ckey];
-  if (_scale==='battle' && CLOSEUP_FOR[biome])                                                                // 5-ft close-up ground
-    return (_texCache[ckey]=_groundTex(PROC_CLOSEUP[CLOSEUP_FOR[biome]], gridKind, feather, edgeColor));
+  if (_scale==='battle' && CLOSEUP_FOR[biome]){                                                               // 5-ft close-up ground
+    const cf = (biome==='mountains' && variant===1) ? 'snowyrock' : CLOSEUP_FOR[biome];                       // snow-capped mountains → snowy bedrock
+    return (_texCache[ckey]=_groundTex(PROC_CLOSEUP[cf], gridKind, feather, edgeColor)); }
   if (PROC_BIOME[biome]) return (_texCache[ckey]=PROC_BIOME[biome](gridKind, feather, edgeColor, variant));   // town-ground / farmland procedural top
   const arr = BIOME_TEXTURE[biome]; if (!arr) return (_texCache[ckey]=null);
   const file = arr[Math.max(0, Math.min(arr.length-1, variant))];
@@ -160,6 +174,7 @@ function biomeTexture(biome, variant, gridKind, feather, edgeColor){
   const t=new THREE.CanvasTexture(cv); if('SRGBColorSpace' in THREE) t.colorSpace=THREE.SRGBColorSpace; t.anisotropy=8;
   const img=new Image();
   img.onload=()=>{ cx.clearRect(0,0,S,S); cx.drawImage(img,0,0,S,S);
+    if(biome==='mountains' && variant===1) _snowDust(cx,S);             // snow-capped mountains variant → dust the rocky top with snow
     _finishTop(cx,S,gridKind,feather,edgeColor);                        // soft biome-colour edge (opaque top) / feather / hard
     t.needsUpdate=true; };
   img.src='tile-textures/'+file;
@@ -343,15 +358,16 @@ function house(x,z,rot,tall){ const g=new THREE.Group();
   b.castShadow=true; roof.castShadow=true; g.position.set(x,0,z); g.rotation.y=rot; return g; }
 // a mountain peak with SHAPE variety — random face count, height/radius/footprint independent of size, so a
 // range reads as varied crags rather than a grid of identical hex-cones. `s` sets overall size; `r` an rng.
-function peak(x,z,s,r){ r=r||Math.random;
+function peak(x,z,s,r,snow){ r=r||Math.random;
   const g=new THREE.Group(); g.position.set(x,0,z);
   const sides=4+Math.floor(r()*4);                       // 4–7 faces → jagged silhouettes
   const h=0.4*s*(0.75+r()*0.85), rad=0.16*s*(0.8+r()*0.5), rot=r()*6.28, sx=0.72+r()*0.6;
-  const m=new THREE.Mesh(new THREE.ConeGeometry(rad,h,sides), mat(0x8a8172,{roughness:1}));
+  const m=new THREE.Mesh(new THREE.ConeGeometry(rad,h,sides), mat(snow?0x9aa0a6:0x8a8172,{roughness:1}));   // snowcap variant: cooler grey rock
   m.position.y=TOP+h/2; m.rotation.y=rot; m.scale.x=sx; m.castShadow=true; g.add(m);
-  if(s>0.9 || r()<0.4){ const sh=h*0.32, sr=rad*0.5;     // snow cap on the taller peaks
-    const snow=new THREE.Mesh(new THREE.ConeGeometry(sr,sh,sides), mat(0xeef2f6));
-    snow.position.y=TOP+h-sh/2; snow.rotation.y=rot; snow.scale.x=sx; g.add(snow); }
+  // snow cap: FORCED for the snow-capped variant (bigger cap), else only on the taller peaks
+  if(snow || s>0.9 || r()<0.4){ const sh=h*(snow?0.5:0.32), sr=rad*(snow?0.6:0.5);
+    const cap=new THREE.Mesh(new THREE.ConeGeometry(sr,sh,sides), mat(0xeef2f6));
+    cap.position.y=TOP+h-sh/2; cap.rotation.y=rot; cap.scale.x=sx; g.add(cap); }
   return g; }
 function tuft(x,z){ const m=new THREE.Mesh(new THREE.ConeGeometry(0.05,0.1,5), mat(0x6f9a3f)); m.position.set(x,TOP+0.05,z); return m; }
 
@@ -390,8 +406,9 @@ function flatRoof(x,z,big,r){ const g=new THREE.Group(); const s=big?0.17:0.13, 
 
 // scatter a feature over the tile, keeping clear of any path strips. `mass` (0..1) = mountain-massif depth:
 // core cells build a tall central peak + satellites, fringe cells a single small foothill.
-function scatter(group, def, gridKind, seed, mass){
+function scatter(group, def, gridKind, seed, mass, variant){
   const r = rng32(seed*2654435761>>>0);
+  const snowPeaks = variant===1 && def.biome==='mountains';   // snow-capped mountains variant → every peak gets a snow cap
   const g = TE.gridFor(gridKind);
   const hasPath = def.edges.some(e=>e.path!==P.NONE);
   const pathDirs = def.edges.map((e,i)=>e.path!==P.NONE?i:-1).filter(i=>i>=0).map(i=>g.edgeMid(i));
@@ -412,7 +429,8 @@ function scatter(group, def, gridKind, seed, mass){
     if(f==='keep'){ const k=flatDecal(0.34,0.34,0x8a8a92,0.98); k.position.y=TOP+0.05; group.add(k);
       for(const [sx,sz] of [[-1,-1],[1,-1],[1,1],[-1,1]]){ const t=flatDecal(0.1,0.1,0x6f676d,0.98); t.position.set(sx*0.15,TOP+0.052,sz*0.15); group.add(t);} return; }
     if(f==='peaks'){ const M=(typeof mass==='number')?mass:0.5; take(1+Math.round(M*3)).forEach(([x,z],i)=>{ const s=0.1+M*0.16*(i?0.6:1);
-      const c=flatDecal(s,s,0x726a5c,0.9); c.position.set(x,TOP+0.05,z); c.rotation.y=r()*1.57; group.add(c); }); return; }
+      const c=flatDecal(s,s,snowPeaks?0xdfe9f2:0x726a5c,0.92); c.position.set(x,TOP+0.05,z); c.rotation.y=r()*1.57; group.add(c);      // snow-white crag dots for the snow-capped variant
+      if(snowPeaks){ const cap=flatDecal(s*0.5,s*0.5,0xffffff,0.95); cap.position.set(x,TOP+0.052,z); cap.rotation.y=c.rotation.y; group.add(cap); } }); return; }
     if(f==='trees'||f==='tufts'||f==='farm'||f==='treeline'||f==='foothills'||f==='citywall'||f==='field') return;   // carried by the painted top / omitted in 2D
     // water / bridge / shore fall through to their (already-flat) handlers below
   }
@@ -420,8 +438,8 @@ function scatter(group, def, gridKind, seed, mass){
   else if(f==='tufts')  take(5).forEach(([x,z])=> group.add(tuft(x,z)));
   else if(f==='peaks'){ const M = (typeof mass==='number') ? mass : (0.35+r()*0.5);   // core=tall massif, fringe=small foothill
     const big = 0.6 + M*1.9, n = 1 + Math.round(M*3);
-    group.add(peak((r()*2-1)*0.14, (r()*2-1)*0.14, big, r));                            // central summit near tile centre
-    for(let i=1;i<n;i++){ const [x,z]=pts[i]||[(r()*2-1)*rad,(r()*2-1)*rad]; group.add(peak(x,z, big*(0.38+r()*0.42), r)); } }  // lower shoulders
+    group.add(peak((r()*2-1)*0.14, (r()*2-1)*0.14, big, r, snowPeaks));                 // central summit near tile centre
+    for(let i=1;i<n;i++){ const [x,z]=pts[i]||[(r()*2-1)*rad,(r()*2-1)*rad]; group.add(peak(x,z, big*(0.38+r()*0.42), r, snowPeaks)); } }  // lower shoulders
   else if(f==='houses') take(4).forEach(([x,z])=> group.add(house(x,z,r()*6.28,false)));
   else if(f==='buildings') take(4).forEach(([x,z])=> group.add(house(x,z,r()*6.28,true)));
   else if(f==='farm' && pts[0]) group.add(house(pts[0][0],pts[0][1],r()*6.28,false));
@@ -506,8 +524,8 @@ export function buildTileMesh(def, gridKind, seed, variant, mass){
   // (keep it for untextured biomes: village houses, city buildings, castle keep, water, transitions).
   // EXCEPTION: mountains still get scattered 3D PEAKS on top of the rocky ground — otherwise every mountain
   // tile shows the SAME texture with a centred peak, so a mountain region reads as peaks in a straight grid.
-  if (!tex) scatter(grp, def, gridKind, seed||1, mass);
-  else if (def.feature==='houses' || def.feature==='buildings' || def.feature==='keep' || def.feature==='peaks') scatter(grp, def, gridKind, seed||1, mass);
+  if (!tex) scatter(grp, def, gridKind, seed||1, mass, variant);
+  else if (def.feature==='houses' || def.feature==='buildings' || def.feature==='keep' || def.feature==='peaks') scatter(grp, def, gridKind, seed||1, mass, variant);
   return grp;
 }
 
@@ -520,11 +538,13 @@ export const stepAngle = (kind)=> kind==='hex' ? Math.PI/3 : Math.PI/2;
    road / stream / trail / wall can run along tile edges, turn at corners, and
    trace the hex/square pattern for as long as you like. Same painted textures.
    ========================================================================== */
+// path widths are world-scale by default (a ribbon across a region tile). In BATTLE scale a road/stream must
+// read as a real ~5-10 ft way — roughly one 5-ft cell wide — so widen them when _scale==='battle'.
 const DRAW_SPEC = {
-  river: ()=>({ tex:riverTex(), w:0.24, y:TOP+0.028, ro:5 }),
-  trail: ()=>({ tex:trailTex(), w:0.15, y:TOP+0.030, ro:6, blend:'multiply' }),
-  road:  ()=>({ tex:roadTex(),  w:0.22, y:TOP+0.034, ro:7 }),
-  paved: ()=>({ tex:pavedTex(), w:0.24, y:TOP+0.035, ro:7 }),
+  river: ()=>({ tex:riverTex(), w:_scale==='battle'?0.95:0.24, y:TOP+0.028, ro:5 }),
+  trail: ()=>({ tex:trailTex(), w:_scale==='battle'?0.55:0.15, y:TOP+0.030, ro:6, blend:'multiply' }),
+  road:  ()=>({ tex:roadTex(),  w:_scale==='battle'?0.90:0.22, y:TOP+0.034, ro:7 }),
+  paved: ()=>({ tex:pavedTex(), w:_scale==='battle'?1.00:0.24, y:TOP+0.035, ro:7 }),
 };
 // a flat textured ribbon of the given type following world points [{x,z},…]
 // The drawn points are the clicked connector dots; instead of hard straight segments between
@@ -567,22 +587,31 @@ export function pathPlate(type, radius){
   const s = DRAW_SPEC[type] && DRAW_SPEC[type]();
   if (!s) return null;
   const jt=s.tex.clone(); jt.needsUpdate=true;
-  const plate=new THREE.Mesh(new THREE.CircleGeometry(radius || s.w*0.62, 18),
+  const plate=new THREE.Mesh(new THREE.CircleGeometry(radius || s.w*0.5, 18),   // = the road's HALF-width so the merge patch fills the junction WITHOUT bulging past the road edges as a visible disc
     new THREE.MeshBasicMaterial({ map:jt, transparent:true, depthTest:false, depthWrite:false,
       blending: s.blend==='multiply' ? THREE.MultiplyBlending : THREE.NormalBlending }));
   plate.rotation.x=-Math.PI/2; plate.renderOrder=s.ro; return plate;
 }
 // a crenellated stone wall following world points [{x,z},…]
 export function wallRibbonAlong(points, hgt){
-  hgt = hgt || 0.26; const grp=new THREE.Group();
+  // BATTLE scale: a settlement/castle wall is a real defensive structure a mini stands behind, so it must be
+  // TALL and thick — not the low world-scale region-boundary curb. Scale height, thickness, battlements + their
+  // spacing up so the wall reads correctly against 5-ft cells and battle-sized props.
+  const battle = _scale==='battle';
+  hgt = hgt || (battle ? 1.05 : 0.26);
+  const th   = battle ? 0.24 : 0.13;                 // wall thickness
+  const mW   = battle ? 0.26 : 0.14, mH = battle ? 0.20 : 0.08, mD = battle ? 0.20 : 0.11;  // merlon (crenellation) box
+  const mStep= battle ? 0.36 : 0.2;                  // spacing between battlements
+  const capY = battle ? 0.10 : 0.04;                 // merlon lift above the wall top
+  const grp=new THREE.Group();
   for (let i=0;i<points.length-1;i++){ const a=points[i], b=points[i+1];
     const dx=b.x-a.x, dz=b.z-a.z, L=Math.hypot(dx,dz); if(L<1e-4) continue;
     const yaw=Math.atan2(dx,dz);
-    const seg=new THREE.Mesh(new THREE.BoxGeometry(0.13, hgt, L*0.98), mat(0x8b8b93,{roughness:0.8}));
+    const seg=new THREE.Mesh(new THREE.BoxGeometry(th, hgt, L*0.98), mat(0x8b8b93,{roughness:0.8}));
     seg.position.set((a.x+b.x)/2, TOP+hgt/2, (a.z+b.z)/2); seg.rotation.y=yaw; seg.castShadow=true; grp.add(_overTiles(seg));
-    const merlon=mat(0x9a9aa2,{roughness:0.8}); const n=Math.max(1,Math.round(L/0.2));
-    for (let k=0;k<=n;k++){ const t=k/n; const c=new THREE.Mesh(new THREE.BoxGeometry(0.14,0.08,0.11), merlon);
-      c.position.set(a.x+dx*t, TOP+hgt+0.04, a.z+dz*t); c.rotation.y=yaw; grp.add(_overTiles(c)); }
+    const merlon=mat(0x9a9aa2,{roughness:0.8}); const n=Math.max(1,Math.round(L/mStep));
+    for (let k=0;k<=n;k++){ const t=k/n; const c=new THREE.Mesh(new THREE.BoxGeometry(mW,mH,mD), merlon);
+      c.position.set(a.x+dx*t, TOP+hgt+capY, a.z+dz*t); c.rotation.y=yaw; grp.add(_overTiles(c)); }
   }
   return grp;
 }
@@ -656,14 +685,18 @@ function prop3D(kind){ const g=new THREE.Group();
   else if(kind==='bush'){ for(const [dx,dz,s] of [[-0.09,0.03,0.9],[0.09,0.02,0.85],[0,-0.06,1]]) add(new THREE.Mesh(new THREE.SphereGeometry(0.11*s,8,7), mat(0x3f7a42))).position.set(dx,TOP+0.09,dz); }
   else if(kind==='tower'){ add(new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.14,0.6,10), mat(0x9a9298))).position.y=TOP+0.3;
     const roof=add(new THREE.Mesh(new THREE.ConeGeometry(0.17,0.22,10), mat(0x8a3b2f))); roof.position.y=TOP+0.71; }
-  else if(kind==='tent'){ const t=add(new THREE.Mesh(new THREE.ConeGeometry(0.22,0.32,4), mat(0xc9a15a))); t.position.y=TOP+0.16; t.rotation.y=Math.PI/4; }
+  else if(kind==='tent'){ const wdt=0.5, len=0.56, hgt=0.34;   // a proper RIDGE (A-frame) tent — a triangular prism, not a cone/pyramid
+    const shp=new THREE.Shape(); shp.moveTo(-wdt/2,0); shp.lineTo(wdt/2,0); shp.lineTo(0,hgt); shp.closePath();
+    const tg=new THREE.ExtrudeGeometry(shp,{depth:len,bevelEnabled:false}); tg.translate(0,0,-len/2);
+    const t=add(new THREE.Mesh(tg, mat(0xc25d3a,{roughness:0.9}))); t.position.y=TOP; t.castShadow=true;
+    const door=add(new THREE.Mesh(new THREE.PlaneGeometry(wdt*0.34,hgt*0.7), mat(0x3a2a18)));   // dark entrance flap on the front end
+    door.position.set(0,TOP+hgt*0.33,len/2+0.002); }
   else if(kind==='henge'){ const R=0.24, stone=mat(0x968f86,{roughness:1});   // ring of standing stones + a couple of lintels
     for(let i=0;i<7;i++){ const a=i/7*6.283; const s=add(new THREE.Mesh(new THREE.BoxGeometry(0.09,0.26,0.05), stone));
       s.position.set(Math.cos(a)*R,TOP+0.13,Math.sin(a)*R); s.rotation.y=-a; }
     add(new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.06,0.3,7), stone)).position.set(0,TOP+0.15,0); }
   else if(kind==='pyramid'){ const p=add(new THREE.Mesh(new THREE.ConeGeometry(0.34,0.42,4), mat(0xd2ba82,{roughness:1})));
-    p.position.y=TOP+0.21; p.rotation.y=Math.PI/4;
-    add(new THREE.Mesh(new THREE.BoxGeometry(0.05,0.05,0.05), mat(0xe7d7a6))).position.y=TOP+0.44; }
+    p.position.y=TOP+0.21; p.rotation.y=Math.PI/4; }   // (removed the stray cube that used to float above the apex)
   return g;
 }
 // place-able prop: mode '3d' → raised model; '2d' → flat top-down token on the ground. Caller sets position/rot.
@@ -693,15 +726,21 @@ function _rhombiLattice(A,B,D,n,push){            // parallelogram spanned by (B
 // count of equal sub-cells a mode+level yields (for labels)
 export function subdivisionCount(gridKind, mode, n){
   if(gridKind==='square' || mode==='grid') return n*n;
+  if(mode==='offset') return 7;         // inner hex + 6 trapezoids
   if(mode==='rhombi') return 3*n*n;
   return 6*n*n;   // triangles
 }
+const _OFFSET_F = Math.sqrt(1/7);       // inset factor for the OFFSET-hex subdivide → all 7 cells EQUAL AREA (6·f² = 1−f²)
 // the sub-cell POLYGONS (for picking + painting) — each {poly:[[x,z]…], c:[cx,cz]} in local frame
 export function subdivisionCells(gridKind, mode, n){
   n=Math.max(2,n|0); const g=TE.gridFor(gridKind), C=g.corners(); const out=[];
   const add=(pts)=>{ let cx=0,cz=0; for(const p of pts){cx+=p[0];cz+=p[1];} out.push({poly:pts, c:[cx/pts.length, cz/pts.length]}); };
   if(gridKind==='square'||mode==='grid'){
     for(let j=0;j<n;j++) for(let i=0;i<n;i++){ const x0=-0.5+i/n, z0=-0.5+j/n, s=1/n; add([[x0,z0],[x0+s,z0],[x0+s,z0+s],[x0,z0+s]]); }
+  } else if(mode==='offset'){                       // OFFSET hex: an inner (inset) hex + 6 trapezoids to the outer corners
+    const inner=C.map(p=>[p[0]*_OFFSET_F, p[1]*_OFFSET_F]);
+    add(inner.slice());                             // central hex
+    for(let k=0;k<6;k++){ const k2=(k+1)%6; add([C[k],C[k2],inner[k2],inner[k]]); }   // trapezoid per outer edge
   } else if(mode==='rhombi'){
     for(const [a,,c] of [[0,1,2],[2,3,4],[4,5,0]]){ const A=[0,0],B=C[a],D=C[c];
       const P=(i,j)=>[A[0]+(i/n)*(B[0]-A[0])+(j/n)*(D[0]-A[0]), A[1]+(i/n)*(B[1]-A[1])+(j/n)*(D[1]-A[1])];
@@ -719,6 +758,9 @@ export function subdivisionOverlay(gridKind, mode, n){
   const g = TE.gridFor(gridKind), C = g.corners(); const segs=[]; const push=(a,b)=>{ segs.push(a); segs.push(b); };
   if(gridKind==='square' || mode==='grid'){
     for(let i=1;i<n;i++){ const t=-0.5+i/n; push([t,-0.5],[t,0.5]); push([-0.5,t],[0.5,t]); }
+  } else if(mode==='offset'){                       // inner hex edges + a radial line from each inner corner to its outer corner
+    const inner=C.map(p=>[p[0]*_OFFSET_F, p[1]*_OFFSET_F]);
+    for(let k=0;k<6;k++){ const k2=(k+1)%6; push(inner[k],inner[k2]); push(C[k],inner[k]); }
   } else if(mode==='rhombi'){
     for(const [a,,c] of [[0,1,2],[2,3,4],[4,5,0]]) _rhombiLattice([0,0], C[a], C[c], n, push);
   } else {   // triangles

@@ -69,21 +69,20 @@
       corners(){ return [[-0.5,-0.5],[0.5,-0.5],[0.5,0.5],[-0.5,0.5]]; }
     },
     hex: {
-      kind:'hex', N:6, dirNames:['E','NE','NW','W','SW','SE'],
-      // pointy-top axial (q,r); 6 neighbour directions
+      kind:'hex', N:6, dirNames:['ESE','ENE','N','WNW','WSW','S'],
+      // FLAT-TOP axial (q,r) — flat edges on top & bottom, vertices left & right — to MATCH The Game Crafter's
+      // hex tiles/mats so what's designed on screen prints in the same orientation. 6 neighbour directions.
       _d:[[1,0],[1,-1],[0,-1],[-1,0],[-1,1],[0,1]],
       step(p,dir){ const d=this._d[dir]; return { q:p.q+d[0], r:p.r+d[1] }; },
       opposite(dir){ return (dir+3)%6; },
-      // pointy-top axial → world; tile "radius" (centre→corner) = 0.5
-      world(p){ const R=0.5; return { x:R*SQ3*(p.q + p.r/2), z:R*1.5*p.r }; },
-      // The edge facing neighbour `dir` (see _d) sits at world angle 90°+60°·dir (measured from
-      // +z toward +x). Using 30° here — a one-edge offset from _d — drew every path toward the
-      // wrong physical edge, so hex roads/rivers never lined up. Must stay in step with _d/opposite.
-      edgeMid(dir){ const R=0.5, ap=R*Math.cos(Math.PI/6);   // apothem (centre→edge midpoint)
-        const a = Math.PI/2 + dir*Math.PI/3;                 // edge normal angles for pointy-top
-        return [ap*Math.sin(a), ap*Math.cos(a)]; },
-      edgeAngle(dir){ return Math.PI/2 + dir*Math.PI/3; },
-      corners(){ const R=0.5, out=[]; for(let i=0;i<6;i++){ const a=i*Math.PI/3; out.push([R*Math.sin(a), R*Math.cos(a)]); } return out; }
+      // flat-top axial → world; tile "radius" (centre→corner) = 0.5. Columns (q) step 1.5R in x; rows (r) step
+      // √3R in z; each q shears z by half a row. (Point-to-point width 2R=1.0, flat-to-flat height √3R≈0.866.)
+      world(p){ const R=0.5; return { x:R*1.5*p.q, z:R*SQ3*(p.r + p.q/2) }; },
+      // edge midpoint toward neighbour `dir` = HALF the centre→centre vector for that _d step. Deriving it
+      // straight from _d keeps every edge locked to its neighbour (no hand-tuned angle can drift out of step).
+      edgeMid(dir){ const R=0.5, d=this._d[dir]; return [ R*1.5*d[0]/2, R*SQ3*(d[1] + d[0]/2)/2 ]; },
+      edgeAngle(dir){ const e=this.edgeMid(dir); return Math.atan2(e[0], e[1]); },
+      corners(){ const R=0.5, out=[]; for(let i=0;i<6;i++){ const a=i*Math.PI/3; out.push([R*Math.cos(a), R*Math.sin(a)]); } return out; }   // flat-top: vertices L/R, flats top/bottom
     }
   };
   const gridFor = (kind)=> GRIDS[kind] || GRIDS.square;

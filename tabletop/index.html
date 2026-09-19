@@ -43,6 +43,25 @@
   #bDrawTools .bdtool.on{background:var(--acc);color:#08101f;border-color:var(--acc);font-weight:700}
   #bPropTools .bproptool.on{background:var(--acc);color:#08101f;border-color:var(--acc);font-weight:700}
   #bPropTools .bproptool{font-size:12px;padding:6px 8px}
+  #bMiniSeg .bminitool.on{background:var(--acc);color:#08101f;border-color:var(--acc);font-weight:700}
+  #bPropMenu{position:fixed;z-index:60;width:210px;background:#10151f;border:1px solid #2b3648;border-radius:10px;padding:10px 12px;box-shadow:0 10px 30px rgba(0,0,0,.5);font-size:12px;color:#dfe7f2}
+  #bPropMenu .pmHead{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+  #bPropMenu .pmX{cursor:pointer;font-size:16px;line-height:1;padding:0 4px;color:#9fb0c8}
+  #bPropMenu .pmL{display:block;margin:8px 0 3px;color:#9fb0c8;font-size:11px}
+  #bPropMenu input[type=range]{width:100%}
+  #bPropMenu .pmSwatches,#bPropMenu .pmMove{display:flex;gap:4px;flex-wrap:wrap}
+  #bPropMenu .pmSw{width:22px;height:22px;border-radius:5px;border:2px solid #2b3648;cursor:pointer;padding:0}
+  #bPropMenu .pmSw.on{border-color:var(--acc)}
+  #bPropMenu .pmMove button{width:28px;height:24px;background:#1a2130;border:1px solid #2b3648;border-radius:5px;color:#dfe7f2;cursor:pointer}
+  #bPropMenu .pmRow{margin-top:9px}
+  #bPropMenu .pmDel{width:100%;background:#3a1c1c;border:1px solid #6a2b2b;border-radius:6px;color:#ffb4b4;padding:6px;cursor:pointer}
+  #bPropMenu .mmTabs{display:flex;gap:3px;margin:3px 0}
+  #bPropMenu .mmTabs button{flex:1;font-size:10px;padding:3px 2px;background:#1a2130;border:1px solid #2b3648;border-radius:5px;color:#cfe0ff;cursor:pointer}
+  #bPropMenu .mmTabs button.on{border-color:var(--acc);background:#22304a}
+  #bPropMenu .mmList{max-height:148px;overflow:auto;display:flex;flex-direction:column;gap:2px;margin:2px 0}
+  #bPropMenu .mmItem{text-align:left;font-size:11px;padding:4px 6px;background:#161c28;border:1px solid #26303f;border-radius:5px;color:#dfe7f2;cursor:pointer}
+  #bPropMenu .mmItem.on{border-color:var(--acc);background:#22304a}
+  #bPropMenu .pmAlt{width:100%;background:#1a2a1e;border:1px solid #2f5a3b;border-radius:6px;color:#bff0c6;padding:6px;cursor:pointer;margin-top:6px}
   button.btn.warn{background:var(--warn)}
   button.btn:disabled{opacity:.45;cursor:default}
   .slot{border:1px solid var(--line);border-radius:8px;padding:8px;margin:8px 0;background:var(--panel2)}
@@ -64,6 +83,7 @@
   #cambar .cam-sep{width:1px;background:var(--line);margin:2px 2px}
   #cambar button{background:rgba(28,31,40,.9);border:1px solid var(--line);color:var(--txt);border-radius:7px;padding:6px 10px;cursor:pointer;font-size:12px}
   #cambar button.on{border-color:var(--acc);color:#cfe0ff}
+  #navcube{position:absolute;top:52px;right:12px;width:75px;height:75px;cursor:pointer;z-index:6;filter:drop-shadow(0 3px 8px rgba(0,0,0,.5))}
   #recdot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--warn);margin-right:6px;visibility:hidden}
   #recdot.on{visibility:visible;animation:blink 1s infinite}
   @keyframes blink{50%{opacity:.2}}
@@ -167,7 +187,7 @@
         </div>
       </div>
       <label class="row" style="gap:6px;cursor:pointer"><input type="checkbox" id="setupLabels"> <span class="mini">Show letters above the pieces (P/N/M…)</span></label>
-      <div class="hint">Assign a rigged <b>.glb</b> to each <b>role</b> below. No model = a placeholder stand-in, so you can play immediately. Motion &amp; Finisher clips come from your studio library; travel <i>style</i> drives how a piece crosses the board.</div>
+      <div class="hint">Assign a rigged <b>.glb</b> to each <b>role</b> below — load your own, or pick a bundled <b>＋ Sample character</b> (Human · Dog · Bird) to start instantly. No model = a placeholder stand-in. Once a model is set, its compatible <b>Motion</b> &amp; <b>Finisher</b> clips appear (from the studio library); travel <i>style</i> drives how a piece crosses the board.</div>
       <div class="row wrap">
         <button class="btn sec" id="saveRoster">💾 Save roster</button>
         <button class="btn sec" id="loadRosterBtn">📂 Load roster</button>
@@ -249,6 +269,46 @@
           <button data-grid="hex" data-exp="terrain">⬡ Hex</button>
         </div>
       </div>
+      <div class="row wrap" style="align-items:center">
+        <label class="fld" style="margin:0">🖨 Print size</label>
+        <select id="bTgcSel" style="flex:1;min-width:160px">
+          <option value="">Screen only (no print size)</option>
+          <optgroup label="Hex tile sets — die-cut, 1 PNG per tile">
+            <option value="hexMini">⬡ Hex tiles · Mini (1.25")</option>
+            <option value="hexSmall">⬡ Hex tiles · Small (2")</option>
+            <option value="hexMed">⬡ Hex tiles · Medium (2.5")</option>
+            <option value="hexLarge">⬡ Hex tiles · Large (3.75")</option>
+          </optgroup>
+          <optgroup label="Square tile sets — die-cut, 1 PNG per tile">
+            <option value="sqMini">▦ Square tiles · Mini (1.25")</option>
+            <option value="sqSmall">▦ Square tiles · Small (2")</option>
+            <option value="sqMed">▦ Square tiles · Medium (2.5")</option>
+            <option value="sqLarge">▦ Square tiles · Large (3.5")</option>
+          </optgroup>
+          <optgroup label="Mats &amp; boards — one big image (fill w/ hex or square)">
+            <option value="matSmall">Square Mat · Small (4")</option>
+            <option value="mat">Square Mat (8")</option>
+            <option value="matLarge">Square Mat · Large (10")</option>
+            <option value="quad">Quad-Fold Board (18")</option>
+            <option value="quadLarge">Large Quad-Fold Board (20")</option>
+          </optgroup>
+          <optgroup label="Hex mat sets — one image">
+            <option value="flower">🌸 Flower Mat (7 hex)</option>
+            <option value="invader">👾 Invader Mat (13 hex)</option>
+          </optgroup>
+        </select>
+        <select id="bTgcCell" style="min-width:96px;display:none" title="Cell size to fill the mat with">
+          <option value="0.75">0.75" cells</option>
+          <option value="1" selected>1" cells</option>
+          <option value="1.5">1.5" cells</option>
+          <option value="2">2" cells</option>
+        </select>
+      </div>
+      <div class="mini" id="bTgcInfo" style="margin:0 0 4px;display:none"></div>
+      <div class="row wrap" id="bTgcExportRow" style="display:none;margin-bottom:4px">
+        <button class="btn" id="bTgcExport" style="flex:1">🖨 Export for print (The Game Crafter)</button>
+        <label class="row" style="gap:4px;cursor:pointer"><input type="checkbox" id="bTgcSheet"> <span class="mini">+ letter sheet</span></label>
+      </div>
       <div class="cfg">
         <div><label class="fld">Width</label><input type="number" id="bCols" value="8" min="2" max="96" style="width:100%"></div>
         <div><label class="fld">Height</label><input type="number" id="bRows" value="8" min="2" max="96" style="width:100%"></div>
@@ -263,6 +323,21 @@
           <option value="desert" data-exp="terrain">Desert</option>
           <option value="mountains" data-exp="terrain">Mountains</option>
           <option value="wetlands" data-exp="terrain">Wetlands / Lake</option>
+          <optgroup label="Settlement (whole map)">
+          <option value="castle">🏰 Castle</option>
+          <option value="town">🏘 Town</option>
+          <option value="village">🛖 Village</option>
+          </optgroup>
+          <optgroup label="Single biome — base terrain (all one type)">
+          <option value="biome:plains">🌱 All Grass / Plains</option>
+          <option value="biome:forest">🌲 All Forest</option>
+          <option value="biome:sand">🏜 All Desert</option>
+          <option value="biome:water">💧 All Water</option>
+          <option value="biome:mountains">⛰ All Mountains</option>
+          <option value="biome:snow">❄️ All Snow</option>
+          <option value="biome:rocks">🪨 All Rocky</option>
+          <option value="biome:dirt">🟤 All Dirt</option>
+          </optgroup>
         </select>
         <label class="row" style="gap:4px;cursor:pointer"><input type="checkbox" id="bGenStream" checked> <span class="mini">💧 stream</span></label>
         <label class="row" style="gap:4px;cursor:pointer"><input type="checkbox" id="bGenRoad" checked> <span class="mini">🛣 road</span></label>
@@ -385,6 +460,19 @@
       </div>
       <div class="row wrap"><button class="btn sec" id="bPropClear">Clear props</button></div>
       <div class="divider"></div>
+      <label class="fld">🎭 Minis — drop character &amp; monster tokens that <b>snap to 5-ft cells</b> (the battle layer). Pick a team, then click cells to place. Click a placed mini (no tool active) then <b>drag</b> to move it (it re-snaps to the cell) or press <b>Delete</b>; the Scale slider resizes a selected mini.</label>
+      <div class="row wrap" id="bMiniSeg">
+        <button class="btn sec bminitool" data-team="blue">🔵 Hero</button>
+        <button class="btn sec bminitool" data-team="red">🔴 Enemy</button>
+        <button class="btn sec bminitool" data-team="green">🟢 NPC</button>
+        <button class="btn sec bminitool" data-team="gold">🟡 Boss</button>
+        <button class="btn sec bminitool" data-team="gray">⚪ Other</button>
+      </div>
+      <div class="row wrap"><button class="btn sec" id="bMiniClear">Clear minis</button>
+        <button class="btn sec bdtool" id="bMeasureTool">📏 Measure</button>
+        <button class="btn sec bdtool" id="bGridLinesTool">▦ 5-ft grid</button></div>
+      <div class="mini">📏 Measure — click a start then an end cell for the distance in feet &amp; squares (5 ft per cell). ▦ 5-ft grid draws crisp cell outlines over the terrain.</div>
+      <div class="divider"></div>
       <label class="fld">◈ Subdivide — split cells into equal smaller pieces for finer detail. Turn it on, then click cells (or Subdivide all).</label>
       <div class="row wrap" style="align-items:center">
         <button class="btn sec bdtool" id="bSubTool">◈ Subdivide: off</button>
@@ -393,7 +481,7 @@
       </div>
       <div class="row wrap" id="bSubHexRow" style="align-items:center;display:none">
         <span class="mini">Hex pieces:</span>
-        <div class="seg" id="bSubHexSeg"><button data-m="tri" class="on">△ Triangles</button><button data-m="rhombi">◇ Rhombi</button></div>
+        <div class="seg" id="bSubHexSeg"><button data-m="tri" class="on">△ Triangles</button><button data-m="rhombi">◇ Rhombi</button><button data-m="offset">⬡ Offset (7)</button></div>
       </div>
       <div class="mini" id="bSubInfo" style="margin:2px 0"></div>
       <div class="row wrap">
@@ -421,7 +509,7 @@
         </div>
         <button class="btn sec" id="bRepaintTool">🖌 Repaint: off</button>
       </div>
-      <div class="mini" style="margin:2px 0 6px">Plains, forest, rocky &amp; sand each have 3 painted looks. <b>Auto</b> keeps one coherent look per map (no autumn trees beside green — change the seed for a different season); pick 1–3 to force one everywhere. Turn on <b>🖌 Repaint</b> then click any tile to overwrite just that tile's look (mix in a few autumn trees) — with <b>Auto</b> selected each click cycles that tile through the looks.</div>
+      <div class="mini" style="margin:2px 0 6px">Plains, forest, rocky &amp; sand each have 3 painted looks; <b>mountains</b> have 2 — <b>1</b> rocky, <b>2</b> ❄️ snow-capped peaks. <b>Auto</b> keeps one coherent look per map (mountains stay rocky under Auto; 🌲 Winter snow-caps them all); pick 1–3 to force one everywhere. Turn on <b>🖌 Repaint</b> then click any tile to overwrite just that tile's look — with <b>Auto</b> selected each click cycles that tile through the looks, so click a mountain to toggle its snowcap and place peaks exactly where you want them.</div>
       <label class="fld">Tiles — click one, then click a cell to place it · <b>R</b> rotate · right-click removes</label>
       <div id="bPalette"></div>
     </div>
@@ -442,6 +530,7 @@
       <button data-side="w" class="on">⬜ Side 1</button>
       <button data-side="b">⬛ Side 2</button>
     </div>
+    <canvas id="navcube" width="75" height="75" title="Orientation cube — click a face, edge or corner to look from that side · drag to orbit" hidden></canvas>
     <div id="playerBar" hidden>
       <button id="pNew">▶ New</button>
       <button id="pUndo">↶ Undo</button>
@@ -535,6 +624,7 @@
 <script src="games/checkers-gamedef.js"></script>
 <script src="games/sternhalma-gamedef.js"></script>
 <script src="games/racetest-gamedef.js"></script>
+<script src="games/ur-gamedef.js"></script>
 <script src="tabletop-tier.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script type="importmap">
@@ -553,7 +643,7 @@ import { buildTileMesh, stepAngle as tileStepAngle, pathRibbonAlong, wallRibbonA
 
 const BGC = window.BGC, GAMES = window.BGC_GAMES;
 const TE = window.TileEngine, TLIB = window.TileLibrary;
-const APP_VERSION = 'v0.30';
+const APP_VERSION = 'v0.37';
 const CREDITS = `<b>Ksol Designs</b> — Paul A.T. Ramey<br>www.ksoldesigns.com<br>Built with GLB Studio · Tabletop<br><span class="ver">${APP_VERSION}</span>`;
 try{ document.getElementById('verBadge').textContent = APP_VERSION; }catch(e){}
 console.log('%c[Tabletop] '+APP_VERSION, 'font-weight:bold;color:#4f8cff');
@@ -586,7 +676,9 @@ function blankRoster(){
 /* ================= three.js scene ================= */
 const stage = document.getElementById('stage');
 const renderer = new THREE.WebGLRenderer({ antialias:true, preserveDrawingBuffer:true });
-renderer.setPixelRatio(Math.min(2, devicePixelRatio));
+// Cap the device-pixel-ratio: at DPR 2 a hi-DPI laptop shades 4× the pixels every frame (the main
+// cause of sluggish orbit/zoom on integrated GPUs). 1.5 keeps edges crisp for ~44% less fill cost.
+renderer.setPixelRatio(Math.min(1.5, devicePixelRatio));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 stage.appendChild(renderer.domElement);
@@ -767,18 +859,62 @@ function buildGraphBoard(){
    sand oval with an inner + outer rail; each side's paddock (home yard) + winner's circle (done) get
    coloured pads; rosette squares glow (extra roll), safe squares get a shield ring. Nodes carry
    userData.square so clicks + highlights work exactly like the grid/graph boards. ---- */
+// a small 8-petal rosette flower laid flat on a pad top (for grid-style boards like Ur)
+function buildRosetteFlower(cx, cz, y, petalCol, coreCol){
+  const g = new THREE.Group(); g.position.set(cx, y, cz);
+  const petalGeo = new THREE.SphereGeometry(0.12, 10, 8);
+  const pm = new THREE.MeshStandardMaterial({ color:petalCol, roughness:0.5, metalness:0.1 });
+  for (let k=0;k<8;k++){ const a=k/8*Math.PI*2; const p=new THREE.Mesh(petalGeo, pm);
+    p.position.set(Math.cos(a)*0.24, 0.02, Math.sin(a)*0.24); p.scale.set(1,0.5,1.5); p.rotation.y=-a; g.add(p); }
+  const core=new THREE.Mesh(new THREE.SphereGeometry(0.15,12,10), new THREE.MeshStandardMaterial({color:coreCol, roughness:0.35, metalness:0.25}));
+  core.position.y=0.03; core.scale.y=0.55; g.add(core);
+  return g;
+}
 function buildTrackBoard(){
   boardGroup.clear(); tiles = []; boardGroup.add(coordGroup); coordGroup.clear();
   const th = (BOARD.theme)||{};
+  const style = th.style || 'oval';
   const rosette = def.track.rosette instanceof Set ? def.track.rosette : new Set(def.track.rosette||[]);
   const safe    = def.track.safe    instanceof Set ? def.track.safe    : new Set(def.track.safe||[]);
-  // ground + infield
+  const nodes = BGC.boardNodes(def);
+
+  if (style==='grid'){
+    // ---- inlaid grid board (Royal Game of Ur): rectangular plate under the squares, no racecourse ----
+    const g = new THREE.Mesh(new THREE.PlaneGeometry(80,80), new THREE.MeshStandardMaterial({ color:th.ground||0x0c0f16, roughness:1 }));
+    g.rotation.x=-Math.PI/2; g.position.y=-0.16; g.receiveShadow=true; boardGroup.add(g);
+    scene.background = new THREE.Color(th.ground||0x0c0f16).lerp(new THREE.Color(0x000000),0.2);
+    // plate spans the ring squares' bounding box
+    let mnx=1e9,mxx=-1e9,mnz=1e9,mxz=-1e9;
+    for (const node of nodes){ const p=NODEPOS[node]; if(p.kind!=='ring') continue; const w=worldOf(node);
+      mnx=Math.min(mnx,w.x); mxx=Math.max(mxx,w.x); mnz=Math.min(mnz,w.z); mxz=Math.max(mxz,w.z); }
+    const bw=(mxx-mnx)+1.5, bd=(mxz-mnz)+1.5, bx=(mnx+mxx)/2, bz=(mnz+mxz)/2;
+    const rim=new THREE.Mesh(new THREE.BoxGeometry(bw+0.4,0.22,bd+0.4), new THREE.MeshStandardMaterial({color:th.boardRim||0x0a3a5a, roughness:0.5, metalness:0.15}));
+    rim.position.set(bx,-0.10,bz); rim.receiveShadow=true; boardGroup.add(rim);
+    const plate=new THREE.Mesh(new THREE.BoxGeometry(bw,0.16,bd), new THREE.MeshStandardMaterial({color:th.board||0x14202f, roughness:0.6, metalness:0.1}));
+    plate.position.set(bx,-0.02,bz); plate.receiveShadow=true; boardGroup.add(plate);
+    const sqGeo  = new THREE.BoxGeometry(0.94,0.12,0.94);
+    const parkGeo= new THREE.CylinderGeometry(0.30,0.30,0.08,20);
+    for (const node of nodes){
+      const p = NODEPOS[node]; const w = worldOf(node);
+      let col, geo=sqGeo, y=0.06;
+      if (p.kind==='ring'){ col = new THREE.Color(rosette.has(node) ? (th.rosette||0x3d7bbf) : (((p.row+p.col)&1) ? (th.trackAlt||th.track||0xCFA85F) : (th.track||0xE7D8AE))); }
+      else if (p.kind==='home' || p.kind==='done'){ col = new THREE.Color((th.sideColors&&th.sideColors[p.side])||0x888888).lerp(new THREE.Color(0xffffff), p.kind==='done'?0.3:0); geo=parkGeo; y=0.02; }
+      else col = new THREE.Color(0x888888);
+      const mat = new THREE.MeshStandardMaterial({ color:col, roughness:0.55, metalness:0.08 });
+      const t = new THREE.Mesh(geo, mat); t.position.set(w.x, y, w.z); t.receiveShadow=true;
+      t.userData = { square:node, base:mat.color.clone(), baseEmis:new THREE.Color(0,0,0), mat };
+      boardGroup.add(t); tiles.push(t);
+      if (p.kind==='ring' && rosette.has(node)) boardGroup.add(buildRosetteFlower(w.x, w.z, 0.13, 0xEAD9B0, th.rosette||0x3d7bbf));
+    }
+    return;
+  }
+
+  // ---- oval racecourse (Derby Loop and other loop games) ----
   const g = new THREE.Mesh(new THREE.PlaneGeometry(60,60), new THREE.MeshStandardMaterial({ color:th.ground||0x14301a, roughness:1 }));
   g.rotation.x=-Math.PI/2; g.position.y=-0.06; g.receiveShadow=true; boardGroup.add(g);
   scene.background = new THREE.Color(th.ground||0x14301a).lerp(new THREE.Color(0x000000),0.25);
   const infield = new THREE.Mesh(new THREE.CircleGeometry(GRADIUS*0.62, 48), new THREE.MeshStandardMaterial({ color:th.infield||0x2f6f3a, roughness:0.95 }));
   infield.rotation.x=-Math.PI/2; infield.position.y=-0.02; infield.receiveShadow=true; boardGroup.add(infield);
-  const nodes = BGC.boardNodes(def);
   const padGeo = new THREE.CylinderGeometry(0.62,0.62,0.12,28);
   const parkGeo= new THREE.CylinderGeometry(0.52,0.52,0.10,24);
   for (const node of nodes){
@@ -1111,6 +1247,7 @@ let selected = null, legalNow = [];
 let busy = false;
 
 function rebuildPieces(){
+  if(window.bumpRender) window.bumpRender();   // a rebuild changes the scene → return to full render rate
   piecesGroup.clear(); pieces.clear();
   for (const node of BGC.boardNodes(def)){
     const roleKey = def.roleAt(state, node);
@@ -1430,23 +1567,19 @@ function pick(ev){
 renderer.domElement.addEventListener('pointerdown', (ev)=>{
   if (camMode==='orbit' && ev.button!==0) return;
   if (BUILD){ if(ev.button!==0) return;
+    if(typeof bClosePropMenu==='function') bClosePropMenu();   // a fresh click on the board dismisses the prop edit menu
     if(PLAYB){ bPlayClick(ev); return; }
-    if(bld.subPaintOn){ bSubPaintAt(ev); return; }            // paint a sub-piece inside a subdivided cell
-    if(bld.repaintOn){ bRepaintAt(ev); return; }              // repaint mode: click a tile to overwrite its variant/look
-    if(bld.subTool){ bSubdivideAt(ev); return; }              // subdivide mode: click a cell to split it
-    if(bld.tool==='erase'){ bEraseAt(ev); return; }
-    if(bld.tool){ bDrawClickNode(ev); return; }               // draw mode: click connector dots
-    if(bld.propKind || bld.propGlb){ bPlaceProp(ev); return; } // prop mode: drop a procedural or library prop at the click point
-    const pi=bPickProp(ev);                                    // click a placed prop to select it; drag to MOVE it (Delete removes)
-    if(pi>=0){ bSelectPropAt(pi); const pr=bld.props[pi], gp=bPickPoint(ev);
-      bld.dragProp=pi; bld._dragMoved=false; bld._dragGrab=gp?{dx:pr.x-gp.x, dz:pr.z-gp.z}:{dx:0,dz:0};
-      controls.enableRotate=false; try{ renderer.domElement.setPointerCapture(ev.pointerId); }catch(e){}
-      return; }
-    const si=bPickStroke(ev);                                  // click a drawn line to select it (Delete removes)
-    if(si>=0){ bSelectStroke(si); return; }
-    if(bld.selStroke!=null) bSelectStroke(null);               // clicked empty → deselect
-    if(bld.selProp!=null){ bld.selProp=null; bRender(); }
-    const hit=bPickCell(ev); if(hit && hit.cell!==undefined) bTryPlace(hit.cell);
+    // With NO click-tool active, clicking a placed prop ARMS a live drag-to-move (needs pointerdown + pointermove).
+    const clickTool = bld.tool||bld.propKind||bld.propGlb||bld.subPaintOn||bld.repaintOn||bld.subTool||bld.sel;
+    if(!clickTool){ const pi=bPickProp(ev);                    // click a placed prop to select it; drag to MOVE it (Delete removes)
+      if(pi>=0){ bSelectPropAt(pi); const pr=bld.props[pi], gp=bPickPoint(ev);
+        bld.dragProp=pi; bld._dragMoved=false; bld._dragGrab=gp?{dx:pr.x-gp.x, dz:pr.z-gp.z}:{dx:0,dz:0};
+        controls.enableRotate=false; try{ renderer.domElement.setPointerCapture(ev.pointerId); }catch(e){}
+        return; } }
+    // Otherwise DEFER the action to pointerup: run it only if the pointer did NOT drag, so dragging orbits the view
+    // (or does nothing in Iso/Top) instead of dropping a prop / placing a tile where you grabbed to rotate. Fixes
+    // "picking a prop then clicking to rotate keeps placing props". See bBuildClick + the pointermove/up handlers.
+    bld._down={ x:ev.clientX, y:ev.clientY, moved:false };
     return; }
   if (busy || cpuThinking) return;
   const turn = def.turnOf(state);
@@ -1468,7 +1601,9 @@ renderer.domElement.addEventListener('pointerdown', (ev)=>{
   } else { selected=null; legalNow=[]; highlightSel(); }
 });
 // DRAG a placed prop to reposition it (build mode). Moves just that prop's mesh live; full re-render on release.
-renderer.domElement.addEventListener('pointermove',(ev)=>{ if(!BUILD || bld.dragProp==null) return;
+renderer.domElement.addEventListener('pointermove',(ev)=>{
+  if(bld._down && !bld._down.moved && Math.hypot(ev.clientX-bld._down.x, ev.clientY-bld._down.y)>6) bld._down.moved=true;   // moved enough → it's a drag, not a click
+  if(!BUILD || bld.dragProp==null) return;
   const pr=bld.props[bld.dragProp]; if(!pr){ bld.dragProp=null; return; } const p=bPickPoint(ev); if(!p) return;
   if(!bld._dragMoved){ bPushUndo(); bld._dragMoved=true; }               // snapshot pre-move state once, only if actually dragged
   pr.x=p.x+bld._dragGrab.dx; pr.z=p.z+bld._dragGrab.dz;
@@ -1477,9 +1612,32 @@ renderer.domElement.addEventListener('pointermove',(ev)=>{ if(!BUILD || bld.drag
 });
 function bEndPropDrag(ev){ if(bld.dragProp==null) return; const pr=bld.props[bld.dragProp], moved=bld._dragMoved;
   bld.dragProp=null; controls.enableRotate=(camMode==='orbit'); try{ renderer.domElement.releasePointerCapture(ev.pointerId); }catch(e){}
+  if(moved && pr && pr.kind==='mini'){ const c=bNearestCell(pr.x,pr.z); if(c){ const w=bGridObj().world(c); pr.x=w.x; pr.z=w.z; } }   // a moved mini re-snaps to the nearest cell centre
   bRender(); if(moved&&pr) bStatus(`Moved the <b>${propLabel(pr)}</b> · drag to reposition · <b>Delete</b> removes · Scale slider resizes`); }
-renderer.domElement.addEventListener('pointerup', bEndPropDrag);
-renderer.domElement.addEventListener('pointercancel', bEndPropDrag);
+renderer.domElement.addEventListener('pointerup',(ev)=>{ bEndPropDrag(ev);
+  if(bld._down){ const d=bld._down; bld._down=null; if(!d.moved && BUILD && !PLAYB && ev.button===0) bBuildClick(ev); } });
+renderer.domElement.addEventListener('pointercancel',(ev)=>{ bEndPropDrag(ev); bld._down=null; });
+// The deferred build-click dispatcher: runs on pointerup ONLY for a genuine click (no drag). This is the body that
+// used to run inline on pointerdown — moved here so dragging to orbit never triggers placement.
+function bBuildClick(ev){
+  if(bld.tool==='mini'){ bPlaceMini(ev); return; }
+  if(bld.tool==='measure'){ bMeasureClick(ev); return; }
+  if(bld.subPaintOn){ bSubPaintAt(ev); return; }
+  if(bld.repaintOn){ bRepaintAt(ev); return; }
+  if(bld.subTool){ bSubdivideAt(ev); return; }
+  if(bld.tool==='erase'){ bEraseAt(ev); return; }
+  if(bld.tool){ bDrawClickNode(ev); return; }
+  if(bld.propKind || bld.propGlb){ bPlaceProp(ev); return; }
+  const pi=bPickProp(ev); if(pi>=0){ bSelectPropAt(pi); return; }
+  if(bld.scale==='battle' && !bld.sel && !bld.tool){ const si=bPickStructure(ev); if(si>=0){ bToggleStructure(si); return; } }   // click a building → pop its roof
+  if(typeof bClickSettlement==='function' && bClickSettlement(ev)) return;        // click a town/castle/village → zoom into its 5-ft battle map
+  const si=bPickStroke(ev); if(si>=0){ bSelectStroke(si); return; }
+  if(bld.selStroke!=null) bSelectStroke(null);
+  if(bld.selProp!=null){ bld.selProp=null; bRender(); }
+  const hit=bPickCell(ev); if(hit && hit.cell!==undefined) bTryPlace(hit.cell);
+}
+// DOUBLE-CLICK a placed prop → open its edit menu (scale / rotate / move / shade / delete)
+renderer.domElement.addEventListener('dblclick',(ev)=>{ if(!BUILD||PLAYB) return; const pi=bPickProp(ev); if(pi>=0){ ev.preventDefault(); bOpenPropMenu(pi, ev.clientX, ev.clientY); } });
 
 /* ---------- cameras (verbatim) ---------- */
 let camMode='iso', camSaved=null, viewSide='w';
@@ -1513,6 +1671,45 @@ function setSide(side){
 }
 document.querySelectorAll('#cambar button[data-cam]').forEach(b=> b.addEventListener('click', ()=>setCam(b.dataset.cam)) );
 document.querySelectorAll('#cambar button[data-side]').forEach(b=> b.addEventListener('click', ()=>setSide(b.dataset.side)) );
+
+/* ---------- ORIENTATION NAV CUBE (build mode) — a live mini-cube in the corner; click a face / edge / corner to
+   look at the board from that direction (drag the board itself to free-orbit). ---------- */
+function bSnapToDir(dir){
+  const tgt=controls.target.clone(); const dist=Math.max(3, camera.position.distanceTo(tgt));
+  const up = Math.abs(dir.y)>0.985 ? new THREE.Vector3(0,0,-1) : new THREE.Vector3(0,1,0);   // straight-down/up needs a north-up frame
+  const pos = tgt.clone().addScaledVector(dir, dist);
+  camMode='orbit'; document.querySelectorAll('#cambar button[data-cam]').forEach(b=>b.classList.toggle('on', b.dataset.cam==='orbit'));
+  controls.enabled=true; controls.enableRotate=true; controls.enablePan=true; controls.enableZoom=true;
+  applyView({pos,tgt,up}, true);
+}
+const navCube = (function(){
+  const cv=document.getElementById('navcube'); if(!cv || !window.WebGLRenderingContext) return null;
+  const nr=new THREE.WebGLRenderer({canvas:cv, antialias:true, alpha:true}); nr.setPixelRatio(Math.min(1.5,devicePixelRatio)); nr.setSize(75,75,false);
+  const ns=new THREE.Scene();
+  const ncam=new THREE.PerspectiveCamera(36,1,0.1,20); ncam.position.set(0,0,4.6); ncam.lookAt(0,0,0);
+  ns.add(new THREE.HemisphereLight(0xffffff,0x445566,1.05));
+  const nl=new THREE.DirectionalLight(0xffffff,0.65); nl.position.set(3,5,6); ns.add(nl);
+  const faceTex=(txt,bg)=>{ const S=128,c=document.createElement('canvas'); c.width=c.height=S; const x=c.getContext('2d');
+    x.fillStyle=bg; x.fillRect(0,0,S,S); x.strokeStyle='rgba(20,24,32,.5)'; x.lineWidth=7; x.strokeRect(4,4,S-8,S-8);
+    x.fillStyle='#12141a'; x.font='bold 40px system-ui,Arial,sans-serif'; x.textAlign='center'; x.textBaseline='middle'; x.fillText(txt,S/2,S/2+2);
+    const t=new THREE.CanvasTexture(c); if('SRGBColorSpace' in THREE) t.colorSpace=THREE.SRGBColorSpace; t.anisotropy=4; return t; };
+  // BoxGeometry material order: +x,-x,+y,-y,+z,-z. north arrow = world -z, so -z=N, +z=S, +x=E, -x=W.
+  const faces=[['E','#cdd8ea'],['W','#cdd8ea'],['TOP','#eef2f8'],['BASE','#98a4b4'],['S','#cdd8ea'],['N','#dbe4f1']];
+  const mats=faces.map(([t,bg])=> new THREE.MeshStandardMaterial({map:faceTex(t,bg), roughness:0.72, metalness:0}));
+  const cube=new THREE.Mesh(new THREE.BoxGeometry(1.75,1.75,1.75), mats); ns.add(cube);
+  cube.add(new THREE.LineSegments(new THREE.EdgesGeometry(cube.geometry), new THREE.LineBasicMaterial({color:0x2a3040})));
+  const ray=new THREE.Raycaster(), v2=new THREE.Vector2();
+  cv.addEventListener('pointerdown',(ev)=>{ ev.stopPropagation(); ev.preventDefault();
+    const r=cv.getBoundingClientRect(); v2.x=((ev.clientX-r.left)/r.width)*2-1; v2.y=-((ev.clientY-r.top)/r.height)*2+1;
+    ray.setFromCamera(v2,ncam); const hit=ray.intersectObject(cube,false)[0]; if(!hit) return;
+    const p=cube.worldToLocal(hit.point.clone());                              // clicked point on the cube, in BOARD space
+    const half=0.875, snap=a=> Math.abs(a) > half*0.55 ? Math.sign(a) : 0;      // near a face → include that axis (face/edge/corner)
+    const dir=new THREE.Vector3(snap(p.x),snap(p.y),snap(p.z));
+    if(dir.lengthSq()===0) dir.set(0,1,0);
+    bSnapToDir(dir.normalize());
+  });
+  return { show(v){ cv.hidden=!v; }, render(){ if(cv.hidden) return; cube.quaternion.copy(camera.quaternion).invert(); nr.render(ns,ncam); } };
+})();
 
 /* ================= settings · music · win log · fireworks ================= */
 const settings = { killCam:true, music:true, musicVol:0.5, pieceLabels:true, coords:true, boardStyle:null };
@@ -1698,7 +1895,8 @@ function renderSlots(){
         <div class="hd"><span>${roleName(k)} <span class="pt">(${roleShort(k)})${r.count?' ×'+r.count:''}</span>${promoNote}</span>
           <span class="pill ${cfg.glb?'ok':''}" data-tag="${k}">${cfg.glb?'model ✓':'placeholder'}</span></div>
         <div class="cfg">
-          <div><label class="fld">Model (.glb)</label><button class="btn sec" data-load="${k}" style="width:100%">Load…</button></div>
+          <div><label class="fld">Model (.glb)</label><button class="btn sec" data-load="${k}" style="width:100%">Load…</button>
+            <select data-sample="${k}" style="width:100%;margin-top:4px" title="Drop in a ready-made rigged character"><option value="">＋ Sample character…</option>${SAMPLE_CHARS.map(s=>`<option value="${s.file}">${s.icon} ${s.name}</option>`).join('')}</select></div>
           <div><label class="fld">Travel style</label><select data-travel="${k}"></select></div>
           <div style="grid-column:1/3"><label class="fld">Motion <span class="mini" style="opacity:.6">(travel)</span></label>
             <div style="display:flex;gap:6px"><select data-motion="${k}" style="flex:1"></select><button class="btn sec" data-prev="${k}" title="Preview" style="width:auto;padding:4px 10px">▶</button></div></div>
@@ -1723,6 +1921,8 @@ function renderSlots(){
       div.querySelector(`[data-finprev="${k}"]`).onclick=()=>{ if(!previewFinisher(k)) alert('Load a model and pick a finisher first.'); };
       div.querySelector(`[data-scale="${k}"]`).onchange=(e)=>{ cfg.scale=+e.target.value||1; persist(); rebuildPieces(); };
       div.querySelector(`[data-load="${k}"]`).onclick=()=>loadModel(k);
+      const ssel=div.querySelector(`[data-sample="${k}"]`);
+      if(ssel) ssel.onchange=()=>{ const f=ssel.value; ssel.value=''; if(!f) return; loadSampleChar(k, f, (SAMPLE_CHARS.find(s=>s.file===f)||{}).name || 'Sample'); };
     }
   }
 }
@@ -1750,6 +1950,38 @@ function applyLoadedModel(roleKey,bytes,name){
       res(true);
     }, ()=>res(false));
   });
+}
+/* ---- default sample characters (bundled with GLB Studio) — assignable to any role, loaded on demand ---- */
+const SAMPLE_CHARS = [
+  { name:'Human',        file:'Human (biped).glb',    icon:'🧍' },
+  { name:'Dog',          file:'Dog (quadruped).glb',  icon:'🐾' },
+  { name:'Bird (perched)', file:'Bird - perched.glb', icon:'🐦' },
+  { name:'Bird (flying)',  file:'Bird - in flight.glb', icon:'🕊' },
+];
+const _sampleBytes = new Map();   // file -> Uint8Array (cache so re-picking a sample is instant)
+// The sample GLBs live beside the app but at a different relative path per deploy context
+// (studio-assets junction in dev, ../samples on the live site). Try each until one responds.
+async function fetchSampleBytes(file){
+  if(_sampleBytes.has(file)) return _sampleBytes.get(file);
+  const enc = encodeURIComponent(file);
+  const bases = ['../samples/', STUDIO_ASSETS+'samples/', 'samples/'];
+  let lastErr=null;
+  for(const base of bases){
+    try{ const r = await fetch(base+enc, {cache:'force-cache'}); if(!r.ok){ lastErr=new Error('HTTP '+r.status); continue; }
+      const u = new Uint8Array(await r.arrayBuffer()); _sampleBytes.set(file, u); return u;
+    }catch(e){ lastErr=e; }
+  }
+  throw lastErr || new Error('sample not found: '+file);
+}
+async function loadSampleChar(roleKey, file, name){
+  const tag=document.querySelector(`[data-tag="${roleKey}"]`); const prev = tag?tag.textContent:'';
+  if(tag){ tag.textContent='loading…'; }
+  try{
+    const bytes = await fetchSampleBytes(file);
+    const ok = await applyLoadedModel(roleKey, bytes, name);
+    if(ok){ rebuildPieces(); idbPut(def.id+':'+roleKey,{bytes:roster[roleKey].bytes,name}); }
+    else { if(tag) tag.textContent=prev; alert('Could not parse sample "'+name+'".'); }
+  }catch(err){ if(tag) tag.textContent=prev; alert('Could not load sample "'+name+'".\n'+(err.message||err)); }
 }
 function loadModel(roleKey){
   const inp=document.createElement('input'); inp.type='file'; inp.accept='.glb,.gltf';
@@ -2058,10 +2290,10 @@ const bld = { grid:'square', cols:8, rows:8, seed:7, q0:0, r0:0, board:new Map()
               sel:null, rot:0, blend:false, groups:new Map(), off:{x:0,z:0}, radius:6,
               draw:[], tool:null, pen:[], playMode:'grid', selStroke:null,
               baseMap:null, gridScale:1,
-              props:[], propKind:null, propGlb:null, dragProp:null, propMode:'3d', propScale:1, selProp:null, wallMode:'3d', variant:'auto',
+              props:[], propKind:null, propGlb:null, dragProp:null, propMode:'3d', propScale:1, selProp:null, wallMode:'3d', variant:'auto', miniTeam:null, measA:null, measB:null, gridLines:false, structures:[], structKey:'',
               subdiv:new Map(), subN:2, subHexMode:'tri', subTool:false,
               subpaint:new Map(), subPaintOn:false, subPaint:'water',
-              theme:'mixed', genStream:true, genRoad:true, extTerrain:'match', extFeature:'bare', repaintOn:false };  // theme/stream/road drive ✨ Generate; extTerrain/extFeature drive ➕ Extend; repaintOn = click a tile to overwrite its variant
+              theme:'mixed', genStream:true, genRoad:true, extTerrain:'match', extFeature:'bare', repaintOn:false, tgc:'', tgcCell:1, tgcCenters:[], tgcFillTheme:'' };  // theme/stream/road drive ✨ Generate; extTerrain/extFeature drive ➕ Extend; repaintOn = click a tile to overwrite its variant; tgc = chosen The-Game-Crafter print component
   // subdiv = baseKey→{mode,n}; subpaint = baseKey→{subIndex:biome}; subPaintOn = paint-sub-cells mode
   // draw = freeform strokes {type,pts,mode?}; playMode=grid|drawn; selStroke=selected drawn line; baseMap={src,crop,shape,aspect,tex}; gridScale=grid density;
   // props = [{kind,x,z,scale,mode,rot}] placed props; propKind=active prop to place; propMode=3d|2d; wallMode=3d|2d for newly drawn walls
@@ -2078,7 +2310,23 @@ function bCellsRange(qLo,qHi,rLo,rHi){ const out=[];
   if(bld.grid==='hex'){ for(let r=rLo;r<rHi;r++){ const qOff=-(r>>1); for(let q=qLo;q<qHi;q++) out.push({q:q+qOff,r}); } }
   else { for(let r=rLo;r<rHi;r++) for(let q=qLo;q<qHi;q++) out.push({q,r}); }
   return out; }
-function bCells(){ return bCellsRange(bld.q0, bld.q0+bld.cols, bld.r0, bld.r0+bld.rows); }
+function bCells(){
+  const c=TGC[bld.tgc];
+  if(c && c.kind==='mat' && !c.fit && bld.grid==='hex') return bHexMatFieldCells();   // a hex-filled mat = OFFSET hexes inside the mat rect (fills it; correct count) not a big sheared q,r block
+  return bCellsRange(bld.q0, bld.q0+bld.cols, bld.r0, bld.r0+bld.rows);
+}
+// hexes whose CENTRE falls inside the mat's finished rectangle (+ half a hex so edges crop to half-hexes). Centred
+// on the origin; 1 world hex point-to-point = tgcCell inches. Fills a rectangle properly (offset layout), unlike a
+// sheared axial q,r block — so an 18" mat holds ~24×21 one-inch hexes, not a 28×39 parallelogram.
+function bHexMatFieldCells(){
+  const c=TGC[bld.tgc]; if(!c) return [];
+  const cell=bld.tgcCell||1, g=bGridObj();
+  const halfW=c.finished[0]/cell/2, halfH=c.finished[1]/cell/2, m=0.5;
+  const QW=Math.ceil(halfW/0.75)+2, QH=Math.ceil(halfH/0.8660254)+QW+2, out=[];
+  for(let q=-QW;q<=QW;q++) for(let r=-QH;r<=QH;r++){ const w=g.world({q,r});
+    if(Math.abs(w.x)<=halfW+m && Math.abs(w.z)<=halfH+m) out.push({q,r}); }
+  return out;
+}
 function bRecenter(){ const g=bGridObj(); let mnx=1e9,mxx=-1e9,mnz=1e9,mxz=-1e9;
   for(const c of bCells()){ const w=g.world(c); mnx=Math.min(mnx,w.x);mxx=Math.max(mxx,w.x);mnz=Math.min(mnz,w.z);mxz=Math.max(mxz,w.z); }
   bld.off.x=(mnx+mxx)/2; bld.off.z=(mnz+mxz)/2; bld.radius=Math.max(mxx-mnx,mxz-mnz)/2+1.2; }
@@ -2098,7 +2346,7 @@ function bConnNodes(){                          // {list:[{id,x,z}], map:Map} in
     for(let d=0; d<g.N; d++){ const [ex,ez]=g.edgeMid(d); add(w.x+ex, w.z+ez); } }   // edge midpoints
   _bNodes={ list:[...map.values()], map }; _bNodesKey=key; return _bNodes;
 }
-const bDrawOn=()=> !!bld.tool;
+const bDrawOn=()=> !!bld.tool && bld.tool!=='mini' && bld.tool!=='measure';   // 'mini'/'measure' are pseudo-tools, not path-draw tools → no connector dots
 function bPickNode(ev){ const r=renderer.domElement.getBoundingClientRect();
   ndc.x=((ev.clientX-r.left)/r.width)*2-1; ndc.y=-((ev.clientY-r.top)/r.height)*2+1; ray.setFromCamera(ndc,camera);
   if(!ray.ray.intersectPlane(_bPickPlane,_bHit)) return null;
@@ -2139,11 +2387,13 @@ const _nk=(x,z)=>(Math.round(x*1000)/1000)+'|'+(Math.round(z*1000)/1000);
    merge patch so the branches read as a Y/junction instead of two lines crossing. */
 function bRenderJunctions(){
   const deg=new Map(), where=new Map(), fam=new Map();   // node → incident-segment count, coord, type
-  for(const s of bld.draw){ if(s.type!=='road' && s.type!=='trail' && s.type!=='paved') continue;
+  // TRAILS are excluded: a faint dirt trail should NOT get a prominent road-style merge patch where it meets —
+  // only roads/paved roads get the junction plate. Trails just fade together.
+  for(const s of bld.draw){ if(s.type!=='road' && s.type!=='paved') continue;
     for(let i=0;i<s.pts.length;i++){ const k=_nk(s.pts[i][0],s.pts[i][1]);
       let d=0; if(i>0) d++; if(i<s.pts.length-1) d++;
       deg.set(k,(deg.get(k)||0)+d); where.set(k,s.pts[i]);
-      if(s.type==='road' || s.type==='paved' || !fam.has(k)) fam.set(k,s.type); } }   // road/paved win the patch look
+      fam.set(k,s.type); } }
   for(const [k,d] of deg){ if(d<3) continue; const p=where.get(k);
     const plate=pathPlate(fam.get(k)); if(!plate) continue;
     plate.position.set(p[0]-bld.off.x, TILE_TOP+0.036, p[1]-bld.off.z); builderGroup.add(plate); }
@@ -2178,10 +2428,11 @@ function bRenderDraw(){
 
 /* ---- PLACEABLE PROPS (trees / house / castle / …), 3D model or 2D flat token ---- */
 const PROP_LABEL = { tree:'🌳 Tree', pine:'🌲 Pine', house:'🏠 House', castle:'🏰 Castle', well:'🛖 Well', rock:'🪨 Rock', bush:'🌿 Bush', tower:'🗼 Tower', tent:'⛺ Tent', henge:'🗿 Henge', pyramid:'🔺 Pyramid' };
-const propLabel = (pr)=> pr && pr.kind==='glb' ? (pr.name||'model') : (PROP_LABEL[pr&&pr.kind]||(pr&&pr.kind)||'prop');
+const propLabel = (pr)=> !pr ? 'prop' : pr.kind==='mini' ? (((MINI_TEAMS[pr.team]||{}).name||'')+' mini').trim() : pr.kind==='glb' ? (pr.name||'model') : (PROP_LABEL[pr.kind]||pr.kind||'prop');
 function bBuildPropTools(){ const el=document.getElementById('bPropTools'); if(!el) return; el.innerHTML='';
   for(const k of PROP_KINDS){ const b=document.createElement('button'); b.className='btn sec bproptool'+(bld.propKind===k?' on':'');
-    b.dataset.prop=k; b.textContent=PROP_LABEL[k]||k; b.onclick=()=>bSelectPropKind(k); el.appendChild(b); } }
+    b.dataset.prop=k; b.textContent=PROP_LABEL[k]||k; b.onclick=()=>bSelectPropKind(k); el.appendChild(b); }
+  if(typeof bMiniSync==='function') bMiniSync(); if(typeof bMeasureSync==='function') bMeasureSync(); }
 function bSelectPropKind(k){ bld.propKind=(bld.propKind===k)?null:k; if(bld.propKind){ bld.propGlb=null; bld.tool=null; bld.sel=null; bld.selStroke=null; bld.selProp=null; bRepaintOff(); bSubToolOff();
     document.querySelectorAll('#bDrawTools .bdtool').forEach(x=>x.classList.remove('on')); bHover.visible=false; }
   bBuildPropTools(); if(typeof bBuildLibList==='function') bBuildLibList(); bRender();
@@ -2189,6 +2440,77 @@ function bSelectPropKind(k){ bld.propKind=(bld.propKind===k)?null:k; if(bld.prop
 function bPickPoint(ev){ const r=renderer.domElement.getBoundingClientRect();
   ndc.x=((ev.clientX-r.left)/r.width)*2-1; ndc.y=-((ev.clientY-r.top)/r.height)*2+1; ray.setFromCamera(ndc,camera);
   if(!ray.ray.intersectPlane(_bPickPlane,_bHit)) return null; return { x:_bHit.x+bld.off.x, z:_bHit.z+bld.off.z }; }
+/* ---- PROP EDIT MENU: double-click a placed prop → a floating panel to scale / rotate / move / shade / delete it ---- */
+let _propMenuEl=null;
+const SHADE_SWATCHES=[['default',null],['dark',0x777b82],['warm',0xd8b184],['cool',0x9fb6da],['stone',0xadaba6],['moss',0x8fa96a],['ash',0x63666c],['sun',0xf0d68a]];
+function bClosePropMenu(){ if(_propMenuEl) _propMenuEl.style.display='none'; }
+function bOpenPropMenu(i, sx, sy){ const pr=bld.props[i]; if(!pr) return; bld.selProp=i;
+  if(pr.kind==='mini') return bOpenMiniMenu(i, sx, sy);   // minis get their own menu: pick a GLB Studio model + size/rotate + restore
+  if(!_propMenuEl){ _propMenuEl=document.createElement('div'); _propMenuEl.id='bPropMenu'; document.body.appendChild(_propMenuEl); }
+  const el=_propMenuEl; const name=pr.kind==='glb'?(pr.name||'model'):(PROP_LABEL[pr.kind]||pr.kind);
+  el.innerHTML = `<div class="pmHead"><b>✎ ${name}</b><span class="pmX">×</span></div>
+    <label class="pmL">Scale <span id="pmSv"></span></label><input id="pmScale" type="range" min="0.2" max="4" step="0.05">
+    <label class="pmL">Rotate <span id="pmRv"></span></label><input id="pmRot" type="range" min="0" max="360" step="5">
+    <label class="pmL">Shade</label><div class="pmSwatches" id="pmShade"></div>
+    <label class="pmL">Brightness <span id="pmBv"></span></label><input id="pmBright" type="range" min="0.5" max="1.5" step="0.05">
+    <label class="pmL">Nudge</label><div class="pmMove"><button data-mv="N">↑</button><button data-mv="S">↓</button><button data-mv="W">←</button><button data-mv="E">→</button></div>
+    <div class="pmRow"><button class="pmDel" id="pmDelete">🗑 Delete</button></div>`;
+  el.style.display='block'; const vw=window.innerWidth, vh=window.innerHeight;
+  el.style.left=Math.max(8,Math.min(sx+10, vw-228))+'px'; el.style.top=Math.max(8,Math.min(sy+6, vh-310))+'px';
+  const $=(s)=>el.querySelector(s);
+  const scaleEl=$('#pmScale'), rotEl=$('#pmRot'), brightEl=$('#pmBright');
+  scaleEl.value=pr.scale||1; rotEl.value=(Math.round((pr.rot||0)*180/Math.PI)%360+360)%360; brightEl.value=pr.bright||1;
+  const upd=()=>{ $('#pmSv').textContent=(+scaleEl.value).toFixed(2)+'×'; $('#pmRv').textContent=rotEl.value+'°'; $('#pmBv').textContent=(+brightEl.value).toFixed(2); };
+  upd();
+  scaleEl.oninput=()=>{ pr.scale=+scaleEl.value; upd(); bRender(); };
+  rotEl.oninput=()=>{ pr.rot=(+rotEl.value)*Math.PI/180; upd(); bRender(); };
+  brightEl.oninput=()=>{ pr.bright=+brightEl.value; upd(); bRender(); };
+  const sw=$('#pmShade'); SHADE_SWATCHES.forEach(([nm,col])=>{ const b=document.createElement('button'); b.className='pmSw'+(((pr.tint==null)&&col==null)||pr.tint===col?' on':''); b.title=nm;
+    b.style.background = col==null?'linear-gradient(45deg,#556,#99a)':('#'+col.toString(16).padStart(6,'0')); b.onclick=()=>{ pr.tint=col; sw.querySelectorAll('.pmSw').forEach(x=>x.classList.remove('on')); b.classList.add('on'); bRender(); }; sw.appendChild(b); });
+  el.querySelectorAll('.pmMove button').forEach(b=> b.onclick=()=>{ const step=0.15*(bld.scale==='battle'?bCellSize():1), d=b.dataset.mv;
+    if(d==='N')pr.z-=step; else if(d==='S')pr.z+=step; else if(d==='W')pr.x-=step; else pr.x+=step; bRender(); });
+  $('#pmDelete').onclick=()=>{ bPushUndo(); bld.props.splice(i,1); bld.selProp=null; bClosePropMenu(); bRender(); bStatus('Deleted prop'); };
+  $('.pmX').onclick=bClosePropMenu; bRender(); }
+/* ---- MINI EDIT MENU: double-click a mini → assign any appropriate GLB Studio model to it (size/rotate), or
+   restore it to the default token. The model is stored on pr.model={src,name}; bMakeMini renders it on the disc. ---- */
+let _miniLibSrc='lib';
+function bOpenMiniMenu(i, sx, sy){ const pr=bld.props[i]; if(!pr) return; bld.selProp=i;
+  if(!_propMenuEl){ _propMenuEl=document.createElement('div'); _propMenuEl.id='bPropMenu'; document.body.appendChild(_propMenuEl); }
+  const el=_propMenuEl, team=(MINI_TEAMS[pr.team]||MINI_TEAMS.gray).name;
+  el.innerHTML = `<div class="pmHead"><b>✎ ${team} mini</b><span class="pmX">×</span></div>
+    <label class="pmL">Model <span style="opacity:.7" id="mmCur"></span></label>
+    <div class="mmTabs" id="mmTabs"><button data-s="lib">✦ Mine</button><button data-s="pack">📦 Packs</button><button data-s="scene">🌳 Scene</button><button data-s="held">⚔ Items</button></div>
+    <div class="mmList" id="mmList"><span class="mini" style="opacity:.7">Loading…</span></div>
+    <button class="pmAlt" id="mmDefault">↺ Restore to default token</button>
+    <label class="pmL">Size <span id="pmSv"></span></label><input id="pmScale" type="range" min="0.3" max="3" step="0.05">
+    <label class="pmL">Rotate <span id="pmRv"></span></label><input id="pmRot" type="range" min="0" max="360" step="5">
+    <div class="pmRow"><button class="pmDel" id="pmDelete">🗑 Delete mini</button></div>`;
+  el.style.display='block'; const vw=window.innerWidth, vh=window.innerHeight;
+  el.style.left=Math.max(8,Math.min(sx+10, vw-232))+'px'; el.style.top=Math.max(8,Math.min(sy+6, vh-470))+'px';
+  const $=(s)=>el.querySelector(s), scaleEl=$('#pmScale'), rotEl=$('#pmRot');
+  scaleEl.value=pr.scale||1; rotEl.value=(Math.round((pr.rot||0)*180/Math.PI)%360+360)%360;
+  const upd=()=>{ $('#pmSv').textContent=(+scaleEl.value).toFixed(2)+'×'; $('#pmRv').textContent=rotEl.value+'°'; const cur=$('#mmCur'); if(cur) cur.textContent=pr.model?('· '+pr.model.name):'· default token'; };
+  upd();
+  scaleEl.oninput=()=>{ pr.scale=+scaleEl.value; upd(); bRender(); };
+  rotEl.oninput=()=>{ pr.rot=(+rotEl.value)*Math.PI/180; upd(); bRender(); };
+  $('#mmDefault').onclick=()=>{ bPushUndo(); pr.model=null; upd(); bMiniLibList(el,pr); bRender(); bStatus('Mini restored to the default token.'); };
+  $('#pmDelete').onclick=()=>{ bPushUndo(); bld.props.splice(i,1); bld.selProp=null; bClosePropMenu(); bRender(); bStatus('Deleted mini'); };
+  $('.pmX').onclick=bClosePropMenu;
+  el.querySelectorAll('#mmTabs button').forEach(b=> b.onclick=()=>{ _miniLibSrc=b.dataset.s; bMiniLibList(el,pr); });
+  bMiniLibList(el,pr); bRender();
+}
+async function bMiniLibList(el,pr){
+  el.querySelectorAll('#mmTabs button').forEach(b=>b.classList.toggle('on', b.dataset.s===_miniLibSrc));
+  const list=el.querySelector('#mmList'); if(!list) return; list.innerHTML='<span class="mini" style="opacity:.7">Loading…</span>';
+  let entries=[]; try{ entries=await bLibEntries(_miniLibSrc); }catch(e){}
+  if(el.style.display==='none') return;
+  if(!entries.length){ list.innerHTML='<span class="mini" style="opacity:.7">'+(_miniLibSrc==='lib'?'Your Meshy models show here when Tabletop runs inside GLB Studio.':_miniLibSrc==='pack'?'No imported packs — import them in GLB Stitcher.':'None available.')+'</span>'; return; }
+  list.innerHTML='';
+  for(const e of entries){ const b=document.createElement('button'); b.className='mmItem'+((pr.model&&JSON.stringify(pr.model.src)===JSON.stringify(e.src))?' on':''); b.textContent=e.label;
+    b.onclick=()=>{ bPushUndo(); pr.model={src:e.src,name:e.label}; list.querySelectorAll('.mmItem').forEach(x=>x.classList.remove('on')); b.classList.add('on');
+      const cur=el.querySelector('#mmCur'); if(cur) cur.textContent='· '+e.label; bRender(); bStatus(`Mini model → <b>${e.label}</b>`); };
+    list.appendChild(b); }
+}
 function bPlaceProp(ev){ const p=bPickPoint(ev); if(!p) return; bPushUndo();
   if(bld.propGlb){ bld.props.push({ kind:'glb', src:bld.propGlb.src, name:bld.propGlb.name, x:p.x, z:p.z, scale:bld.propScale, mode:'3d', rot:Math.random()*Math.PI*2 });
     bld.selProp=bld.props.length-1; bRender(); bStatus(`Placed <b>${bld.propGlb.name}</b> · click to add more · drag to move · Scale slider resizes`); return; }
@@ -2197,13 +2519,106 @@ function bPlaceProp(ev){ const p=bPickPoint(ev); if(!p) return; bPushUndo();
   bStatus(`Placed a ${PROP_LABEL[bld.propKind]||bld.propKind} · click to add more · drag to move · Scale slider resizes`); }
 function bPickProp(ev){ const p=bPickPoint(ev); if(!p) return -1; let bi=-1,bd=Infinity;
   bld.props.forEach((pr,i)=>{ const d=(pr.x-p.x)**2+(pr.z-p.z)**2; if(d<bd){ bd=d; bi=i; } });
-  if(bi<0) return -1; const s=bld.props[bi].scale||1, r=(bld.props[bi].kind==='glb'?0.62:0.34)*s;   // glb props are bigger → bigger pick radius
+  if(bi<0) return -1; const pk=bld.props[bi], s=(pk.scale||1)*bPropMul(pk), r=(pk.kind==='glb'?0.62:pk.kind==='mini'?0.44*bCellSize():0.34)*s;   // glb props / minis are bigger → bigger pick radius
   return (bd < r*r) ? bi : -1; }
 function bSelectPropAt(i){ bld.selProp=i; bld.selStroke=null; bRender();
   const pr=bld.props[i]; if(pr){ document.getElementById('bPropScale').value=pr.scale||1; document.getElementById('bPropScaleVal').textContent=(pr.scale||1).toFixed(1)+'×';
     bStatus(`Selected a <b>${propLabel(pr)}</b> — <b>drag to move</b> · <b>Delete</b> removes · the Scale slider resizes`); } }
 function bDeleteSelProp(){ if(bld.selProp==null || !bld.props[bld.selProp]) return false;
   bPushUndo(); const lbl=propLabel(bld.props[bld.selProp]); bld.props.splice(bld.selProp,1); bld.selProp=null; bRender(); bStatus(`Deleted a ${lbl}`); return true; }
+
+/* ============================================================================
+   MINIS — character/monster tokens that SNAP to 5-ft cells (the D&D battle layer).
+   Stored inside bld.props as {kind:'mini',team,x,z,scale,rot} so they inherit prop
+   drag / select / delete / serialize / undo for free. The mini tool is a pseudo draw
+   tool (bld.tool==='mini'): every other tool-activator already sets bld.tool=null, so
+   picking any other tool turns minis off automatically; bBuildPropTools() re-syncs the
+   team buttons. On place AND on drop the token snaps to the nearest cell centre.
+   ============================================================================ */
+const MINI_TEAMS = { blue:{c:0x3b7dd8,name:'Hero'}, red:{c:0xd23b3b,name:'Enemy'}, green:{c:0x3aa657,name:'NPC'}, gold:{c:0xd9a534,name:'Boss'}, gray:{c:0x9aa0a6,name:'Other'} };
+function bCellSize(){ const g=bGridObj(); const a=g.world({q:0,r:0}), b=g.world({q:1,r:0}); return Math.hypot(b.x-a.x,b.z-a.z)||1; }   // square≈1, hex≈0.87 → keeps a token sized to one cell on either grid
+function bNearestCell(x,z){ const g=bGridObj(); let best=null,bd=Infinity; for(const c of bCells()){ const w=g.world(c); const d=(w.x-x)**2+(w.z-z)**2; if(d<bd){bd=d;best=c;} }
+  const maxr=bld.grid==='hex'?0.62:0.85; return (best && bd<=maxr*maxr)?best:null; }
+function bMakeMini(pr){ const g=new THREE.Group(); const team=MINI_TEAMS[pr.team]||MINI_TEAMS.gray; const col=team.c;
+  const S=(pr.scale||1)*bCellSize(); const bodyMat=new THREE.MeshStandardMaterial({color:col,roughness:0.5});
+  const disc=new THREE.Mesh(new THREE.CylinderGeometry(0.36,0.38,0.05,26), new THREE.MeshStandardMaterial({color:col,roughness:0.55,metalness:0.05}));
+  disc.position.y=TILE_TOP+0.03; disc.castShadow=true; g.add(disc);
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(0.37,0.035,10,26), new THREE.MeshStandardMaterial({color:0x14161a,roughness:0.7})); ring.rotation.x=Math.PI/2; ring.position.y=TILE_TOP+0.055; g.add(ring);
+  if(pr.model && pr.model.src){                                      // a GLB Studio model stands on the team disc (double-click the mini to choose)
+    const fit=pr.model.src.fit||1; const m=bMakeGLBProp(pr.model.src, 0.72/fit); g.add(m);
+  } else {                                                           // default token: body + collar + head
+    const body=new THREE.Mesh(new THREE.CylinderGeometry(0.13,0.24,0.52,18), bodyMat); body.position.y=TILE_TOP+0.06+0.26; body.castShadow=true; g.add(body);
+    const collar=new THREE.Mesh(new THREE.TorusGeometry(0.1,0.03,8,16), new THREE.MeshStandardMaterial({color:0xf3f3f6,roughness:0.6})); collar.rotation.x=Math.PI/2; collar.position.y=TILE_TOP+0.06+0.5; g.add(collar);
+    const head=new THREE.Mesh(new THREE.SphereGeometry(0.16,18,14), bodyMat); head.position.y=TILE_TOP+0.06+0.52+0.13; head.castShadow=true; g.add(head);
+  }
+  g.scale.set(S,S,S); return g; }
+function bPlaceMini(ev){ const hit=bPickCell(ev); if(!hit || hit.cell===undefined){ bStatus('Click on the board to drop a mini.',true); return; }
+  const w=bGridObj().world(hit.cell);
+  const exist=bld.props.findIndex(p=>p.kind==='mini' && Math.hypot(p.x-w.x,p.z-w.z)<1e-3);
+  if(exist>=0){ bSelectPropAt(exist); bStatus('A mini is already on that cell — selected it. Drag it away or Delete it first.'); return; }
+  bPushUndo(); bld.props.push({kind:'mini', team:bld.miniTeam, x:w.x, z:w.z, scale:1, rot:0});
+  bld.selProp=bld.props.length-1; bRender();
+  bStatus(`Placed a <b>${(MINI_TEAMS[bld.miniTeam]||MINI_TEAMS.gray).name}</b> mini · click more cells · drag to move (snaps to cell) · <b>Delete</b> removes`); }
+function bMiniSet(team){ const same=(bld.tool==='mini' && bld.miniTeam===team);
+  if(same){ bld.tool=null; bld.miniTeam=null; }
+  else { bld.tool='mini'; bld.miniTeam=team; bld.propKind=null; bld.propGlb=null; bld.sel=null; bld.selStroke=null; bld.selProp=null; bRepaintOff(); bSubToolOff();
+    document.querySelectorAll('#bDrawTools .bdtool').forEach(x=>x.classList.remove('on')); bBuildPalette(); if(typeof bBuildLibList==='function') bBuildLibList(); bHover.visible=false; }
+  bBuildPropTools(); bRender();                                       // bBuildPropTools() → bMiniSync() re-highlights the team buttons
+  bStatus(bld.tool==='mini' ? `Mini: <b>${MINI_TEAMS[bld.miniTeam].name}</b> — click cells to drop; click the same team again to stop.` : 'Mini tool off.'); }
+function bMiniSync(){ const on = bld.tool==='mini'; if(!on) bld.miniTeam=null;
+  document.querySelectorAll('#bMiniSeg .bminitool').forEach(x=>x.classList.toggle('on', on && x.dataset.team===bld.miniTeam)); }
+function bMiniClear(){ const had=bld.props.some(p=>p.kind==='mini'); if(!had){ bStatus('No minis to clear.'); return; }
+  bPushUndo(); bld.props=bld.props.filter(p=>p.kind!=='mini'); bld.selProp=null; bRender(); bStatus('Cleared all minis.'); }
+
+/* ============================================================================
+   MEASURE — a ruler that counts distance between two cells in feet + squares.
+   Pick two cells; a glowing line + a label appear. Distance uses the D&D-simple
+   rule: cells apart × FT_PER_CELL (5 ft). Square grid = Chebyshev (diagonals cost
+   one); hex grid = true hex distance. Not persisted (a transient measuring aid).
+   ============================================================================ */
+const FT_PER_CELL = 5;
+function cellDist(a,b){ if(bld.grid==='hex'){ const dq=b.q-a.q, dr=b.r-a.r; return (Math.abs(dq)+Math.abs(dq+dr)+Math.abs(dr))/2; }
+  return Math.max(Math.abs(b.q-a.q), Math.abs(b.r-a.r)); }
+function bMakeLabelSprite(text){ const cv=document.createElement('canvas'); cv.width=256; cv.height=72; const x=cv.getContext('2d');
+  x.font='bold 34px system-ui,Arial'; const w=x.measureText(text).width; const pad=18;
+  x.fillStyle='rgba(14,18,26,0.86)'; const rw=w+pad*2, rx=(256-rw)/2; x.beginPath(); x.roundRect(rx,8,rw,56,12); x.fill();
+  x.strokeStyle='#6fe0ff'; x.lineWidth=3; x.stroke();
+  x.fillStyle='#eaf6ff'; x.textAlign='center'; x.textBaseline='middle'; x.fillText(text,128,38);
+  const tex=new THREE.CanvasTexture(cv); tex.anisotropy=4;
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex, depthTest:false, transparent:true})); sp.renderOrder=30; sp.scale.set(1.9,0.53,1); return sp; }
+function bMeasureClick(ev){ const hit=bPickCell(ev); if(!hit || hit.cell===undefined){ bStatus('Click a cell to measure from/to.',true); return; }
+  if(!bld.measA || bld.measB){ bld.measA=hit.cell; bld.measB=null; bRender(); bStatus('Measure — start cell set. Now click the <b>end</b> cell.'); return; }
+  bld.measB=hit.cell; const d=cellDist(bld.measA,bld.measB); bRender();
+  bStatus(`Measured <b>${d*FT_PER_CELL} ft</b> (${d} ${d===1?'square':'squares'}). Click a new start cell to measure again, or turn Measure off.`); }
+function bMeasureSet(){ const on=bld.tool!=='measure';
+  if(on){ bld.tool='measure'; bld.miniTeam=null; bld.propKind=null; bld.propGlb=null; bld.sel=null; bld.selStroke=null; bld.selProp=null; bRepaintOff(); bSubToolOff();
+    document.querySelectorAll('#bDrawTools .bdtool').forEach(x=>x.classList.remove('on')); bBuildPalette(); if(typeof bBuildLibList==='function') bBuildLibList(); bHover.visible=false; }
+  else { bld.tool=null; bld.measA=null; bld.measB=null; }
+  bBuildPropTools(); bMeasureSync(); bRender();
+  bStatus(bld.tool==='measure' ? 'Measure — click a <b>start</b> cell, then an <b>end</b> cell. (Distance in ft &amp; squares.)' : 'Measure off.'); }
+function bMeasureSync(){ const b=document.getElementById('bMeasureTool'); if(b) b.classList.toggle('on', bld.tool==='measure'); }
+function bMeasureClearRuler(){ bld.measA=null; bld.measB=null; bRender(); }
+/* ---- 5-FT GRID OVERLAY: crisp cell outlines drawn just above the ground so squares/hexes are easy to
+   count on a battle map. Works on square AND hex (uses each cell's polygon corners). Placed cells only. ---- */
+function bRenderGridLines(){ if(!bld.gridLines) return; const g=bGridObj(); const cor=g.corners(); const pts=[];
+  for(const c of bCells()){ if(!bld.board.has(TE.keyOf(c))) continue; const w=g.world(c);
+    for(let i=0;i<cor.length;i++){ const a=cor[i], b=cor[(i+1)%cor.length];
+      pts.push(w.x+a[0]-bld.off.x, TILE_TOP+0.035, w.z+a[1]-bld.off.z,  w.x+b[0]-bld.off.x, TILE_TOP+0.035, w.z+b[1]-bld.off.z); } }
+  if(!pts.length) return;
+  const geo=new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pts,3));
+  const seg=new THREE.LineSegments(geo, new THREE.LineBasicMaterial({color:0x0a0d13, transparent:true, opacity:0.38})); seg.renderOrder=9; builderGroup.add(seg); }
+function bGridLinesSet(v){ bld.gridLines=(v==null)? !bld.gridLines : !!v; const b=document.getElementById('bGridLinesTool'); if(b) b.classList.toggle('on', bld.gridLines);
+  bRender(); bStatus(bld.gridLines ? '5-ft grid overlay <b>on</b> — cell outlines drawn over the terrain.' : '5-ft grid overlay off.'); }
+function bRenderMeasure(){ if(bld.tool!=='measure' || !bld.measA) return; const g=bGridObj();
+  const dotMat=new THREE.MeshBasicMaterial({color:0x6fe0ff, depthTest:false});
+  const mkDot=(c)=>{ const w=g.world(c); const d=new THREE.Mesh(new THREE.SphereGeometry(0.09,12,10), dotMat); d.position.set(w.x-bld.off.x, TILE_TOP+0.5, w.z-bld.off.z); d.renderOrder=29; builderGroup.add(d); return w; };
+  const wa=mkDot(bld.measA);
+  if(!bld.measB){ return; }
+  const wb=mkDot(bld.measB);
+  const a=new THREE.Vector3(wa.x-bld.off.x, TILE_TOP+0.5, wa.z-bld.off.z), b=new THREE.Vector3(wb.x-bld.off.x, TILE_TOP+0.5, wb.z-bld.off.z);
+  const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints([a,b]), new THREE.LineBasicMaterial({color:0x6fe0ff, depthTest:false})); line.renderOrder=29; builderGroup.add(line);
+  const d=cellDist(bld.measA,bld.measB); const lab=bMakeLabelSprite(`${d*FT_PER_CELL} ft · ${d} sq`);
+  lab.position.set((a.x+b.x)/2, TILE_TOP+1.1, (a.z+b.z)/2); builderGroup.add(lab); }
 /* ============================================================================
    STUDIO LIBRARY PROPS — real GLB models from GLB Studio, placeable + movable.
    Sources: built-in scene props / held items (studio-assets junction → GLB Stitcher),
@@ -2248,6 +2663,18 @@ function bMakeGLBProp(src, scaleMul){ const g=new THREE.Group(); scaleMul=scaleM
   });
   g.scale.setScalar(scaleMul); return g;
 }
+// model entries for a library source tab → [{label, src}] (shared by the prop palette + the mini model picker)
+async function bLibEntries(srcTab){ const out=[];
+  if(srcTab==='scene'){ for(const [id,name,em] of SCENE_PROPS) out.push({label:(em||'🌳')+' '+name, src:{type:'file',ref:'sceneprops/'+id+'.glb',fit:1.6}}); }
+  else if(srcTab==='held'){ for(const [id,name,em] of HELD_PROPS) out.push({label:(em||'⚔')+' '+name, src:{type:'file',ref:'Props/'+id+'.glb',fit:0.7}}); }
+  else if(srcTab==='lib'){ if(!window.StudioLib) return out;
+    try{ await window.StudioLib.ready; const ms=await window.StudioLib.listModels(); for(const m of ms) out.push({label:'✦ '+(m.name||m.id), src:{type:'lib',ref:m.id,fit:1.1}}); }catch(e){} }
+  else if(srcTab==='pack'){ const packs=await ttPackGetAll();
+    for(const P of packs){ const pre=(P.em||'📦')+' ';
+      for(const ch of (P.characters||[])) out.push({label:pre+(ch.icon||'🧍')+' '+(ch.name||ch.file), src:{type:'pack',pack:P.id,cat:'char',ref:(ch.file||ch.name),fit:1.2}});
+      for(const sp of (P.sceneProps||[])) out.push({label:pre+(sp.em||'🌳')+' '+(sp.name||sp.id), src:{type:'pack',pack:P.id,cat:'scene',ref:(sp.id||sp.name),fit:1.6}});
+      for(const pr of (P.props||[])) out.push({label:pre+(pr.em||'⚔')+' '+(pr.label||pr.name), src:{type:'pack',pack:P.id,cat:'prop',ref:(pr.name),fit:0.7}}); } }
+  return out; }
 // --- library palette (source sub-tabs → clickable model list) ---
 let bLibSrc='scene';
 async function bBuildLibList(){ const el=document.getElementById('bLibList'); if(!el) return; el.innerHTML='';
@@ -2271,12 +2698,20 @@ function bSelectGlbProp(src,label){ const same=bld.propGlb && JSON.stringify(bld
   bld.propGlb = same ? null : {src,name:label};
   if(bld.propGlb){ bld.propKind=null; bld.tool=null; bld.sel=null; bld.selStroke=null; if(bld.repaintOn)bRepaintOff(); if(bld.subTool)bSubToolOff(); bBuildPalette(); bBuildPropTools(); bHover.visible=false; }
   bBuildLibList(); bStatus(bld.propGlb? `Library prop: <b>${label}</b> — click a cell to drop it · drag to move`:'Prop off'); }
+// procedural/GLB props are modelled for WORLD tiles; on a 5-ft BATTLE map they'd be tiny next to battle-scale
+// buildings, so render them larger there (minis already handle their own cell sizing).
+function bPropMul(pr){ return (bld.scale==='battle' && pr.kind!=='mini') ? (pr.kind==='glb'?1.6:3.8) : 1; }
+// SHADE a prop: recolour its meshes toward an optional tint and by a brightness factor (the edit-menu "shade").
+function bApplyShade(g, tint, bright){ const b=(bright==null?1:bright); const tc = tint!=null ? new THREE.Color(tint) : null;
+  if(!tc && b===1) return;
+  g.traverse(o=>{ if(o.isMesh && o.material && o.material.color){ o.material=o.material.clone(); const c=o.material.color; if(tc) c.multiply(tc); c.multiplyScalar(b); } }); }
 function bRenderProps(){ bld._propMeshes=[];                        // keep group refs so a live drag moves one mesh w/o a full rebuild
-  bld.props.forEach((pr,i)=>{ const g = pr.kind==='glb' ? bMakeGLBProp(pr.src, pr.scale||1) : makeProp(pr.kind, pr.mode||'3d', pr.scale||1);
+  bld.props.forEach((pr,i)=>{ const eff=(pr.scale||1)*bPropMul(pr); const g = pr.kind==='mini' ? bMakeMini(pr) : pr.kind==='glb' ? bMakeGLBProp(pr.src, eff) : makeProp(pr.kind, pr.mode||'3d', eff);
+    bApplyShade(g, pr.tint, pr.bright);
     g.position.set(pr.x-bld.off.x, 0, pr.z-bld.off.z); g.rotation.y=pr.rot||0; builderGroup.add(g); bld._propMeshes[i]=g; });
   bld._selRing=null;
-  if(bld.selProp!=null && bld.props[bld.selProp]){ const pr=bld.props[bld.selProp], s=pr.scale||1, glb=pr.kind==='glb';
-    const ri=(glb?0.5:0.26)*s, ro=(glb?0.62:0.33)*s;
+  if(bld.selProp!=null && bld.props[bld.selProp]){ const pr=bld.props[bld.selProp], s=(pr.scale||1)*bPropMul(pr), glb=pr.kind==='glb', mini=pr.kind==='mini', CS=mini?bCellSize():1;
+    const ri=(glb?0.5:mini?0.34*CS:0.26)*s, ro=(glb?0.62:mini?0.44*CS:0.33)*s;
     const ring=new THREE.Mesh(new THREE.RingGeometry(ri,ro,26), new THREE.MeshBasicMaterial({color:0x51ff9a,transparent:true,depthTest:false,side:THREE.DoubleSide}));
     ring.rotation.x=-Math.PI/2; ring.position.set(pr.x-bld.off.x, TILE_TOP+0.05, pr.z-bld.off.z); ring.renderOrder=12; builderGroup.add(ring); bld._selRing=ring; }
 }
@@ -2487,8 +2922,13 @@ function bUndo(){ if(!_undo.length){ bStatus('Nothing to undo'); return; } const
 const _biomeHash={};
 function biomeHash(b){ if(_biomeHash[b]!=null) return _biomeHash[b]; let h=2166136261; for(let i=0;i<b.length;i++){ h^=b.charCodeAt(i); h=Math.imul(h,16777619); } return _biomeHash[b]=(h>>>0); }
 function bResolveVariant(pl, def, cell){
+  if(!def) return 0;                                    // stale tile from another grid — be defensive, don't crash the render
   const n = biomeVariantCount(def.biome); if(n<=1) return 0;
   if(pl && typeof pl.variant==='number') return Math.max(0, Math.min(n-1, pl.variant));   // an explicit per-tile pick
+  if(def.biome==='mountains'){          // mountains have only rocky(0) / snow-capped(1); snowcaps are deliberate, not auto-scattered
+    if(bld.variant==='auto') return 0;                     // Auto = plain rocky; paint snowcaps per-tile with 🖌 Repaint (or 🌲 Winter)
+    return (+bld.variant===2) ? 1 : 0;                     // 🌲 Winter → snow-capped everywhere; 🌱 Spring & 🍂 Autumn stay rocky
+  }
   if(bld.variant!=='auto') return Math.max(0, Math.min(n-1, +bld.variant||0));            // the 🎨 picker forces one look everywhere
   // AUTO = ONE coherent look per biome for the WHOLE map (seed-derived), so a map never shows autumn trees
   // next to green trees. Different biomes still differ; change the seed / regenerate for a different season.
@@ -2496,17 +2936,30 @@ function bResolveVariant(pl, def, cell){
 }
 function bRender(){
   builderGroup.clear(); bld.groups.clear(); bRecenter();
+  // hex-filled mat: CLIP the live view to the mat's exact finished rectangle (e.g. 18×18) so the board on screen
+  // IS that size with half-hexes squared off at the edges — matching the print. Everything else: no clipping.
+  { const cc=TGC[bld.tgc];
+    if(cc && cc.kind==='mat' && !cc.fit && bld.grid==='hex'){ const cell=bld.tgcCell||1, hw=cc.finished[0]/cell/2, hh=cc.finished[1]/cell/2;
+      renderer.clippingPlanes=[ new THREE.Plane(new THREE.Vector3(-1,0,0),hw), new THREE.Plane(new THREE.Vector3(1,0,0),hw),
+                                new THREE.Plane(new THREE.Vector3(0,0,-1),hh), new THREE.Plane(new THREE.Vector3(0,0,1),hh) ];
+    } else renderer.clippingPlanes=[]; }
   const gp=new THREE.Mesh(new THREE.PlaneGeometry(300,300), new THREE.MeshStandardMaterial({color:0x11151b,roughness:1}));
-  gp.rotation.x=-Math.PI/2; gp.position.y=-0.2; gp.receiveShadow=true; builderGroup.add(gp);
+  gp.rotation.x=-Math.PI/2; gp.position.y=-0.2; gp.receiveShadow=true; gp.name='bGroundPlane'; builderGroup.add(gp);
   scene.background=new THREE.Color(0x0c0f13);
   bRenderBaseMap();                                                // real-world map under the grid (if set)
   const hasMap=!!bld.baseMap;
   const defs=bDefs();
+  const _tgcc = TGC[bld.tgc];
+  const bHexShape = (TGC_HEXMAT[bld.tgc] || (_tgcc && _tgcc.kind==='mat' && bld.grid==='hex')) ? bHexMatShapeCells() : null;   // flower/invader/hex-mat cells (pre-Generate outline + no stray plates)
   for(const c of bCells()){ const k=TE.keyOf(c); const w=bWorld(c); const pl=bld.board.get(k);
     if(pl){ const seedh=(bld.seed*131 + (c.q*73856+c.r*19349))>>>0;
       const grp=buildTileMesh(defs[pl.defId], bld.grid, seedh, bResolveVariant(pl, defs[pl.defId], c), pl.mass);
       grp.position.copy(w); grp.rotation.y=pl.rot*tileStepAngle(bld.grid);
       grp.traverse(o=>o.userData.cell=c); builderGroup.add(grp); bld.groups.set(k,grp);
+    } else if(bHexShape){ /* flower/invader/hex-mat: outline the shape cells (so you SEE the shape before Generate); no plates elsewhere */
+      if(bHexShape.has(k)){ const rimPts=bGridObj().corners().map(cn=>new THREE.Vector3(cn[0],0.05,-cn[1]));
+        const rim=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(rimPts), new THREE.LineBasicMaterial({color:0x6f8f4f,transparent:true,opacity:0.85}));
+        rim.position.set(w.x,0.05,w.z); rim.userData.cell=c; builderGroup.add(rim); bld.groups.set(k,rim); }
     } else {
       // empty cell: over a base map show only the grid outline (map shows through); otherwise a faint plate
       if(!hasMap){ const plate=new THREE.Mesh(bPlateGeo(), new THREE.MeshStandardMaterial({color:0x232c37,roughness:0.9,transparent:true,opacity:0.45}));
@@ -2518,31 +2971,144 @@ function bRender(){
   }
   bPlaceNorthArrow();                                              // compass at the NW corner so orientation is clear at a glance
   bRenderDraw();                                                   // freeform drawn roads/streams/walls + connector dots
-  bBattleProps();                                                  // BATTLE scale: big trees/boulders/buildings spanning squares
-  bRenderProps();                                                  // placed trees/houses/castles (3D or 2D)
+  bBattleProps();                                                  // BATTLE scale: trees/boulders spanning squares
+  bRenderStructures();                                             // BATTLE scale: explorable settlement buildings (roof-poppable)
+  bRenderProps();                                                  // placed trees/houses/castles (3D or 2D) + minis
   bRenderSubdiv();                                                  // finer-grid overlays on subdivided cells
+  bRenderGridLines();                                               // 5-ft grid overlay (cell outlines) when toggled on
+  bRenderMeasure();                                                 // the ruler (measure tool) — line + ft/squares label
   if(PLAYB) for(const [,p] of pb.pawns) builderGroup.add(p.mesh);   // keep pawns on top of a re-render
   bInfo();
 }
 // BATTLE scale: forests/mountains/settlements become LARGE props (sized in world units, a tile = 1 unit) that
 // span several 5-ft squares — so a single tree or building covers many hexes, as it would on a mini battle map.
+// a flat top-down decal (for 2D board mode) — a circle (tree/boulder canopy) or square (roof) lying on the tile.
+function bFlatDecal(cx,cz,size,color,square,rot){
+  const geo = square ? new THREE.PlaneGeometry(size,size) : new THREE.CircleGeometry(size*0.5,18);
+  geo.rotateX(-Math.PI/2);
+  const m=new THREE.Mesh(geo, new THREE.MeshBasicMaterial({color,transparent:true,opacity:0.96,depthWrite:false}));
+  m.position.set(cx, TILE_TOP+0.045, cz); if(rot) m.rotation.y=rot; m.renderOrder=5; builderGroup.add(m); return m;
+}
 function bBattleProps(){
   if(bld.scale!=='battle') return;
-  const defs=bDefs();
+  const defs=bDefs(); const flat=!!bld.boardFlat;   // 2D board mode → draw flat top-down decals instead of 3D props
+  // battle props are modelled in absolute world units tuned for a 1.0-unit SQUARE tile. Hex tiles are smaller
+  // and packed tighter (~0.87 across, 0.75 vertical), so an unscaled prop covers ~25-30% more cells and reads
+  // as oversized. Scale props (and their jitter) by the real cell size so a tree spans the SAME number of cells
+  // on hex as on square — "hex battle = square battle".
+  const gg=bGridObj(); const _w0=gg.world({q:0,r:0}), _w1=gg.world({q:1,r:0}); const CS=Math.hypot(_w1.x-_w0.x,_w1.z-_w0.z)||1;
   const rk=(k,salt)=>{ const [q,r]=k.split(',').map(Number); let a=((Math.imul(q,73856)^Math.imul(r,19349)^Math.imul((bld.seed>>>0),2654435761)^Math.imul(salt,40503))>>>0)||1;
     return ()=>{ a=(a+0x6D2B79F5)>>>0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; };
   for(const [k,pl] of bld.board){ const def=defs[pl.defId]; if(!def) continue; const bm=def.biome;
     const [q,r]=k.split(',').map(Number); const c={q,r}; const w=bWorld(c); const rr=rk(k,7);
-    const drop=(kind)=>{ const g=makeBattleProp(kind, rr); const jx=(rr()*2-1)*0.22, jz=(rr()*2-1)*0.22;
-      g.position.set(w.x+jx, 0, w.z+jz); g.rotation.y=rr()*6.28; const s=0.85+rr()*0.5; g.scale.set(s,s,s);
+    const drop=(kind,mul)=>{ const jx=(rr()*2-1)*0.22*CS, jz=(rr()*2-1)*0.22*CS; const s=(0.85+rr()*0.5)*CS*(mul||1);
+      if(flat){ bFlatDecal(w.x+jx, w.z+jz, s, kind==='boulder'?0x8a8172:0x33613a, false, 0); return; }
+      const g=makeBattleProp(kind, rr); g.position.set(w.x+jx, 0, w.z+jz); g.rotation.y=rr()*6.28; g.scale.set(s,s,s);
       g.traverse(o=>o.userData.cell=c); builderGroup.add(g); };
+    // NOTE: village/city BUILDINGS are no longer dropped here — they're persistent, clickable, roof-poppable
+    // structures owned by bBuildStructures()/bRenderStructures(). bBattleProps only handles nature now.
     if(bm==='forest'){ const pine = bResolveVariant(pl,def,c)===2; if(rr()<0.72) drop(pine?'pine':'tree'); }
     else if(bm==='orchard'){ drop('tree'); }
     else if(bm==='mountains'||bm==='rocks'){ if(rr()<0.7) drop('boulder'); }
-    else if(bm==='village'){ if(rr()<0.85) drop('hut'); }
-    else if(bm==='city'){ if(rr()<0.7) drop('house'); }
   }
 }
+
+/* ============================================================================
+   BATTLE BUILDINGS — persistent, EXPLORABLE structures (replace the solid blocks).
+   Each is a hollow shell: floor + outer walls + a doorway gap + a roof. Click a
+   building (no tool active, battle scale) to POP ITS ROOF and see inside. The list
+   is rebuilt only when the map/scale changes (keyed by structKey) so each
+   building's roof/floor state persists across ordinary re-renders.
+   Phase 2 will add floor levels + click-to-change-floor; Phase 3 interior rooms+stairs.
+   ============================================================================ */
+function bStructHash(k,s){ const [q,r]=k.split(',').map(Number); let a=((Math.imul(q,73856)^Math.imul(r,19349)^Math.imul((bld.seed>>>0),2654435761)^Math.imul(s,40503))>>>0)||1;
+  a=(a+0x6D2B79F5)>>>0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }
+function bBuildStructures(){
+  bld.structures=[];
+  if(bld.scale!=='battle') return;
+  const defs=bDefs(), g=bGridObj();
+  const isBldg=(k)=>{ const pl=bld.board.get(k); if(!pl) return false; const d=defs[pl.defId]; if(!d) return false;
+    if(d.biome!=='city' && d.biome!=='village') return false;
+    if(d.edges && d.edges.some(e=>e.path===TE.PATH.ROAD||e.path===TE.PATH.RIVER||e.path===TE.PATH.TRAIL)) return false;   // street/waterway cell
+    return true; };
+  const claimed=new Set();
+  for(const [k,pl] of bld.board){ if(claimed.has(k) || !isBldg(k)) continue;
+    const [q,r]=k.split(',').map(Number); const biome=defs[pl.defId].biome;
+    const lot=[k]; claimed.add(k); const maxLot = biome==='city' ? 4 : 2; const frontier=[{q,r}];
+    while(lot.length<maxLot && frontier.length){ const cur=frontier.shift();
+      for(let d=0; d<g.N; d++){ if(lot.length>=maxLot) break; const nc=g.step(cur,d), nk=TE.keyOf(nc);
+        if(claimed.has(nk)||!isBldg(nk)) continue; lot.push(nk); claimed.add(nk); frontier.push(nc); } }
+    const pts=lot.map(kk=>{ const [qq,rr2]=kk.split(',').map(Number); return g.world({q:qq,r:rr2}); });
+    let mnx=1e9,mxx=-1e9,mnz=1e9,mxz=-1e9; for(const p of pts){ mnx=Math.min(mnx,p.x);mxx=Math.max(mxx,p.x);mnz=Math.min(mnz,p.z);mxz=Math.max(mxz,p.z); }
+    // inset the building well inside its cells so the town/city RING WALL (which runs along the cell edges,
+    // ~0.43-0.5 out with ~0.12 half-thickness) never clips into a building — leaves a clear wall gap + streets.
+    const CS=bCellSize(), half=0.28*CS;
+    const floors = biome==='city' ? (bStructHash(k,3)<0.4?3:2) : 1;
+    bld.structures.push({ cells:lot, x0:mnx-half, x1:mxx+half, z0:mnz-half, z1:mxz+half,
+      biome, floors, roofOn:true, activeFloor:0, door:Math.floor(bStructHash(k,5)*4) });
+  }
+}
+function bMakeStructure(st, idx){
+  const g=new THREE.Group(); const CS=bCellSize();
+  const floorH=0.85*CS, th=0.1*CS;
+  const x0=st.x0-bld.off.x, x1=st.x1-bld.off.x, z0=st.z0-bld.off.z, z1=st.z1-bld.off.z;
+  const w=x1-x0, d=z1-z0, cx=(x0+x1)/2, cz=(z0+z1)/2;
+  const wallCol=st.biome==='city'?0xc2b49a:0xcdbca0, floorCol=0x6b5842, activeCol=0x8a7457, roofCol=0x7a3b30;
+  const M=(col,ro)=> new THREE.MeshStandardMaterial({color:col, roughness:ro==null?0.85:ro});
+  const N=Math.max(1, st.floors||1);
+  // roof ON → draw the whole exterior (all N storeys of wall + roof). roof OFF → draw only up TO activeFloor,
+  // open on top, with a floor slab at each level so you look down INTO the active floor.
+  const topFloor = st.roofOn ? N : (Math.min(st.activeFloor||0, N-1)+1);   // # of wall storeys to draw
+  const wallH = topFloor*floorH;
+  const slab=(y, active)=>{ const s=new THREE.Mesh(new THREE.BoxGeometry(w,0.06,d), M(active?activeCol:floorCol,0.95)); s.position.set(cx, TILE_TOP+0.03+y, cz); s.userData.struct=idx; g.add(s); };
+  slab(0, !st.roofOn && (st.activeFloor||0)===0);
+  if(!st.roofOn){ for(let f=1; f<=(st.activeFloor||0) && f<N; f++) slab(f*floorH, f===(st.activeFloor||0)); }
+  const wallMat=M(wallCol);
+  const seg=(sx,sz,sw,sd,y,h)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(sw,h,sd), wallMat); m.position.set(sx, TILE_TOP+y+h/2, sz); m.castShadow=true; m.userData.struct=idx; g.add(m); };
+  const gap=Math.min(w,d)*0.34, door=st.door, doorH=Math.min(floorH*0.78, wallH);   // doorway only on the ground storey
+  for(let s=0;s<4;s++){
+    const isNS=(s===0||s===2), coord = isNS ? (s===0?z0:z1) : (s===1?x1:x0);
+    if(door===s){
+      if(isNS){ const sw=(w-gap)/2; seg(x0+sw/2, coord, sw, th, 0, wallH); seg(x1-sw/2, coord, sw, th, 0, wallH);
+        if(wallH>doorH) seg(cx, coord, gap, th, doorH, wallH-doorH); }
+      else { const sd=(d-gap)/2; seg(coord, z0+sd/2, th, sd, 0, wallH); seg(coord, z1-sd/2, th, sd, 0, wallH);
+        if(wallH>doorH) seg(coord, cz, th, gap, doorH, wallH-doorH); }
+    } else { if(isNS) seg(cx, coord, w, th, 0, wallH); else seg(coord, cz, th, d, 0, wallH); }
+  }
+  // storey ledges (thin bands at each floor line) so a multi-storey building reads as having floors
+  if(N>1){ const ledgeMat=M(0x9c8e75,0.9); for(let f=1; f<topFloor; f++){ const l=new THREE.Mesh(new THREE.BoxGeometry(w+0.04*CS,0.05,d+0.04*CS), ledgeMat); l.position.set(cx, TILE_TOP+f*floorH, cz); l.userData.struct=idx; g.add(l); } }
+  if(st.roofOn){ const roof=new THREE.Mesh(new THREE.BoxGeometry(w+0.14*CS, 0.1*CS, d+0.14*CS), M(roofCol,0.8));
+    roof.position.set(cx, TILE_TOP+wallH+0.06*CS, cz); roof.castShadow=true; roof.userData.struct=idx; g.add(roof); }
+  return g;
+}
+function bRenderStructures(){
+  if(bld.scale!=='battle') return;
+  const key=bld.scale+':'+bld.grid+':'+bld.seed+':'+bld.board.size+':'+bld.q0+','+bld.r0+':'+bld.cols+'x'+bld.rows;
+  if(key!==bld.structKey){ bBuildStructures(); bld.structKey=key; }                                 // rebuild only on real map/scale change → per-building state persists
+  bld._structMeshes=[];
+  bld.structures.forEach((st,i)=>{
+    if(bld.boardFlat){ const cx=(st.x0+st.x1)/2-bld.off.x, cz=(st.z0+st.z1)/2-bld.off.z, w=st.x1-st.x0, d=st.z1-st.z0;
+      const geo=new THREE.PlaneGeometry(w,d); geo.rotateX(-Math.PI/2);
+      const col=st.roofOn ? (st.biome==='city'?0xb9a06a:0xc79a5f) : 0x6b5842;
+      const m=new THREE.Mesh(geo, new THREE.MeshBasicMaterial({color:col, transparent:true, opacity:0.96, depthWrite:false}));
+      m.position.set(cx, TILE_TOP+0.05, cz); m.renderOrder=5; m.userData.struct=i; builderGroup.add(m); bld._structMeshes[i]=m; return; }
+    const grp=bMakeStructure(st,i); builderGroup.add(grp); bld._structMeshes[i]=grp;
+  });
+}
+function bPickStructure(ev){ if(!bld._structMeshes || !bld._structMeshes.length) return -1;
+  const r=renderer.domElement.getBoundingClientRect(); ndc.x=((ev.clientX-r.left)/r.width)*2-1; ndc.y=-((ev.clientY-r.top)/r.height)*2+1; ray.setFromCamera(ndc,camera);
+  const hits=ray.intersectObjects(bld._structMeshes.filter(Boolean), true);
+  for(const h of hits){ let o=h.object; while(o){ if(o.userData && o.userData.struct!=null) return o.userData.struct; o=o.parent; } }
+  return -1; }
+function bToggleStructure(si){ const st=bld.structures[si]; if(!st) return;
+  const N=Math.max(1, st.floors||1);
+  // click cycle: closed → pop roof to TOP floor → peel down floor by floor → ground → closed again
+  if(st.roofOn){ st.roofOn=false; st.activeFloor=N-1; }
+  else if((st.activeFloor||0)>0){ st.activeFloor=(st.activeFloor||0)-1; }
+  else { st.roofOn=true; st.activeFloor=0; }
+  bRender();
+  bStatus(st.roofOn ? 'Roof <b>on</b>. Click a building to open it.'
+    : `Showing <b>floor ${(st.activeFloor||0)+1}</b> of ${N}${(st.activeFloor||0)>0?' — click to go down a floor':' (ground) — click to close the roof'}.`); }
 // a small compass arrow pointing NORTH (world -z) so you can read the map's orientation at a glance.
 let _northArrow=null;
 function bNorthArrow(){ if(_northArrow) return _northArrow;
@@ -2634,16 +3200,293 @@ function bFit(){ const R=(bld.radius||6);
   // while looking straight down (Top).
   if(camMode==='top'){ applyView({ pos:new THREE.Vector3(0, R*2.3, 0.01), tgt:new THREE.Vector3(0,0,0), up:new THREE.Vector3(0,0,-1) }, true); return; }
   applyView({ pos:new THREE.Vector3(R*0.85,R*1.15+2,R*1.15), tgt:new THREE.Vector3(0,0,0), up:new THREE.Vector3(0,1,0) }, true); }
-function bGenerateMap(){ bPushUndo(); const r=TE.generateMap(bld.grid, bld.board, bCells(), bDefs(), {seed:bld.seed, theme:bld.theme, stream:bld.genStream, road:bld.genRoad});
-  bld.draw = Array.isArray(r.draw) ? r.draw : []; bld.pen=[]; bld.props=[]; bld.selStroke=null; bld.selProp=null; bRender(); bFit();
+const SETTLE_THEMES={castle:'🏰 Castle',town:'🏘 Town',village:'🛖 Village'};
+const BIOME_FILL_NAMES={plains:'Grass / Plains',forest:'Forest',sand:'Desert',water:'Water',mountains:'Mountains',snow:'Snow',rocks:'Rocky',dirt:'Dirt'};
+function bGenerateMap(){ bPushUndo();
+  if(TGC_HEXMAT[bld.tgc]){ bTgcFit(); bld.tgcCenters=[bHexMatCenter()]; bld.tgcFillTheme=bld.theme; }   // fresh single flower/invader unit; Extend adds more
+  if(bld.theme && bld.theme.startsWith('biome:')){    // single-biome base-terrain fill (desert tiles, all-forest flower mat, etc.)
+    const biome=bld.theme.slice(6);
+    const r=TE.generateBiomeFill(bld.grid, bld.board, bCells(), bDefs(), {seed:bld.seed, biome});
+    bld.draw=[]; bld.pen=[]; bld.props=[]; bld.selStroke=null; bld.selProp=null; if(TGC_HEXMAT[bld.tgc]) bTrimToHexMatShape(); bRender(); bFit();
+    bStatus(`Filled the board with <b>${BIOME_FILL_NAMES[biome]||biome}</b> — ${r.placed} base tiles. Pick a 🖨 Print size + <b>Export</b> for a single-biome tile set / mat.`); return;
+  }
+  if(SETTLE_THEMES[bld.theme]){                       // whole-map settlement themes → the settlement generator
+    const r=TE.generateSettlement(bld.grid, bld.board, bCells(), bDefs(), {seed:bld.seed, settlementType:bld.theme});
+    bld.draw = Array.isArray(r.draw) ? r.draw : []; bld.pen=[]; bld.props=[]; bld.selStroke=null; bld.selProp=null; if(TGC_HEXMAT[bld.tgc]) bTrimToHexMatShape(); bRender(); bFit();
+    bStatus(`Generated a <b>${SETTLE_THEMES[bld.theme]}</b> <b>#${bld.seed}</b> — ${r.buildings} buildings · tip: switch to <b>⚔ Battle (5 ft)</b> to explore it · press <b>✨ Generate</b> for another`); return;
+  }
+  const r=TE.generateMap(bld.grid, bld.board, bCells(), bDefs(), {seed:bld.seed, theme:bld.theme, stream:bld.genStream, road:bld.genRoad, battle:bld.scale==='battle'});
+  bld.draw = Array.isArray(r.draw) ? r.draw : []; bld.pen=[]; bld.props=[]; bld.selStroke=null; bld.selProp=null; if(TGC_HEXMAT[bld.tgc]) bTrimToHexMatShape(); bRender(); bFit();
   const themeName = ({mixed:'Mixed',forest:'Forest',grassland:'Grassland',desert:'Desert',mountains:'Mountains',wetlands:'Wetlands'})[bld.theme]||bld.theme;
   bStatus(`Generated <b>${themeName}</b> map <b>#${bld.seed}</b> — ${Math.max(0,r.settlements)} settlement${r.settlements===1?'':'s'}, ${r.rivers} stream${r.rivers===1?'':'s'} · press <b>✨ Generate</b> for another, or type a <b>seed</b> to revisit one`); }
 function bAutoFill(){ bld.seed = 1 + Math.floor(Math.random()*9999);   // fresh RANDOM map each press
   bld.q0=0; bld.r0=0; document.getElementById('bSeed').value = bld.seed; bGenerateMap(); }
+
+/* ---- ZOOM INTO A SETTLEMENT — click a town / castle / village on a wilderness (world-scale) map and drop into
+   its detailed 5-ft battle-scale interior (streets, walled compound, roof-poppable buildings). ⤴ Back to map
+   restores the overview. The interior is generated by settlementType, seeded off the clicked cell so it's
+   randomised but stable + fitting (a castle zooms into a castle, a village into a village). ---- */
+let _zoomBack=null;
+function bClickSettlement(ev){
+  if(bld.scale==='battle' || bld.sel) return false;                    // only from the world-scale overview, and not while placing a tile
+  const hit=bPickCell(ev); if(!hit || hit.cell===undefined) return false;
+  const defs=bDefs(), pl=bld.board.get(TE.keyOf(hit.cell)); if(!pl) return false;
+  const def=defs[pl.defId]; if(!def) return false;
+  const bm=def.biome; if(bm!=='city' && bm!=='village') return false;  // only settlement cells zoom in
+  const g=bGridObj();
+  const isKeep=(kk)=>{ const p=bld.board.get(kk), d=p&&defs[p.defId]; return !!(d && d.feature==='keep'); };
+  let type = bm==='village' ? 'village' : 'town';
+  if(bm!=='village'){ if(isKeep(TE.keyOf(hit.cell))) type='castle';
+    else for(let d=0;d<g.N;d++){ if(isKeep(TE.keyOf(g.step(hit.cell,d)))){ type='castle'; break; } } }
+  bZoomIntoSettlement(type, hit.cell); return true;
+}
+function bZoomIntoSettlement(type, cell){
+  _zoomBack = { snap:bSnapshot(), scale:bld.scale, flat:bld.boardFlat };     // remember the overview to return to
+  const zseed = (((bld.seed>>>0)*2654435761) ^ ((cell.q*73856)>>>0) ^ ((cell.r*19349)>>>0)) >>> 0;
+  bld.cols=16; bld.rows=16; bld.q0=0; bld.r0=0; bld.seed=zseed%10000;
+  setTileScale('battle'); bld.scale='battle';
+  document.querySelectorAll('#bScaleSeg button').forEach(x=>x.classList.toggle('on', x.dataset.scale==='battle'));
+  const r=TE.generateSettlement(bld.grid, bld.board, bCells(), bDefs(), {seed:bld.seed, settlementType:type});
+  bld.draw=Array.isArray(r.draw)?r.draw:[]; bld.pen=[]; bld.props=[]; bld.selStroke=null; bld.selProp=null; bld.structKey='';
+  bSyncBuilderUI(); bRender(); bFit(); bShowZoomBack(true);
+  bStatus(`Zoomed into the <b>${SETTLE_THEMES[type]||type}</b> at 5-ft battle scale — explore it, pop roofs, drop minis · <b>⤴ Back to map</b> (top-left) to return`);
+}
+function bZoomOut(){ if(!_zoomBack) return; const z=_zoomBack, s=z.snap; _zoomBack=null;
+  bld.grid=s.grid; bld.cols=s.cols; bld.rows=s.rows; bld.q0=s.q0; bld.r0=s.r0; bld.seed=s.seed; bld.gridScale=s.gridScale; bld.variant=s.variant;
+  bld.board=new Map([...s.board].map(([k,v])=>[k,{...v}]));
+  bld.zones=new Map(s.zones); bld.draw=JSON.parse(JSON.stringify(s.draw)); bld.props=JSON.parse(JSON.stringify(s.props));
+  bld.subdiv=new Map([...s.subdiv].map(([k,v])=>[k,{...v}])); bld.subpaint=new Map([...(s.subpaint||new Map())].map(([k,v])=>[k,{...v}]));
+  bld.baseMap=s.baseMap; bld.selStroke=null; bld.selProp=null; bld.pen=[]; bld.structKey='';
+  setTileScale(z.scale); bld.scale=z.scale;
+  document.querySelectorAll('#bScaleSeg button').forEach(x=>x.classList.toggle('on', x.dataset.scale===z.scale));
+  bSyncBuilderUI(); bRender(); bFit(); bShowZoomBack(false);
+  bStatus('Back to the overview map — click any town, castle or village to zoom in again.');
+}
+function bShowZoomBack(v){ let b=document.getElementById('bZoomBack');
+  if(!b){ b=document.createElement('button'); b.id='bZoomBack'; b.textContent='⤴ Back to map'; b.onclick=bZoomOut;
+    b.style.cssText='position:absolute;top:52px;left:12px;z-index:7;background:#5b8cff;color:#fff;border:none;border-radius:8px;padding:8px 12px;cursor:pointer;font-size:13px;box-shadow:0 3px 8px rgba(0,0,0,.45)';
+    document.getElementById('stage').appendChild(b); }
+  b.style.display = v?'':'none';
+}
+
+/* ============================================================================
+   🖨 THE GAME CRAFTER PRINT SIZES + EXPORT.  Pick a real TGC component up front —
+   die-cut tile sets, mats/boards, or the Flower/Invader hex-mat sets — build the
+   map to that size, then export print-ready artwork at TGC's EXACT pixel size
+   (300 DPI, 1/8" bleed). Tile sets → a .zip of one PNG per tile (TGC bulk uploader).
+   Mats/boards/hex-mat sets → one full-bleed image. Optional letter contact sheet
+   for home printing. Extend keeps the size (grid + cell are pinned by the choice).
+   Sizes verified from thegamecrafter.com product pages (2026-09). ---- */
+const TGC = {
+  hexMini:  {name:'Mini Hex Tile',      kind:'tile', grid:'hex',    finished:[1.25,1.08], img:[450,450]},
+  hexSmall: {name:'Small Hex Tile',     kind:'tile', grid:'hex',    finished:[2,1.75],    img:[675,600]},
+  hexMed:   {name:'Medium Hex Tile',    kind:'tile', grid:'hex',    finished:[2.5,2.2],   img:[825,750]},
+  hexLarge: {name:'Large Hex Tile',     kind:'tile', grid:'hex',    finished:[3.75,3.25], img:[1200,1050]},
+  sqMini:   {name:'Mini Square Tile',   kind:'tile', grid:'square', finished:[1.25,1.25], img:[450,450]},
+  sqSmall:  {name:'Small Square Tile',  kind:'tile', grid:'square', finished:[2,2],       img:[675,675]},
+  sqMed:    {name:'Medium Square Tile', kind:'tile', grid:'square', finished:[2.5,2.5],   img:[825,825]},
+  sqLarge:  {name:'Large Square Tile',  kind:'tile', grid:'square', finished:[3.5,3.5],   img:[1125,1125]},
+  matSmall: {name:'Small Square Mat',   kind:'mat',  grid:null,     finished:[4,4],       img:[1275,1275]},
+  mat:      {name:'Square Mat',         kind:'mat',  grid:null,     finished:[8,8],       img:[2475,2475]},
+  matLarge: {name:'Large Square Mat',   kind:'mat',  grid:null,     finished:[10,10],     img:[3075,3075]},
+  quad:     {name:'Quad-Fold Board',    kind:'mat',  grid:null,     finished:[18,18],     img:[5475,5475]},
+  quadLarge:{name:'Large Quad-Fold Board', kind:'mat', grid:null,   finished:[20,20],     img:[6075,6075]},
+  flower:   {name:'Flower Mat',  kind:'mat', grid:'hex', finished:[2.5,2.75], img:[825,900],  fit:[3,3]},
+  invader:  {name:'Invader Mat', kind:'mat', grid:'hex', finished:[4,3.5],    img:[1275,1125],fit:[5,5]},
+};
+function bTgcSelect(id){
+  bld.tgc = id||''; const c = TGC[id];
+  const info=document.getElementById('bTgcInfo'), row=document.getElementById('bTgcExportRow'), cellSel=document.getElementById('bTgcCell');
+  if(!c){ info.style.display='none'; row.style.display='none'; cellSel.style.display='none'; bStatus('Print size: screen only.'); return; }
+  row.style.display=''; info.style.display='';
+  const isFixedHex = !!c.fit;                                            // flower / invader
+  cellSel.style.display = (c.kind==='mat' && !isFixedHex) ? '' : 'none'; // mats let you choose the fill cell size
+  if(c.grid && c.grid!==bld.grid){ bld.grid=c.grid;    // switching grid → clear the old-grid board (its tiles don't exist in the new grid's tile set)
+    document.querySelectorAll('#bGridSeg button').forEach(x=>x.classList.toggle('on',x.dataset.grid===bld.grid));
+    document.querySelectorAll('#bMapGridSeg button').forEach(x=>x.classList.toggle('on',x.dataset.grid===bld.grid));
+    bld.board.clear(); bld.zones.clear(); bld.draw=[]; bld.pen=[]; bld.props=[]; bld.subdiv.clear(); bld.subpaint.clear(); bld.selStroke=null; bld.selProp=null; bld.sel=null;
+    bBuildPalette(); }
+  if(c.kind==='mat') bTgcFit();
+  if(TGC_HEXMAT[id]) bld.tgcCenters=[bHexMatCenter()];   // seed one unit so the flower/invader OUTLINE shows before Generate
+  bTgcInfo(); bRender(); bFit();
+}
+function bTgcFit(){                                                      // auto-fit the grid to the chosen mat/board (cells filling the component)
+  const c=TGC[bld.tgc]; if(!c || c.kind!=='mat') return;
+  bld.q0=0; bld.r0=0;
+  if(c.fit){ bld.grid='hex'; bld.cols=c.fit[0]; bld.rows=c.fit[1]; }     // flower / invader = a small fixed hex layout
+  else { const cell=bld.tgcCell||1;
+    if(bld.grid==='hex'){
+      // hex-filled mat: the cells come from bHexMatFieldCells() (offset hexes inside the mat rect). cols/rows here are
+      // just the DISPLAYED count of 1"-ish hexes that fit the mat (columns step 0.75·cell in x, rows 0.866·cell in z).
+      bld.cols=Math.max(3, Math.round(c.finished[0]/(cell*0.75)));
+      bld.rows=Math.max(3, Math.round(c.finished[1]/(cell*0.8660254)));
+    }
+    else { bld.cols=Math.max(2,Math.round(c.finished[0]/cell)); bld.rows=Math.max(2,Math.round(c.finished[1]/cell)); } }
+  document.getElementById('bCols').value=bld.cols; document.getElementById('bRows').value=bld.rows;
+}
+function bTgcInfo(){ const c=TGC[bld.tgc], el=document.getElementById('bTgcInfo'); if(!c){ el.style.display='none'; return; } el.style.display='';
+  if(c.kind==='tile'){ el.innerHTML=`<b>${c.name}</b> — each cell prints as a <b>${c.img[0]}×${c.img[1]}px</b> tile (${c.finished[0]}×${c.finished[1]} in, 300 DPI + bleed). Export → a <b>ZIP of one PNG per tile</b> for The Game Crafter. <b>Extend</b> keeps this size.`; }
+  else if(c.fit){ el.innerHTML=`<b>${c.name}</b> — one <b>${c.img[0]}×${c.img[1]}px</b> hex-mat image (${c.finished[0]}×${c.finished[1]} in).`; }
+  else if(bld.grid==='hex'){ const cell=bld.tgcCell||1; const ac=Math.round(c.finished[0]/(cell*0.75)), ar=Math.round(c.finished[1]/(cell*0.8660254));
+    el.innerHTML=`<b>${c.name}</b> (<b>${c.finished[0]}×${c.finished[1]} in</b>) — filled with ≈${ac}×${ar} <b>${cell}" hexes</b>, edges <b>squared off to half-hexes</b>; exports as one <b>${c.img[0]}×${c.img[1]}px</b> image.`; }
+  else { el.innerHTML=`<b>${c.name}</b> — fills with ${bld.cols}×${bld.rows} <b>square</b> cells (${bld.tgcCell||1}" each); exports as one <b>${c.img[0]}×${c.img[1]}px</b> image (${c.finished[0]}×${c.finished[1]} in).`; }
+}
+/* ---- render the builder scene straight-down into outW×outH px (flat top-down print look) ---- */
+function bTgcRenderRegion(cx,cz,fw,fh,outW,outH,upAngle){
+  const cap=4096; let rw=outW, rh=outH; if(Math.max(rw,rh)>cap){ const s=cap/Math.max(rw,rh); rw=Math.round(rw*s); rh=Math.round(rh*s); }
+  const ocam=new THREE.OrthographicCamera(-fw/2,fw/2,fh/2,-fh/2,0.01,400);
+  ocam.position.set(cx,80,cz); const a=(upAngle||0)*Math.PI/180; ocam.up.set(Math.sin(a),0,-Math.cos(a)); ocam.lookAt(cx,0,cz);
+  const old=new THREE.Vector2(); renderer.getSize(old); const oldPR=renderer.getPixelRatio();
+  // bleed past the map edge should read as land, not the dark editor tray — hide the ground plane + clear to an
+  // opaque neutral ground tone (interior tiles fill the frame with real terrain, so this only shows on edge tiles).
+  const savedBg=scene.background, savedClear=new THREE.Color(); renderer.getClearColor(savedClear); const savedA=renderer.getClearAlpha();
+  const savedClip=renderer.clippingPlanes; renderer.clippingPlanes=[];   // exports crop via their own ortho frustum — never inherit the live-view mat clip
+  const gp=builderGroup.getObjectByName('bGroundPlane'); const gpVis=gp?gp.visible:true; if(gp) gp.visible=false;
+  scene.background=null; renderer.setClearColor(0x7d8a58, 1);
+  renderer.setPixelRatio(1); renderer.setSize(rw,rh,false); renderer.render(scene,ocam);
+  const cv=document.createElement('canvas'); cv.width=outW; cv.height=outH; const x=cv.getContext('2d');
+  x.imageSmoothingEnabled=true; x.imageSmoothingQuality='high'; x.drawImage(renderer.domElement,0,0,rw,rh,0,0,outW,outH);
+  renderer.setPixelRatio(oldPR); renderer.setSize(old.x,old.y,false);
+  scene.background=savedBg; renderer.setClearColor(savedClear, savedA); renderer.clippingPlanes=savedClip; if(gp) gp.visible=gpVis;
+  return cv;
+}
+function bTgcCellFootprint(){ const cs=bGridObj().corners(); let mnx=1e9,mxx=-1e9,mnz=1e9,mxz=-1e9;
+  for(const c of cs){ mnx=Math.min(mnx,c[0]);mxx=Math.max(mxx,c[0]);mnz=Math.min(mnz,c[1]);mxz=Math.max(mxz,c[1]); } return {w:mxx-mnx, h:mxz-mnz}; }
+function bTgcSceneBBox(){ let mnx=1e9,mxx=-1e9,mnz=1e9,mxz=-1e9; const cs=bGridObj().corners();
+  for(const k of bld.board.keys()){ const [q,r]=k.split(',').map(Number); const w=bWorld({q,r});
+    for(const cn of cs){ const x=w.x+cn[0], z=w.z+cn[1]; mnx=Math.min(mnx,x);mxx=Math.max(mxx,x);mnz=Math.min(mnz,z);mxz=Math.max(mxz,z); } }
+  return {cx:(mnx+mxx)/2, cz:(mnz+mxz)/2, w:mxx-mnx, h:mxz-mnz}; }
+function bTgcRenderWhole(c){ const bb=bTgcSceneBBox(); const [iw,ih]=c.img;
+  if(bld.grid==='hex' && !TGC_HEXMAT[bld.tgc]){                 // hex-filled mat: CROP to the mat rectangle at a fixed
+    const cell=bld.tgcCell||1;                                  // hex size → edge hexes squared off (half-hexes), terrain
+    return bTgcRenderRegion(bb.cx, bb.cz, iw/(300*cell), ih/(300*cell), iw, ih);   // fills the whole rectangle, no jagged border
+  }
+  const s=Math.min(c.finished[0]/bb.w, c.finished[1]/bb.h);     // square grid: contain the map in the finished area (squares tile flush)
+  return bTgcRenderRegion(bb.cx, bb.cz, (iw/300)/s, (ih/300)/s, iw, ih); }
+function bTgcRenderTile(cell,c){ const w=bWorld(cell); const [iw,ih]=c.img; const fp=bTgcCellFootprint();
+  const s=Math.min(c.finished[0]/fp.w, c.finished[1]/fp.h);   // hexes are now natively flat-top → no render rotation needed
+  return bTgcRenderRegion(w.x, w.z, (iw/300)/s, (ih/300)/s, iw, ih); }
+/* ---- letter (8.5×11 @300) contact sheets: finished-size tiles laid out with cut outlines ---- */
+function bTgcLetterSheets(canvases,c){ const PW=2550,PH=3300,M=75,gap=12;
+  const tw=Math.round(c.finished[0]*300), th=Math.round(c.finished[1]*300);
+  const cols=Math.max(1,Math.floor((PW-2*M+gap)/(tw+gap))), rows=Math.max(1,Math.floor((PH-2*M+gap)/(th+gap))), per=cols*rows;
+  const pages=[]; for(let i=0;i<canvases.length;i+=per){ const cv=document.createElement('canvas'); cv.width=PW; cv.height=PH; const x=cv.getContext('2d');
+    x.fillStyle='#fff'; x.fillRect(0,0,PW,PH); canvases.slice(i,i+per).forEach((tc,j)=>{ const px=M+(j%cols)*(tw+gap), py=M+Math.floor(j/cols)*(th+gap);
+      const bx=(tc.width-tw)/2, by=(tc.height-th)/2; x.drawImage(tc,bx,by,tw,th, px,py,tw,th);
+      x.strokeStyle='#c8c8c8'; x.lineWidth=1; x.strokeRect(px+0.5,py+0.5,tw,th); }); pages.push(cv); }
+  return pages; }
+/* ---- minimal STORED (uncompressed) ZIP writer — PNGs are already compressed ---- */
+function bCrc32(b){ let c=~0; for(let i=0;i<b.length;i++){ c^=b[i]; for(let k=0;k<8;k++) c=(c>>>1)^(0xEDB88320 & -(c&1)); } return (~c)>>>0; }
+function bZip(files){ const enc=new TextEncoder(); const u16=n=>[n&255,(n>>8)&255], u32=n=>[n&255,(n>>8)&255,(n>>16)&255,(n>>24)&255];
+  const locals=[], centrals=[]; let off=0;
+  for(const f of files){ const nm=enc.encode(f.name), crc=bCrc32(f.data), sz=f.data.length;
+    const lh=[0x50,0x4b,3,4,...u16(20),...u16(0),...u16(0),...u16(0),...u16(0),...u32(crc),...u32(sz),...u32(sz),...u16(nm.length),...u16(0)];
+    const b=new Uint8Array(lh.length+nm.length+sz); b.set(lh,0); b.set(nm,lh.length); b.set(f.data,lh.length+nm.length); locals.push(b);
+    centrals.push({nm,crc,sz,off}); off+=b.length; }
+  const cdStart=off; const cds=[]; let cdSize=0;
+  for(const c of centrals){ const r=[0x50,0x4b,1,2,...u16(20),...u16(20),...u16(0),...u16(0),...u16(0),...u16(0),...u32(c.crc),...u32(c.sz),...u32(c.sz),...u16(c.nm.length),...u16(0),...u16(0),...u16(0),...u16(0),...u32(0),...u32(c.off)];
+    const b=new Uint8Array(r.length+c.nm.length); b.set(r,0); b.set(c.nm,r.length); cds.push(b); cdSize+=b.length; }
+  const end=new Uint8Array([0x50,0x4b,5,6,...u16(0),...u16(0),...u16(centrals.length),...u16(centrals.length),...u32(cdSize),...u32(cdStart),...u16(0)]);
+  const parts=locals.concat(cds,[end]); let tot=0; parts.forEach(p=>tot+=p.length); const out=new Uint8Array(tot); let o=0; parts.forEach(p=>{out.set(p,o); o+=p.length;}); return out; }
+function bDownload(blob,name){ const a=document.createElement('a'), url=URL.createObjectURL(blob); a.href=url; a.download=name; document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(url); a.remove();},1500); }
+const bCanvasBlob=(cv)=> new Promise(res=> cv.toBlob(b=>res(b),'image/png'));
+const bCanvasBytes=async(cv)=> new Uint8Array(await (await bCanvasBlob(cv)).arrayBuffer());
+/* EXACT flower / invader hex-mat die layouts, measured from TGC's own template SVGs (300 DPI): flat-top
+   1" hexes (300px point-to-point, 259.8px flat-to-flat) at these centre OFFSETS from the image centre.
+   Rendering each board cell as a flat-top hex clipped to the die hexagon at these exact centres makes the
+   art register with TGC's physical cut. ---- */
+const TGC_HEXMAT = {
+  flower:  { ptp:300, centers:[[0,-259.8],[225,-129.9],[0,0],[225,129.9],[0,259.8],[-225,-130],[-225,129.8]] },
+  invader: { ptp:300, centers:[[450.1,0.2],[225.1,-389.7],[0,-259.8],[225.1,-129.9],[0,0],[225.1,129.9],[0,259.9],[225,389.8],[-224.9,-389.8],[-225,-129.9],[-450.1,0],[-225,129.9],[-225,389.7]] },
+};
+// the SAME die hexes as flat-top axial (q,r) OFFSETS from the centre cell, in the SAME order as `centers` above,
+// so the on-screen build board shows the exact flower/invader shape and each die hex maps to its board cell.
+const HEXMAT_CELLS = {
+  flower:  [[0,-1],[1,-1],[0,0],[1,0],[0,1],[-1,0],[-1,1]],
+  invader: [[2,-1],[1,-2],[0,-1],[1,-1],[0,0],[1,0],[0,1],[1,1],[-1,-1],[-1,0],[-2,1],[-1,1],[-1,2]],
+};
+// hex-flower / invader tiling lattice: extending drops ANOTHER whole unit at these axial offsets so units
+// INTERLOCK perfectly (verified: flower index-7, invader index-13 sublattices fully tile the hex plane).
+const HEXMAT_EXT = {
+  flower:  {E:[3,-1], W:[-3,1], N:[-1,-2], S:[1,2]},
+  invader: {E:[4,-1], W:[-4,1], N:[-1,-3], S:[1,3]},
+};
+function bHexMatCenter(){ return { q: bld.q0+Math.floor(bld.cols/2), r: bld.r0+Math.floor(bld.rows/2) }; }
+function bHexMatShapeCells(){ const set=new Set();
+  const shp=HEXMAT_CELLS[bld.tgc];
+  if(shp){ const centers=(bld.tgcCenters&&bld.tgcCenters.length)?bld.tgcCenters:[bHexMatCenter()];   // flower/invader: union of every unit's cells
+    for(const c of centers) for(const o of shp) set.add((c.q+o[0])+','+(c.r+o[1])); return set; }
+  const c=TGC[bld.tgc]; if(c && c.kind==='mat' && bld.grid==='hex') for(const cc of bHexMatFieldCells()) set.add(cc.q+','+cc.r);   // square/rect hex mat: the offset field
+  return set; }
+// after generating, keep ONLY the flower/invader cells so the build view is the true shape (not a rect block)
+function bTrimToHexMatShape(){ if(!HEXMAT_CELLS[bld.tgc]) return; const keep=bHexMatShapeCells();
+  for(const k of [...bld.board.keys()]) if(!keep.has(k)) bld.board.delete(k); }
+function bTgcRenderHexMat(c, center){
+  const lay=TGC_HEXMAT[bld.tgc], [iw,ih]=c.img;
+  const out=document.createElement('canvas'); out.width=iw; out.height=ih; const ox=out.getContext('2d');
+  ox.fillStyle='#7d8a58'; ox.fillRect(0,0,iw,ih);                          // opaque land bleed backdrop (rectangle corners past the die)
+  const cells=[...bld.board.keys()].map(k=>{ const [q,r]=k.split(',').map(Number); return {q,r}; });
+  if(!cells.length) return out;
+  const ptp=lay.ptp, ftf=ptp*0.8660254, MARGIN=1.14;                       // render a little extra so terrain bleeds past the cut hexagon
+  const rw=Math.round(ptp*MARGIN), rh=Math.round(ftf*MARGIN);
+  const ctr=center||bHexMatCenter(), shp=HEXMAT_CELLS[bld.tgc];
+  lay.centers.forEach((offXY,i)=>{                                          // map each die hex to its matching board cell (same order)
+    const ax=shp?shp[i]:null; let cell = ax ? {q:ctr.q+ax[0], r:ctr.r+ax[1]} : cells[i%cells.length];
+    if(!bld.board.has(TE.keyOf(cell))) cell=cells[i%cells.length];          // fallback if that cell wasn't generated
+    if(!cell) return;
+    const cvh=bTgcRenderRegion(bWorld(cell).x, bWorld(cell).z, MARGIN, 0.8660254*MARGIN, rw, rh);        // flat-top hex render (grid is natively flat-top)
+    const cx=iw/2+offXY[0], cy=ih/2+offXY[1], R=ptp/2*1.02, H=ftf/2*1.02;   // clip hexagon 2% oversize → art bleeds a hair past the cut
+    ox.save(); ox.beginPath();
+    [[R,0],[R/2,-H],[-R/2,-H],[-R,0],[-R/2,H],[R/2,H]].forEach((p,j)=> j?ox.lineTo(cx+p[0],cy+p[1]):ox.moveTo(cx+p[0],cy+p[1]));
+    ox.closePath(); ox.clip(); ox.drawImage(cvh, cx-rw/2, cy-rh/2, rw, rh); ox.restore();
+  });
+  return out;
+}
+async function bTgcExport(){
+  const c=TGC[bld.tgc]; if(!c){ bStatus('Pick a print size first (🖨 Print size).',true); return; }
+  if(!bld.board.size){ bStatus('Generate or build a map first, then export.',true); return; }
+  const wantSheet=document.getElementById('bTgcSheet').checked;
+  bStatus('Rendering print artwork…'); await new Promise(r=>setTimeout(r,40));
+  const savedFlat=bld.boardFlat; setTileFlat(true); bld.boardFlat=true; bRender();
+  try{
+    if(c.kind==='mat'){
+      if(TGC_HEXMAT[bld.tgc]){
+        const centers=(bld.tgcCenters&&bld.tgcCenters.length)?bld.tgcCenters:[bHexMatCenter()];
+        if(centers.length>1){                                          // multiple interlocking units → one print image per unit, zipped
+          const files=[];
+          for(let i=0;i<centers.length;i++){ const cv=bTgcRenderHexMat(c, centers[i]); files.push({name:`${bld.tgc}_unit_${i+1}_${cv.width}x${cv.height}.png`, data:await bCanvasBytes(cv)}); }
+          bDownload(new Blob([bZip(files)],{type:'application/zip'}), `tgc_${bld.tgc}_${centers.length}units.zip`);
+          bStatus(`🖨 Exported <b>${centers.length}× ${c.name}</b> (${c.img[0]}×${c.img[1]}px each) in a ZIP — each prints as one interlocking ${c.name}.`);
+        } else {
+          const cv=bTgcRenderHexMat(c, centers[0]); bDownload(await bCanvasBlob(cv), `tgc_${bld.tgc}_${cv.width}x${cv.height}.png`);
+          bStatus(`🖨 Exported <b>${c.name}</b> — one <b>${cv.width}×${cv.height}px</b> image, die-aligned to the TGC template, ready to upload.`);
+        }
+      } else {
+        const cv=bTgcRenderWhole(c); bDownload(await bCanvasBlob(cv), `tgc_${bld.tgc}_${cv.width}x${cv.height}.png`);
+        bStatus(`🖨 Exported <b>${c.name}</b> — one <b>${cv.width}×${cv.height}px</b> full-bleed image, ready to upload to The Game Crafter (or print).`);
+      }
+    } else {
+      const cells=[...bld.board.keys()].map(k=>{ const [q,r]=k.split(',').map(Number); return {q,r}; });
+      const canvases=[], files=[];
+      for(const cell of cells){ const cv=bTgcRenderTile(cell,c); canvases.push(cv); files.push({name:`tile_${cell.q}_${cell.r}.png`, data:await bCanvasBytes(cv)}); }
+      if(wantSheet){ const pages=bTgcLetterSheets(canvases,c); for(let i=0;i<pages.length;i++) files.push({name:`print-sheet_${i+1}.png`, data:await bCanvasBytes(pages[i])}); }
+      bDownload(new Blob([bZip(files)],{type:'application/zip'}), `tgc_${bld.tgc}_${cells.length}tiles.zip`);
+      bStatus(`🖨 Exported <b>${c.name}</b> — <b>${cells.length}</b> tile PNGs (${c.img[0]}×${c.img[1]}px each)${wantSheet?' + letter print sheets':''} in a ZIP for The Game Crafter's bulk uploader.`);
+    }
+  }catch(e){ bStatus('Export failed: '+(e&&e.message||e), true); console.error(e); }
+  setTileFlat(savedFlat); bld.boardFlat=savedFlat; bRender();
+}
+document.getElementById('bTgcSel').onchange=(e)=> bTgcSelect(e.target.value);
+document.getElementById('bTgcCell').onchange=(e)=>{ bld.tgcCell=+e.target.value||1; bTgcFit(); bTgcInfo(); bRender(); bFit(); };
+document.getElementById('bTgcExport').onclick=bTgcExport;
+window.__bTgc={ TGC, sel:bTgcSelect, fit:bTgcFit, state:()=>({tgc:bld.tgc,grid:bld.grid,cols:bld.cols,rows:bld.rows,cell:bld.tgcCell,tiles:bld.board.size}),
+  whole:(preview)=>{ const c=TGC[bld.tgc]; const sf=bld.boardFlat; setTileFlat(true); bld.boardFlat=true; bRender(); const cv=TGC_HEXMAT[bld.tgc]?bTgcRenderHexMat(c,(bld.tgcCenters&&bld.tgcCenters[0])||bHexMatCenter()):bTgcRenderWhole(c); setTileFlat(sf); bld.boardFlat=sf; bRender(); return preview?cv.toDataURL('image/png'):{w:cv.width,h:cv.height}; },
+  tile:(idx)=>{ const c=TGC[bld.tgc]; const keys=[...bld.board.keys()]; const k=keys[Math.min(idx||0,keys.length-1)]||keys[Math.floor(keys.length/2)]; const [q,r]=k.split(',').map(Number); const sf=bld.boardFlat; setTileFlat(true); bld.boardFlat=true; bRender(); const cv=bTgcRenderTile({q,r},c); setTileFlat(sf); bld.boardFlat=sf; bRender(); return {w:cv.width,h:cv.height,url:cv.toDataURL('image/png')}; } };
 /* extend the map in a direction: add a new block of cells that MATCHES the terrain at the seam then drifts */
 function bGenerateNextSection(dir){
   if(bld.baseMap){ bStatus('Extend works on generated/built maps — remove the base map first.',true); return; }
   if(!bld.board.size){ bStatus('Generate or build a map first, then extend it.',true); return; }
+  if(TGC_HEXMAT[bld.tgc]){ bExtendHexMat(dir); return; }   // flower/invader → add another whole interlocking unit
   bPushUndo();
   const E=6, g=bGridObj(); let newCells;
   if(dir==='E'){ newCells=bCellsRange(bld.q0+bld.cols, bld.q0+bld.cols+E, bld.r0, bld.r0+bld.rows); bld.cols+=E; }
@@ -2666,7 +3509,28 @@ function bGenerateNextSection(dir){
   const fName=bld.extFeature==='bare'?'':` + ${bld.extFeature}`;
   bStatus(`Extended ${({E:'east',W:'west',N:'north',S:'south'})[dir]} — added ${r.added} ${tName}${fName} tiles, blended at the seam. Extend again to keep growing.`);
 }
-function bClear(){ bPushUndo(); bld.board.clear(); bld.zones.clear(); bld.draw=[]; bld.pen=[]; bld.props=[]; bld.subdiv.clear(); bld.subpaint.clear(); bld.selStroke=null; bld.selProp=null; bld.q0=0; bld.r0=0; bRender(); bStatus("Cleared"); }
+// EXTEND a flower/invader print: drop ANOTHER whole unit at the interlocking lattice offset for `dir`, filled to
+// match the base, and grow the board to fit. Each unit exports as its own TGC flower/invader image.
+function bExtendHexMat(dir){
+  const off=HEXMAT_EXT[bld.tgc] && HEXMAT_EXT[bld.tgc][dir]; if(!off) return;
+  if(!bld.tgcCenters||!bld.tgcCenters.length) bld.tgcCenters=[bHexMatCenter()];
+  bPushUndo();
+  const g=bGridObj(), wof=c=>g.world(c);
+  const score=c=>{ const w=wof(c); return dir==='E'?w.x: dir==='W'?-w.x: dir==='S'?w.z: -w.z; };   // grow from the unit furthest in `dir`
+  let base=bld.tgcCenters[0]; for(const c of bld.tgcCenters) if(score(c)>score(base)) base=c;
+  const nc={q:base.q+off[0], r:base.r+off[1]};
+  const cells=HEXMAT_CELLS[bld.tgc].map(o=>({q:nc.q+o[0], r:nc.r+o[1]}));
+  const biome=(bld.tgcFillTheme&&bld.tgcFillTheme.startsWith('biome:'))?bld.tgcFillTheme.slice(6):'plains';
+  TE.generateBiomeFill(bld.grid, bld.board, cells, bDefs(), {seed:1+Math.floor(Math.random()*9999), biome, append:true});
+  bld.tgcCenters.push(nc);
+  let mnq=1e9,mxq=-1e9,mnr=1e9,mxr=-1e9;                                // grow range to the bounding box of all cells (+1 margin)
+  for(const k of bld.board.keys()){ const [q,r]=k.split(',').map(Number); mnq=Math.min(mnq,q);mxq=Math.max(mxq,q);mnr=Math.min(mnr,r);mxr=Math.max(mxr,r); }
+  bld.q0=mnq-1; bld.r0=mnr-1; bld.cols=(mxq-mnq)+3; bld.rows=(mxr-mnr)+3;
+  document.getElementById('bCols').value=bld.cols; document.getElementById('bRows').value=bld.rows;
+  bRender(); bFit();
+  bStatus(`Added a <b>${TGC[bld.tgc].name}</b> unit to the ${({E:'east',W:'west',N:'north',S:'south'})[dir]} — now <b>${bld.tgcCenters.length}</b> interlocking units. <b>Export</b> gives one print image per unit.`);
+}
+function bClear(){ bPushUndo(); bld.board.clear(); bld.zones.clear(); bld.draw=[]; bld.pen=[]; bld.props=[]; bld.subdiv.clear(); bld.subpaint.clear(); bld.selStroke=null; bld.selProp=null; bld.q0=0; bld.r0=0; bld.tgcCenters=[]; bRender(); bStatus("Cleared"); }
 function bSaveBoard(){ const data=TE.serializeBoard(bld.grid, bld.board, bld.zones, {cols:bld.cols,rows:bld.rows,seed:bld.seed,q0:bld.q0,r0:bld.r0}); data.draw=bld.draw; data.props=bld.props;
   data.subdiv=[...bld.subdiv].map(([k,s])=>{ const [q,r]=k.split(',').map(Number); return {q,r,mode:s.mode,n:s.n}; });
   data.subpaint=[...bld.subpaint].map(([k,m])=>{ const [q,r]=k.split(',').map(Number); return {q,r,paint:m}; });
@@ -2781,11 +3645,13 @@ function enterBuilder(){ BUILD=true; RACE=false; GRAPH=null; PLAYB=false;
   document.querySelectorAll('#bGridSeg button').forEach(x=>x.classList.toggle('on',x.dataset.grid===bld.grid));
   _undo.length=0;
   bBuildPalette(); bBuildPropTools(); bBuildLibList(); bBuildPaintSwatches(); bSubInfo(); bRender(); setCam('iso'); bFit();
-  bStatus('Build a board — pick a tile, click a cell · R rotate · right-click removes · <b>Ctrl+Z</b> undo');
+  if(navCube) navCube.show(true);
+  bStatus('Build a board — pick a tile, click a cell · R rotate · right-click removes · <b>Esc</b> cancels a tool · <b>Ctrl+Z</b> undo');
 }
 document.querySelectorAll('#bLibSrcSeg button').forEach(b=> b.onclick=()=>{ bLibSrc=b.dataset.src;
   document.querySelectorAll('#bLibSrcSeg button').forEach(x=>x.classList.toggle('on',x===b)); bBuildLibList(); });
 function leaveBuilder(){ BUILD=false; PLAYB=false; builderGroup.visible=false; bHover.visible=false;
+  if(navCube) navCube.show(false); _zoomBack=null; bShowZoomBack(false);
   boardGroup.visible=true; piecesGroup.visible=true; fxGroup.visible=true;
   document.querySelector('.tabs').style.display='';
   document.getElementById('builderPanel').classList.add('hide'); }
@@ -2794,10 +3660,23 @@ function leaveBuilder(){ BUILD=false; PLAYB=false; builderGroup.visible=false; b
 document.querySelectorAll('#bGridSeg button').forEach(b=> b.onclick=()=>{ if(PLAYB) bStopPlay(); if(b.dataset.grid!==bld.grid) bPushUndo(); bld.grid=b.dataset.grid;
   document.querySelectorAll('#bGridSeg button').forEach(x=>x.classList.toggle('on',x===b));
   document.querySelectorAll('#bMapGridSeg button').forEach(x=>x.classList.toggle('on',x.dataset.grid===bld.grid));
-  bld.board.clear(); bld.zones.clear(); bld.draw=[]; bld.pen=[]; bld.props=[]; bld.subdiv.clear(); bld.subpaint.clear(); bld.selStroke=null; bld.selProp=null; bld.sel=null; bld.q0=0; bld.r0=0; if(bld.baseMap) bAutoFitGridToMap(); bBuildPalette(); bSubInfo(); bRender(); bFit(); });
+  bld.board.clear(); bld.zones.clear(); bld.draw=[]; bld.pen=[]; bld.props=[]; bld.subdiv.clear(); bld.subpaint.clear(); bld.selStroke=null; bld.selProp=null; bld.sel=null; bld.q0=0; bld.r0=0; if(bld.baseMap) bAutoFitGridToMap();
+  if(bld.tgc && TGC[bld.tgc] && TGC[bld.tgc].kind==='mat') bTgcFit();   // a mat filled with the new grid type → refit cell count
+  bBuildPalette(); bSubInfo(); bRender(); bFit(); });
 /* draw tools */
 function bSubToolOff(){ if(bld.subTool){ bld.subTool=false; const b=document.getElementById('bSubTool'); if(b){ b.textContent='◈ Subdivide: off'; b.classList.remove('on'); } }
   if(bld.subPaintOn){ bld.subPaintOn=false; const b=document.getElementById('bSubPaintTool'); if(b){ b.textContent='🖌 Paint pieces: off'; b.classList.remove('on'); } } }
+// Cancel / deselect EVERY active build tool or selection (Esc key, or clicking away). Returns true if anything was active.
+function bCancelTools(){
+  const had = !!(bld.tool||bld.propKind||bld.propGlb||bld.miniTeam||bld.repaintOn||bld.subTool||bld.subPaintOn||bld.sel||bld.selStroke!=null||bld.selProp!=null||bld.measA);
+  bld.tool=null; bld.pen=[]; bld.propKind=null; bld.propGlb=null; bld.miniTeam=null;
+  bld.sel=null; bld.rot=0; bld.selStroke=null; bld.selProp=null; bld.measA=null; bld.measB=null;
+  bRepaintOff(); bSubToolOff();
+  document.querySelectorAll('#bDrawTools .bdtool').forEach(x=>x.classList.remove('on'));
+  bBuildPalette(); bBuildPropTools(); bBuildLibList(); bMiniSync(); bMeasureSync();
+  bHover.visible=false; bRender();
+  return had;
+}
 function bSelectTool(t){ bld.tool = (bld.tool===t) ? null : t; bld.pen=[]; bld.selStroke=null; if(bld.tool){ bld.sel=null; bld.propKind=null; bld.propGlb=null; bRepaintOff(); bSubToolOff(); bBuildPalette(); bBuildPropTools(); bBuildLibList(); }
   document.querySelectorAll('#bDrawTools .bdtool').forEach(x=>x.classList.toggle('on', x.dataset.tool===bld.tool));
   bHover.visible=false; bRender();
@@ -2822,7 +3701,11 @@ document.querySelectorAll('#bPropModeSeg button').forEach(b=> b.onclick=()=>{ bl
 document.getElementById('bPropScale').oninput=(e)=>{ bld.propScale=+e.target.value;
   document.getElementById('bPropScaleVal').textContent=bld.propScale.toFixed(1)+'×';
   if(bld.selProp!=null && bld.props[bld.selProp]){ bld.props[bld.selProp].scale=bld.propScale; bRender(); } };
-document.getElementById('bPropClear').onclick=()=>{ bld.props=[]; bld.selProp=null; bRender(); bStatus('Cleared all props'); };
+document.getElementById('bPropClear').onclick=()=>{ bld.props=bld.props.filter(p=>p.kind==='mini'); bld.selProp=null; bRender(); bStatus('Cleared all props'); };   // keep minis (they have their own Clear)
+document.querySelectorAll('#bMiniSeg .bminitool').forEach(b=> b.onclick=()=>bMiniSet(b.dataset.team));
+document.getElementById('bMiniClear').onclick=bMiniClear;
+document.getElementById('bMeasureTool').onclick=bMeasureSet;
+document.getElementById('bGridLinesTool').onclick=()=>bGridLinesSet();
 // 🎨 Terrain-look picker (1/2/3) and 🍂 Season dropdown are the same control (bld.variant) — keep them synced.
 const _seasonName=['🌱 Spring / Summer','🍂 Autumn','🌲 Winter (pine)'];
 function bSetVariant(v){ bld.variant = v;
@@ -2937,13 +3820,14 @@ renderer.domElement.addEventListener('contextmenu',(ev)=>{ if(!BUILD||PLAYB) ret
   if(bld.tool && bld.tool!=='erase'){ bDrawFinish(); return; }   // right-click ends the current drawn line
   const hit=bPickCell(ev);
   if(hit && hit.cell!==undefined){ const k=TE.keyOf(hit.cell); if(bld.board.has(k)){ bPushUndo(); bld.board.delete(k); bRender(); bStatus('Removed'); } } });
-renderer.domElement.addEventListener('pointermove',(ev)=>{ if(!BUILD||PLAYB||!bld.tool||bld.tool==='erase'){ bHover.visible=false; return; }
+renderer.domElement.addEventListener('pointermove',(ev)=>{ if(!BUILD||PLAYB||!bld.tool||bld.tool==='erase'||bld.tool==='mini'||bld.tool==='measure'){ bHover.visible=false; return; }
   const n=bPickNode(ev); if(n){ bHover.position.set(n.x-bld.off.x, TILE_TOP+0.09, n.z-bld.off.z); bHover.visible=true; } else bHover.visible=false; });
 window.addEventListener('keydown',(ev)=>{ if(!BUILD||PLAYB) return;
   if((ev.ctrlKey||ev.metaKey) && !ev.shiftKey && (ev.key==='z'||ev.key==='Z')){ ev.preventDefault(); if(ev.repeat) return; bUndo(); return; }
-  if(ev.key==='Escape' && bld.tool && bld.tool!=='erase'){ bDrawFinish(); return; }
-  if(ev.key==='Escape' && bld.selStroke!=null){ bSelectStroke(null); bStatus('Deselected'); return; }
-  if(ev.key==='Escape' && bld.selProp!=null){ bld.selProp=null; bRender(); bStatus('Deselected'); return; }
+  if(ev.key==='Escape'){
+    if(bld.tool && bld.tool!=='erase' && bld.pen.length>=2) bDrawFinish();        // commit a multi-point line being drawn, then exit the tool
+    if(bCancelTools()) bStatus('Cancelled — tool cleared (Esc)'); return;
+  }
   if((ev.key==='Delete'||ev.key==='Backspace') && bld.selStroke!=null){ ev.preventDefault(); bDeleteSelStroke(); return; }
   if((ev.key==='Delete'||ev.key==='Backspace') && bld.selProp!=null){ ev.preventDefault(); bDeleteSelProp(); return; }
   if(ev.key==='r'||ev.key==='R'){ if(bld.tool) return; bld.rot=(bld.rot+1)%bGridObj().N;
@@ -2975,14 +3859,28 @@ function initSettingsUI(){
 }
 
 const _mixClock = new THREE.Clock();
+// Adaptive render cadence: full 60fps while anything is moving or the user is interacting; a light
+// idle cadence (~20fps) once the board is still, so a static scene stops pegging the GPU. Any
+// interaction or scene change calls bump() to return to full rate immediately.
+let _lastActivity = performance.now();
+function bump(){ _lastActivity = performance.now(); }
+window.bumpRender = bump;   // other paths (build-a-board, piece rebuilds) can request a redraw
+try{ controls.addEventListener('start',bump); controls.addEventListener('change',bump); controls.addEventListener('end',bump); }catch(e){}
+window.addEventListener('resize', bump);
+['pointerdown','pointermove','wheel'].forEach(ev=>renderer.domElement.addEventListener(ev, bump, {passive:true}));
+let _idleN=0;
 function loop(){
   requestAnimationFrame(loop);
   const now=performance.now();
-  for (let i=anims.length-1;i>=0;i--){ const a=anims[i]; let p=(now-a.t0)/a.dur; if(p>1)p=1; a.fn(p); if(p>=1){ anims.splice(i,1); a.res(); } }
+  let active=false;
+  for (let i=anims.length-1;i>=0;i--){ const a=anims[i]; let p=(now-a.t0)/a.dur; if(p>1)p=1; a.fn(p); if(p>=1){ anims.splice(i,1); a.res(); } active=true; }
   const dt=_mixClock.getDelta();
-  pieces.forEach(g=>{ if(g.userData.animating && g.userData.mixer) g.userData.mixer.update(dt); });
+  pieces.forEach(g=>{ if(g.userData.animating && g.userData.mixer){ g.userData.mixer.update(dt); active=true; } });
   controls.update();
+  if(!active && (now-_lastActivity)>500){ if((_idleN++ % 3)!==0) return; }   // idle → ~20fps
+  else _idleN=0;
   renderer.render(scene,camera);
+  if(navCube) navCube.render();
 }
 
 // populate the board-design + game selectors
@@ -3189,7 +4087,14 @@ window.__bDbg = {
 window.__bSubPaint = (q,r,idxList,paint)=>{ const k=q+','+r; if(!bld.subdiv.has(k)) bld.subdiv.set(k,{mode:bSubMode(),n:bld.subN});
   let m=bld.subpaint.get(k)||{}; for(const i of idxList) m[i]=paint; bld.subpaint.set(k,m); bRender();
   return {painted:Object.keys(m).length, subCells:subdivisionCells(bld.grid,bSubMode(),bld.subN).length}; };
-window.__bPropState = ()=>({ props: bld.props.map(p=>({kind:p.kind,mode:p.mode,scale:p.scale})), sel:bld.selProp, wallMode:bld.wallMode });
+window.__bPropState = ()=>({ props: bld.props.map(p=>({kind:p.kind,mode:p.mode,scale:p.scale,model:p.model&&p.model.name})), sel:bld.selProp, wallMode:bld.wallMode });
+window.__bMini = { add:(team)=>{ bld.props.push({kind:'mini',team:team||'blue',x:0,z:0,scale:1,rot:0}); bRender(); return bld.props.length-1; },
+  menu:(i)=>{ if(i==null) i=bld.props.findIndex(p=>p.kind==='mini'); if(i>=0) bOpenMiniMenu(i,120,120); return i; },
+  setModel:(i,src,name)=>{ bld.props[i].model={src,name}; bRender(); },
+  get:(i)=>{ const p=bld.props[i]; return p&&{kind:p.kind,model:p.model&&p.model.name}; } };
+window.__bStruct = ()=>({ n:bld.structures.length, meshes:(bld._structMeshes||[]).filter(Boolean).length, sel:bld.sel, tool:bld.tool, roofsOn:bld.structures.filter(s=>s.roofOn).length, floors:bld.structures.map(s=>s.floors), states:bld.structures.map(s=>({f:s.floors,roof:s.roofOn,active:s.activeFloor})) });
+window.__bStructH = (i)=>{ const g=(bld._structMeshes||[])[i]; if(!g) return null; const bb=new THREE.Box3().setFromObject(g); return +(bb.max.y-bb.min.y).toFixed(2); };
+window.__bStructToggle = (i)=>{ bToggleStructure(i); return {i, roofOn:bld.structures[i]?.roofOn}; };
 window.__bExtend = (dir)=>{ bGenerateNextSection(dir); return {cols:bld.cols, rows:bld.rows, q0:bld.q0, r0:bld.r0, tiles:bld.board.size}; };
 window.__bBiomes = ()=>{ const defs=bDefs(); const out={}; for(const [k,pl] of bld.board){ const b=defs[pl.defId]&&defs[pl.defId].biome; out[b]=(out[b]||0)+1; } return out; };
 window.__bPlaceTile = (defId,q,r)=>{ bld.board.set(q+','+r,{defId,rot:0}); bRender(); return bld.board.size; };

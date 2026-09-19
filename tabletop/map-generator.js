@@ -308,22 +308,44 @@
       }
     }
     const settleSet = new Set(settlements);
-    settlements.forEach(k => { biome[k] = B.VILLAGE; feature[k] = 'houses'; });   // villages = houses at a crossroads
-    // TOWN: grow the central settlement into a small cluster that gets a ringed city WALL (built after roads, §4b)
+    // SETTLEMENT SIZE: at 5-ft BATTLE scale a 1-cell "village" or 3-cell "town" is absurdly small, so grow each
+    // settlement into a blob sized as a FRACTION OF THE WHOLE BOARD (opts.battle). World scale keeps the compact
+    // region-symbol footprint. growBlob() BFS-grows a compact blob from a seed over buildable, unclaimed cells.
+    const battle = !!opts.battle, NC = keys.length;
+    const townTarget    = battle ? clamp(Math.round(NC * 0.08), 6, 60) : (keys.length >= 64 ? 3 : 2);
+    const villageTarget = battle ? clamp(Math.round(NC * 0.03), 3, 18) : 1;
+    const castleTarget  = battle ? clamp(Math.round(NC * 0.05), 4, 24) : 1;
+    function growBlob(seed, target, claimed){ const blob = new Set([seed]); claimed.add(seed);
+      while (blob.size < target){ const ring = [];
+        for (const k of blob){ const c = cellOf[k];
+          for (let d = 0; d < N; d++){ const nk = keyOf(g.step(c, d)); if (blob.has(nk) || claimed.has(nk) || !cellOf[nk] || !buildable(nk)) continue; ring.push(nk); } }   // cellOf guard = stay on the board
+        if (!ring.length) break;
+        ring.sort((a, b) => d2(a, seed) - d2(b, seed));                       // compact, roughly round blob
+        for (const nk of ring){ if (blob.size >= target) break; if (blob.has(nk) || claimed.has(nk)) continue; blob.add(nk); claimed.add(nk); } }
+      return blob; }
+    const claimed = new Set(settlements);
+    // TOWN: the central settlement grows into a cluster that gets a ringed city WALL (built after roads, §4b)
     const townCells = new Set();
     if (settlements.length) {
-      townCells.add(settlements[0]);
-      const extra = keys.length >= 64 ? 2 : 1;
-      nbrs(settlements[0]).map(n => n.k).filter(k => buildable(k) && !settleSet.has(k))
-        .sort((a, b) => Math.hypot(pos[a].x - cx, pos[a].z - cz) - Math.hypot(pos[b].x - cx, pos[b].z - cz))
-        .forEach(k => { if (townCells.size < 1 + extra) townCells.add(k); });
+      if (battle) growBlob(settlements[0], townTarget, claimed).forEach(k => townCells.add(k));
+      else { townCells.add(settlements[0]);
+        nbrs(settlements[0]).map(n => n.k).filter(k => buildable(k) && !settleSet.has(k))
+          .sort((a, b) => Math.hypot(pos[a].x - cx, pos[a].z - cz) - Math.hypot(pos[b].x - cx, pos[b].z - cz))
+          .forEach(k => { if (townCells.size < townTarget) { townCells.add(k); claimed.add(k); } }); }
     }
-    // optional castle: a NON-town settlement nearest the mountains becomes a keep (its own ring wall via 'keep')
-    let castle = null;
+    // optional castle: a NON-town settlement nearest the mountains becomes a keep + (in battle) a walled compound
+    let castle = null; const castleCells = new Set();
     if (settlements.length >= 3 && mtn.length) {
       castle = settlements.slice(1).sort((a, b) => nearBlob(a, mtn) - nearBlob(b, mtn))[0];
-      if (castle) { biome[castle] = B.CITY; feature[castle] = 'keep'; }
+      if (castle) { if (battle) growBlob(castle, castleTarget, claimed).forEach(k => castleCells.add(k)); else castleCells.add(castle);
+        for (const k of castleCells) { biome[k] = B.CITY; feature[k] = 'buildings'; } feature[castle] = 'keep'; }
     }
+    // VILLAGES: every remaining settlement grows a small blob of houses (ring wall added in §4b)
+    const villageBlobs = [];
+    for (const vk of settlements) { if (townCells.has(vk) || castleCells.has(vk)) continue;
+      const blob = battle ? growBlob(vk, villageTarget, claimed) : new Set([vk]);
+      for (const k of blob) { biome[k] = B.VILLAGE; feature[k] = 'houses'; }
+      villageBlobs.push(blob); }
 
     /* ---- 4. sparse road network: a spanning tree over settlements + 1 edge exit ---- */
     const roadCost = (nk) => {
@@ -476,6 +498,123 @@
     // render roads/rivers/trails as CONTINUOUS swept strokes (not per-tile ribbons) — smooth, no truncation.
     const pathStrokes = tracePathStrokes(keys, k => cellOf[k], k => pos[k], k => edges[k], g);
     return { placed, draw: walls.concat(pathStrokes), settlements: settlements.length, town: townCells.size, rivers: nRivers, roads: roadCells.size, water: water.length, mountains: mtn.length, forest: forest.length };
+  }
+
+  /* ================= whole-map / zoom-in SETTLEMENT generator =========================================
+     Fills `cells` with ONE coherent settlement — a castle, town or village — instead of wilderness. Used by
+     the castle/town/village map THEMES (the whole board becomes that settlement) and by the click-to-zoom
+     feature (drilling into a town/castle/village on a wilderness map regenerates the board as its detailed
+     5-ft interior). Layout: a street network (radial avenues from a central plaza/keep + a gate), building
+     lots between the streets (city buildings / village houses), and — for castle/town — a perimeter wall
+     with a gate. Randomised by seed but always structured so it reads as a real settlement, and grid-agnostic
+     (square + hex) via the same edge/wall/stroke machinery as generateMap. ---- */
+  function generateSettlement(gridKind, board, cells, defs, opts){
+    opts = opts || {};
+    const g = gridFor(gridKind), N = g.N;
+    const rng = TE.mulberry32((opts.seed || 1) >>> 0);
+    const ri = (n) => Math.floor(rng() * n);
+    const type = (opts.settlementType === 'castle' || opts.settlementType === 'village') ? opts.settlementType : 'town';
+    const keys = cells.map(keyOf), cset = new Set(keys);
+    const cellOf = {}, pos = {};
+    cells.forEach(c => { const k = keyOf(c); cellOf[k] = c; pos[k] = g.world(c); });
+    const nbrs = (k) => { const c = cellOf[k], out = []; for (let d = 0; d < N; d++){ const nk = keyOf(g.step(c, d)); if (cset.has(nk)) out.push({ k: nk, dir: d }); } return out; };
+    const offDirs = (k) => { const c = cellOf[k], out = []; for (let d = 0; d < N; d++){ if (!cset.has(keyOf(g.step(c, d)))) out.push(d); } return out; };
+    const isBorder = (k) => offDirs(k).length > 0;
+    let cx = 0, cz = 0; keys.forEach(k => { cx += pos[k].x; cz += pos[k].z; }); cx /= (keys.length || 1); cz /= (keys.length || 1);
+    const dCentre = (k) => Math.hypot(pos[k].x - cx, pos[k].z - cz);
+    let maxR = 0; keys.forEach(k => { maxR = Math.max(maxR, dCentre(k)); }); maxR = maxR || 1;
+    const d2 = (a, b) => { const p = pos[a], q = pos[b]; return (p.x - q.x) ** 2 + (p.z - q.z) ** 2; };
+
+    const biome = {}, edges = {}, feature = {};
+    keys.forEach(k => { biome[k] = B.GREEN; edges[k] = new Array(N).fill(P.NONE); });
+    function setEdge(k, dir, path){ edges[k][dir] = path; const nk = keyOf(g.step(cellOf[k], dir)); if (cset.has(nk)) edges[nk][g.opposite(dir)] = path; }
+    function dirTo(a, b){ for (let d = 0; d < N; d++) if (keyOf(g.step(cellOf[a], d)) === b) return d; return -1; }
+    function dj(src, dst){ const dist = { [src]: 0 }, prev = {}, pq = [[0, src]];
+      while (pq.length){ pq.sort((a, b) => a[0] - b[0]); const [d, k] = pq.shift(); if (k === dst) break; if (d > (dist[k] ?? 1e9)) continue;
+        for (const { k: nk } of nbrs(k)){ const c = edges[nk].includes(P.ROAD) ? 0.4 : 1; const nd = d + c; if (nd < (dist[nk] ?? 1e9)){ dist[nk] = nd; prev[nk] = k; pq.push([nd, nk]); } } }
+      if (dist[dst] == null) return null; const path = [dst]; let k = dst; while (k !== src){ k = prev[k]; path.push(k); } return path.reverse(); }
+
+    if (!keys.length) { board.clear(); return { placed: 0, draw: [], settlementType: type }; }
+    const centerK = keys.slice().sort((a, b) => dCentre(a) - dCentre(b))[0];
+    const border = keys.filter(isBorder);
+    const street = new Set();
+    function layRoad(path){ if (!path) return; for (const k of path) street.add(k); for (let i = 0; i < path.length - 1; i++) setEdge(path[i], dirTo(path[i], path[i + 1]), P.ROAD); }
+
+    // GATE: a border cell (front/south, roughly centred), where the main road leaves the settlement.
+    const gate = border.slice().sort((a, b) => (pos[b].z - pos[a].z) || (Math.abs(pos[a].x - cx) - Math.abs(pos[b].x - cx)))[0];
+    if (type === 'village'){
+      // village = a through-road across the settlement (gate → centre → far side); no wall, houses strung along it.
+      const far = border.slice().sort((a, b) => d2(b, gate) - d2(a, gate))[0];
+      layRoad(dj(gate, centerK)); layRoad(dj(centerK, far));
+    } else {
+      // town / castle = radial avenues from the central plaza/keep out to spread border points (incl. the gate).
+      const nSpokes = clamp(2 + Math.round(keys.length / 40), 3, 6);
+      const byAngle = border.slice().sort((a, b) => Math.atan2(pos[a].z - cz, pos[a].x - cx) - Math.atan2(pos[b].z - cz, pos[b].x - cx));
+      const targets = new Set([gate]);
+      for (let i = 0; i < nSpokes && byAngle.length; i++) targets.add(byAngle[Math.floor(i * byAngle.length / nSpokes)]);
+      for (const t of targets){ if (t !== centerK) layRoad(dj(centerK, t)); }
+    }
+    // the gate road spills off the board (so the wall leaves a real gateway there)
+    { const od = offDirs(gate); if (od.length) setEdge(gate, od[ri(od.length)], P.ROAD); street.add(gate); }
+
+    // centre: castle keep, or an open plaza for a town/village
+    biome[centerK] = (type === 'castle') ? B.CITY : B.GREEN;
+    if (type === 'castle') feature[centerK] = 'keep';
+
+    // building lots on every non-street, non-centre cell
+    for (const k of keys){ if (k === centerK) continue;
+      if (street.has(k)){ biome[k] = B.GREEN; continue; }                                   // road runs over open ground
+      if (type === 'village'){
+        if (rng() < 0.55){ biome[k] = B.VILLAGE; feature[k] = 'houses'; } else biome[k] = B.GREEN;   // spread-out cottages + greens
+      } else if (type === 'town'){
+        if (isBorder(k) && rng() < 0.35){ biome[k] = B.VILLAGE; feature[k] = 'houses'; }              // humbler houses at the edge
+        else if (rng() < 0.85){ biome[k] = B.CITY; feature[k] = 'buildings'; } else biome[k] = B.GREEN; // packed town blocks + a few squares
+      } else {                                                                                          // castle
+        const rr = dCentre(k) / maxR;
+        if (rr > 0.72){ biome[k] = B.CITY; feature[k] = 'buildings'; }                                  // outer bailey / curtain buildings
+        else if (rr < 0.34){ biome[k] = B.GREEN; }                                                      // courtyard around the keep
+        else if (rng() < 0.68){ biome[k] = B.CITY; feature[k] = 'buildings'; } else biome[k] = B.GREEN; // inner ward
+      }
+    }
+
+    // perimeter WALL with a gate gap (castle + town; villages stay open)
+    const walls = [];
+    if (type !== 'village') ringWall(new Set(keys), k => cellOf[k], k => pos[k], g, k => edges[k], N).forEach(w => walls.push(w));
+
+    // realise every cell as a connector-exact tile
+    const defFeat = (bm) => ({ plains: 'tufts', forest: 'trees', mountains: 'peaks', village: 'houses', city: 'buildings', water: 'water' })[bm];
+    board.clear(); let placed = 0;
+    for (const k of keys){ const sig = edges[k], bm = biome[k];
+      let feat = feature[k] !== undefined ? feature[k] : defFeat(bm);
+      const id = registerGen(defs, gridKind, bm, sig, feat);
+      board.set(k, { defId: id, rot: 0 }); placed++;
+    }
+    const pathStrokes = tracePathStrokes(keys, k => cellOf[k], k => pos[k], k => edges[k], g);
+    return { placed, draw: walls.concat(pathStrokes), settlementType: type,
+             buildings: keys.filter(k => biome[k] === B.CITY || biome[k] === B.VILLAGE).length };
+  }
+
+  /* ================= single-biome FILL — base-terrain tiles/mats ======================================
+     Fill every cell with ONE biome (no roads/rivers/settlements) so a user can print a set of plain
+     terrain pieces — e.g. a desert hex-tile set, a Flower Mat of all-forest hexes, or a Square Mat of
+     nothing but water. Per-tile seed variation (rotation + scattered trees/peaks) + a random painted
+     variant per cell keep the tiles from looking identical. Works on any grid + any TGC print size. ---- */
+  function generateBiomeFill(gridKind, board, cells, defs, opts){
+    opts = opts || {};
+    const g = gridFor(gridKind), N = g.N;
+    const rng = TE.mulberry32((opts.seed || 1) >>> 0);
+    const biome = opts.biome || B.PLAINS;
+    const feat = opts.feature !== undefined ? opts.feature
+      : ({ plains:'tufts', forest:'trees', mountains:'peaks', water:'water' })[biome];   // others = painted ground only
+    const sig = new Array(N).fill(P.NONE);                                                // plain edges — base tiles have no connectors
+    const keys = cells.map(keyOf);
+    if(!opts.append) board.clear(); let placed = 0;                                       // append = add to the board (e.g. an extended flower unit)
+    for (const k of keys){ const id = registerGen(defs, gridKind, biome, sig, feat);
+      const rec = { defId:id, rot:0, variant: Math.floor(rng()*3) };                      // renderer clamps to the biome's variant count
+      if (biome === B.MOUNTAINS){ rec.variant = 0; rec.mass = 0.45 + rng()*0.55; }         // mountains = rocky peaks of varied size (snow-cap via Repaint)
+      board.set(k, rec); placed++;
+    }
+    return { placed, biome };
   }
 
   /* ================= extend an existing map: fill NEW cells so they MATCH the seam, then drift =========
@@ -695,6 +834,8 @@
   }
 
   TE.generateMap = generateMap;
+  TE.generateSettlement = generateSettlement;
+  TE.generateBiomeFill = generateBiomeFill;
   TE.generateNextSection = generateNextSection;
   TE.registerGen = registerGen;
   TE.hydrateGenerated = hydrateGenerated;
