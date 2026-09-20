@@ -655,7 +655,7 @@ import { buildTileMesh, stepAngle as tileStepAngle, pathRibbonAlong, wallRibbonA
 
 const BGC = window.BGC, GAMES = window.BGC_GAMES;
 const TE = window.TileEngine, TLIB = window.TileLibrary;
-const APP_VERSION = 'v0.45';
+const APP_VERSION = 'v0.46';
 const CREDITS = `<b>Ksol Designs</b> — Paul A.T. Ramey<br>www.ksoldesigns.com<br>Built with GLB Studio · Tabletop<br><span class="ver">${APP_VERSION}</span>`;
 try{ document.getElementById('verBadge').textContent = APP_VERSION; }catch(e){}
 console.log('%c[Tabletop] '+APP_VERSION, 'font-weight:bold;color:#4f8cff');
@@ -3750,8 +3750,15 @@ function bHexMatRefill(){
     bld.draw=Array.isArray(r.draw)?r.draw:[]; bld.props=[]; bld.selStroke=null; return; }
   const nc=bld.tgcCenters[bld.tgcCenters.length-1];
   const cells = nc ? HEXMAT_CELLS[bld.tgc].map(o=>({q:nc.q+o[0], r:nc.r+o[1]})) : bFillCells();
-  const biome = (theme.startsWith('biome:')) ? theme.slice(6) : 'plains';
-  TE.generateBiomeFill(bld.grid, bld.board, cells, bDefs(), {seed:1+Math.floor(Math.random()*9999), biome, append:true}); }
+  if(theme.startsWith('biome:')){                                        // single-biome fill (no roads/rivers → nothing to dead-end)
+    TE.generateBiomeFill(bld.grid, bld.board, cells, bDefs(), {seed:1+Math.floor(Math.random()*9999), biome:theme.slice(6), append:true}); return; }
+  // mixed / varied theme → SEAM-MATCH the new unit (strict connector match) so roads & rivers CONTINUE across
+  // the seam instead of dead-ending into fresh plains (bug: extends used a plain biome fill that ignored the
+  // neighbour's road/river edges). generateNextSection carries the terrain + paths in from the placed neighbours.
+  const priorStrokes = bld.draw.filter(s=>s.type==='road'||s.type==='river'||s.type==='trail').map(s=>({type:s.type, end:s.pts[s.pts.length-1]}));
+  const r = TE.generateNextSection(bld.grid, bld.board, bDefs(), cells, {seed:1+Math.floor(Math.random()*9999), terrain:'match', feature:'bare', priorStrokes});
+  if(Array.isArray(r.draw) && r.draw.length) bld.draw = bld.draw.concat(r.draw);
+  if(Array.isArray(r.props) && r.props.length) bld.props = bld.props.concat(r.props.map(p=>({...p, rot:p.rot||0}))); }
 function bAddHexMatUnit(center){ if(bHexMatOccupied(center)) return false;
   if(!bld.tgcCenters) bld.tgcCenters=[]; bld.tgcCenters.push(center); bld.selUnit=bld.tgcCenters.length-1;   // chain from the new unit
   bHexMatRefill();                                                       // fill per the theme (settlement grows; biome/mixed fills the new unit)
