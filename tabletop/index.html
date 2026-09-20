@@ -84,6 +84,14 @@
   #cambar button{background:rgba(28,31,40,.9);border:1px solid var(--line);color:var(--txt);border-radius:7px;padding:6px 10px;cursor:pointer;font-size:12px}
   #cambar button.on{border-color:var(--acc);color:#cfe0ff}
   #navcube{position:absolute;top:52px;right:12px;width:75px;height:75px;cursor:pointer;z-index:6;filter:drop-shadow(0 3px 8px rgba(0,0,0,.5))}
+  /* small, classy KSOL credit shown on the board (free build) — removable when a pack is owned */
+  #boardCredit{position:absolute;bottom:10px;left:12px;z-index:5;display:flex;align-items:center;gap:6px;
+    font:600 12px "Segoe UI",system-ui,Arial;letter-spacing:.03em;color:rgba(233,242,251,.82);
+    background:rgba(14,17,23,.5);border:1px solid rgba(255,255,255,.13);border-radius:8px;padding:3px 10px;
+    backdrop-filter:blur(5px);user-select:none;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+  #boardCredit .bc-mark{color:#8fd0ff;font-size:10px;opacity:.9}
+  #boardCredit.owned{pointer-events:auto;cursor:pointer}
+  #boardCredit.hidden{display:none}
   #recdot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--warn);margin-right:6px;visibility:hidden}
   #recdot.on{visibility:visible;animation:blink 1s infinite}
   @keyframes blink{50%{opacity:.2}}
@@ -563,6 +571,7 @@
       <button data-side="b">⬛ Side 2</button>
     </div>
     <canvas id="navcube" width="75" height="75" title="Orientation cube — click a face, edge or corner to look from that side · drag to orbit" hidden></canvas>
+    <div id="boardCredit" title="Made with GLB Studio · KSOL Designs"><span class="bc-mark">◆</span><span>KSOL&nbsp;Designs</span></div>
     <div id="playerBar" hidden>
       <button id="pNew">▶ New</button>
       <button id="pUndo">↶ Undo</button>
@@ -595,6 +604,7 @@
         <label class="srow"><span>Kill-cam close-ups</span><input type="checkbox" id="sKillCam"></label>
         <label class="srow"><span>Background music</span><input type="checkbox" id="sMusic"></label>
         <div class="srow"><span>Music volume</span><input type="range" id="sVol" min="0" max="100" value="50"></div>
+        <label class="srow" id="sCreditRow" title="Available once you own any GLB Studio content pack"><span>Hide KSOL credit <span class="mini" id="sCreditNote" style="opacity:.6"></span></span><input type="checkbox" id="sHideCredit"></label>
         <button class="btn big" id="sClose">Done</button>
       </div>
     </div>
@@ -618,6 +628,21 @@
           <span class="grow"></span>
           <button class="btn sec" id="mpUploadBtn">📂 Your image…</button>
           <input type="file" id="mpUpload" accept="image/*" hidden>
+        </div>
+        <div class="mprow">
+          <span class="mini" style="margin-right:4px">🔍 Zoom (hi-res satellite):</span>
+          <button class="styb" data-src="maps/region-hawaii.jpg">🌺 Hawaii</button>
+          <button class="styb" data-src="maps/region-alaska.jpg">🏔 Alaska</button>
+          <button class="styb" data-src="maps/region-north-america.jpg">🌎 N. America</button>
+          <button class="styb" data-src="maps/region-south-america.jpg">🌎 S. America</button>
+          <button class="styb" data-src="maps/region-europe.jpg">🏰 Europe</button>
+          <button class="styb" data-src="maps/region-asia.jpg">🌏 Asia</button>
+          <button class="styb" data-src="maps/region-japan.jpg">🗾 Japan</button>
+          <button class="styb" data-src="maps/region-hongkong.jpg">🏙 Hong Kong</button>
+          <button class="styb" data-src="maps/region-kamchatka.jpg">🌋 Kamchatka</button>
+          <button class="styb" data-src="maps/region-indonesia.jpg">🏝 Indonesia</button>
+          <button class="styb" data-src="maps/region-philippines.jpg">🏝 Philippines</button>
+          <button class="styb" data-src="maps/region-australia.jpg">🦘 Australia</button>
         </div>
         <div id="mpStage">
           <canvas id="mpCanvas"></canvas>
@@ -675,8 +700,21 @@ import { buildTileMesh, stepAngle as tileStepAngle, pathRibbonAlong, wallRibbonA
 
 const BGC = window.BGC, GAMES = window.BGC_GAMES;
 const TE = window.TileEngine, TLIB = window.TileLibrary;
-const APP_VERSION = 'v0.53';
+const APP_VERSION = 'v0.55';
 const CREDITS = `<b>Ksol Designs</b> — Paul A.T. Ramey<br>www.ksoldesigns.com<br>Built with GLB Studio · Tabletop<br><span class="ver">${APP_VERSION}</span>`;
+// ---- Board credit: a small "KSOL Designs" mark on the board for the FREE build. Owning ANY content pack
+// (TTier expansion) unlocks removing it (⚙ Settings toggle, or click the credit). ----
+const CREDIT_HIDE_KEY='tabletop.hideCredit';
+function bOwnsAnyPack(){ try{ return !!(window.TTier && TTier.list().length>0); }catch(e){ return false; } }
+function bUpdateBoardCredit(){ const el=document.getElementById('boardCredit'); if(!el) return;
+  const owned=bOwnsAnyPack(); let hide=false; try{ hide=owned && localStorage.getItem(CREDIT_HIDE_KEY)==='1'; }catch(e){}
+  el.classList.toggle('owned', owned); el.classList.toggle('hidden', hide);
+  el.title = owned ? 'You own a pack — click to hide (restore in ⚙ Settings)' : 'Made with GLB Studio · KSOL Designs';
+  const cb=document.getElementById('sHideCredit'), row=document.getElementById('sCreditRow'), note=document.getElementById('sCreditNote');
+  if(cb){ cb.checked=hide; cb.disabled=!owned; }
+  if(row) row.style.opacity=owned?'1':'0.55';
+  if(note) note.textContent=owned?'':'(with any pack)'; }
+function bSetHideCredit(v){ if(!bOwnsAnyPack()) return; try{ localStorage.setItem(CREDIT_HIDE_KEY, v?'1':'0'); }catch(e){} bUpdateBoardCredit(); }
 try{ document.getElementById('verBadge').textContent = APP_VERSION; }catch(e){}
 console.log('%c[Tabletop] '+APP_VERSION, 'font-weight:bold;color:#4f8cff');
 
@@ -4141,6 +4179,10 @@ document.getElementById('bTBscale').oninput=(e)=>{ document.getElementById('bTBs
 document.getElementById('bTBsave').onclick=bTBsave;
 document.getElementById('bTBcancel').onclick=bTBreset;
 bLoadCustomTiles(); bBuildTBList(); bBuildExtTerrainOpts();
+// board credit (free build) + its paid-unlock removal — wire once, works in host & exported builds
+{ const bc=document.getElementById('boardCredit'); if(bc && !bc._wired){ bc._wired=1; bc.onclick=()=>bSetHideCredit(true); }
+  const hc=document.getElementById('sHideCredit'); if(hc && !hc._wired){ hc._wired=1; hc.onchange=(e)=>bSetHideCredit(e.target.checked); }
+  try{ bUpdateBoardCredit(); }catch(e){} }
 document.getElementById('bAuto').onclick=bAutoFill;
 document.getElementById('bExtW').onclick=()=>bGenerateNextSection('W');
 document.getElementById('bExtE').onclick=()=>bGenerateNextSection('E');
@@ -4381,6 +4423,9 @@ if(appCfg){
   document.getElementById('playerBar').hidden=false;
   document.getElementById('startMenu').hidden=false;
   document.getElementById('credit').innerHTML = CREDITS;
+  { const bc=document.getElementById('boardCredit'); if(bc) bc.onclick=()=>bSetHideCredit(true);
+    const hc=document.getElementById('sHideCredit'); if(hc) hc.onchange=(e)=>bSetHideCredit(e.target.checked);
+    bUpdateBoardCredit(); }
   const ml=document.createElement('link'); ml.rel='manifest'; ml.href='./manifest.webmanifest'; document.head.appendChild(ml);
   if('serviceWorker' in navigator){ navigator.serviceWorker.getRegistrations().then(rs=>rs.forEach(r=>r.unregister())).catch(()=>{}); }
   if(window.caches){ caches.keys().then(ks=>ks.forEach(k=>caches.delete(k))).catch(()=>{}); }
