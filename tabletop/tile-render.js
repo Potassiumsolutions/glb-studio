@@ -172,11 +172,20 @@ function biomeTexture(biome, variant, gridKind, feather, edgeColor){
   const file = arr[Math.max(0, Math.min(arr.length-1, variant))];
   const S=384, cv=document.createElement('canvas'); cv.width=cv.height=S; const cx=cv.getContext('2d');
   const t=new THREE.CanvasTexture(cv); if('SRGBColorSpace' in THREE) t.colorSpace=THREE.SRGBColorSpace; t.anisotropy=8;
+  // paint a solid biome base IMMEDIATELY so the tile is never blank — even if the image is slow, blocked,
+  // or fails to load on a given device (the async onload path was the only place anything was drawn, so a
+  // failed/late image left the canvas transparent → "textures not rendering" on some machines). The image,
+  // when it arrives, refines this; if it never arrives, the base colour stays.
+  const _base = (edgeColor!=null ? edgeColor : (TE.BIOME_COLOR[biome]!=null ? TE.BIOME_COLOR[biome] : 0x808080));
+  const _hex = '#'+('000000'+(_base>>>0).toString(16)).slice(-6);
+  const _paintBase=()=>{ cx.fillStyle=_hex; cx.fillRect(0,0,S,S); _finishTop(cx,S,gridKind,feather,edgeColor); t.needsUpdate=true; };
+  _paintBase();
   const img=new Image();
   img.onload=()=>{ cx.clearRect(0,0,S,S); cx.drawImage(img,0,0,S,S);
     if(biome==='mountains' && variant===1) _snowDust(cx,S);             // snow-capped mountains variant → dust the rocky top with snow
     _finishTop(cx,S,gridKind,feather,edgeColor);                        // soft biome-colour edge (opaque top) / feather / hard
     t.needsUpdate=true; };
+  img.onerror=_paintBase;                                              // image unavailable → keep the solid biome base (never blank)
   img.src='tile-textures/'+file;
   return (_texCache[ckey] = t);
 }

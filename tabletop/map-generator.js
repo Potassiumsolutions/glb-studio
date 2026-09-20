@@ -442,6 +442,30 @@
       trailsLaid++;
     }
 
+    /* ---- 5a. retract any TRAIL that dead-ends on bare open ground — a footpath must reach somewhere:
+       a destination (forest / mountain / rocks / snow / water / settlement), a road it joins, or off the
+       map (a trailhead). A tip left in an empty plains/sand field reads as a "path to nowhere", so we trim
+       it back cell-by-cell until it meets a justified cell. Trails to forests/mountains are the intended
+       look and are never touched (they are justified by their destination biome). ---- */
+    {
+      const trailJustified = (k) => {
+        const bm = biome[k];
+        if (bm===B.FOREST||bm===B.MOUNTAINS||bm===B.ROCKS||bm===B.SNOW||bm===B.WATER||bm===B.VILLAGE||bm===B.CITY) return true;
+        if (settleSet.has(k) || townCells.has(k)) return true;
+        if (edges[k].includes(P.ROAD) || edges[k].includes(P.RIVER)) return true;   // joins a road/ford
+        for (const d of offDirs(k)) if (edges[k][d]===P.TRAIL) return true;          // a trailhead leaving the map is fine
+        return false;
+      };
+      let changed = true, guard = 0;
+      while (changed && guard++ < 400) { changed = false;
+        for (const k of keys) {
+          let one = -1, cnt = 0;
+          for (let d=0; d<N; d++) if (edges[k][d]===P.TRAIL){ cnt++; one=d; }
+          if (cnt===1 && !trailJustified(k)) { setEdge(k, one, P.NONE); changed = true; }   // trim the pointless tip
+        }
+      }
+    }
+
     /* ---- 5b. farmland: patches of crop rows / orchards / centre-pivot circles on open plains ("farms
        from the air") near settlements & irrigation water. Painted top-down tiles, mixed per-cell for a patchwork. */
     const farmVar = {};                                   // per-cell field variant (crops 0–2, orchard 0–1, pivot 0–1)

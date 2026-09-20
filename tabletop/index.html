@@ -655,7 +655,7 @@ import { buildTileMesh, stepAngle as tileStepAngle, pathRibbonAlong, wallRibbonA
 
 const BGC = window.BGC, GAMES = window.BGC_GAMES;
 const TE = window.TileEngine, TLIB = window.TileLibrary;
-const APP_VERSION = 'v0.46';
+const APP_VERSION = 'v0.48';
 const CREDITS = `<b>Ksol Designs</b> — Paul A.T. Ramey<br>www.ksoldesigns.com<br>Built with GLB Studio · Tabletop<br><span class="ver">${APP_VERSION}</span>`;
 try{ document.getElementById('verBadge').textContent = APP_VERSION; }catch(e){}
 console.log('%c[Tabletop] '+APP_VERSION, 'font-weight:bold;color:#4f8cff');
@@ -1237,7 +1237,10 @@ function buildPiece(roleKey){
     const finalH = box ? (box.max.y - box.min.y) : 1.4;
     if (box){ g.position.y -= box.min.y; g.position.x -= (box.min.x + box.max.x) / 2; g.position.z -= (box.min.z + box.max.z) / 2; }
     const wrap = new THREE.Group(); wrap.add(g);
-    wrap.traverse(o=>{ if(o.isMesh) o.castShadow=true; });
+    // frustumCulled OFF for skinned meshes: an animated skin keeps its BIND-pose bounding sphere, so once a
+    // walking piece moves its stale bounds can leave the frustum and the whole model vanishes after its first
+    // move (the dog-disappears-in-Chinese-Checkers bug). A static bird happened to stay in view.
+    wrap.traverse(o=>{ if(o.isMesh){ o.castShadow=true; if(o.isSkinnedMesh) o.frustumCulled=false; } });
     const lab = letterSprite(roleShort(roleKey), side); lab.position.y = finalH + 0.25; wrap.add(lab);
     wrap.userData.mat = null;
     attachMotion(wrap, wrap.children[0], cfg);
@@ -2313,6 +2316,7 @@ const bld = { grid:'square', cols:8, rows:8, seed:7, q0:0, r0:0, board:new Map()
   // subdiv = baseKey→{mode,n}; subpaint = baseKey→{subIndex:biome}; subPaintOn = paint-sub-cells mode
   // draw = freeform strokes {type,pts,mode?}; playMode=grid|drawn; selStroke=selected drawn line; baseMap={src,crop,shape,aspect,tex}; gridScale=grid density;
   // props = [{kind,x,z,scale,mode,rot}] placed props; propKind=active prop to place; propMode=3d|2d; wallMode=3d|2d for newly drawn walls
+try{ window.__bld = bld; }catch(e){}   // debug hook: inspect builder state from the console (harmless)
 const pb  = { nodes:null, adj:null, pawns:new Map(), turn:'a',
               names:{a:'Red',b:'Blue'}, col:{a:0xd8503a,b:0x4a90d6} };
 const bDefs   = ()=> bld.grid==='hex' ? TLIB.hex : TLIB.square;
