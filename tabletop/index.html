@@ -145,6 +145,24 @@
   #mapPicker .styb,#mapPicker .shpb{background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:7px;padding:6px 10px;cursor:pointer;font-size:12px;font-weight:600}
   #mapPicker .styb.on,#mapPicker .shpb.on{background:var(--acc);color:#08101f;border-color:var(--acc)}
   #mapPicker .grow{flex:1}
+  /* ---- Cards deck designer ---- */
+  #cardsStage{position:absolute;inset:0;background:radial-gradient(circle at 50% 30%,#1a1f27,#0b0d11);display:flex;flex-direction:column;z-index:20}
+  #cardsBar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 12px;border-bottom:1px solid var(--line);background:rgba(10,12,16,.6)}
+  #cardsBar .cnav{display:inline-flex;align-items:center;gap:6px;color:var(--txt);font-size:13px}
+  #cardsBar .cnav button{background:var(--panel);border:1px solid var(--line);color:var(--txt);border-radius:7px;padding:4px 9px;cursor:pointer}
+  #cWhich{min-width:88px;text-align:center;font-weight:600}
+  #cardsView{flex:1;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:18px}
+  #cardsView.single{align-items:center}
+  #cardsView svg{background:#fff;border-radius:14px;box-shadow:0 14px 44px rgba(0,0,0,.55)}
+  #cardsView.single svg{width:auto;height:min(74vh,760px)}
+  #cardsView.sheet{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;align-content:start}
+  #cardsView.sheet svg{width:100%;height:auto;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.5);cursor:pointer}
+  #cardsCaption{padding:6px 12px;text-align:center;color:var(--mut)}
+  .cchips{display:flex;flex-wrap:wrap;gap:6px}
+  .cchip{display:inline-flex;align-items:center;gap:5px;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:4px 10px;cursor:pointer;font-size:12px;user-select:none}
+  .cchip.on{border-color:var(--acc);background:rgba(184,147,63,.16)}
+  .cchip .x{opacity:.5;font-weight:700}
+  .cchip .x:hover{opacity:1;color:#e0736b}
 </style>
 </head>
 <body>
@@ -553,9 +571,76 @@
       </div>
       <div id="bTBlist"></div>
     </div>
+
+    <!-- CARDS (deck designer) -->
+    <div id="cardsPanel" class="panel hide">
+      <div class="hint">Design a custom <b>card deck</b> — standard 52 or your own suits &amp; ranks — then <b>export print-ready</b> artwork for <b>The Game Crafter</b> (finished size + ⅛" bleed, 300 DPI). Refined from the No&nbsp;Kings card generator.</div>
+      <div class="row wrap" style="align-items:center">
+        <label class="fld" style="margin:0">🖨 Card size</label>
+        <select id="cSize" style="flex:1;min-width:150px"></select>
+      </div>
+      <div class="row wrap">
+        <div style="flex:1"><label class="fld">Frame</label>
+          <select id="cFrame"><option value="scroll">Gilt scroll border</option><option value="plain">Plain keyline</option></select></div>
+      </div>
+      <div class="row wrap">
+        <div style="flex:1"><label class="fld">Accent (gold)</label><input type="color" id="cAccent" value="#b8933f" style="width:100%"></div>
+        <div style="flex:1"><label class="fld">Paper</label><input type="color" id="cPaper" value="#f4ead1" style="width:100%"></div>
+      </div>
+      <div class="divider"></div>
+      <label class="fld">Suits</label>
+      <div id="cSuits" class="cchips"></div>
+      <div class="row wrap" style="margin-top:6px">
+        <input type="text" id="cNewSuitSym" placeholder="symbol e.g. ⚒" maxlength="2" style="width:78px">
+        <input type="color" id="cNewSuitCol" value="#7a5b2a" style="width:52px;padding:2px">
+        <button class="btn sec" id="cAddSuit" style="flex:1">＋ Add suit</button>
+      </div>
+      <label class="fld" style="margin-top:10px">Ranks</label>
+      <div id="cRanks" class="cchips"></div>
+      <label class="mini" style="display:block;margin-top:8px"><input type="checkbox" id="cUseJokers" checked> Include 2 Jokers</label>
+      <div class="divider"></div>
+      <label class="fld">Custom cards <span class="mini" id="cCustomN"></span></label>
+      <div id="cCustomList" class="mini" style="line-height:1.7"></div>
+      <div class="row wrap" style="margin-top:4px">
+        <input type="text" id="cCustomTitle" placeholder="card title" style="flex:1;min-width:120px">
+        <button class="btn sec" id="cAddCustom">＋ Add card</button>
+      </div>
+      <div class="divider"></div>
+      <label class="fld">🎨 Card back</label>
+      <div class="row wrap">
+        <div style="flex:1"><label class="mini">Field</label><input type="color" id="cBackField" value="#132038" style="width:100%"></div>
+        <div style="flex:1"><label class="mini">Gold</label><input type="color" id="cBackGold" value="#b8933f" style="width:100%"></div>
+      </div>
+      <div class="divider"></div>
+      <div class="row wrap">
+        <button class="btn sec" id="cSaveDeck">💾 Save deck</button>
+        <button class="btn sec" id="cLoadDeckBtn">📂 Load deck</button>
+        <input type="file" id="cLoadDeck" accept=".json,application/json" hidden>
+      </div>
+      <div class="row wrap" style="margin-top:8px">
+        <button class="btn" id="cExport" style="flex:1">🖨 Export deck for print (ZIP)</button>
+      </div>
+      <div class="mini" id="cExportStatus" style="margin-top:6px"></div>
+    </div>
   </div>
 
   <div id="stage">
+    <div id="cardsStage" hidden>
+      <div id="cardsBar">
+        <div class="seg" id="cViewSeg">
+          <button data-view="single" class="on">🃏 Card</button>
+          <button data-view="sheet">▦ Full deck</button>
+          <button data-view="back">🎴 Back</button>
+        </div>
+        <span id="cNav" class="cnav"><button id="cPrev">◀</button><span id="cWhich">—</span><button id="cNext">▶</button></span>
+        <button class="btn sec" id="cArtBtn">🖼 Art for this card</button>
+        <button class="btn sec" id="cArtClear">✕ art</button>
+        <button class="btn sec" id="cDlOne">⬇ PNG</button>
+        <input type="file" id="cArtFile" accept="image/*" hidden>
+      </div>
+      <div id="cardsView"></div>
+      <div id="cardsCaption" class="mini"></div>
+    </div>
     <div id="loadwrap"><div class="spin"></div><div class="mini">Loading board…</div></div>
     <div id="status">…</div>
     <div id="diceBar" hidden>
@@ -697,10 +782,11 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshSurfaceSampler } from 'three/addons/math/MeshSurfaceSampler.js';
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { buildTileMesh, stepAngle as tileStepAngle, pathRibbonAlong, wallRibbonAlong, wallFlatAlong, pathPlate, makeProp, PROP_KINDS, biomeVariantCount, subdivisionOverlay, subdivisionCount, subdivisionCells, setTileFlat, setTileScale, makeBattleProp, registerCustomTile, unregisterCustomTile, customTileImageScaled } from './tile-render.js';
+import * as Cards from './cards-deck.js';
 
 const BGC = window.BGC, GAMES = window.BGC_GAMES;
 const TE = window.TileEngine, TLIB = window.TileLibrary;
-const APP_VERSION = 'v0.56';
+const APP_VERSION = 'v0.57';
 const CREDITS = `<b>Ksol Designs</b> — Paul A.T. Ramey<br>www.ksoldesigns.com<br>Built with GLB Studio · Tabletop<br><span class="ver">${APP_VERSION}</span>`;
 // ---- Board credit: a small "KSOL Designs" mark on the board for the FREE build. Owning ANY content pack
 // (TTier expansion) unlocks removing it (⚙ Settings toggle, or click the credit). ----
@@ -2362,6 +2448,7 @@ function startPlayerGame(){
    host's camera / raycasting / travelGroup. Tiles live in `builderGroup`. ========================================================================== */
 const TILE_TOP = 0.12;                       // tile-render slab top (pawns sit here)
 let BUILD=false, PLAYB=false, bpBusy=false;
+let CARDS=false;
 const bld = { grid:'square', cols:8, rows:8, seed:7, q0:0, r0:0, board:new Map(), zones:new Map(),
               sel:null, rot:0, blend:false, groups:new Map(), off:{x:0,z:0}, radius:6,
               draw:[], tool:null, pen:[], playMode:'grid', selStroke:null,
@@ -4096,6 +4183,179 @@ function leaveBuilder(){ BUILD=false; PLAYB=false; builderGroup.visible=false; b
   document.querySelector('.tabs').style.display='';
   document.getElementById('builderPanel').classList.add('hide'); }
 
+/* ==================== CARDS — deck designer ==================== */
+const cS = {
+  size:'poker', frame:'scroll', accent:'#b8933f', paper:'#f4ead1',
+  suitObjs: Cards.defaultSuits(),
+  suitsOn: new Set(['spades','hearts','clubs','diamonds']),
+  rankObjs: Cards.defaultRanks(),
+  ranksOn: new Set(Cards.defaultRanks().map(r=>r.id)),
+  jokers:true, custom:[], back:{ field:'#132038', accent:'#b8933f' },
+  art:{}, view:'single', idx:0, list:[], _cid:1
+};
+let _cardsInit=false;
+const cEsc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const cReadDataURL=f=>new Promise(r=>{ const fr=new FileReader(); fr.onload=()=>r(fr.result); fr.readAsDataURL(f); });
+function cSvgToCanvas(svgStr,w,h){ return new Promise((res,rej)=>{
+  const blob=new Blob([svgStr],{type:'image/svg+xml;charset=utf-8'}), url=URL.createObjectURL(blob);
+  const img=new Image(); img.onload=()=>{ const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+    cv.getContext('2d').drawImage(img,0,0,w,h); URL.revokeObjectURL(url); res(cv); };
+  img.onerror=e=>{ URL.revokeObjectURL(url); rej(e); }; img.src=url; }); }
+
+function cApplyDeck(){
+  const suits=cS.suitObjs.filter(s=>cS.suitsOn.has(s.id));
+  const ranks=cS.rankObjs.filter(r=>cS.ranksOn.has(r.id));
+  Cards.configureDeck({ suits: suits.length?suits:cS.suitObjs.slice(0,1),
+                        ranks: ranks.length?ranks:cS.rankObjs.slice(0,1),
+                        jokers: cS.jokers?['red','black']:[], custom: cS.custom });
+  Cards.setCardSize(cS.size);
+}
+const cOpt=()=>({ frame: cS.frame==='scroll'?{id:'scroll'}:{id:'plain'}, accent:cS.accent, paper:cS.paper, artMap:cS.art });
+function cBuildList(){ cApplyDeck(); cS.list=Cards.fullDeck(cOpt()); if(cS.idx>=cS.list.length) cS.idx=0; }
+function cCardLabel(c){
+  if(c.rank==='joker') return 'Joker · '+c.suit;
+  if(c.rank==='custom'){ const cc=cS.custom.find(x=>x.id===c.suit); return cc?(cc.title||'Custom'):'Custom'; }
+  return c.rank+' · '+c.suit;
+}
+function cSyncViewSeg(){ document.querySelectorAll('#cViewSeg button').forEach(b=>b.classList.toggle('on',b.dataset.view===cS.view)); }
+function cRender(){
+  const view=document.getElementById('cardsView'); if(!view) return;
+  cBuildList();
+  const back=Cards.cardBack({ accent:cS.back.accent, field:cS.back.field, paper:cS.paper });
+  const single=cS.view==='single';
+  document.getElementById('cNav').style.display=single?'':'none';
+  document.getElementById('cArtBtn').style.display=single?'':'none';
+  document.getElementById('cArtClear').style.display=single?'':'none';
+  document.getElementById('cDlOne').textContent = cS.view==='sheet' ? '⬇ this' : '⬇ PNG';
+  const px=Cards.currentPixels();
+  if(cS.view==='sheet'){
+    view.className='sheet';
+    view.innerHTML=cS.list.map((c,i)=>`<span data-i="${i}">${c.svg}</span>`).join('')+`<span data-back="1">${back}</span>`;
+    view.querySelectorAll('[data-i]').forEach(el=> el.onclick=()=>{ cS.idx=+el.dataset.i; cS.view='single'; cSyncViewSeg(); cRender(); });
+    const bk=view.querySelector('[data-back]'); if(bk) bk.onclick=()=>{ cS.view='back'; cSyncViewSeg(); cRender(); };
+    document.getElementById('cardsCaption').textContent=`${cS.list.length} cards + back · ${px.name} · click a card to edit`;
+  } else if(cS.view==='back'){
+    view.className='single'; view.innerHTML=back;
+    document.getElementById('cardsCaption').textContent=`Card back · ${px.name} · ${px.w}×${px.h}px`;
+  } else {
+    view.className='single';
+    const c=cS.list[cS.idx]||cS.list[0];
+    view.innerHTML=c?c.svg:'<div class="mini" style="color:#9aa3b2">no cards — enable a suit &amp; rank</div>';
+    document.getElementById('cWhich').textContent=c?cCardLabel(c):'—';
+    document.getElementById('cardsCaption').textContent=`${cS.list.length?cS.idx+1:0} / ${cS.list.length} · ${px.name} · ${px.w}×${px.h}px print`;
+  }
+}
+function cBuildSuitChips(){
+  const host=document.getElementById('cSuits'); host.innerHTML='';
+  cS.suitObjs.forEach(s=>{ const on=cS.suitsOn.has(s.id);
+    const chip=document.createElement('span'); chip.className='cchip'+(on?' on':'');
+    chip.innerHTML=`<span style="color:${s.color};font-size:14px">${cEsc(s.symbol||'●')}</span>${cEsc(s.id)}`+(s.custom?` <span class="x" data-del="${s.id}">✕</span>`:'');
+    chip.onclick=(e)=>{ if(e.target.dataset.del){ cS.suitObjs=cS.suitObjs.filter(x=>x.id!==e.target.dataset.del); cS.suitsOn.delete(e.target.dataset.del); cBuildSuitChips(); cRender(); return; }
+      if(on) cS.suitsOn.delete(s.id); else cS.suitsOn.add(s.id); cBuildSuitChips(); cRender(); };
+    host.appendChild(chip); });
+}
+function cBuildRankChips(){
+  const host=document.getElementById('cRanks'); host.innerHTML='';
+  cS.rankObjs.forEach(r=>{ const on=cS.ranksOn.has(r.id);
+    const chip=document.createElement('span'); chip.className='cchip'+(on?' on':''); chip.textContent=r.label;
+    chip.onclick=()=>{ if(on) cS.ranksOn.delete(r.id); else cS.ranksOn.add(r.id); cBuildRankChips(); cRender(); };
+    host.appendChild(chip); });
+}
+function cBuildCustomList(){
+  const host=document.getElementById('cCustomList'), n=document.getElementById('cCustomN');
+  n.textContent=cS.custom.length?`(${cS.custom.length})`:'';
+  host.innerHTML=cS.custom.length?cS.custom.map(c=>`<div>• ${cEsc(c.title||'untitled')} <span class="x" data-del="${c.id}" style="cursor:pointer;color:#e0736b">✕</span></div>`).join(''):'<span style="opacity:.6">none yet</span>';
+  host.querySelectorAll('[data-del]').forEach(el=> el.onclick=()=>{ cS.custom=cS.custom.filter(x=>x.id!==el.dataset.del); cBuildCustomList(); cRender(); });
+}
+function cInitUI(){
+  const sz=document.getElementById('cSize'); sz.innerHTML='';
+  for(const k in Cards.CARD_SIZES){ const o=document.createElement('option'); o.value=k; o.textContent=Cards.CARD_SIZES[k].name; sz.appendChild(o); }
+  sz.value=cS.size; sz.onchange=()=>{ cS.size=sz.value; cRender(); };
+  document.getElementById('cFrame').onchange=e=>{ cS.frame=e.target.value; cRender(); };
+  document.getElementById('cAccent').oninput=e=>{ cS.accent=e.target.value; cRender(); };
+  document.getElementById('cPaper').oninput=e=>{ cS.paper=e.target.value; cRender(); };
+  document.getElementById('cUseJokers').onchange=e=>{ cS.jokers=e.target.checked; cRender(); };
+  document.getElementById('cBackField').oninput=e=>{ cS.back.field=e.target.value; cRender(); };
+  document.getElementById('cBackGold').oninput=e=>{ cS.back.accent=e.target.value; cRender(); };
+  document.getElementById('cAddSuit').onclick=()=>{
+    const sym=(document.getElementById('cNewSuitSym').value||'').trim()||'●', col=document.getElementById('cNewSuitCol').value;
+    let base=(sym.replace(/[^a-z0-9]/gi,'')||'suit').toLowerCase(), id=base, i=2; while(cS.suitObjs.some(s=>s.id===id)) id=base+(i++);
+    cS.suitObjs.push({ id, symbol:sym, color:col, custom:true }); cS.suitsOn.add(id);
+    document.getElementById('cNewSuitSym').value=''; cBuildSuitChips(); cRender(); };
+  document.getElementById('cAddCustom').onclick=()=>{
+    const t=(document.getElementById('cCustomTitle').value||'').trim(), id='c'+(cS._cid++);
+    cS.custom.push({ id, title:t||('Card '+id) }); document.getElementById('cCustomTitle').value=''; cBuildCustomList(); cRender(); };
+  document.querySelectorAll('#cViewSeg button').forEach(b=> b.onclick=()=>{ cS.view=b.dataset.view; cSyncViewSeg(); cRender(); });
+  document.getElementById('cPrev').onclick=()=>{ if(!cS.list.length)return; cS.idx=(cS.idx-1+cS.list.length)%cS.list.length; cRender(); };
+  document.getElementById('cNext').onclick=()=>{ if(!cS.list.length)return; cS.idx=(cS.idx+1)%cS.list.length; cRender(); };
+  document.getElementById('cArtBtn').onclick=()=>document.getElementById('cArtFile').click();
+  document.getElementById('cArtFile').onchange=async e=>{ const f=e.target.files[0]; e.target.value=''; if(!f)return;
+    const url=await cReadDataURL(f); const c=cS.list[cS.idx]; if(c){ cS.art[c.name]=url; cRender(); } };
+  document.getElementById('cArtClear').onclick=()=>{ const c=cS.list[cS.idx]; if(c&&cS.art[c.name]){ delete cS.art[c.name]; cRender(); } };
+  document.getElementById('cDlOne').onclick=()=>cExportOne();
+  document.getElementById('cExport').onclick=()=>cExportDeck();
+  document.getElementById('cSaveDeck').onclick=()=>cSaveDeck();
+  document.getElementById('cLoadDeckBtn').onclick=()=>document.getElementById('cLoadDeck').click();
+  document.getElementById('cLoadDeck').onchange=e=>cLoadDeck(e);
+  cBuildSuitChips(); cBuildRankChips(); cBuildCustomList();
+}
+async function cExportOne(){
+  cBuildList(); let svgStr, base;
+  if(cS.view==='back'){ svgStr=Cards.cardBack({accent:cS.back.accent,field:cS.back.field,paper:cS.paper}); base='card-back'; }
+  else { const c=cS.list[cS.idx]; if(!c) return; svgStr=c.svg; base=c.name; }
+  const px=Cards.currentPixels(), cv=await cSvgToCanvas(svgStr,px.w,px.h);
+  bDownload(await bCanvasBlob(cv), `${base}_${px.w}x${px.h}.png`);
+}
+async function cExportDeck(){
+  const st=document.getElementById('cExportStatus'); cApplyDeck();
+  const opt=cOpt(), list=Cards.fullDeck(opt), px=Cards.currentPixels(), files=[]; let i=0;
+  const pad=n=>String(n).padStart(2,'0');
+  st.textContent=`Rendering ${list.length+1} cards…`;
+  for(const c of list){ const cv=await cSvgToCanvas(c.svg,px.w,px.h); files.push({ name:`${pad(++i)}_${c.name}.png`, data:await bCanvasBytes(cv) }); st.textContent=`Rendering ${i}/${list.length}…`; }
+  const bcv=await cSvgToCanvas(Cards.cardBack({accent:cS.back.accent,field:cS.back.field,paper:cS.paper}),px.w,px.h);
+  files.push({ name:'00_card-back.png', data:await bCanvasBytes(bcv) });
+  const readme=`Deck exported from Tabletop — Cards\r\nSize: ${px.name} (${px.w}x${px.h}px, 300 DPI, includes 1/8" bleed)\r\nCards: ${list.length} + 1 shared back\r\n\r\nUpload each numbered PNG to The Game Crafter as a card face; use 00_card-back.png as the shared back.\r\n— KSOL Designs`;
+  files.push({ name:'READ-ME.txt', data:new TextEncoder().encode(readme) });
+  const zip=bZip(files); bDownload(new Blob([zip],{type:'application/zip'}), `deck_${px.name.split(' ')[0].toLowerCase()}_${px.w}x${px.h}.zip`);
+  st.textContent=`✓ Exported ${list.length}+1 cards (${px.w}×${px.h}px) as ZIP.`;
+}
+function cSaveDeck(){
+  const data={ v:1, size:cS.size, frame:cS.frame, accent:cS.accent, paper:cS.paper, suitObjs:cS.suitObjs,
+    suitsOn:[...cS.suitsOn], ranksOn:[...cS.ranksOn], jokers:cS.jokers, custom:cS.custom, back:cS.back, art:cS.art };
+  bDownload(new Blob([JSON.stringify(data)],{type:'application/json'}), 'deck-design.json');
+}
+async function cLoadDeck(e){
+  const f=e.target.files[0]; e.target.value=''; if(!f) return;
+  try{ const d=JSON.parse(await f.text());
+    cS.size=d.size||'poker'; cS.frame=d.frame||'scroll'; cS.accent=d.accent||'#b8933f'; cS.paper=d.paper||'#f4ead1';
+    if(d.suitObjs) cS.suitObjs=d.suitObjs; cS.suitsOn=new Set(d.suitsOn||['spades','hearts','clubs','diamonds']);
+    cS.ranksOn=new Set(d.ranksOn||cS.rankObjs.map(r=>r.id)); cS.jokers=d.jokers!==false; cS.custom=d.custom||[];
+    cS.back=d.back||cS.back; cS.art=d.art||{};
+    document.getElementById('cSize').value=cS.size; document.getElementById('cFrame').value=cS.frame;
+    document.getElementById('cAccent').value=cS.accent; document.getElementById('cPaper').value=cS.paper;
+    document.getElementById('cUseJokers').checked=cS.jokers; document.getElementById('cBackField').value=cS.back.field||'#132038';
+    document.getElementById('cBackGold').value=cS.back.accent||'#b8933f';
+    cBuildSuitChips(); cBuildRankChips(); cBuildCustomList(); cS.idx=0; cS.view='single'; cSyncViewSeg(); cRender();
+  }catch(err){ alert('Could not load deck: '+err.message); }
+}
+function enterCards(){ CARDS=true;
+  document.querySelector('.tabs').style.display='none';
+  document.getElementById('setupPanel').classList.add('hide');
+  document.getElementById('playPanel').classList.add('hide');
+  document.getElementById('builderPanel').classList.add('hide');
+  document.getElementById('cardsPanel').classList.remove('hide');
+  document.getElementById('cardsStage').hidden=false;
+  if(!_cardsInit){ cInitUI(); _cardsInit=true; }
+  cSyncViewSeg(); cRender();
+}
+function leaveCards(){ CARDS=false;
+  document.getElementById('cardsPanel').classList.add('hide');
+  document.getElementById('cardsStage').hidden=true;
+  document.querySelector('.tabs').style.display='';
+}
+window.__cards={ state:()=>({size:cS.size,view:cS.view,idx:cS.idx,n:cS.list.length,suits:[...cS.suitsOn],ranks:[...cS.ranksOn],custom:cS.custom.length}),
+  enter:enterCards, render:cRender, set:(k,v)=>{ cS[k]=v; cRender(); }, count:()=>Cards.deckCount(), px:()=>Cards.currentPixels() };
+
 /* builder UI wiring */
 document.querySelectorAll('#bGridSeg button').forEach(b=> b.onclick=()=>{ if(PLAYB) bStopPlay(); if(b.dataset.grid!==bld.grid) bPushUndo(); bld.grid=b.dataset.grid;
   document.querySelectorAll('#bGridSeg button').forEach(x=>x.classList.toggle('on',x===b));
@@ -4347,14 +4607,18 @@ function loop(){
 function populateDesigns(){ const sel=document.getElementById('boardDesign'); sel.innerHTML='';
   for(const k in DESIGNS){ const o=document.createElement('option'); o.value=k; o.textContent=DESIGNS[k].name; sel.appendChild(o); } }
 const BUILDER_ID='__builder';
+const CARDS_ID='__cards';
 function populateGameSel(){ const sel=document.getElementById('gameSel'); sel.innerHTML='';
   for(const id in GAMES){ const g=GAMES[id];
     if(g.mode==='race' && window.TTier && !TTier.has('race')) continue;   // race games are an expansion unlock
     const o=document.createElement('option'); o.value=id; o.textContent=(g.icon?g.icon+' ':'')+g.name; sel.appendChild(o); }
-  const o=document.createElement('option'); o.value=BUILDER_ID; o.textContent='🛠 Build a Board'; sel.appendChild(o); }
+  const o=document.createElement('option'); o.value=BUILDER_ID; o.textContent='🛠 Build a Board'; sel.appendChild(o);
+  const oc=document.createElement('option'); oc.value=CARDS_ID; oc.textContent='🃏 Cards — deck designer'; sel.appendChild(oc); }
 
 // Set def + rebuild everything for a game (authoring mode).
 async function selectGame(id){
+  if(id===CARDS_ID){ enterCards(); return; }
+  if(CARDS) leaveCards();
   if(id===BUILDER_ID){ enterBuilder(); return; }
   if(BUILD) leaveBuilder();
   def = GAMES[id];
