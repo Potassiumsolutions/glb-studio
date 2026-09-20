@@ -26,15 +26,54 @@ const BIOME_TEXTURE = {
   mountains: ['mountains_rocky.jpg'],
   snow:      ['snow_field.jpg'],
   sand:      ['sand_dune.jpg','sand_dune_2.jpg','sand_dune_3.jpg'] };   // Gemini-painted: golden dunes + cracked hardpan + red desert (v0.19)
-export function biomeVariantCount(biome){ if(biome==='mountains') return 2; const a=BIOME_TEXTURE[biome]; if(a) return a.length; return PROC_VARIANTS[biome]||0; }   // mountains: 0 rocky · 1 snow-capped (paint snowcaps deliberately)
+export function biomeVariantCount(biome){ if(biome && biome.indexOf('custom:')===0) return 1; if(biome==='mountains') return 2; const a=BIOME_TEXTURE[biome]; if(a) return a.length; return PROC_VARIANTS[biome]||0; }   // mountains: 0 rocky · 1 snow-capped (paint snowcaps deliberately)
+
+// ---- USER CUSTOM TILE TEXTURES (Tile Builder) --------------------------------------------------------------
+// A custom tile is a user-uploaded image tiled onto a tile at a chosen scale. Registered by id ('custom:<uid>')
+// with its data-URL, a scale (how many times the image repeats across ONE tile: >1 = smaller/tighter pattern,
+// <1 = zoomed in), and an average colour used for the slab/edge tint. Rendered by biomeTexture below.
+const _CUSTOM = {};
+export function registerCustomTile(id, dataURL, scale, color){
+  _CUSTOM[id] = { img:dataURL, scale:(scale||1), color:(color!=null?color:0x808080) };
+  try{ TE.BIOME_COLOR[id] = _CUSTOM[id].color; }catch(e){}                 // slab + edge tint use the biome colour table
+  for(const k in _texCache) if(k.indexOf(':'+id+':')>=0) delete _texCache[k];   // bust any cached texture for this id
+}
+export function unregisterCustomTile(id){ delete _CUSTOM[id]; for(const k in _texCache) if(k.indexOf(':'+id+':')>=0) delete _texCache[k]; }
+export function customTileImageScaled(dataURL, scale, shape, size){        // 2-D preview: image tiled on a hex/square, returns a canvas
+  const S=size||160, cv=document.createElement('canvas'); cv.width=cv.height=S; const cx=cv.getContext('2d');
+  const img=new Image();
+  const draw=()=>{ cx.clearRect(0,0,S,S); cx.save();
+    const path=new Path2D(); const g=TE.gridFor(shape==='hex'?'hex':'square'), c=g.corners();
+    const sc=S*0.46; path.moveTo(S/2+c[0][0]*sc, S/2+c[0][1]*sc); for(let i=1;i<c.length;i++) path.lineTo(S/2+c[i][0]*sc, S/2+c[i][1]*sc); path.closePath();
+    cx.clip(path);
+    const rep=Math.max(0.1, scale||1), cell=Math.max(2, Math.round(S/rep));
+    const oc=document.createElement('canvas'); oc.width=oc.height=cell; oc.getContext('2d').drawImage(img,0,0,cell,cell);
+    const pat=cx.createPattern(oc,'repeat'); cx.fillStyle=pat; cx.fillRect(0,0,S,S); cx.restore();
+    cx.strokeStyle='rgba(0,0,0,.4)'; cx.lineWidth=2; cx.stroke(path);
+    cv.dispatchEvent(new Event('tiledraw')); };
+  img.onload=draw; img.src=dataURL; return {canvas:cv, redraw:draw, img};
+}
 // snow settled between the crags — soft white patches + a faint overall frost, painted over the rocky top for
 // the snow-capped mountains variant (variant 1). Reads as an alpine snowy mountainside from above.
-function _snowDust(x,S){
-  for(let i=0;i<70;i++){ const px=Math.random()*S, py=Math.random()*S, r=6+Math.random()*26;
+function _snowDust(x,S,amt){
+  amt = (amt==null) ? 1 : amt;                                                                  // 1 = full alpine cap; <1 = light dusting (winter foliage)
+  const n=Math.round(70*amt), a0=0.92*amt, a1=0.6*amt;
+  for(let i=0;i<n;i++){ const px=Math.random()*S, py=Math.random()*S, r=6+Math.random()*26;
     const g=x.createRadialGradient(px,py,0,px,py,r);
-    g.addColorStop(0,'rgba(246,250,255,.92)'); g.addColorStop(0.6,'rgba(236,244,252,.6)'); g.addColorStop(1,'rgba(236,244,252,0)');
+    g.addColorStop(0,'rgba(246,250,255,'+a0.toFixed(2)+')'); g.addColorStop(0.6,'rgba(236,244,252,'+a1.toFixed(2)+')'); g.addColorStop(1,'rgba(236,244,252,0)');
     x.fillStyle=g; x.beginPath(); x.arc(px,py,r,0,6.28); x.fill(); }
-  x.fillStyle='rgba(240,246,252,.14)'; x.fillRect(0,0,S,S); }                                   // faint overall frost
+  x.fillStyle='rgba(240,246,252,'+(0.14*amt).toFixed(2)+')'; x.fillRect(0,0,S,S); }             // faint overall frost
+// Seasonal recolour for FOLIAGE biomes (forest / plains). Their texture "variants" are all summer-green art,
+// so the Season control (variant 1 = Autumn, 2 = Winter) otherwise did nothing. We tint the green art toward
+// autumn golds or winter frost with a canvas filter (variant 0 = Spring/Summer stays untouched). Winter also
+// gets a snow dusting on top (added by the caller). Only foliage is seasoned — rock/sand/water look the same.
+const _SEASON_FOLIAGE = { forest:1, plains:1, green:1 };
+function _seasonFilter(biome, variant){
+  if(!_SEASON_FOLIAGE[biome]) return null;
+  if(variant===1) return 'saturate(1.35) sepia(0.55) hue-rotate(-18deg) brightness(1.02)';   // Autumn — greens → golds/oranges
+  if(variant===2) return 'saturate(0.72) brightness(0.98) hue-rotate(6deg)';                  // Winter — cool & muted evergreen (snow dusted LIGHTLY after, trees stay visible)
+  return null;                                                                                // Spring / Summer — leave the art as-is
+}
 const _texCache = {};
 // town-ground bases get a PROCEDURAL top (no PNG) — a blank colored ground you build a town on with props.
 // feather the painted top's rim to transparent so tiles blend — the mask follows the TILE SHAPE:
@@ -164,6 +203,22 @@ function biomeTexture(biome, variant, gridKind, feather, edgeColor){
   variant = variant || 0; gridKind = gridKind || 'square';
   const ckey = _scale+':'+biome+':'+variant+':'+gridKind+':'+(edgeColor!=null?('e'+edgeColor):(feather!==false?'f':'o'));
   if (ckey in _texCache) return _texCache[ckey];
+  if (biome && biome.indexOf('custom:')===0){                                                                // USER custom-texture tile (Tile Builder)
+    const rec=_CUSTOM[biome]; if(!rec) return (_texCache[ckey]=null);
+    const S=384, cv=document.createElement('canvas'); cv.width=cv.height=S; const cx=cv.getContext('2d');
+    const t=new THREE.CanvasTexture(cv); if('SRGBColorSpace' in THREE) t.colorSpace=THREE.SRGBColorSpace; t.anisotropy=8;
+    const base='#'+('000000'+((rec.color>>>0).toString(16))).slice(-6);
+    const paintBase=()=>{ cx.fillStyle=base; cx.fillRect(0,0,S,S); _finishTop(cx,S,gridKind,feather,edgeColor); t.needsUpdate=true; };
+    paintBase();
+    const img=new Image();
+    img.onload=()=>{ cx.clearRect(0,0,S,S);
+      const rep=Math.max(0.1, rec.scale||1), cell=Math.max(2, Math.round(S/rep));                            // scale = repeats across ONE tile
+      const oc=document.createElement('canvas'); oc.width=oc.height=cell; oc.getContext('2d').drawImage(img,0,0,cell,cell);
+      const pat=cx.createPattern(oc,'repeat'); cx.fillStyle=pat; cx.fillRect(0,0,S,S);
+      _finishTop(cx,S,gridKind,feather,edgeColor); t.needsUpdate=true; };
+    img.onerror=paintBase; img.src=rec.img;
+    return (_texCache[ckey]=t);
+  }
   if (_scale==='battle' && CLOSEUP_FOR[biome]){                                                               // 5-ft close-up ground
     const cf = (biome==='mountains' && variant===1) ? 'snowyrock' : CLOSEUP_FOR[biome];                       // snow-capped mountains → snowy bedrock
     return (_texCache[ckey]=_groundTex(PROC_CLOSEUP[cf], gridKind, feather, edgeColor)); }
@@ -181,8 +236,12 @@ function biomeTexture(biome, variant, gridKind, feather, edgeColor){
   const _paintBase=()=>{ cx.fillStyle=_hex; cx.fillRect(0,0,S,S); _finishTop(cx,S,gridKind,feather,edgeColor); t.needsUpdate=true; };
   _paintBase();
   const img=new Image();
-  img.onload=()=>{ cx.clearRect(0,0,S,S); cx.drawImage(img,0,0,S,S);
+  img.onload=()=>{ cx.clearRect(0,0,S,S);
+    const sf=_seasonFilter(biome,variant);                             // Autumn/Winter recolour for foliage (its art is all summer-green)
+    if(sf){ cx.save(); cx.filter=sf; cx.drawImage(img,0,0,S,S); cx.restore(); try{ cx.filter='none'; }catch(e){} }
+    else cx.drawImage(img,0,0,S,S);
     if(biome==='mountains' && variant===1) _snowDust(cx,S);             // snow-capped mountains variant → dust the rocky top with snow
+    else if(_SEASON_FOLIAGE[biome] && variant===2) _snowDust(cx,S,0.5);  // Winter foliage → LIGHT snow between the trees (they stay visible, not a white blob)
     _finishTop(cx,S,gridKind,feather,edgeColor);                        // soft biome-colour edge (opaque top) / feather / hard
     t.needsUpdate=true; };
   img.onerror=_paintBase;                                              // image unavailable → keep the solid biome base (never blank)

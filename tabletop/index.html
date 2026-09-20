@@ -522,8 +522,28 @@
         <button class="btn sec" id="bRepaintTool">🖌 Repaint: off</button>
       </div>
       <div class="mini" style="margin:2px 0 6px">Plains, forest, rocky &amp; sand each have 3 painted looks; <b>mountains</b> have 2 — <b>1</b> rocky, <b>2</b> ❄️ snow-capped peaks. <b>Auto</b> keeps one coherent look per map (mountains stay rocky under Auto; 🌲 Winter snow-caps them all); pick 1–3 to force one everywhere. Turn on <b>🖌 Repaint</b> then click any tile to overwrite just that tile's look — with <b>Auto</b> selected each click cycles that tile through the looks, so click a mountain to toggle its snowcap and place peaks exactly where you want them.</div>
-      <label class="fld">Tiles — click one, then click a cell to place it · <b>R</b> rotate · right-click removes</label>
+      <label class="fld">Tiles — click one, then click a cell to place it · <b>R</b> rotate · <b>Shift</b>+right-click removes. <span class="mini">(Roads &amp; rivers are drawn on with the ✏️ Draw tool — pick a base terrain here.)</span></label>
       <div id="bPalette"></div>
+
+      <label class="fld" style="margin-top:10px">🧩 Tile Builder — bring in your own image, scale it, and save it as a paintable terrain</label>
+      <div id="bTileBuilder" style="border:1px solid rgba(255,255,255,.14);border-radius:8px;padding:8px;margin-bottom:6px">
+        <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
+          <button class="btn sec" id="bTBpick">🖼 Choose image…</button>
+          <input type="file" id="bTBfile" accept="image/*" hidden>
+          <input type="text" id="bTBname" placeholder="Name (e.g. Lava)" style="flex:1;min-width:70px">
+        </div>
+        <div style="display:flex;gap:12px;align-items:center;justify-content:center;margin:4px 0 6px">
+          <div style="text-align:center"><canvas id="bTBprevSq" width="110" height="110" style="background:#0c0f13;border-radius:6px"></canvas><div class="mini">square</div></div>
+          <div style="text-align:center"><canvas id="bTBprevHex" width="110" height="110" style="background:#0c0f13;border-radius:6px"></canvas><div class="mini">hex</div></div>
+        </div>
+        <label class="mini" style="display:block;margin-bottom:2px">Texture scale <b id="bTBscaleV">1.0×</b> <span style="opacity:.7">— higher = smaller / tighter pattern, lower = zoomed in</span></label>
+        <input type="range" id="bTBscale" min="0.25" max="6" step="0.05" value="1" style="width:100%">
+        <div style="display:flex;gap:6px;margin-top:8px">
+          <button class="btn" id="bTBsave" disabled>💾 Save to library</button>
+          <button class="btn sec" id="bTBcancel" hidden>Cancel</button>
+        </div>
+      </div>
+      <div id="bTBlist"></div>
     </div>
   </div>
 
@@ -651,11 +671,11 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshSurfaceSampler } from 'three/addons/math/MeshSurfaceSampler.js';
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
-import { buildTileMesh, stepAngle as tileStepAngle, pathRibbonAlong, wallRibbonAlong, wallFlatAlong, pathPlate, makeProp, PROP_KINDS, biomeVariantCount, subdivisionOverlay, subdivisionCount, subdivisionCells, setTileFlat, setTileScale, makeBattleProp } from './tile-render.js';
+import { buildTileMesh, stepAngle as tileStepAngle, pathRibbonAlong, wallRibbonAlong, wallFlatAlong, pathPlate, makeProp, PROP_KINDS, biomeVariantCount, subdivisionOverlay, subdivisionCount, subdivisionCells, setTileFlat, setTileScale, makeBattleProp, registerCustomTile, unregisterCustomTile, customTileImageScaled } from './tile-render.js';
 
 const BGC = window.BGC, GAMES = window.BGC_GAMES;
 const TE = window.TileEngine, TLIB = window.TileLibrary;
-const APP_VERSION = 'v0.48';
+const APP_VERSION = 'v0.53';
 const CREDITS = `<b>Ksol Designs</b> — Paul A.T. Ramey<br>www.ksoldesigns.com<br>Built with GLB Studio · Tabletop<br><span class="ver">${APP_VERSION}</span>`;
 try{ document.getElementById('verBadge').textContent = APP_VERSION; }catch(e){}
 console.log('%c[Tabletop] '+APP_VERSION, 'font-weight:bold;color:#4f8cff');
@@ -3017,14 +3037,18 @@ function biomeHash(b){ if(_biomeHash[b]!=null) return _biomeHash[b]; let h=21661
 function bResolveVariant(pl, def, cell){
   if(!def) return 0;                                    // stale tile from another grid — be defensive, don't crash the render
   const n = biomeVariantCount(def.biome); if(n<=1) return 0;
+  // FOLIAGE (forest / plains) carries the SEASON: variant 1 = Autumn, 2 = Winter. The Season control is GLOBAL —
+  // ONE season for the whole map — so it OVERRIDES the per-tile art variant the biome fill bakes in (otherwise
+  // one map showed green + autumn + winter tiles side by side). Auto = summer green (pick 🍂 Autumn / 🌲 Winter).
+  if(def.biome==='forest'||def.biome==='plains'||def.biome==='green')
+    return (bld.variant==='auto') ? 0 : Math.max(0, Math.min(n-1, +bld.variant||0));
   if(pl && typeof pl.variant==='number') return Math.max(0, Math.min(n-1, pl.variant));   // an explicit per-tile pick
   if(def.biome==='mountains'){          // mountains have only rocky(0) / snow-capped(1); snowcaps are deliberate, not auto-scattered
     if(bld.variant==='auto') return 0;                     // Auto = plain rocky; paint snowcaps per-tile with 🖌 Repaint (or 🌲 Winter)
     return (+bld.variant===2) ? 1 : 0;                     // 🌲 Winter → snow-capped everywhere; 🌱 Spring & 🍂 Autumn stay rocky
   }
-  if(bld.variant!=='auto') return Math.max(0, Math.min(n-1, +bld.variant||0));            // the 🎨 picker forces one look everywhere
-  // AUTO = ONE coherent look per biome for the WHOLE map (seed-derived), so a map never shows autumn trees
-  // next to green trees. Different biomes still differ; change the seed / regenerate for a different season.
+  if(bld.variant!=='auto') return Math.max(0, Math.min(n-1, +bld.variant||0));            // the 🎨 picker / 🍂 Season forces one look everywhere
+  // AUTO = ONE coherent look per biome for the WHOLE map (seed-derived) for the rest (rock/sand art variety).
   return ((biomeHash(def.biome) ^ Math.imul(bld.seed>>>0, 2654435761)) >>> 0) % n;
 }
 function bRender(){
@@ -3254,7 +3278,7 @@ function bPickCell(ev){ const r=renderer.domElement.getBoundingClientRect();
 
 /* ---- edit: place / rotate / remove ---- */
 function bTryPlace(cell){ if(!bld.sel){ bStatus('Pick a tile from the <b>palette</b> below first, then click a cell to place it.',true); return; }
-  const k=TE.keyOf(cell); if(bld.board.has(k)){ bStatus('That cell is taken — <b>right-click</b> to remove it first.',true); return; }
+  const k=TE.keyOf(cell); if(bld.board.has(k)){ bStatus('That cell is taken — <b>Shift</b>+right-click to remove it first.',true); return; }
   const defs=bDefs();
   const rec=()=>{ const o={defId:bld.sel,rot:bld.rot}; if(bld.variant!=='auto') o.variant=bld.variant; return o; };
   if(bld.blend){ bPushUndo(); bld.board.set(k,rec()); bRender(); bStatus(`Placed ${bLabel(bld.sel)}`); return; }
@@ -3276,23 +3300,106 @@ function bRepaintAt(ev){ const hit=bPickCell(ev); if(!hit || hit.cell===undefine
   pl.variant=v; bRender(); bStatus(`Repainted this <b>${bLabel(def.biome)}</b> tile → look <b>${v+1}</b>`);
 }
 function bRepaintOff(){ if(!bld.repaintOn) return; bld.repaintOn=false; const b=document.getElementById('bRepaintTool'); if(b){ b.textContent='🖌 Repaint: off'; b.classList.remove('on'); } }
-const bLabel=(id)=> id.replace(/_/g,' ');
+const bLabel=(id)=>{ if(id&&id.indexOf('custom:')===0){ const c=(CUSTOM_TILES||[]).find(t=>t.id===id); if(c) return c.name; } return id.replace(/_/g,' '); };
 function bStatus(msg,warn){ document.getElementById('status').innerHTML = warn? `<span style="color:#ff9a6c">${msg}</span>` : msg; }
 
 /* ---- palette ---- */
+function bSelectTile(id){ bld.sel=id; bld.rot=0; bld.tool=null; bld.pen=[]; bld.selStroke=null; bld.propKind=null; bld.propGlb=null; bRepaintOff(); bBuildPropTools(); bBuildLibList(); bHover.visible=false;
+  document.querySelectorAll('#bDrawTools .bdtool').forEach(x=>x.classList.remove('on'));
+  bBuildPalette(); bRender(); bStatus(`Tile: <b>${bLabel(id)}</b> — click a cell to place it · R rotate`); }
 function bBuildPalette(){ const el=document.getElementById('bPalette'); if(!el) return; el.innerHTML='';
   const defs=bDefs(); const byBiome={};
-  for(const id in defs){ if(id.indexOf('gen~')===0) continue;   // hide the generator's synthesised map tiles
+  for(const id in defs){ if(id.indexOf('gen~')===0) continue;                              // hide the generator's synthesised map tiles
+    if(id.indexOf('custom:')===0) continue;                                                // custom textures get their own group below
+    if(!defs[id].edges.every(e=>e.path===TE.PATH.NONE)) continue;                          // BASE tiles only — road/river VARIANTS are gone (draw paths on instead)
     (byBiome[defs[id].biome]=byBiome[defs[id].biome]||[]).push(id); }
   for(const biome of Object.keys(byBiome)){ const h=document.createElement('div'); h.className='bcat'; h.textContent=biome; el.appendChild(h);
     for(const id of byBiome[biome]){ const b=document.createElement('button'); b.className='bTile'+(bld.sel===id?' on':''); b.dataset.id=id;
-      const paths=defs[id].edges.map(e=>TE.PATH_NAME[e.path]).filter(p=>p!=='none');
-      b.innerHTML=`${bLabel(id)}<span class="bt-b">${paths.length?[...new Set(paths)].join(' · '):'—'}</span>`;
-      b.onclick=()=>{ bld.sel=id; bld.rot=0; bld.tool=null; bld.pen=[]; bld.selStroke=null; bld.propKind=null; bld.propGlb=null; bRepaintOff(); bBuildPropTools(); bBuildLibList(); bHover.visible=false;
-        document.querySelectorAll('#bDrawTools .bdtool').forEach(x=>x.classList.remove('on'));
-        bBuildPalette(); bRender(); bStatus(`Tile: <b>${bLabel(id)}</b> — click a cell · R rotate (0)`); };
+      b.innerHTML=`${bLabel(id)}<span class="bt-b">—</span>`;
+      b.onclick=()=>bSelectTile(id);
+      el.appendChild(b); } }
+  // ---- My Textures (user Tile Builder tiles) — paintable terrain ----
+  if((CUSTOM_TILES||[]).length){ const h=document.createElement('div'); h.className='bcat'; h.textContent='🧩 my textures'; el.appendChild(h);
+    for(const c of CUSTOM_TILES){ const b=document.createElement('button'); b.className='bTile'+(bld.sel===c.id?' on':''); b.dataset.id=c.id;
+      b.innerHTML=`${c.name}<span class="bt-b">custom</span>`;
+      b.onclick=()=>bSelectTile(c.id);
       el.appendChild(b); } }
 }
+
+/* ================= CUSTOM TILE LIBRARY (Tile Builder) =================
+   A custom tile = a user-uploaded image tiled onto a tile at a chosen scale, saved in the browser and usable
+   on BOTH square & hex grids as a paintable terrain (palette + Extend with). Registered as a def in TLIB and
+   as a texture in tile-render (registerCustomTile). ==================================================== */
+let CUSTOM_TILES=[];                                    // [{id,name,img(dataURL),scale,color}]
+const CUSTOM_KEY='bgc.customTiles';
+function bLoadCustomTiles(){ try{ CUSTOM_TILES=JSON.parse(localStorage.getItem(CUSTOM_KEY)||'[]')||[]; }catch(e){ CUSTOM_TILES=[]; }
+  for(const c of CUSTOM_TILES) bRegisterOneCustom(c); }
+function bSaveCustomTilesLS(){ try{ localStorage.setItem(CUSTOM_KEY, JSON.stringify(CUSTOM_TILES)); }
+  catch(e){ bStatus('Could not save — browser storage is full. Use a smaller image or delete some custom tiles.',true); } }
+function bRegisterOneCustom(c){ registerCustomTile(c.id, c.img, c.scale, c.color);   // texture + biome-colour
+  const edges=(n)=>{ const a=[]; for(let i=0;i<n;i++) a.push({path:TE.PATH.NONE, biome:c.id}); return a; };
+  TLIB.square[c.id]={ id:c.id, biome:c.id, name:c.name, custom:true, edges:edges(4) };
+  TLIB.hex[c.id]  ={ id:c.id, biome:c.id, name:c.name, custom:true, edges:edges(6) }; }
+// ---- editor state ----
+let _tbImg=null, _tbColor=0x808080, _tbEditId=null;
+const bTBscaleVal=()=> +(document.getElementById('bTBscale').value)||1;
+function _tbAvgColor(img){ const s=16, c=document.createElement('canvas'); c.width=c.height=s; const x=c.getContext('2d');
+  try{ x.drawImage(img,0,0,s,s); const d=x.getImageData(0,0,s,s).data; let r=0,g=0,b=0,n=0;
+    for(let i=0;i<d.length;i+=4){ r+=d[i]; g+=d[i+1]; b+=d[i+2]; n++; } return ((r/n|0)<<16)|((g/n|0)<<8)|(b/n|0);
+  }catch(e){ return 0x808080; } }
+function _tbDownscale(dataURL, cb){ const img=new Image(); img.onload=()=>{ const MAX=512; let w=img.width,h=img.height;
+    if(Math.max(w,h)>MAX){ const s=MAX/Math.max(w,h); w=Math.round(w*s); h=Math.round(h*s); }
+    const c=document.createElement('canvas'); c.width=w; c.height=h; c.getContext('2d').drawImage(img,0,0,w,h);
+    cb(c.toDataURL('image/jpeg',0.85), _tbAvgColor(img)); };
+  img.onerror=()=>cb(dataURL,0x808080); img.src=dataURL; }
+function bTBrenderPreview(){ const sc=bTBscaleVal();
+  [['bTBprevSq','square'],['bTBprevHex','hex']].forEach(([id,shape])=>{ const cv=document.getElementById(id); if(!cv) return; const x=cv.getContext('2d');
+    if(!_tbImg){ x.clearRect(0,0,cv.width,cv.height); return; }
+    const p=customTileImageScaled(_tbImg, sc, shape, cv.width);
+    const paint=()=>{ x.clearRect(0,0,cv.width,cv.height); x.drawImage(p.canvas,0,0); };
+    p.canvas.addEventListener('tiledraw', paint); paint(); }); }
+function bTBloadImage(dataURL){ _tbDownscale(dataURL, (small,color)=>{ _tbImg=small; _tbColor=color;
+  document.getElementById('bTBsave').disabled=false; bTBrenderPreview(); }); }
+function bTBpickFile(ev){ const f=ev.target.files&&ev.target.files[0]; if(!f) return;
+  const rd=new FileReader(); rd.onload=()=>bTBloadImage(rd.result); rd.readAsDataURL(f); ev.target.value=''; }
+function bTBsave(){ if(!_tbImg && !_tbEditId) return;
+  const name=(document.getElementById('bTBname').value||'').trim() || ('Tile '+(CUSTOM_TILES.length+1));
+  const scale=bTBscaleVal();
+  let sel;
+  if(_tbEditId){ const c=CUSTOM_TILES.find(t=>t.id===_tbEditId); if(c){ c.name=name; c.scale=scale; if(_tbImg){ c.img=_tbImg; c.color=_tbColor; } bRegisterOneCustom(c); sel=c.id; } }
+  else { const c={ id:'custom:'+Date.now().toString(36)+Math.floor(Math.random()*1e4).toString(36), name, img:_tbImg, scale, color:_tbColor };
+    CUSTOM_TILES.push(c); bRegisterOneCustom(c); sel=c.id; }
+  bSaveCustomTilesLS(); bTBreset(); bBuildPalette(); bBuildTBList(); bBuildExtTerrainOpts(); bRender();
+  bStatus(`Saved <b>${name}</b> — it's now under <b>🧩 my textures</b> (click it, then click cells to paint) and in <b>Extend with</b>.`); }
+function bTBedit(id){ const c=CUSTOM_TILES.find(t=>t.id===id); if(!c) return; _tbEditId=id; _tbImg=c.img; _tbColor=c.color;
+  document.getElementById('bTBname').value=c.name; document.getElementById('bTBscale').value=c.scale;
+  document.getElementById('bTBscaleV').textContent=(+c.scale).toFixed(2)+'×';
+  document.getElementById('bTBsave').disabled=false; document.getElementById('bTBcancel').hidden=false; bTBrenderPreview();
+  bStatus(`Editing <b>${c.name}</b> — adjust image / name / scale, then 💾 Save.`); }
+function bTBdelete(id){ const c=CUSTOM_TILES.find(t=>t.id===id); if(!c) return;
+  CUSTOM_TILES=CUSTOM_TILES.filter(t=>t.id!==id); try{ unregisterCustomTile(id); }catch(e){}
+  delete TLIB.square[id]; delete TLIB.hex[id];
+  for(const [k,pl] of [...bld.board]) if(pl.defId===id) bld.board.delete(k);   // drop placed tiles so nothing renders an orphaned def
+  if(bld.sel===id) bld.sel=null; if(bld.extTerrain===id) bld.extTerrain='match';
+  bSaveCustomTilesLS(); bBuildPalette(); bBuildTBList(); bBuildExtTerrainOpts(); bRender(); bStatus(`Deleted <b>${c.name}</b>.`); }
+function bTBreset(){ _tbEditId=null; _tbImg=null; const n=document.getElementById('bTBname'); if(n) n.value='';
+  const s=document.getElementById('bTBscale'); if(s) s.value=1; const sv=document.getElementById('bTBscaleV'); if(sv) sv.textContent='1.0×';
+  const sb=document.getElementById('bTBsave'); if(sb) sb.disabled=true; const cb=document.getElementById('bTBcancel'); if(cb) cb.hidden=true; bTBrenderPreview(); }
+function bBuildTBList(){ const el=document.getElementById('bTBlist'); if(!el) return; el.innerHTML='';
+  if(!CUSTOM_TILES.length){ el.innerHTML='<div class="mini" style="opacity:.6">No custom tiles yet — choose an image above to make one.</div>'; return; }
+  for(const c of CUSTOM_TILES){ const row=document.createElement('div'); row.style.cssText='display:flex;gap:6px;align-items:center;margin:3px 0';
+    const im=document.createElement('img'); im.src=c.img; im.style.cssText='width:26px;height:26px;object-fit:cover;border-radius:4px';
+    const nm=document.createElement('span'); nm.textContent=c.name; nm.style.cssText='flex:1;font-size:13px';
+    const eb=document.createElement('button'); eb.className='btn sec'; eb.textContent='Edit'; eb.style.padding='2px 8px'; eb.onclick=()=>bTBedit(c.id);
+    const db=document.createElement('button'); db.className='btn sec'; db.textContent='✕'; db.style.padding='2px 8px'; db.title='Delete'; db.onclick=()=>{ if(confirm('Delete custom tile "'+c.name+'"?')) bTBdelete(c.id); };
+    row.append(im,nm,eb,db); el.appendChild(row); } }
+function bBuildExtTerrainOpts(){ const sel=document.getElementById('bExtTerrain'); if(!sel) return;
+  [...sel.querySelectorAll('option[data-custom]')].forEach(o=>o.remove());
+  for(const c of CUSTOM_TILES){ const o=document.createElement('option'); o.value=c.id; o.textContent='🧩 '+c.name; o.setAttribute('data-custom','1'); sel.appendChild(o); }
+  sel.value=bld.extTerrain; }
+// when the chosen Extend terrain is a custom texture, fill the new cells uniformly with it (no procedural terrain)
+function bExtCustomFill(cells){ if(!(bld.extTerrain && bld.extTerrain.indexOf('custom:')===0)) return false;
+  for(const c of cells) bld.board.set(TE.keyOf(c), {defId:bld.extTerrain, rot:0}); return true; }
 
 /* ---- board fit / save / load / autofill ---- */
 function bFit(){ const R=(bld.radius||6);
@@ -3678,15 +3785,19 @@ function bGenerateNextSection(dir){
   newCells.sort(cmp);
   // pass the strokes drawn so far so a previously-carried road/river that spilled off what is NOW the seam
   // gets CONTINUED into the new land (instead of being stranded mid-map by this extension).
-  const priorStrokes = bld.draw.filter(s=>s.type==='road'||s.type==='river'||s.type==='trail').map(s=>({type:s.type, end:s.pts[s.pts.length-1]}));
-  const r=TE.generateNextSection(bld.grid, bld.board, bDefs(), newCells, {seed: 1+Math.floor(Math.random()*9999), terrain:bld.extTerrain, feature:bld.extFeature, priorStrokes});
-  if(Array.isArray(r.draw) && r.draw.length) bld.draw = bld.draw.concat(r.draw);        // append the section's walls
-  if(Array.isArray(r.props) && r.props.length) bld.props = bld.props.concat(r.props.map(p=>({ ...p, rot:p.rot||0 })));  // append its monuments
+  let added=newCells.length;
+  if(!bExtCustomFill(newCells)){                                                        // custom texture → uniform fill; else procedural section
+    const priorStrokes = bld.draw.filter(s=>s.type==='road'||s.type==='river'||s.type==='trail').map(s=>({type:s.type, end:s.pts[s.pts.length-1]}));
+    const r=TE.generateNextSection(bld.grid, bld.board, bDefs(), newCells, {seed: 1+Math.floor(Math.random()*9999), terrain:bld.extTerrain, feature:bld.extFeature, priorStrokes});
+    added=r.added;
+    if(Array.isArray(r.draw) && r.draw.length) bld.draw = bld.draw.concat(r.draw);        // append the section's walls
+    if(Array.isArray(r.props) && r.props.length) bld.props = bld.props.concat(r.props.map(p=>({ ...p, rot:p.rot||0 })));  // append its monuments
+  }
   document.getElementById('bCols').value=bld.cols; document.getElementById('bRows').value=bld.rows;
   bRender(); bFit();
-  const tName=({match:'seam-matched',forest:'forest',plains:'plains',desert:'desert',mountains:'mountains',snow:'snow',hills:'hills',lakes:'lakes',riverbottom:'river-bottom',largelake:'lake'})[bld.extTerrain]||bld.extTerrain;
-  const fName=bld.extFeature==='bare'?'':` + ${bld.extFeature}`;
-  bStatus(`Extended ${({E:'east',W:'west',N:'north',S:'south'})[dir]} — added ${r.added} ${tName}${fName} tiles, blended at the seam. Extend again to keep growing.`);
+  const tName=({match:'seam-matched',forest:'forest',plains:'plains',desert:'desert',mountains:'mountains',snow:'snow',hills:'hills',lakes:'lakes',riverbottom:'river-bottom',largelake:'lake'})[bld.extTerrain]|| (bld.extTerrain.indexOf('custom:')===0?bLabel(bld.extTerrain):bld.extTerrain);
+  const fName=(bld.extTerrain.indexOf('custom:')===0 || bld.extFeature==='bare')?'':` + ${bld.extFeature}`;
+  bStatus(`Extended ${({E:'east',W:'west',N:'north',S:'south'})[dir]} — added ${added} ${tName}${fName} tiles, blended at the seam. Extend again to keep growing.`);
 }
 // EXTEND a rectangular hex board/mat by one PRINTABLE SHEET: grow the field one sheet in `dir`, fill the new
 // cells (seam-matched to the existing terrain). The board becomes an sheetsX×sheetsY grid; export slices it into
@@ -3704,7 +3815,8 @@ function bExtendHexSheet(dir){
             : dir==='S' ? (a,b)=>g.world(a).z-g.world(b).z : (a,b)=>g.world(b).z-g.world(a).z;
   newCells.sort(cmp);
   const theme=bld.tgcFillTheme||bld.theme||'';
-  if(theme.startsWith('biome:')){
+  if(bExtCustomFill(newCells)){                                                          // custom texture → uniform fill the new sheet
+  } else if(theme.startsWith('biome:')){
     TE.generateBiomeFill(bld.grid, bld.board, newCells, bDefs(), {seed:1+Math.floor(Math.random()*9999), biome:theme.slice(6), append:true});
   } else {
     const priorStrokes=bld.draw.filter(s=>s.type==='road'||s.type==='river'||s.type==='trail').map(s=>({type:s.type, end:s.pts[s.pts.length-1]}));
@@ -3750,17 +3862,26 @@ function bFillCells(){ return TGC_HEXMAT[bld.tgc] ? [...bHexMatShapeCells()].map
 function bHexMatRefill(){
   const theme=bld.tgcFillTheme||'mixed';
   if(_settlePlan){ bRevealSettlePlan(); return; }                        // planned settlement → reveal the portion now covered by the units
-  if(SETTLE_THEMES[theme]){ const r=TE.generateSettlement(bld.grid, bld.board, bFillCells(), bDefs(), {seed:bld.seed, settlementType:theme});
-    bld.draw=Array.isArray(r.draw)?r.draw:[]; bld.props=[]; bld.selStroke=null; return; }
   const nc=bld.tgcCenters[bld.tgcCenters.length-1];
   const cells = nc ? HEXMAT_CELLS[bld.tgc].map(o=>({q:nc.q+o[0], r:nc.r+o[1]})) : bFillCells();
-  if(theme.startsWith('biome:')){                                        // single-biome fill (no roads/rivers → nothing to dead-end)
-    TE.generateBiomeFill(bld.grid, bld.board, cells, bDefs(), {seed:1+Math.floor(Math.random()*9999), biome:theme.slice(6), append:true}); return; }
-  // mixed / varied theme → SEAM-MATCH the new unit (strict connector match) so roads & rivers CONTINUE across
-  // the seam instead of dead-ending into fresh plains (bug: extends used a plain biome fill that ignored the
-  // neighbour's road/river edges). generateNextSection carries the terrain + paths in from the placed neighbours.
+  // The "Extend with" controls (terrain + feature) drive each NEW flower/invader unit. When the user picks an
+  // explicit terrain (anything but "Match seam") or a feature (anything but "bare"), that choice WINS over the
+  // mat's generate-time theme — so choosing Desert really makes the next piece desert. Left at Match seam +
+  // bare, we fall back to the generate-time theme (settlement grows, single-biome continues, mixed seam-matches).
+  if(bExtCustomFill(cells)) return;                                       // custom texture → uniform fill the new unit
+  const explicit = (bld.extTerrain && bld.extTerrain!=='match') || (bld.extFeature && bld.extFeature!=='bare');
   const priorStrokes = bld.draw.filter(s=>s.type==='road'||s.type==='river'||s.type==='trail').map(s=>({type:s.type, end:s.pts[s.pts.length-1]}));
-  const r = TE.generateNextSection(bld.grid, bld.board, bDefs(), cells, {seed:1+Math.floor(Math.random()*9999), terrain:'match', feature:'bare', priorStrokes});
+  if(!explicit){
+    if(SETTLE_THEMES[theme]){ const r=TE.generateSettlement(bld.grid, bld.board, bFillCells(), bDefs(), {seed:bld.seed, settlementType:theme});
+      bld.draw=Array.isArray(r.draw)?r.draw:[]; bld.props=[]; bld.selStroke=null; return; }
+    if(theme.startsWith('biome:')){                                      // single-biome fill (no roads/rivers → nothing to dead-end)
+      TE.generateBiomeFill(bld.grid, bld.board, cells, bDefs(), {seed:1+Math.floor(Math.random()*9999), biome:theme.slice(6), append:true}); return; }
+  }
+  // explicit "Extend with" terrain/feature, OR a mixed/varied theme → SEAM-MATCH the new unit (strict connector
+  // match) so roads & rivers CONTINUE across the seam. generateNextSection carries terrain + paths from the
+  // placed neighbours; an explicit terrain/feature overrides the dominant biome of the new unit.
+  const r = TE.generateNextSection(bld.grid, bld.board, bDefs(), cells,
+    {seed:1+Math.floor(Math.random()*9999), terrain:(explicit?bld.extTerrain:'match'), feature:(explicit?bld.extFeature:'bare'), priorStrokes});
   if(Array.isArray(r.draw) && r.draw.length) bld.draw = bld.draw.concat(r.draw);
   if(Array.isArray(r.props) && r.props.length) bld.props = bld.props.concat(r.props.map(p=>({...p, rot:p.rot||0}))); }
 function bAddHexMatUnit(center){ if(bHexMatOccupied(center)) return false;
@@ -3909,7 +4030,7 @@ function enterBuilder(){ BUILD=true; RACE=false; GRAPH=null; PLAYB=false;
   _undo.length=0;
   bBuildPalette(); bBuildPropTools(); bBuildLibList(); bBuildPaintSwatches(); bSubInfo(); bRender(); setCam('iso'); bFit();
   if(navCube) navCube.show(true);
-  bStatus('Build a board — pick a tile, click a cell · R rotate · right-click removes · <b>Esc</b> cancels a tool · <b>Ctrl+Z</b> undo');
+  bStatus('Build a board — pick a tile, click a cell · R rotate · <b>Shift</b>+right-click removes · <b>Esc</b> cancels a tool · <b>Ctrl+Z</b> undo');
 }
 document.querySelectorAll('#bLibSrcSeg button').forEach(b=> b.onclick=()=>{ bLibSrc=b.dataset.src;
   document.querySelectorAll('#bLibSrcSeg button').forEach(x=>x.classList.toggle('on',x===b)); bBuildLibList(); });
@@ -4013,6 +4134,13 @@ document.getElementById('bGenStream').onchange=(e)=>{ bld.genStream=e.target.che
 document.getElementById('bGenRoad').onchange=(e)=>{ bld.genRoad=e.target.checked; };
 document.getElementById('bExtTerrain').onchange=(e)=>{ bld.extTerrain=e.target.value; };
 document.getElementById('bExtFeature').onchange=(e)=>{ bld.extFeature=e.target.value; };
+// ---- Tile Builder wiring ----
+document.getElementById('bTBpick').onclick=()=>document.getElementById('bTBfile').click();
+document.getElementById('bTBfile').onchange=bTBpickFile;
+document.getElementById('bTBscale').oninput=(e)=>{ document.getElementById('bTBscaleV').textContent=(+e.target.value).toFixed(2)+'×'; bTBrenderPreview(); };
+document.getElementById('bTBsave').onclick=bTBsave;
+document.getElementById('bTBcancel').onclick=bTBreset;
+bLoadCustomTiles(); bBuildTBList(); bBuildExtTerrainOpts();
 document.getElementById('bAuto').onclick=bAutoFill;
 document.getElementById('bExtW').onclick=()=>bGenerateNextSection('W');
 document.getElementById('bExtE').onclick=()=>bGenerateNextSection('E');
@@ -4083,6 +4211,13 @@ _g('mpUpload').onchange=async (e)=>{ const f=e.target.files[0]; if(!f) return; c
   _g(mpEl.hint).textContent='Your image loaded — drag a region or Use whole map.'; };
 renderer.domElement.addEventListener('contextmenu',(ev)=>{ if(!BUILD||PLAYB) return; ev.preventDefault();
   if(bld.tool && bld.tool!=='erase'){ bDrawFinish(); return; }   // right-click ends the current drawn line
+  // Tile removal needs SHIFT held so a plain right-click (used to spin/pan the map) never deletes a tile by
+  // accident. Shift + right-click a tile to remove it.
+  if(!ev.shiftKey){
+    const h=bPickCell(ev);                                       // gentle hint only when right-clicking an actual tile
+    if(h && h.cell!==undefined && bld.board.has(TE.keyOf(h.cell))) bStatus('Hold <b>Shift</b> + right-click to remove a tile (plain right-click spins the map).');
+    return;
+  }
   const hit=bPickCell(ev);
   if(hit && hit.cell!==undefined){ const k=TE.keyOf(hit.cell); if(bld.board.has(k)){ bPushUndo(); bld.board.delete(k); bRender(); bStatus('Removed'); } } });
 renderer.domElement.addEventListener('pointermove',(ev)=>{ if(!BUILD||PLAYB||!bld.tool||bld.tool==='erase'||bld.tool==='mini'||bld.tool==='measure'){ bHover.visible=false; return; }
