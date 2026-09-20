@@ -700,7 +700,7 @@ import { buildTileMesh, stepAngle as tileStepAngle, pathRibbonAlong, wallRibbonA
 
 const BGC = window.BGC, GAMES = window.BGC_GAMES;
 const TE = window.TileEngine, TLIB = window.TileLibrary;
-const APP_VERSION = 'v0.55';
+const APP_VERSION = 'v0.56';
 const CREDITS = `<b>Ksol Designs</b> — Paul A.T. Ramey<br>www.ksoldesigns.com<br>Built with GLB Studio · Tabletop<br><span class="ver">${APP_VERSION}</span>`;
 // ---- Board credit: a small "KSOL Designs" mark on the board for the FREE build. Owning ANY content pack
 // (TTier expansion) unlocks removing it (⚙ Settings toggle, or click the credit). ----
@@ -3477,12 +3477,17 @@ function bClipStrokesToRevealed(strokes, revealed){                       // kee
       else { if(cur&&cur.pts.length>=2) out.push(cur); cur=null; } }
     if(cur&&cur.pts.length>=2) out.push(cur); }
   return out; }
+// the land around a revealed settlement follows the "Extend with" terrain (green by default = 'match')
+function _settleGroundBiome(){ const t=bld.extTerrain;
+  if(!t || t==='match') return 'green';
+  if(t.indexOf('custom:')===0) return t;
+  return ({forest:'forest',plains:'plains',desert:'sand',mountains:'mountains',snow:'snow',hills:'plains',lakes:'water',riverbottom:'water',largelake:'water'})[t] || 'green'; }
 function bRevealSettlePlan(){                                             // fill the CURRENT piece from the plan; land elsewhere
   if(!_settlePlan) return 0;
   const foot=bFillCells(), revealed=new Set(), ground=[]; bld.board.clear();
   for(const c of foot){ const k=TE.keyOf(c);
     if(_settlePlan.tiles.has(k)){ bld.board.set(k, {..._settlePlan.tiles.get(k)}); revealed.add(k); } else ground.push(c); }
-  if(ground.length) TE.generateBiomeFill(bld.grid, bld.board, ground, bDefs(), {seed:_settlePlan.seed, biome:'green', append:true});   // surrounding land (green abuts city/plains/village/forest naturally)
+  if(ground.length) TE.generateBiomeFill(bld.grid, bld.board, ground, bDefs(), {seed:_settlePlan.seed, biome:_settleGroundBiome(), append:true});   // surrounding land follows Extend-with terrain
   bld.draw = bClipStrokesToRevealed(_settlePlan.walls, revealed);
   bld.props = (_settlePlan.props||[]).filter(p=>{ const g=bGridObj(); for(const k of revealed){ const [q,r]=k.split(',').map(Number); const w=g.world({q,r}); if((w.x-p.x)**2+(w.z-p.z)**2<=0.5*0.5) return true; } return false; }).map(p=>({...p, rot:p.rot||0}));
   return revealed.size; }
@@ -3821,6 +3826,18 @@ function bGenerateNextSection(dir){
   const cmp = dir==='E' ? (a,b)=>w(a).x-w(b).x : dir==='W' ? (a,b)=>w(b).x-w(a).x
             : dir==='S' ? (a,b)=>w(a).z-w(b).z : (a,b)=>w(b).z-w(a).z;
   newCells.sort(cmp);
+  // A planned settlement (castle/town/village at a chosen size) keeps COMPLETING as you extend: grow the field,
+  // then reveal the portion of the plan now covered so walls & buildings fill in toward the full footprint. The
+  // land AROUND it follows the "Extend with" terrain. Once the whole plan is revealed, clear it so further
+  // extends add normal terrain. (Previously the square path ignored the plan entirely — the castle never grew.)
+  if(_settlePlan){
+    const shown=bRevealSettlePlan(), total=_settlePlan.tiles.size, done=shown>=total, name=SETTLE_THEMES[_settlePlan.type], wh=`${_settlePlan.w}×${_settlePlan.h}`;
+    if(done) _settlePlan=null;
+    document.getElementById('bCols').value=bld.cols; document.getElementById('bRows').value=bld.rows; bRender(); bFit();
+    bStatus(done ? `Extended ${({E:'east',W:'west',N:'north',S:'south'})[dir]} — the <b>${wh}</b> ${name} is now <b>complete</b> (${total} cells). Extend again to add terrain around it.`
+                 : `Extended ${({E:'east',W:'west',N:'north',S:'south'})[dir]} — ${name} now shows <b>${shown} of ${total}</b> cells; keep extending (◀▶▲▼) to finish the walls &amp; buildings.`);
+    return;
+  }
   // pass the strokes drawn so far so a previously-carried road/river that spilled off what is NOW the seam
   // gets CONTINUED into the new land (instead of being stranded mid-map by this extension).
   let added=newCells.length;
@@ -3846,8 +3863,9 @@ function bExtendHexSheet(dir){
   const before=new Set(bld.board.keys()); const g=bGridObj(); const sw=bSheetW(), sh=bSheetH();
   if(dir==='E'){ bld.sheetsX++; bld.sheetCX+=sw/2; } else if(dir==='W'){ bld.sheetsX++; bld.sheetCX-=sw/2; }
   else if(dir==='S'){ bld.sheetsY++; bld.sheetCZ+=sh/2; } else { bld.sheetsY++; bld.sheetCZ-=sh/2; }
-  if(_settlePlan){ const shown=bRevealSettlePlan(); bRender(); bFit();    // planned settlement → reveal the newly-covered portion (walls fill in toward the plan's real perimeter)
-    bStatus(`Extended ${({E:'east',W:'west',N:'north',S:'south'})[dir]} — <b>${bld.sheetsX}×${bld.sheetsY} sheets</b>, now showing <b>${shown} of ${_settlePlan.tiles.size}</b> cells of the ${_settlePlan.w}×${_settlePlan.h} ${SETTLE_THEMES[_settlePlan.type]}. Keep extending to reveal the rest.`); return; }
+  if(_settlePlan){ const shown=bRevealSettlePlan(), total=_settlePlan.tiles.size, done=shown>=total, name=SETTLE_THEMES[_settlePlan.type], wh=`${_settlePlan.w}×${_settlePlan.h}`; if(done) _settlePlan=null; bRender(); bFit();   // reveal the newly-covered portion; clear the plan once complete
+    bStatus(done ? `Extended ${({E:'east',W:'west',N:'north',S:'south'})[dir]} — the <b>${wh}</b> ${name} is now <b>complete</b> across <b>${bld.sheetsX}×${bld.sheetsY} sheets</b> (${total} cells). Extend again to add terrain around it.`
+                 : `Extended ${({E:'east',W:'west',N:'north',S:'south'})[dir]} — <b>${bld.sheetsX}×${bld.sheetsY} sheets</b>, now showing <b>${shown} of ${total}</b> cells of the ${wh} ${name}. Keep extending to reveal the rest.`); return; }
   const newCells=bHexMatFieldCells().filter(c=>!before.has(TE.keyOf(c)));
   const cmp = dir==='E' ? (a,b)=>g.world(a).x-g.world(b).x : dir==='W' ? (a,b)=>g.world(b).x-g.world(a).x
             : dir==='S' ? (a,b)=>g.world(a).z-g.world(b).z : (a,b)=>g.world(b).z-g.world(a).z;
@@ -3899,7 +3917,7 @@ function bFillCells(){ return TGC_HEXMAT[bld.tgc] ? [...bHexMatShapeCells()].map
 //   biome / mixed / map theme → fill only the NEW unit's cells so the existing terrain is kept.
 function bHexMatRefill(){
   const theme=bld.tgcFillTheme||'mixed';
-  if(_settlePlan){ bRevealSettlePlan(); return; }                        // planned settlement → reveal the portion now covered by the units
+  if(_settlePlan){ const shown=bRevealSettlePlan(); if(shown>=_settlePlan.tiles.size) _settlePlan=null; return; }   // reveal the portion now covered; clear once the whole settlement is complete
   const nc=bld.tgcCenters[bld.tgcCenters.length-1];
   const cells = nc ? HEXMAT_CELLS[bld.tgc].map(o=>({q:nc.q+o[0], r:nc.r+o[1]})) : bFillCells();
   // The "Extend with" controls (terrain + feature) drive each NEW flower/invader unit. When the user picks an
