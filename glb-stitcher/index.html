@@ -754,6 +754,8 @@
       <button class="show-all" id="showAll" title="Show every character in the preview at once, so you can arrange them">▦ Show all</button>
       <button class="orbit-view" id="orbitView" title="Orbit view: drag to spin the whole scene, wheel to zoom — the characters stay put (also Alt + right-drag / Alt + wheel anytime)">🎥 Orbit view</button>
       <button class="center-active" id="centerActive" title="Center the camera on the character whose clip is highlighted in the timeline right now (the ● playing / selected node)">◎ Center on active</button>
+      <button class="facing-arrow" id="facingToggle" title="Show a green FORWARD arrow (from the feet / eyes) for the active character, so you can check its face points the right way. Preview only.">➤ Facing</button>
+      <button class="flip-facing" id="flipFacing" title="Fix a mesh imported facing BACKWARD: flips the active character's geometry 180° and re-skins it so it faces the way it swims/walks. Undo with the same button.">🔄 Flip facing</button>
       <button class="node-toggle" id="nodeToggle" title="Flow node editor">⧉ Nodes</button>
       <div class="gizmo-toggle" id="gizmoToggle">
         <button data-mode="move" title="Move: slide along X / Y / Z (M)">✥</button>
@@ -952,7 +954,7 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 
 const $ = s => document.querySelector(s);
-const APP_NAME='GLB Stitcher', APP_VERSION='1.9.3', APP_BUILD='2026-09-12';   // version shown in About + footer
+const APP_NAME='GLB Stitcher', APP_VERSION='1.9.4', APP_BUILD='2026-09-21';   // version shown in About + footer
 // Bump APP_BUILD whenever the app or the bundled motion library changes. It is printed to the console and
 // shown in the footer so "am I running the current version?" can be answered by looking, not by guessing —
 // a stale browser tab kept an old build alive twice while the files on disk were already up to date.
@@ -1471,6 +1473,10 @@ function applyScenery(type){
 }
 // manualPhase = distance scrolled by the speed slider; travelX/Z = how far the camera followed the character
 let _tread={p:0,x:0,y:0,px:0};   // incremental treadmill scroll for the flat backdrops (see updateScenery)
+// True when the current clip actually moves the character through the world (real baked travel or a synthetic
+// advance). A fixed room already conveys that motion (camera-follow pans across it, or the character crosses it),
+// so its floor-texture treadmill must NOT also run, or the marble drifts at a different pace than the room.
+let _sceneryTravelling=false;
 function updateScenery(manualPhase, travelX, travelZ){
   // Scroll the backdrop by how far the character moved ACROSS THE VIEW, not just its world-X. A quadruped
   // travels along Z (it faces −Z), so keying the scroll off travelX alone left the world sliding the wrong
@@ -1510,8 +1516,9 @@ function updateScenery(manualPhase, travelX, travelZ){
     return;
   }
   if(corridorOn()) return;   // fixed long room — surfaces don't scroll (motion comes from travel + camera-follow)
-  if(roomOn()){   // real room: optionally scroll the floor texture like a treadmill, walls stay fixed
-    if(SURF.floor.tex) SURF.floor.tex.offset.set(0, manualPhase*0.05);
+  if(roomOn()){   // real room: floor treadmill fakes motion ONLY for an in-place clip; a travelling clip already
+    // moves through the fixed room (camera-follow pan or the character crossing it), so lock the floor then.
+    if(SURF.floor.tex) SURF.floor.tex.offset.set(0, _sceneryTravelling ? 0 : manualPhase*0.05);
     return;
   }
   if(scenery==='none' || !sceneryTex || !scenerySpec){
@@ -3404,6 +3411,14 @@ $('#cpX').addEventListener('click', ()=>{ charPopPinned=false; hideCharPopup(); 
 $('#moveTool').addEventListener('click', ()=>{ if(clips.length) toggleGizmo(); });
 $('#showAll').addEventListener('click', ()=>{ const cb=$('#ensemble'); cb.checked=!cb.checked; cb.dispatchEvent(new Event('change',{bubbles:true})); });
 $('#centerActive').addEventListener('click', centerOnHighlighted);
+$('#facingToggle').addEventListener('click', ()=>{ showFacing=!showFacing; $('#facingToggle').classList.toggle('on', showFacing); renderFrame(); });
+$('#flipFacing').addEventListener('click', ()=>{
+  if(!clips.length){ setStatus('Load a character first, then Flip facing if it came in backward.'); return; }
+  const ch=charOf(clips[selIndex]); const targets=ch?clips.filter(c=>charOf(c)===ch):[clips[selIndex]];
+  let n=0; for(const c of targets){ if(c&&c.root) n+=flipReskinRoot(c.root); }   // geometry-only change; bones/rest/travel are unaffected
+  refreshView();
+  setStatus(n?('🔄 Flipped facing 180° + re-skinned '+n+' mesh'+(n>1?'es':'')+' — now faces its travel direction. Click again to undo.'):'No skinned mesh on the active character to flip.');
+});
 $('#orbitView').addEventListener('click', ()=>{ viewFreeMode=!viewFreeMode; $('#orbitView').classList.toggle('on', viewFreeMode); setCursor();
   setStatus(viewFreeMode ? 'Orbit view — drag to spin the scene, wheel to zoom (characters stay put)' : (clips.length+' clip'+(clips.length>1?'s':'')+' ready')); });
 $('#gizmoToggle').addEventListener('click', e=>{ const b=e.target.closest('button'); if(b) setGizmoMode(b.dataset.mode); });
@@ -3481,7 +3496,9 @@ async function addGLBs(files, charName){
     }catch(err){ console.error(err); setStatus('Failed: '+f.name); }
   }
   sortClips();
+  let newlyRigged=false;
   clips.forEach(c=>{ if(!c._norm){
+    newlyRigged=true;
     bakeRigScale(c.root, c.gltf && c.gltf.animations);   // normalize the cm/0.01-armature rig → standard metre rig
     // Capture the REST pose now, while the skeleton is still exactly as the file describes it. A retarget
     // maps a library motion onto the character's rest, so reading it later — after the character's own
@@ -3502,6 +3519,10 @@ async function addGLBs(files, charName){
   computeSharedFrame();
   renderCharacters(); renderList(); showClip(0); updateReady();
   if(pendingClipMeta) applyClipMeta(pendingClipMeta);   // reattach a loaded project's per-clip settings by name
+  // Orientation reminder: a Meshy mesh can come in rigged BACKWARD (it'll swim/walk tail-first). We can't detect
+  // that reliably from geometry, but the fix is one click — so nudge the user to eyeball the facing on import.
+  if(newlyRigged){ showFacing=true; $('#facingToggle')?.classList.add('on');   // auto-show the forward arrow on import so facing is easy to check
+    setStatus('Loaded. ▸ Green arrow = forward. If a character faces AGAINST it (swims/walks backward), select it and click 🔄 Flip facing.'); }
 }
 function sortClips(){ clips.sort((a,b)=> a.order-b.order || a.name.localeCompare(b.name)); }
 
@@ -3920,8 +3941,48 @@ function rebuildPropPresets(){ const el=$('#propPresets'); if(!el) return;
 rebuildPropPresets();
 
 const isEnsemble=()=>$('#ensemble')&&$('#ensemble').checked;
+
+// ── FIX A BACKWARD MESH ON IMPORT — flip the skinned geometry 180° about vertical so it faces the way its
+// skeleton points, then RE-SKIN by bone-segment proximity (the +Z face binds to the +Z head bones). Bones
+// and inverse-binds are untouched, so at bind pose LBS is identity and the rest pose is exactly the flipped
+// geometry (no deform) — the in-browser port of tools/flip-reskin.mjs. Opt-in only; nothing calls it silently.
+const _fseg=(p,a,b,o)=>{ const abx=b.x-a.x,aby=b.y-a.y,abz=b.z-a.z; const apx=p.x-a.x,apy=p.y-a.y,apz=p.z-a.z;
+  const ab2=abx*abx+aby*aby+abz*abz; let t=ab2>1e-9?(apx*abx+apy*aby+apz*abz)/ab2:0; t=t<0?0:t>1?1:t;
+  const dx=apx-abx*t,dy=apy-aby*t,dz=apz-abz*t; return Math.sqrt(dx*dx+dy*dy+dz*dz); };
+function flipReskinRoot(root){
+  const meshes=[]; root.traverse(o=>{ if(o.isSkinnedMesh && o.skeleton) meshes.push(o); });
+  let did=0;
+  for(const mesh of meshes){
+    const geo=mesh.geometry, pos=geo.attributes.position, nrm=geo.attributes.normal, tan=geo.attributes.tangent;
+    const si=geo.attributes.skinIndex, sw=geo.attributes.skinWeight; if(!si||!sw) continue;
+    const n=pos.count;
+    for(let i=0;i<n;i++){ pos.setX(i,-pos.getX(i)); pos.setZ(i,-pos.getZ(i));
+      if(nrm){ nrm.setX(i,-nrm.getX(i)); nrm.setZ(i,-nrm.getZ(i)); }
+      if(tan){ tan.setX(i,-tan.getX(i)); tan.setZ(i,-tan.getZ(i)); } }
+    pos.needsUpdate=true; if(nrm)nrm.needsUpdate=true; if(tan)tan.needsUpdate=true;
+    mesh.skeleton.pose(); root.updateMatrixWorld(true);
+    const bones=mesh.skeleton.bones, boneSet=new Set(bones);
+    const inv=new THREE.Matrix4().copy(mesh.matrixWorld).invert();
+    const bp=bones.map(b=> new THREE.Vector3().setFromMatrixPosition(b.matrixWorld).applyMatrix4(inv));
+    const segA=[],segB=[]; bones.forEach((b,i)=>{ const p=b.parent, pi=(p&&boneSet.has(p))?bones.indexOf(p):-1; segA.push(pi>=0?bp[pi]:bp[i]); segB.push(bp[i]); });
+    const v=new THREE.Vector3(), nb=bones.length;
+    for(let i=0;i<n;i++){ v.set(pos.getX(i),pos.getY(i),pos.getZ(i));
+      let i0=-1,i1=-1,i2=-1,i3=-1, d0=1e18,d1=1e18,d2=1e18,d3=1e18;
+      for(let j=0;j<nb;j++){ const d=_fseg(v,segA[j],segB[j]);
+        if(d<d0){d3=d2;i3=i2;d2=d1;i2=i1;d1=d0;i1=i0;d0=d;i0=j;}
+        else if(d<d1){d3=d2;i3=i2;d2=d1;i2=i1;d1=d;i1=j;}
+        else if(d<d2){d3=d2;i3=i2;d2=d;i2=j;}
+        else if(d<d3){d3=d;i3=j;} }
+      const w0=1/Math.pow(d0+0.02,3),w1=1/Math.pow(d1+0.02,3),w2=1/Math.pow(d2+0.02,3),w3=1/Math.pow(d3+0.02,3);
+      const s=w0+w1+w2+w3||1;
+      si.setXYZW(i, i0,i1<0?0:i1,i2<0?0:i2,i3<0?0:i3);
+      sw.setXYZW(i, w0/s,w1/s,w2/s,w3/s); }
+    si.needsUpdate=true; sw.needsUpdate=true; did++;
+  }
+  return did;
+}
 // Dev hook for headless / in-browser verification (module scope is otherwise unreachable from the console).
-window.__dbg={ get clips(){return clips}, get characters(){return characters}, get scene(){return scene}, get camera(){return camera}, get canvas(){return canvasEl}, heldPropOf, get weaponSel(){return weaponSel}, get weaponClipboard(){return weaponClipboard} };
+window.__dbg={ get clips(){return clips}, get characters(){return characters}, get scene(){return scene}, get camera(){return camera}, get canvas(){return canvasEl}, heldPropOf, get weaponSel(){return weaponSel}, get weaponClipboard(){return weaponClipboard}, flipReskinRoot };
 function refreshView(){ applyCharProps(); if(typeof sizeWater==='function') sizeWater(); if(!clips.length){ renderFrame(); return; } if(isEnsemble()) showEnsemble(); else showClip(selIndex); }
 
 // ---------- Ensemble (multiple characters on stage at once) ----------
@@ -4077,6 +4138,7 @@ async function produceFramesEnsemble(fps, emit, abort){
     let sSign=1;
     if(mainSc){ const {clip}=pickEnsembleClip(mainSc,t); moving = clip && clip.scroll!==false; if(clip) sSign=clip.scrollSign||1; }
     if(moving) scrollDist += manual*dt*sSign;       // scroll only while the main character is in a moving clip; sign = its direction
+    _sceneryTravelling=false;                         // ensemble characters are staged (don't cross the world) → keep the room treadmill
     poseEnsembleAt(t); updateScenery(scrollDist, 0, 0);
     if(driftMode!=='off') applyRenderDrift(driftMode, f/Math.max(1,total-1), 0);
     renderFrame(); await emit(f);
@@ -5019,10 +5081,38 @@ function updateXray(){
   }
 }
 function transparentBg(){ const e=$('#transBg'); return e && e.checked; }
+// ── FORWARD ARROW (facing check on import). Draws where the active character's SKELETON says forward is —
+// from the FEET on footed rigs (reliable), else EYES, else head→tail — so you can eyeball whether the MESH's
+// face lines up with it. If the nose points opposite the green arrow, the mesh came in backward → 🔄 Flip facing.
+// Preview-only: hidden during playback, render and export so it never leaks into output.
+let forwardArrow=null, showFacing=false;
+function rigForwardWorld(c){
+  if(!c||!c.root) return null; c.root.updateMatrixWorld(true);
+  const B={}; c.root.traverse(o=>{ if(o.isBone) B[o.name]=o; });
+  const cen=(re)=>{ const ns=Object.keys(B).filter(n=>re.test(n)); if(!ns.length) return null; const v=new THREE.Vector3(),t=new THREE.Vector3(); ns.forEach(n=>{ B[n].getWorldPosition(t); v.add(t); }); return v.multiplyScalar(1/ns.length); };
+  let fwd=null;
+  const front=cen(/front.*(foot|toe|paw|leg1|leg2|ball|ankle)|frontleg1|frontpaw/i), back=cen(/back.*(foot|toe|paw|leg1|leg2|ball|ankle)|backleg2|backpaw|hind/i);
+  if(front&&back) fwd=front.clone().sub(back);
+  if(!fwd){ const eye=cen(/eye|ceph/i), hub=cen(/hips|spine1$|spine01|apex|neck/i); if(eye&&hub) fwd=eye.clone().sub(hub); }
+  if(!fwd){ const head=cen(/^head$|head/i), tail=cen(/tail/i); if(head&&tail) fwd=head.clone().sub(tail); }
+  if(!fwd) return null; fwd.y=0; if(fwd.lengthSq()<1e-6) return null; return fwd.normalize();
+}
+function updateForwardArrow(){
+  const on = showFacing && !previewing && !rendering && !isEnsemble() && clips.length && clips[selIndex];
+  const fwd = on ? rigForwardWorld(clips[selIndex]) : null;
+  if(!fwd){ if(forwardArrow) forwardArrow.visible=false; return; }
+  const c=clips[selIndex]; const box=new THREE.Box3().setFromObject(c.root);
+  const ctr=box.getCenter(new THREE.Vector3()), size=box.getSize(new THREE.Vector3());
+  const len=Math.max(size.x,size.z)*0.9+0.4, origin=new THREE.Vector3(ctr.x, box.min.y+0.04, ctr.z);
+  if(!forwardArrow){ forwardArrow=new THREE.ArrowHelper(fwd, origin, len, 0x39d353, len*0.28, len*0.15);
+    forwardArrow.renderOrder=998; forwardArrow.traverse(o=>{ if(o.material){ o.material.depthTest=false; o.material.transparent=true; } }); scene.add(forwardArrow); }
+  forwardArrow.position.copy(origin); forwardArrow.setDirection(fwd); forwardArrow.setLength(len, len*0.28, len*0.15); forwardArrow.visible=true;
+}
 function renderFrame(){
   updateXray();
   updatePropSelBox();
   updateModelRing();
+  updateForwardArrow();
   updateGrids();
   if(waterMesh.visible) waterTick((previewing||rendering)? (waterFrame++)/30 : 0);   // rolling waves during preview/render, still otherwise
   const trans=transparentBg();
@@ -5083,6 +5173,7 @@ async function produceFrames(fps,loops,hold,spin,trans, emit, abort){
     const fallPer = (travelling && c.fall) ? FALL_RATE*advSpeed*(c.duration||1) : 0;   // synthetic descent per play (world)
     const netRaw=travelAt(c, netT);
     const net=rotY({x:netRaw.x, z:netRaw.z + advPer}, heading+carry.rot);   // net horizontal travel + advance, aligned to the CURRENT facing (incl. carried turns)
+    _sceneryTravelling = (c.scroll!==false) && Math.hypot(net.x, net.z) > 0.02;   // clip really moves through the world → a room floor shouldn't also treadmill
     // Only CLIMBING produces a PERSISTENT vertical gain that should carry into the next clip (climb a wall,
     // mantle onto a ledge → chain to climb higher). A sit, a fall, a crouch or a jump lowers/rises WITHIN
     // its own clip (played by the mixer) and recovers by the end — carrying that as a permanent offset would
@@ -5092,7 +5183,7 @@ async function produceFrames(fps,loops,hold,spin,trans, emit, abort){
     // (not net-Y-based) on purpose: a sit / crouch also ends lower, and carrying THAT would drop the next clip
     // underground. FLIGHT: fly/flap climbs and glide loses a little — both must ACCUMULATE across chained clips
     // ("flap flap glide glide…" nets the sum, not a snap back each loop). Soar is level (bakes no net vertical).
-    const vClimb=CLIMB_RE.test(c.name||'') || /\b(take[\s-]?off|climbing|ascend|ascent|dive|stoop|fly|flap|glide|descend|land)\b/i.test(c.name||'');
+    const vClimb=CLIMB_RE.test(c.name||'') || /\b(take[\s-]?off|climbing|ascend|ascent|dive|stoop|fly|flap|glide|descend|land|dig|burrow|sink|tunnel|bore|pulse)\b/i.test(c.name||'');   // + burrowers keep sinking; + jellyfish pulse keeps the altitude each swim-up gains
     const netY=vClimb ? (netRaw.y||0) : 0;        // net vertical travel carried between clips/loops
     const sx=c.root.scale.x, sz=c.root.scale.z, sy=c.root.scale.y;
     // Seam ease length: a longer, gentler cross-fade for the smooth, long flight clips (soar/glide/fly/hover),
@@ -5539,7 +5630,7 @@ async function mlFetchClip(id){
 function mlBoneList(root){ const b=[]; root.traverse(o=>{ if(o.isBone) b.push(o); }); return b; }
 // Bone-local rest. VALID ONLY BEFORE ANYTHING POSES THE SKELETON — see `c.restPose`, captured at load
 // time, which is what mlSetRig actually uses.
-function mlCaptureRest(root){ const rest={}; for(const b of mlBoneList(root)) rest[b.name]={p:b.position.toArray(), q:b.quaternion.toArray()}; return rest; }
+function mlCaptureRest(root){ const rest={}; for(const b of mlBoneList(root)) rest[b.name]={p:b.position.toArray(), q:b.quaternion.toArray(), s:b.scale.toArray()}; return rest; }
 function mlLegLength(root){ root.updateMatrixWorld(true); const hips=findHips(root); if(!hips) return 1;
   const hw=new THREE.Vector3(); hips.getWorldPosition(hw); let minY=1e9;
   for(const b of mlBoneList(root)){ const w=new THREE.Vector3(); b.getWorldPosition(w); minY=Math.min(minY,w.y); }
@@ -5668,7 +5759,16 @@ function retargetMotion(motion, rig){
         for(let i=0;i<v.length;i+=3){ v[i]=tp[0]+(v[i]-sp[0])*ps; v[i+1]=tp[1]+(v[i+1]-sp[1])*ps; v[i+2]=tp[2]+(v[i+2]-sp[2])*ps; }
       }
       tracks.push(new THREE.VectorKeyframeTrack(t.name, t.times.slice(), v));
-    } // scale tracks ignored (keep target's bone scales)
+    } else if(prop==='scale'){
+      // BONE SCALE (jellyfish bell pulse/bloom). Applied as a RELATIVE factor on top of the target's own
+      // rest scale: out = tgtRestS · (clipS / srcRestS). Source rest scale is 1 on our templates, and a
+      // target with no captured scale defaults to 1, so this reduces to the raw clip factor — but a mesh
+      // whose bell bone rests at a non-unit scale keeps that baseline instead of snapping to 1.
+      const ss=(srcRest[bone]&&srcRest[bone].s)||[1,1,1], ts=(tgtRest[bone]&&tgtRest[bone].s)||[1,1,1];
+      const v=t.values.slice();
+      for(let i=0;i<v.length;i+=3){ v[i]=ts[0]*(v[i]/(ss[0]||1)); v[i+1]=ts[1]*(v[i+1]/(ss[1]||1)); v[i+2]=ts[2]*(v[i+2]/(ss[2]||1)); }
+      tracks.push(new THREE.VectorKeyframeTrack(t.name, t.times.slice(), v));
+    }
   }
   // GAIT ROOT-DRIFT FIX: a ground gait is meant to stride IN PLACE (the Stitcher adds synthetic forward advance).
   // But quads rigged by the Character Rigger carry a Hips bone pitched ~70-80°, so the source walk's forward stride
@@ -6514,7 +6614,7 @@ function applyImportedMotions(){
 }
 
 function registerPack(P){
-  importedPacks.push({ id:P.id, name:P.name||P.id, category:P.category||'', version:P.version||1,
+  importedPacks.push({ id:P.id, name:P.name||P.id, category:P.category||'', version:P.version||1, built:P.built||'',
     counts:{ motions:(P.motions||[]).length, props:(P.props||[]).length, scenes:(P.scenes||[]).length, characters:(P.characters||[]).length, sceneProps:(P.sceneProps||[]).length } });
   for(const m of (P.motions||[])) if(!importedMotions.some(x=>x.id===m.id)) importedMotions.push(m);
   for(const id in (P.shards||{})) importedShards.set(id, P.shards[id]);
@@ -6556,12 +6656,17 @@ async function importPackFromText(text, srcName){
   let P; try{ P=JSON.parse(text); }catch(e){ setStatus('“'+srcName+'” is not a valid pack file (.json)'); return; }
   if(!P || (!P.motions && !P.props && !P.scenes && !P.characters && !P.sceneProps)){ setStatus('“'+srcName+'” doesn’t look like an expansion pack'); return; }
   if(!P.id) P.id='pack_'+Date.now().toString(36)+Math.floor(Math.random()*1e4).toString(36);
-  if(importedPacks.some(p=>p.id===P.id)){ setStatus('Already installed: '+(P.name||P.id)); return; }
+  // Re-importing a REBUILT pack carries the same id. Previously that was refused ("Already installed"), so a
+  // freshly baked pack silently never replaced the stale copy in IndexedDB — the #1 "my changes won't show up"
+  // trap. Now the same id REPLACES: packPut() overwrites the row, then we reload so the in-memory motions /
+  // shards / poses drop the old build cleanly (registering over the top would leave stale entries behind).
+  const _reimport=importedPacks.some(p=>p.id===P.id);
   // GLB payloads (characters / scene props) go into IndexedDB as raw bytes — a third smaller than base64 and no
   // re-decode on every boot; only the small metadata stays in memory until a character is actually loaded.
   for(const ch of (P.characters||[])) if(ch && ch.glb){ ch.buf=b64ToBuf(ch.glb); delete ch.glb; }
   for(const sp of (P.sceneProps||[])) if(sp && sp.glb){ sp.buf=b64ToBuf(sp.glb); delete sp.glb; }
-  try{ await packPut(P); }catch(e){ console.warn('pack persist failed',e); setStatus('Could not save the pack in this browser'); return; }
+  try{ await packPut(P); }catch(e){ console.warn('pack persist failed',e); setStatus('Could not save the pack in this browser'); return; }   // put() overwrites the same id
+  if(_reimport){ setStatus('🔄 Updated “'+(P.name||srcName)+'”'+(P.built?(' (built '+P.built+')'):'')+' — reloading with the new build…'); setTimeout(()=>location.reload(),450); return; }
   registerPack(P); refreshAfterImport();
   setStatus('✅ Imported “'+(P.name||srcName)+'” — '+(P.motions||[]).length+' motions'+((P.props||[]).length?', '+(P.props||[]).length+' props':'')+((P.scenes||[]).length?', '+(P.scenes||[]).length+' scenes':'')+' added');
 }
@@ -6576,7 +6681,7 @@ function renderPacksUI(){
     +'<input type="file" id="packInput" accept=".json,application/json" hidden multiple>';
   if(importedPacks.length){ h+='<div style="margin-top:6px;display:flex;flex-direction:column;gap:4px">';
     for(const p of importedPacks){ const c=p.counts||{};
-      const bits=[c.characters?c.characters+' characters':'', c.motions?c.motions+' motions':'', c.sceneProps?c.sceneProps+' scene props':'', c.props?c.props+' hand props':'', c.scenes?c.scenes+' scenes':''].filter(Boolean).join(' · ');
+      const bits=[c.characters?c.characters+' characters':'', c.motions?c.motions+' motions':'', c.sceneProps?c.sceneProps+' scene props':'', c.props?c.props+' hand props':'', c.scenes?c.scenes+' scenes':'', p.built?'built '+p.built:''].filter(Boolean).join(' · ');
       h+='<div style="display:flex;align-items:center;gap:6px;font-size:12px;background:var(--panel2,#161b23);border:1px solid var(--line,#252c37);border-radius:6px;padding:4px 8px">'
         +'<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(p.name||p.id)+' <span class="hint">· '+bits+'</span></span>'
         +'<button type="button" class="btn sm ghost" data-rm="'+p.id+'" title="Remove this pack" style="width:auto;flex:none;padding:2px 8px;font-size:12px">✕</button></div>';
