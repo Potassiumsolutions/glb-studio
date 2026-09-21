@@ -391,12 +391,18 @@
         <label class="row" style="gap:4px;cursor:pointer"><input type="checkbox" id="bGenStream" checked> <span class="mini">💧 stream</span></label>
         <label class="row" style="gap:4px;cursor:pointer"><input type="checkbox" id="bGenRoad" checked> <span class="mini">🛣 road</span></label>
       </div>
+      <div class="row wrap" id="bGenTownRow" style="align-items:center">
+        <label class="fld" style="margin:0">🏘 Town size</label>
+        <input type="number" id="bGenTownSize" value="0" min="0" max="400" style="width:62px" title="How many hexes/cells the central town spans (0 = auto). On a big board, set a bigger town so it isn't a tiny dot.">
+        <span class="mini">hexes <b>(0 = auto)</b> — for the town the generator drops on a Mixed/terrain map.</span>
+      </div>
       <div class="row wrap" id="bTownSizeRow" style="align-items:center;display:none">
         <label class="fld" style="margin:0">🏰 Settlement size</label>
         <input type="number" id="bTownW" value="10" min="3" max="60" style="width:56px" title="How many cells wide the whole castle/town/village is">
         <span class="mini">×</span>
         <input type="number" id="bTownH" value="10" min="3" max="60" style="width:56px" title="How many cells tall">
         <span class="mini">cells — each map piece shows the portion that falls on it; <b>Extend</b> reveals the rest.</span>
+        <label class="row" style="gap:5px;cursor:pointer;margin-left:4px"><input type="checkbox" id="bMoat"> <span class="mini">🏰 Moat + drawbridge <span style="opacity:.6">(castle/town)</span></span></label>
       </div>
       <div class="row wrap" style="align-items:center">
         <label class="fld" style="margin:0">🍂 Season</label>
@@ -837,7 +843,7 @@ import * as Cards from './cards-deck.js';
 
 const BGC = window.BGC, GAMES = window.BGC_GAMES;
 const TE = window.TileEngine, TLIB = window.TileLibrary;
-const APP_VERSION = 'v0.64';
+const APP_VERSION = 'v0.67';
 const CREDITS = `<b>Ksol Designs</b> — Paul A.T. Ramey<br>www.ksoldesigns.com<br>Built with GLB Studio · Tabletop<br><span class="ver">${APP_VERSION}</span>`;
 // ---- Board credit: a small "KSOL Designs" mark on the board for the FREE build. Owning ANY content pack
 // (TTier expansion) unlocks removing it (⚙ Settings toggle, or click the credit). ----
@@ -3427,7 +3433,14 @@ function bNorthArrow(){ if(_northArrow) return _northArrow;
 function bPlaceNorthArrow(){ const arrow=bNorthArrow();
   let mnx=1e9, mnz=1e9; for(const c of bCells()){ const w=bWorld(c); mnx=Math.min(mnx,w.x); mnz=Math.min(mnz,w.z); }
   if(!isFinite(mnx)) return;
-  arrow.position.set(mnx-1.1, 0, mnz-0.6); builderGroup.add(arrow);                              // just off the NW corner
+  // On a clipped print-size board the view is cropped to the finished rect, so an arrow OUTSIDE the NW corner gets
+  // clipped away (that's the "lost north arrow"). When clipping is active, tuck it JUST INSIDE the rect, raised
+  // above the tiles so it reads clearly; otherwise keep it just off the NW corner.
+  const cp=renderer.clippingPlanes;
+  if(cp && cp.length>=4){ const hw=cp[0].constant, hh=cp[2].constant;   // rect = [-hw,hw]×[-hh,hh]; NW = (-hw,-hh)
+    arrow.position.set(-hw+1.0, 0.55, -hh+0.9); arrow.scale.setScalar(0.85); }
+  else { arrow.position.set(mnx-1.1, 0, mnz-0.6); arrow.scale.setScalar(1); }
+  builderGroup.add(arrow);
 }
 function bInfo(){ const el=document.getElementById('bInfo'); if(!el) return;
   const gr=TE.boardToGraph(bld.grid, bld.board, bDefs(), bld.zones);
@@ -3620,7 +3633,8 @@ function bAnchorCell(){ const g=bGridObj(), cx=bld.sheetCX||0, cz=bld.sheetCZ||0
   for(const c of bFillCells()){ const w=g.world(c); const d=(w.x-cx)**2+(w.z-cz)**2; if(d<bd){bd=d;best=c;} } return best||bHexMatCenter(); }
 function bBuildSettlePlan(type,w,h){                                      // generate the FULL settlement once → _settlePlan
   const anchor=bAnchorCell(), cells=bSettleRegionCells(w,h,anchor), tmp=new Map();
-  const r=TE.generateSettlement(bld.grid, tmp, cells, bDefs(), {seed:bld.seed, settlementType:type});
+  const moat=!!document.getElementById('bMoat')?.checked;
+  const r=TE.generateSettlement(bld.grid, tmp, cells, bDefs(), {seed:bld.seed, settlementType:type, moat});
   const tiles=new Map(); for(const [k,v] of tmp) tiles.set(k,{defId:v.defId, rot:v.rot||0});
   _settlePlan={ type, seed:bld.seed, w, h, anchor, tiles, walls:Array.isArray(r.draw)?r.draw:[], props:Array.isArray(r.props)?r.props:[], buildings:r.buildings||0 };
   return _settlePlan; }
@@ -3671,7 +3685,8 @@ function bGenerateMap(){ bPushUndo();
     const total=plan.tiles.size, partial = shown<total;
     bStatus(`Planned a <b>${w}×${h}</b> <b>${SETTLE_THEMES[bld.theme]}</b> <b>#${bld.seed}</b> (${plan.buildings} buildings)${partial?` — this piece shows <b>${shown} of ${total}</b> cells; <b>Extend</b> (◀▶▲▼${TGC_HEXMAT[bld.tgc]?' or a ＋ slot':''}) reveals the rest`:''} · press <b>✨ Generate</b> for another`); return;
   }
-  const r=TE.generateMap(bld.grid, bld.board, bFillCells(), bDefs(), {seed:bld.seed, theme:bld.theme, stream:bld.genStream, road:bld.genRoad, battle:bld.scale==='battle'});
+  const townSize=Math.max(0,parseInt(document.getElementById('bGenTownSize')?.value)||0);
+  const r=TE.generateMap(bld.grid, bld.board, bFillCells(), bDefs(), {seed:bld.seed, theme:bld.theme, stream:bld.genStream, road:bld.genRoad, battle:bld.scale==='battle', townSize});
   bld.draw = Array.isArray(r.draw) ? r.draw : []; bld.pen=[]; bld.props=[]; bld.selStroke=null; bld.selProp=null; if(TGC_HEXMAT[bld.tgc]) bTrimToHexMatShape(); bRender(); bFit();
   const themeName = ({mixed:'Mixed',forest:'Forest',grassland:'Grassland',desert:'Desert',mountains:'Mountains',wetlands:'Wetlands'})[bld.theme]||bld.theme;
   bStatus(`Generated <b>${themeName}</b> map <b>#${bld.seed}</b> — ${Math.max(0,r.settlements)} settlement${r.settlements===1?'':'s'}, ${r.rivers} stream${r.rivers===1?'':'s'} · press <b>✨ Generate</b> for another, or type a <b>seed</b> to revisit one`); }
@@ -3702,7 +3717,7 @@ function bZoomIntoSettlement(type, cell){
   bld.cols=16; bld.rows=16; bld.q0=0; bld.r0=0; bld.seed=zseed%10000;
   setTileScale('battle'); bld.scale='battle';
   document.querySelectorAll('#bScaleSeg button').forEach(x=>x.classList.toggle('on', x.dataset.scale==='battle'));
-  const r=TE.generateSettlement(bld.grid, bld.board, bCells(), bDefs(), {seed:bld.seed, settlementType:type});
+  const r=TE.generateSettlement(bld.grid, bld.board, bCells(), bDefs(), {seed:bld.seed, settlementType:type, moat:!!document.getElementById('bMoat')?.checked});
   bld.draw=Array.isArray(r.draw)?r.draw:[]; bld.pen=[]; bld.props=[]; bld.selStroke=null; bld.selProp=null; bld.structKey='';
   bSyncBuilderUI(); bRender(); bFit(); bShowZoomBack(true);
   bStatus(`Zoomed into the <b>${SETTLE_THEMES[type]||type}</b> at 5-ft battle scale — explore it, pop roofs, drop minis · <b>⤴ Back to map</b> (top-left) to return`);
@@ -4665,7 +4680,9 @@ document.getElementById('bRows').onchange=(e)=>{ bld.rows=Math.max(2,Math.min(96
 document.getElementById('bSeed').onchange=(e)=>{ bld.seed=Math.max(1,+e.target.value||1); if(bld.board.size||bld.draw.length) bGenerateMap(); };
 document.getElementById('bBlend').onchange=(e)=>{ bld.blend=e.target.checked; };
 document.getElementById('bTheme').onchange=(e)=>{ bld.theme=e.target.value; bSyncTownSizeRow(); };
-function bSyncTownSizeRow(){ const row=document.getElementById('bTownSizeRow'); if(row) row.style.display = SETTLE_THEMES[bld.theme] ? '' : 'none'; }
+function bSyncTownSizeRow(){ const row=document.getElementById('bTownSizeRow'); if(row) row.style.display = SETTLE_THEMES[bld.theme] ? '' : 'none';
+  // the generated-map town-size control shows for the scatter-settlement themes (mixed/terrain), not whole-map settlement themes or single-biome fills
+  const gr=document.getElementById('bGenTownRow'); if(gr) gr.style.display = (SETTLE_THEMES[bld.theme] || String(bld.theme).startsWith('biome:')) ? 'none' : ''; }
 document.getElementById('bGenStream').onchange=(e)=>{ bld.genStream=e.target.checked; };
 document.getElementById('bGenRoad').onchange=(e)=>{ bld.genRoad=e.target.checked; };
 document.getElementById('bExtTerrain').onchange=(e)=>{ bld.extTerrain=e.target.value; };

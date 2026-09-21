@@ -312,9 +312,13 @@
     // settlement into a blob sized as a FRACTION OF THE WHOLE BOARD (opts.battle). World scale keeps the compact
     // region-symbol footprint. growBlob() BFS-grows a compact blob from a seed over buildable, unclaimed cells.
     const battle = !!opts.battle, NC = keys.length;
-    const townTarget    = battle ? clamp(Math.round(NC * 0.08), 6, 60) : (keys.length >= 64 ? 3 : 2);
-    const villageTarget = battle ? clamp(Math.round(NC * 0.03), 3, 18) : 1;
-    const castleTarget  = battle ? clamp(Math.round(NC * 0.05), 4, 24) : 1;
+    // opts.townSize (cells) lets the caller size the central town explicitly — so a big board doesn't get a tiny
+    // town. 0/undefined = auto. When set, villages & the castle scale with it so the whole settlement reads right.
+    const forceTown = Math.max(0, Math.round(opts.townSize || 0));
+    const townTarget    = forceTown > 0 ? clamp(forceTown, 1, NC) : (battle ? clamp(Math.round(NC * 0.08), 6, 60) : (keys.length >= 64 ? 3 : 2));
+    const villageTarget = forceTown > 0 ? clamp(Math.round(forceTown * 0.45), 2, NC) : (battle ? clamp(Math.round(NC * 0.03), 3, 18) : 1);
+    const castleTarget  = forceTown > 0 ? clamp(Math.round(forceTown * 0.7), 3, NC)  : (battle ? clamp(Math.round(NC * 0.05), 4, 24) : 1);
+    const grownSettle   = battle || forceTown > 0;   // grow blobs (vs the compact 1-cell region symbol) whenever a size is forced OR at battle scale
     function growBlob(seed, target, claimed){ const blob = new Set([seed]); claimed.add(seed);
       while (blob.size < target){ const ring = [];
         for (const k of blob){ const c = cellOf[k];
@@ -327,7 +331,7 @@
     // TOWN: the central settlement grows into a cluster that gets a ringed city WALL (built after roads, §4b)
     const townCells = new Set();
     if (settlements.length) {
-      if (battle) growBlob(settlements[0], townTarget, claimed).forEach(k => townCells.add(k));
+      if (grownSettle) growBlob(settlements[0], townTarget, claimed).forEach(k => townCells.add(k));
       else { townCells.add(settlements[0]);
         nbrs(settlements[0]).map(n => n.k).filter(k => buildable(k) && !settleSet.has(k))
           .sort((a, b) => Math.hypot(pos[a].x - cx, pos[a].z - cz) - Math.hypot(pos[b].x - cx, pos[b].z - cz))
@@ -337,13 +341,19 @@
     let castle = null; const castleCells = new Set();
     if (settlements.length >= 3 && mtn.length) {
       castle = settlements.slice(1).sort((a, b) => nearBlob(a, mtn) - nearBlob(b, mtn))[0];
-      if (castle) { if (battle) growBlob(castle, castleTarget, claimed).forEach(k => castleCells.add(k)); else castleCells.add(castle);
-        for (const k of castleCells) { biome[k] = B.CITY; feature[k] = 'buildings'; } feature[castle] = 'keep'; }
+      if (castle) { if (grownSettle) growBlob(castle, castleTarget, claimed).forEach(k => castleCells.add(k)); else castleCells.add(castle);
+        for (const k of castleCells) { biome[k] = B.CITY; feature[k] = 'buildings'; } feature[castle] = 'keep';
+        // ring the castle grounds with variety — orchards/gardens + a few trees — so its surroundings aren't plain
+        const cring = new Set(); for (const k of castleCells) for (const { k: nk } of nbrs(k)) if (!castleCells.has(nk) && !settleSet.has(nk)) cring.add(nk);
+        for (const nk of cring){ if (waterSet.has(nk) || mtnSet.has(nk)) continue; const rv = rng();
+          if (rv < 0.42){ biome[nk] = B.ORCHARD; feature[nk] = undefined; }
+          else if (rv < 0.6){ biome[nk] = B.FOREST; feature[nk] = 'trees'; } }
+      }
     }
     // VILLAGES: every remaining settlement grows a small blob of houses (ring wall added in §4b)
     const villageBlobs = [];
     for (const vk of settlements) { if (townCells.has(vk) || castleCells.has(vk)) continue;
-      const blob = battle ? growBlob(vk, villageTarget, claimed) : new Set([vk]);
+      const blob = grownSettle ? growBlob(vk, villageTarget, claimed) : new Set([vk]);
       for (const k of blob) { biome[k] = B.VILLAGE; feature[k] = 'houses'; }
       villageBlobs.push(blob); }
 
@@ -384,6 +394,11 @@
       }
       // exit spills off the board
       if (exit && roadCells.has(exit)) { const od = offDirs(exit); if (od.length) setEdge(exit, od[ri(od.length)], P.ROAD); }
+      // GUARANTEE the castle has its OWN road out to the nearest board edge (never a dead-end; extends cleanly)
+      if (castle){
+        const cexit = border.filter(k => (buildable(k) || k===castle) && !castleCells.has(k)).sort((a, b) => d2(a, castle) - d2(b, castle))[0];
+        if (cexit){ const path = dijkstra(castle, cexit, roadCost); if (path){ layRoad(path); const od = offDirs(cexit); if (od.length) setEdge(cexit, od[ri(od.length)], P.ROAD); } }
+      }
     }
     // a plains road leaf (a dead-end that isn't a village/castle/exit) becomes a farm
     roadCells.forEach(k => {
@@ -593,11 +608,33 @@
       } else if (type === 'town'){
         if (isBorder(k) && rng() < 0.35){ biome[k] = B.VILLAGE; feature[k] = 'houses'; }              // humbler houses at the edge
         else if (rng() < 0.85){ biome[k] = B.CITY; feature[k] = 'buildings'; } else biome[k] = B.GREEN; // packed town blocks + a few squares
-      } else {                                                                                          // castle
-        const rr = dCentre(k) / maxR;
-        if (rr > 0.72){ biome[k] = B.CITY; feature[k] = 'buildings'; }                                  // outer bailey / curtain buildings
-        else if (rr < 0.34){ biome[k] = B.GREEN; }                                                      // courtyard around the keep
-        else if (rng() < 0.68){ biome[k] = B.CITY; feature[k] = 'buildings'; } else biome[k] = B.GREEN; // inner ward
+      } else {                                                                                          // CASTLE grounds — varied, not uniform green+buildings
+        const rr = dCentre(k) / maxR, rv = rng();
+        if (rr > 0.66){                                                                                 // outer bailey: curtain buildings + orchards + kitchen fields
+          if (rv < 0.5){ biome[k] = B.CITY; feature[k] = 'buildings'; }
+          else if (rv < 0.7){ biome[k] = B.ORCHARD; feature[k] = undefined; }                            // orchard / garden
+          else if (rv < 0.85){ biome[k] = B.CROPS; feature[k] = undefined; }                             // kitchen fields
+          else biome[k] = B.GREEN;
+        } else if (rr < 0.32){                                                                           // courtyard around the keep: lawn + ornamental trees + a well/pond
+          if (rv < 0.18){ biome[k] = B.FOREST; feature[k] = 'trees'; }
+          else if (rv < 0.24){ biome[k] = B.WATER; feature[k] = 'water'; }
+          else biome[k] = B.GREEN;
+        } else {                                                                                         // inner ward: halls + gardens + greens
+          if (rv < 0.55){ biome[k] = B.CITY; feature[k] = 'buildings'; }
+          else if (rv < 0.72){ biome[k] = B.FOREST; feature[k] = 'trees'; }
+          else biome[k] = B.GREEN;
+        }
+      }
+    }
+
+    // MOAT + DRAWBRIDGE (toggle) — a water ring just inside the curtain wall; where a road crosses it the road
+    // rides over the water = a drawbridge (the tile renderer draws roads-over-water as a bridge automatically).
+    if (opts.moat && type !== 'village'){
+      const lo = 0.70, hi = 0.86;                                   // the moat band (fraction of the radius)
+      for (const k of keys){ if (k === centerK || isBorder(k)) continue; const rr = dCentre(k) / maxR;
+        if (rr < lo || rr > hi) continue;
+        biome[k] = B.WATER;                                          // moat; street cells keep their P.ROAD edges → render as a drawbridge
+        feature[k] = street.has(k) ? undefined : 'water';           // (a road-over-water tile bridges itself; plain moat gets the water feature)
       }
     }
 
@@ -718,15 +755,25 @@
         const nbOld=[], nbNew=[];
         for (let d=0; d<N; d++){ const nk=keyOf(g.step(c,d)); if(isNew(nk)){ if(nk in decided) nbNew.push(decided[nk]); } else { const b=biomeAt(nk); if(b) nbOld.push(b); } }
         let bm = T.dom; const dep = depth[k];
-        const pool = nbOld.length ? nbOld : nbNew;
-        if (dep===0 && pool.length && rng() < 0.6) bm = pool[(rng()*pool.length)|0];              // hug the old terrain at the seam
-        else if (dep===1 && rng() < 0.35){ const p2 = nbNew.length?nbNew:pool; if(p2.length) bm = p2[(rng()*p2.length)|0]; }
+        // ORGANIC seam transition: fingers of the OLD terrain reach inward and taper out, instead of a hard 2-rank
+        // edge that reads as a straight line on big extensions. Blend depth scales with the extension size, and we
+        // prefer CONTINUING an already-decided neighbour's non-dominant biome (seam-first order → fingers grow
+        // inward), so the boundary interlocks. Probability fades with depth → a natural gradient.
+        const blendBand = clamp(Math.round(maxDepth * 0.45), 2, 9);
+        const cont = nbNew.filter(b => b !== T.dom);                    // a finger of old terrain already touching this cell
+        const pool = cont.length ? cont : nbOld;
+        const pOld = clamp((blendBand + 1 - dep) / (blendBand + 1), 0, 1) * 0.72;
+        if (pool.length && rng() < pOld) bm = pool[(rng()*pool.length)|0];
         decided[k] = bm;
       }
       // accents
       if (T.rocks){ const pool=newKeys.filter(k=>decided[k]===T.dom).sort(()=>rng()-0.5); for(let i=0;i<Math.min(T.rocks,pool.length);i++) decided[pool[i]]=B.ROCKS; }
       if (T.snow){ const far=newKeys.filter(k=>depth[k]>=maxDepth && decided[k]===B.MOUNTAINS); for(const k of far.slice(0,Math.max(2,(far.length*0.6)|0))) decided[k]=B.SNOW; }
-      for (let i=0;i<(T.lakes||0);i++){ const s=newKeys[(rng()*newKeys.length)|0]; growNew(s, 2+((rng()*2)|0), null).forEach(k=>{ decided[k]=B.WATER; featOf[k]='water'; }); }
+      if (T.lakes){ // scale the number of lakes with the extended AREA and vary their sizes (many small ponds + a few big lakes) instead of a fixed 3 dots
+        const nL = clamp(Math.round(newKeys.length/14 * (T.lakes/3)), 3, 40);
+        for (let i=0;i<nL;i++){ const s=newKeys[(rng()*newKeys.length)|0]; if(decided[s]===B.WATER) continue;
+          const sz = 1 + ((rng()*rng()*8)|0);                                   // 1..8, biased small → varied sizes
+          growNew(s, sz, k=>decided[k]===B.WATER).forEach(k=>{ decided[k]=B.WATER; featOf[k]='water'; }); } }
       if (T.big){ growNew(centerCell, Math.max(4, Math.round(newKeys.length*0.5)), null).forEach(k=>{ decided[k]=B.WATER; featOf[k]='water'; }); }
     } else {
       // match/auto: continue the seam then drift by natural terrain order (original behaviour)
