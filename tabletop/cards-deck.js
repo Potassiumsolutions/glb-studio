@@ -279,6 +279,20 @@ export function pipCenter(rankId, suit, rect){
   return `<g class="pad-center-pips">${cells}</g>`;
 }
 
+/* ---------- CENTER: ace — one large central suit symbol (no "ACE" text) ---- */
+export function aceCenter(suit, rect){
+  const R = rect || TRIM_RECT;
+  const size = Math.min(R.w, R.h) * 0.46;
+  return `<g class="pad-center-ace">${pip(suit, R.x+R.w/2, R.y+R.h/2, size, false)}</g>`;
+}
+
+/* ---------- fill an image-frame's opening with the chosen paper colour --- */
+function paperFill(fr, opt){
+  if(!(fr && fr.kind==='image' && fr.rect && opt.paper)) return '';
+  const R = fr.rect;                                  // the detected opening — draw the paper under the card content so the Paper picker works on ornate frames too
+  return `<rect x="${R.x.toFixed(1)}" y="${R.y.toFixed(1)}" width="${R.w.toFixed(1)}" height="${R.h.toFixed(1)}" rx="6" fill="${opt.paper}"/>`;
+}
+
 /* ---------- CENTER: mirrored court art ----------------------------- */
 let _uid=0;
 function mirroredArt(artUrl, box, rect){
@@ -356,10 +370,11 @@ export function buildCard(rankId, suit, opt={}){
   const center = artUrl
       ? (mirror ? courtCenter(rankId, suit, artUrl, box, fr.rect)
                 : singleArt(artUrl, fr.rect))              // uploaded art fills the card face
-      : (rk.kind==='court' ? courtCenter(rankId, suit, null, box, fr.rect)
-                           : pipCenter(rankId, suit, fr.rect));
+      : (rk.figure==='ace' ? aceCenter(suit, fr.rect)      // Ace = one big central suit symbol (no "ACE" text)
+         : rk.kind==='court' ? courtCenter(rankId, suit, null, box, fr.rect)
+                             : pipCenter(rankId, suit, fr.rect));
   const body = fr.kind==='image'
-      ? `${framePad(opt)}${fr.img}${center}`
+      ? `${framePad(opt)}${fr.img}${paperFill(fr,opt)}${center}`   // paper fills the ornate frame's opening → Paper picker works
       : `${framePad(opt)}${center}${frameOverlay(fr,opt)}`;
   return svg(`card`, rankId, suit, `${body}${indexPad(rk.label, suit, {...opt, rect:fr.rect})}`);
 }

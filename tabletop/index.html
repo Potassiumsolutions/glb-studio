@@ -641,6 +641,10 @@
         <input type="color" id="cNewSuitCol" value="#7a5b2a" style="width:52px;padding:2px">
         <button class="btn sec" id="cAddSuit" style="flex:1">＋ Add suit</button>
       </div>
+      <details style="margin-top:4px"><summary class="mini" style="cursor:pointer;color:var(--acc)">🔣 Pick a symbol (tap one, choose a colour, then ＋ Add suit)</summary>
+        <div id="cSymPicker" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px"></div>
+        <div class="mini" style="color:var(--mut);margin-top:5px">Or type any character(s) in the box above — e.g. paste an emoji or a Unicode symbol.</div>
+      </details>
       <label class="fld" style="margin-top:10px">Ranks</label>
       <div id="cRanks" class="cchips"></div>
       <label class="mini" style="display:block;margin-top:8px"><input type="checkbox" id="cUseJokers" checked> Include 2 Jokers</label>
@@ -849,7 +853,7 @@ import * as Cards from './cards-deck.js';
 
 const BGC = window.BGC, GAMES = window.BGC_GAMES;
 const TE = window.TileEngine, TLIB = window.TileLibrary;
-const APP_VERSION = 'v0.71';
+const APP_VERSION = 'v0.72';
 const CREDITS = `<b>Ksol Designs</b> — Paul A.T. Ramey<br>www.ksoldesigns.com<br>Built with GLB Studio · Tabletop<br><span class="ver">${APP_VERSION}</span>`;
 // ---- Board credit: a small "KSOL Designs" mark on the board for the FREE build. Owning ANY content pack
 // (TTier expansion) unlocks removing it (⚙ Settings toggle, or click the credit). ----
@@ -4538,11 +4542,22 @@ function cInitUI(){
   document.getElementById('cBackStyle').onchange=e=>{ const v=e.target.value;
     const colRow=document.getElementById('cBackColorRow'); if(colRow) colRow.style.opacity = v==='proc'?'1':'0.45';
     if(v==='proc'){ delete cS.back.art; cS.back.style='proc'; cRender(); } else cLoadBuiltinBack(v); };
+  { // suit symbol picker — a big variety of glyphs; tap one to load it into the box (then pick a colour + ＋ Add suit)
+    const GLYPHS='♠ ♥ ♦ ♣ ★ ✦ ❖ ◆ ● ▲ ■ ⬢ ⬣ ⬟ ♛ ♜ ♞ ♝ ♟ ⚜ ⚔ ⚒ ⚓ ⚑ ⛨ ☀ ☾ ✹ ✵ ❄ ✿ ❀ ☘ ❦ ❧ ☤ ⚕ ✚ ✜ ☯ ☮ ⚛ ♆ ♃ ♂ ♀ ☿ ♪ ♫ ⚙ ⌘ ⚡ ✈ ⚐ ♨ ⌾ ✾ ❁ ✤ ✣ ✱ ✸ ❂'.split(' ');
+    const host=document.getElementById('cSymPicker');
+    if(host){ host.innerHTML='';
+      GLYPHS.forEach(gl=>{ const b=document.createElement('button'); b.type='button'; b.textContent=gl; b.title=gl;
+        b.style.cssText='min-width:30px;height:30px;font-size:17px;line-height:1;padding:2px 4px;background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:6px;cursor:pointer';
+        b.onclick=()=>{ const inp=document.getElementById('cNewSuitSym'); inp.value=gl; inp.focus();
+          host.querySelectorAll('button').forEach(x=>x.style.outline=''); b.style.outline='2px solid var(--acc)'; };
+        host.appendChild(b); });
+    }
+  }
   document.getElementById('cAddSuit').onclick=()=>{
     const sym=(document.getElementById('cNewSuitSym').value||'').trim()||'●', col=document.getElementById('cNewSuitCol').value;
     let base=(sym.replace(/[^a-z0-9]/gi,'')||'suit').toLowerCase(), id=base, i=2; while(cS.suitObjs.some(s=>s.id===id)) id=base+(i++);
     cS.suitObjs.push({ id, symbol:sym, color:col, custom:true }); cS.suitsOn.add(id);
-    document.getElementById('cNewSuitSym').value=''; cBuildSuitChips(); cRender(); };
+    document.getElementById('cNewSuitSym').value=''; document.querySelectorAll('#cSymPicker button').forEach(x=>x.style.outline=''); cBuildSuitChips(); cRender(); };
   document.getElementById('cAddCustom').onclick=()=>{
     const t=(document.getElementById('cCustomTitle').value||'').trim(), id='c'+(cS._cid++);
     cS.custom.push({ id, title:t||('Card '+id) }); document.getElementById('cCustomTitle').value=''; cBuildCustomList(); cRender(); };

@@ -580,7 +580,8 @@
     function dirTo(a, b){ for (let d = 0; d < N; d++) if (keyOf(g.step(cellOf[a], d)) === b) return d; return -1; }
     function dj(src, dst){ const dist = { [src]: 0 }, prev = {}, pq = [[0, src]];
       while (pq.length){ pq.sort((a, b) => a[0] - b[0]); const [d, k] = pq.shift(); if (k === dst) break; if (d > (dist[k] ?? 1e9)) continue;
-        for (const { k: nk } of nbrs(k)){ const c = edges[nk].includes(P.ROAD) ? 0.4 : 1; const nd = d + c; if (nd < (dist[nk] ?? 1e9)){ dist[nk] = nd; prev[nk] = k; pq.push([nd, nk]); } } }
+        for (const { k: nk } of nbrs(k)){ const c = (edges[nk].includes(P.ROAD) ? 0.4 : 1) + (nk !== dst && isBorder(nk) ? 6 : 0);   // avenues avoid the boundary ring so they cross it only at their gate, not run along the moat
+          const nd = d + c; if (nd < (dist[nk] ?? 1e9)){ dist[nk] = nd; prev[nk] = k; pq.push([nd, nk]); } } }
       if (dist[dst] == null) return null; const path = [dst]; let k = dst; while (k !== src){ k = prev[k]; path.push(k); } return path.reverse(); }
 
     if (!keys.length) { board.clear(); return { placed: 0, draw: [], settlementType: type }; }
@@ -597,19 +598,23 @@
       layRoad(dj(gate, centerK)); layRoad(dj(centerK, far));
     } else {
       // town / castle = radial avenues from the central plaza/keep out to spread border points (incl. the gate).
-      const nSpokes = clamp(2 + Math.round(keys.length / 40), 3, 6);
+      // castles keep FEWER avenues (each becomes a gated drawbridge road leaving the map — too many looks like a starburst).
+      const nSpokes = type === 'castle' ? clamp(Math.round(keys.length / 150), 1, 2) : clamp(2 + Math.round(keys.length / 40), 3, 6);
       const byAngle = border.slice().sort((a, b) => Math.atan2(pos[a].z - cz, pos[a].x - cx) - Math.atan2(pos[b].z - cz, pos[b].x - cx));
       const targets = new Set([gate]);
       for (let i = 0; i < nSpokes && byAngle.length; i++) targets.add(byAngle[Math.floor(i * byAngle.length / nSpokes)]);
       for (const t of targets){ if (t !== centerK) layRoad(dj(centerK, t)); }
     }
-    // the MAIN GATE road continues OFF THE MAP — pick the off-board direction pointing away from the centre so
-    // the castle always has one real road leaving the board edge (never a dead-end; it also extends cleanly).
-    { const od = offDirs(gate);
-      if (od.length){ let best = od[0], bestDot = -Infinity;
-        for (const d of od){ const em = g.edgeMid(d), dot = em[0] * (pos[gate].x - cx) + em[1] * (pos[gate].z - cz);
-          if (dot > bestDot){ bestDot = dot; best = d; } }
-        setEdge(gate, best, P.ROAD); street.add(gate); } }
+    // EVERY avenue that reaches the boundary continues OFF THE MAP (outward direction) so no road dead-ends at
+    // the wall or in the moat — the settlement sits at a crossroads with real roads leaving the board edge.
+    // (For a castle these boundary cells are the moat, so each crossing reads as a drawbridge with a road beyond.)
+    function spillOffMap(k){ const od = offDirs(k); if (!od.length) return;
+      if (od.some(d => edges[k][d] === P.ROAD)) return;                    // already leaves the board here
+      let best = od[0], bd = -Infinity;
+      for (const d of od){ const em = g.edgeMid(d), dot = em[0] * (pos[k].x - cx) + em[1] * (pos[k].z - cz); if (dot > bd){ bd = dot; best = d; } }
+      setEdge(k, best, P.ROAD); }
+    for (const k of border){ if (street.has(k)) spillOffMap(k); }
+    street.add(gate);
 
     // centre: castle keep, or an open plaza for a town/village
     biome[centerK] = (type === 'castle') ? B.CITY : B.GREEN;
@@ -647,14 +652,12 @@
     // pool inside the keep. Where the gate road crosses the moat the road rides over water = a drawbridge.
     const moatOn = opts.moat && type !== 'village';
     if (moatOn){
-      // the plan's outer ring becomes the water moat. Only the GATE keeps a road across it (a drawbridge that
-      // continues off the map). Every other radial spoke that reached the edge would otherwise dead-end in the
-      // moat just outside the wall — strip its road so the moat reads as solid water, not roads-to-nowhere.
+      // the plan's outer ring becomes the water moat. A boundary cell that an avenue crosses = a DRAWBRIDGE
+      // (its road continues off the map, spilled above); every other boundary cell is solid water. Nothing is
+      // stripped, so the castle's roads run keep → drawbridge → off the board edge with no dead-ends.
       for (const k of border){
         biome[k] = B.WATER;
-        if (k === gate){ feature[k] = undefined; continue; }             // gate = drawbridge (road rides over water)
-        for (let d = 0; d < N; d++) clearRoadEdge(k, d);                 // remove the dead-end spoke on both sides
-        street.delete(k); feature[k] = 'water';                          // solid moat
+        feature[k] = street.has(k) ? undefined : 'water';                // road-over-water = drawbridge; else plain moat
       }
     }
 
