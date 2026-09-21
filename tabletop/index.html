@@ -609,7 +609,7 @@
       </div>
       <div class="row wrap">
         <div style="flex:1"><label class="fld">Frame</label>
-          <select id="cFrame"><option value="scroll">Gilt scroll border</option><option value="plain">Plain keyline</option><option value="custom">Custom (uploaded)</option></select></div>
+          <select id="cFrame"><option value="scroll">Gilt scroll border</option><option value="plain">Plain keyline</option><optgroup label="Ornate (built-in)"><option value="bf:gilded-royal">Gilded royal filigree</option><option value="bf:artdeco">Art Deco</option><option value="bf:gothic">Gothic cathedral</option><option value="bf:botanical">Botanical vines</option><option value="bf:nouveau">Art Nouveau</option><option value="bf:arcane">Arcane runes</option></optgroup><option value="custom">Custom (uploaded)</option></select></div>
         <div style="flex:1"><label class="fld">Font <span style="opacity:.6">(suits follow it)</span></label>
           <select id="cFont"></select></div>
       </div>
@@ -654,6 +654,10 @@
       <div class="divider"></div>
       <label class="fld">🎨 Card back</label>
       <div class="row wrap">
+        <div style="flex:1"><label class="mini">Style</label>
+          <select id="cBackStyle"><option value="proc">Procedural (colours below)</option><optgroup label="Ornate (built-in)"><option value="damask">Royal damask</option><option value="mandala">Mandala rosette</option><option value="artdeco">Art Deco sunburst</option><option value="celtic">Celtic knotwork</option><option value="floral">Floral arabesque</option><option value="arcane">Arcane sigil</option></optgroup></select></div>
+      </div>
+      <div class="row wrap" id="cBackColorRow">
         <div style="flex:1"><label class="mini">Field</label><input type="color" id="cBackField" value="#132038" style="width:100%"></div>
         <div style="flex:1"><label class="mini">Gold</label><input type="color" id="cBackGold" value="#b8933f" style="width:100%"></div>
       </div>
@@ -845,7 +849,7 @@ import * as Cards from './cards-deck.js';
 
 const BGC = window.BGC, GAMES = window.BGC_GAMES;
 const TE = window.TileEngine, TLIB = window.TileLibrary;
-const APP_VERSION = 'v0.70';
+const APP_VERSION = 'v0.71';
 const CREDITS = `<b>Ksol Designs</b> — Paul A.T. Ramey<br>www.ksoldesigns.com<br>Built with GLB Studio · Tabletop<br><span class="ver">${APP_VERSION}</span>`;
 // ---- Board credit: a small "KSOL Designs" mark on the board for the FREE build. Owning ANY content pack
 // (TTier expansion) unlocks removing it (⚙ Settings toggle, or click the credit). ----
@@ -4403,9 +4407,28 @@ function cApplyDeck(){
 }
 function cSyncFramePanel(){ const p=document.getElementById('cFramePanel'); if(p) p.style.display = cS.frame==='custom' ? 'block' : 'none'; }
 function cFrameOpt(){
-  if(cS.frame==='custom' && cS.customFrame) return { id:'custom', img:cS.customFrame.img, open:cS.customFrame.open };
+  // custom-uploaded OR a built-in ornate frame (bf:*) both resolve through cS.customFrame {img,open}
+  if((cS.frame==='custom' || (cS.frame||'').startsWith('bf:')) && cS.customFrame) return { id:'custom', img:cS.customFrame.img, open:cS.customFrame.open };
   if(cS.frame==='scroll') return { id:'scroll' };
   return { id:'plain' };
+}
+// built-in Gemini-made assets (bundled PNGs; loaded on demand as data URLs so they embed in the SVG + rasterise on export)
+const C_FRAMES={ 'gilded-royal':'card-frames/frame-gilded-royal.png', artdeco:'card-frames/frame-artdeco.png', gothic:'card-frames/frame-gothic.png', botanical:'card-frames/frame-botanical.png', nouveau:'card-frames/frame-nouveau.png', arcane:'card-frames/frame-arcane.png' };
+const C_BACKS={ damask:'card-backs/back-damask.png', mandala:'card-backs/back-mandala.png', artdeco:'card-backs/back-artdeco.png', celtic:'card-backs/back-celtic.png', floral:'card-backs/back-floral.png', arcane:'card-backs/back-arcane.png' };
+function cFetchAsDataURL(url){ return fetch(url).then(r=>{ if(!r.ok) throw new Error(r.status); return r.blob(); }).then(b=>new Promise((res,rej)=>{ const fr=new FileReader(); fr.onload=()=>res(fr.result); fr.onerror=rej; fr.readAsDataURL(b); })); }
+function cLoadBuiltinFrame(name){
+  cS._bfCache=cS._bfCache||{};
+  const done=(rec)=>{ cS.customFrame=rec; cRender(); };
+  if(cS._bfCache[name]) return done(cS._bfCache[name]);
+  const st=document.getElementById('cFrameStatus'); if(st) st.textContent='Loading frame…';
+  cFetchAsDataURL(C_FRAMES[name]).then(dataUrl=>{ const im=new Image(); im.onload=()=>{ const rec={img:dataUrl, open:cDetectOpening(im)}; cS._bfCache[name]=rec; done(rec); }; im.src=dataUrl; })
+    .catch(e=>{ console.warn('[cards] frame load failed',name,e); if(st) st.textContent='Could not load that frame.'; });
+}
+function cLoadBuiltinBack(name){
+  cS._bbCache=cS._bbCache||{};
+  if(cS._bbCache[name]){ cS.back.art=cS._bbCache[name]; cS.back.style=name; cRender(); return; }
+  cFetchAsDataURL(C_BACKS[name]).then(dataUrl=>{ cS._bbCache[name]=dataUrl; cS.back.art=dataUrl; cS.back.style=name; cRender(); })
+    .catch(e=>console.warn('[cards] back load failed',name,e));
 }
 const cOpt=()=>({ frame: cFrameOpt(), accent:cS.accent, paper:cS.paper, artMap:cS.art });
 // auto-detect the empty central opening of an uploaded frame (fractions of the image 0..1)
@@ -4489,7 +4512,8 @@ function cInitUI(){
   const ft=document.getElementById('cFont'); ft.innerHTML='';
   for(const f of Cards.FONTS){ const o=document.createElement('option'); o.value=f.id; o.textContent=f.name; ft.appendChild(o); }
   ft.value=cS.font; ft.onchange=()=>{ cS.font=ft.value; cRender(); };
-  document.getElementById('cFrame').onchange=e=>{ cS.frame=e.target.value; cSyncFramePanel(); cRender(); };
+  document.getElementById('cFrame').onchange=e=>{ cS.frame=e.target.value; cSyncFramePanel();
+    if(cS.frame.startsWith('bf:')) cLoadBuiltinFrame(cS.frame.slice(3)); else cRender(); };
   document.getElementById('cFrameUpload').onclick=()=>document.getElementById('cFrameFile').click();
   document.getElementById('cFrameFile').onchange=e=>{ const f=e.target.files[0]; e.target.value=''; if(!f) return;
     const fr=new FileReader(); fr.onload=()=>{ const im=new Image(); im.onload=()=>{ const open=cDetectOpening(im);
@@ -4511,6 +4535,9 @@ function cInitUI(){
   document.getElementById('cUseJokers').onchange=e=>{ cS.jokers=e.target.checked; cRender(); };
   document.getElementById('cBackField').oninput=e=>{ cS.back.field=e.target.value; cRender(); };
   document.getElementById('cBackGold').oninput=e=>{ cS.back.accent=e.target.value; cRender(); };
+  document.getElementById('cBackStyle').onchange=e=>{ const v=e.target.value;
+    const colRow=document.getElementById('cBackColorRow'); if(colRow) colRow.style.opacity = v==='proc'?'1':'0.45';
+    if(v==='proc'){ delete cS.back.art; cS.back.style='proc'; cRender(); } else cLoadBuiltinBack(v); };
   document.getElementById('cAddSuit').onclick=()=>{
     const sym=(document.getElementById('cNewSuitSym').value||'').trim()||'●', col=document.getElementById('cNewSuitCol').value;
     let base=(sym.replace(/[^a-z0-9]/gi,'')||'suit').toLowerCase(), id=base, i=2; while(cS.suitObjs.some(s=>s.id===id)) id=base+(i++);
@@ -4581,6 +4608,8 @@ async function cLoadDeck(e){
     document.getElementById('cAccent').value=cS.accent; document.getElementById('cPaper').value=cS.paper;
     document.getElementById('cUseJokers').checked=cS.jokers; document.getElementById('cBackField').value=cS.back.field||'#132038';
     document.getElementById('cBackGold').value=cS.back.accent||'#b8933f';
+    { const bs=document.getElementById('cBackStyle'), v=(cS.back.art?(cS.back.style||'proc'):'proc'); if(bs) bs.value=(v!=='custom'&&C_BACKS[v])?v:'proc';
+      const colRow=document.getElementById('cBackColorRow'); if(colRow) colRow.style.opacity = (cS.back.art?'0.45':'1'); }
     cBuildSuitChips(); cBuildRankChips(); cBuildCustomList(); cS.idx=0; cS.view='single'; cSyncViewSeg(); cRender();
   }catch(err){ alert('Could not load deck: '+err.message); }
 }
