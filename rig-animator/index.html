@@ -61,7 +61,7 @@
 <main>
   <aside>
     <div>
-      <h1>🐾 Rig Animator <span class="appver">v1.19.32</span></h1>
+      <h1>🐾 Rig Animator <span class="appver">v1.19.33</span></h1>
       <div class="hint" style="margin-top:0">Procedurally generate original animations for your <b>biped</b>, <b>quadruped</b> and <b>bird</b> rigs — organized by category (boxing, fencing, football, dancing, running, walking, jumping, climbing…) — then export them into the GLB Stitcher motion library.</div>
     </div>
 
@@ -79,6 +79,13 @@
         <button data-rig="snake">🐍 Snake</button>
         <button data-rig="dragon">🐉 Dragon</button>
         <button data-rig="pegasus">🦄 Pegasus</button>
+        <button data-rig="reptile">🦎 Reptile</button>
+        <button data-rig="frog">🐸 Frog</button>
+        <button data-rig="rabbit">🐰 Rabbit</button>
+        <button data-rig="crab">🦀 Crab</button>
+        <button data-rig="lobster">🦞 Lobster</button>
+        <button data-rig="manta">🥏 Manta ray</button>
+        <button data-rig="jellyfish">🎐 Jellyfish</button>
       </div>
       <div class="hint" id="rigNote">24-bone biped rig (standard humanoid — Hips / spine / arms / legs / head).</div>
     </div>
@@ -121,7 +128,7 @@
         </g>
       </svg>
       <div>
-        <div><b>Rig Animator</b> v1.19.32 · part of GLB Studio</div>
+        <div><b>Rig Animator</b> v1.19.33 · part of GLB Studio</div>
         <div class="appfoot-sub">© <span class="cred-year">2026</span> Paul A.T. Ramey · <b>KSOL Designs</b> · <a href="https://www.ksoldesigns.com" target="_blank" rel="noopener">ksoldesigns.com</a></div>
       </div>
     </div>
@@ -235,7 +242,7 @@ function resize(){ const w=cw.clientWidth,h=cw.clientHeight; renderer.setSize(w,
 new ResizeObserver(resize).observe(cw);
 
 // ===== Skeleton + proxy build =====
-let boneByName={}, boneList=[], restLocalQ={}, restLocalP={}, restWorldQ={}, rigRoot=null, animRoot=null;
+let boneByName={}, boneList=[], restLocalQ={}, restLocalP={}, restLocalS={}, restWorldQ={}, rigRoot=null, animRoot=null;
 // The girths below are metres, authored for a 1.75 m biped. Every other rig is a different size (the
 // quadruped template is 0.27 m tall), so they are scaled by the rig's own bone bounding box or the proxy
 // is a blob with legs buried inside it.
@@ -262,7 +269,7 @@ const UP_LOCAL = new THREE.Vector3(0,1,0);
 const FWD_LOCAL = new THREE.Vector3(0,0,-1);
 function buildRig(tpl, orient, ground){
   if(rigRoot){ scene.remove(rigRoot); }
-  boneByName={}; boneList=[]; restLocalQ={}; restLocalP={}; restWorldQ={};
+  boneByName={}; boneList=[]; restLocalQ={}; restLocalP={}; restLocalS={}; restWorldQ={};
   rigRoot=new THREE.Group();
   if(orient) rigRoot.quaternion.copy(orient); else rigRoot.quaternion.identity();
   UP_LOCAL.set(0,1,0).applyQuaternion(rigRoot.quaternion.clone().invert()).normalize();
@@ -273,7 +280,7 @@ function buildRig(tpl, orient, ground){
     const bone=new THREE.Bone(); bone.name=b.name;
     bone.position.set(b.t[0],b.t[1],b.t[2]);
     bone.quaternion.set(b.q[0],b.q[1],b.q[2],b.q[3]);
-    restLocalQ[b.name]=bone.quaternion.clone(); restLocalP[b.name]=bone.position.clone();
+    restLocalQ[b.name]=bone.quaternion.clone(); restLocalP[b.name]=bone.position.clone(); restLocalS[b.name]=bone.scale.clone();
     boneByName[b.name]=bone; boneList.push(b.name);
     (b.parent && boneByName[b.parent] ? boneByName[b.parent] : animRoot).add(bone);
   }
@@ -319,12 +326,22 @@ function buildRig(tpl, orient, ground){
 }
 
 // ===== Pose authoring API =====
-function resetPose(){ for(const n of boneList){ boneByName[n].quaternion.copy(restLocalQ[n]); boneByName[n].position.copy(restLocalP[n]); } if(animRoot){ animRoot.rotation.set(0,0,0); animRoot.position.set(0,0,0); } standY=0; }
+function resetPose(){ for(const n of boneList){ boneByName[n].quaternion.copy(restLocalQ[n]); boneByName[n].position.copy(restLocalP[n]); boneByName[n].scale.copy(restLocalS[n]); } if(animRoot){ animRoot.rotation.set(0,0,0); animRoot.position.set(0,0,0); } standY=0; }
 const _q=new THREE.Quaternion(), _a=new THREE.Vector3();
 function sw(name, worldAxis, angle){   // rotate `name` by `angle` about a WORLD axis, on top of its rest
   const b=boneByName[name]; if(!b||!angle) return;
   _a.copy(worldAxis).applyQuaternion(restWorldQ[name].clone().invert()).normalize();
   b.quaternion.multiply(_q.setFromAxisAngle(_a, angle));
+}
+// Scale a bone on top of its rest scale — the only NON-rotation channel the rig authors. A uniform factor
+// grows/shrinks the bone AND everything parented under it (scaling the jellyfish `hub` inflates the whole
+// bell). `f` is a number (uniform) or [sx,sy,sz]. bakeClip bakes any non-rest scale as a .scale track and
+// the Stitcher retarget now applies it (was previously ignored). Rest scale is 1 on every template, so a
+// factor is effectively absolute.
+function scl(name, f){
+  const b=boneByName[name]; if(!b) return; const r=restLocalS[name]||{x:1,y:1,z:1};
+  if(typeof f==='number') b.scale.set(r.x*f, r.y*f, r.z*f);
+  else b.scale.set(r.x*f[0], r.y*f[1], r.z*f[2]);
 }
 // Root height, measured FROM the standing height that bstand() solved (0 = standing). Keeping that
 // baseline is what lets every existing caller keep passing "how far below standing" unchanged.
@@ -6085,6 +6102,580 @@ const PEGASUS_MOTIONS=[
   }},
 ];
 
+// ═════ REPTILE — alligator / crocodile / lizard ═════════════════════════════════════════════════════
+// A sprawling quadruped: humerus/femur splayed OUT to the sides (elbows/knees bent, feet planted wide),
+// a low belly, a long muscular tail and a jaw that opens. Reuses the quad frontleg/backleg bone NAMES so
+// the shared quad floor-solve (calibrateQuad / qstand / qLimbIK) and the Character-Rigger leg fixes apply.
+// Template generated by replaying the rigger's own buildBones() export math on REPTILE_TEMPLATE (aim-at-
+// child + template-roll), so it retargets near-identity onto a mesh rigged under 🦎 Reptile.
+// Physics (see MOTION-RESEARCH): limbs are advanced partly by LATERAL (yaw) undulation of the axial line —
+// lizards flex the whole trunk strongly, crocs have a semi-rigid osteoderm back so their wave lives in the
+// neck + tail. Symmetrical gaits run lateral-sequence walk → diagonal trot (limb phase ~50%); duty factor
+// falls with speed (~0.6 walk → ~0.4 run). Swimming is all tail: legs fold back, a big lateral tail wave
+// drives it. Signatures: gape/threat (jaw wide), bite/lunge, tail thrash, and the crocodilian death roll.
+const REPTILE_TEMPLATE=[{"name":"Hips","parent":null,"t":[0,0.13,-0.15],"q":[0.7071067811865475,0,0,0.7071067811865476]},{"name":"spine01","parent":"Hips","t":[0,0.3,5.551115123125783e-17],"q":[-0.017233697316775543,0,0,0.9998514888106101]},{"name":"chest","parent":"spine01","t":[0,0.2901723625709381,5.551115123125783e-17],"q":[0.017233697316775543,0,0,0.9998514888106101]},{"name":"neck","parent":"chest","t":[0,0.16000000000000003,2.7755575615628914e-17],"q":[0,0,0,1]},{"name":"head","parent":"neck","t":[0,0.15000000000000002,2.7755575615628914e-17],"q":[0.04745802042883723,0,0,0.9988732333469428]},{"name":"headend","parent":"head","t":[0,0.21095023109728983,-5.551115123125783e-17],"q":[0,0,0,1]},{"name":"jaw","parent":"head","t":[0,0.1332067751423336,0.02749463686211867],"q":[0,0,0,1]},{"name":"tail","parent":"Hips","t":[0,-0.17,-2.7755575615628914e-17],"q":[-0.9997169943850204,0,0,-0.023789307215243027]},{"name":"tail1","parent":"tail","t":[0,0.21023796041628642,2.7755575615628914e-17],"q":[-0.002499976562878481,0,0,0.99999687505371]},{"name":"tail2","parent":"tail1","t":[0,0.19026297590440444,5.551115123125783e-17],"q":[-0.0030863756523804575,0,0,0.9999952371313239]},{"name":"tail3","parent":"tail2","t":[0,0.17029386365926402,2.7755575615628914e-17],"q":[-0.0039061605965568513,0,0,0.9999923709255956]},{"name":"tail4","parent":"tail3","t":[0,0.1503329637837291,2.7755575615628914e-17],"q":[-0.005101841614258973,0,0,0.9999869855213832]},{"name":"tail5","parent":"tail4","t":[0,0.13038404810405288,-2.7755575615628914e-17],"q":[0,0,0,0.9999999999999999]},{"name":"frontleg","parent":"chest","t":[0.09,-0.02000000000000002,0.02],"q":[0.42216459251273164,0.2540259418146027,-0.4486581744415056,0.7456230416373806]},{"name":"frontleg0","parent":"frontleg","t":[-4.85722573273506e-17,0.12449899597988734,1.0408340855860843e-17],"q":[-0.07560483599116702,-0.09598259582904975,0.17745918604252892,0.9765139463222168]},{"name":"frontleg1","parent":"frontleg0","t":[-2.2551405187698492e-17,0.0754983443527075,1.0408340855860843e-17],"q":[-0.10087612630578037,-0.06894024273872482,0.12308197972919835,0.9848462196396995]},{"name":"frontleg2","parent":"frontleg1","t":[3.469446951953614e-18,0.06557438524302002,0],"q":[0,0,0,1]},{"name":"R_frontleg","parent":"chest","t":[-0.09,-0.02000000000000002,0.02],"q":[0.42216459251273164,-0.2540259418146027,0.4486581744415056,0.7456230416373806]},{"name":"R_frontleg0","parent":"R_frontleg","t":[4.85722573273506e-17,0.12449899597988734,1.0408340855860843e-17],"q":[-0.07560483599116702,0.09598259582904975,-0.17745918604252892,0.9765139463222168]},{"name":"R_frontleg1","parent":"R_frontleg0","t":[2.2551405187698492e-17,0.0754983443527075,1.0408340855860843e-17],"q":[-0.10087612630578037,0.06894024273872482,-0.12308197972919835,0.9848462196396995]},{"name":"R_frontleg2","parent":"R_frontleg1","t":[-3.469446951953614e-18,0.06557438524302002,0],"q":[0,0,0,1]},{"name":"backleg","parent":"Hips","t":[0.09,-1.734723475976807e-18,0.009999999999999995],"q":[0.3678098284279875,0.22884144365600012,-0.4761331938053716,0.7652742681770429]},{"name":"backleg0","parent":"backleg","t":[-4.163336342344337e-17,0.1449137674618944,-5.204170427930421e-18],"q":[-0.06967437868595654,-0.08567731850347227,0.22182017141550397,0.9688140634827599]},{"name":"backleg1","parent":"backleg0","t":[1.734723475976807e-18,0.08124038404635961,3.469446951953614e-18],"q":[-0.09026536152035904,-0.054322715974941066,0.1202464230714291,0.9871382906043265]},{"name":"backleg2","parent":"backleg1","t":[-6.938893903907228e-18,0.07348469228349538,-4.8138576458356397e-17],"q":[0,0,0,1.0000000000000002]},{"name":"R_backleg","parent":"Hips","t":[-0.09,-1.734723475976807e-18,0.009999999999999995],"q":[0.3678098284279875,-0.22884144365600012,0.4761331938053716,0.7652742681770429]},{"name":"R_backleg0","parent":"R_backleg","t":[4.163336342344337e-17,0.1449137674618944,-5.204170427930421e-18],"q":[-0.06967437868595654,0.08567731850347227,-0.22182017141550397,0.9688140634827599]},{"name":"R_backleg1","parent":"R_backleg0","t":[-1.734723475976807e-18,0.08124038404635961,3.469446951953614e-18],"q":[-0.09026536152035904,0.054322715974941066,-0.1202464230714291,0.9871382906043265]},{"name":"R_backleg2","parent":"R_backleg1","t":[6.938893903907228e-18,0.07348469228349538,-4.8138576458356397e-17],"q":[0,0,0,1.0000000000000002]}];
+const REPTILE_PAWS = ['frontleg2','R_frontleg2','backleg2','R_backleg2'];
+const REPTILE_TAIL = ['tail','tail1','tail2','tail3','tail4','tail5'];    // Hips → tip, tapering; the swim/thrash engine
+const REPTILE_TRUNK = ['spine01','chest'];                               // Hips-forward trunk (lateral undulation for the lizard walk)
+function repJaw(a){ sw('jaw', AX.x, a); }                                // + opens the lower jaw (drops the tip down)
+function repTailWave(cyc,o){ waveChain(REPTILE_TAIL, AX.y, cyc, o); }    // lateral (yaw) traveling wave, head→tip
+// lateral yaw of the trunk (a phase-lagged 2-segment wave feeding into the tail)
+function repTrunkYaw(cyc, amp, waves, A){ sw('spine01', AX.y, Math.sin(TAU*cyc)*amp*A); sw('chest', AX.y, Math.sin(TAU*(cyc-waves*0.5))*amp*0.7*A); }
+const REPTILE_MOTIONS=[
+  // ——— Belly crawl: the croc's everyday land gait. Fully sprawled, belly + tail dragging, a slow diagonal
+  // shuffle (right-front + left-rear advance together). Body slides with a gentle S-curve.
+  {id:'rep_bellycrawl', name:'Belly Crawl', cat:'Locomotion', type:'move', dur:2.4, build:(t,P)=>{ resetPose();
+    const cyc=(t/2.4)*P.speed, A=P.amp;
+    const ph={frontleg:0.0, R_backleg:0.0, R_frontleg:0.5, backleg:0.5};   // diagonal couplets
+    QUAD_LEGS.forEach(leg=> legDrive(leg, cyc+ph[leg.hip], 0.22, 0.26, P));
+    repTrunkYaw(cyc, 0.12, 1.0, A);                                        // trunk S-curve
+    repTailWave(cyc, {amp:0.42, waves:1.15, ampRamp:0.55, base:0.45});     // tail drags in the same wave
+    sw('neck', AX.y, Math.sin(TAU*cyc+0.5)*0.06*A);                        // head counter-yaws
+    setRootY(-0.015*A);                                                    // belly settles toward the ground
+  }},
+  // ——— High walk: the croc lifts its body and half its tail CLEAR of the ground, legs pulled more erect
+  // underneath, feet forward. Lateral-sequence walk; the trunk stays near-rigid (osteoderm "I-beam" back).
+  {id:'rep_highwalk', name:'High Walk', cat:'Locomotion', type:'move', dur:1.7, build:(t,P)=>{ resetPose();
+    const cyc=(t/1.7)*P.speed, A=P.amp;
+    const ph={backleg:0.0, frontleg:0.12, R_backleg:0.5, R_frontleg:0.62}; // lateral-sequence
+    QUAD_LEGS.forEach(leg=> legDrive(leg, cyc+ph[leg.hip], 0.30, 0.46, P));
+    sw('frontleg', AX.z, -0.14*A);  sw('R_frontleg', AX.z, 0.14*A);        // draw the fore legs UNDER the body
+    sw('backleg',  AX.z, -0.12*A);  sw('R_backleg',  AX.z, 0.12*A);        // and the hind legs (more erect posture)
+    repTrunkYaw(cyc, 0.045, 1.0, A);                                       // trunk barely bends
+    REPTILE_TAIL.forEach((tb,i)=>{ sw(tb, AX.x, -0.05*A); sw(tb, AX.y, Math.sin(TAU*cyc + i*0.4)*0.05*A); }); // tail lifts clear + gentle sway
+    setRootY(0.05*A);                                                      // whole body raised
+  }},
+  // ——— Sprawling walk (lizard): strong whole-trunk lateral undulation, sprawled diagonal step. The S-curve
+  // is the engine — each stride the body yaws so the reaching foot lands further forward.
+  {id:'rep_walk', name:'Sprawling Walk', cat:'Locomotion', type:'move', dur:1.3, build:(t,P)=>{ resetPose();
+    const cyc=(t/1.3)*P.speed, A=P.amp;
+    const ph={frontleg:0.0, R_backleg:0.0, R_frontleg:0.5, backleg:0.5};   // diagonal (trot-like, limb phase ~50%)
+    QUAD_LEGS.forEach(leg=> legDrive(leg, cyc+ph[leg.hip], 0.30, 0.40, P));
+    repTrunkYaw(cyc, 0.17, 1.0, A);                                        // big trunk S-curve
+    repTailWave(cyc, {amp:0.34, waves:1.1, ampRamp:0.7, base:0.35});
+    sw('neck', AX.y, Math.sin(TAU*cyc+0.6)*0.10*A);                        // head leads the wave
+    setRootY(0.005*A);
+  }},
+  // ——— Run: fast diagonal trot, low duty. Amplitudes rise, the tail lifts off the ground for balance and
+  // whips harder, a slight body float on the diagonal suspension.
+  {id:'rep_run', name:'Run', cat:'Locomotion', type:'move', dur:0.72, build:(t,P)=>{ resetPose();
+    const cyc=(t/0.72)*P.speed, A=P.amp, a=TAU*cyc;
+    const ph={frontleg:0.0, R_backleg:0.0, R_frontleg:0.5, backleg:0.5};
+    QUAD_LEGS.forEach(leg=> legDrive(leg, cyc+ph[leg.hip], 0.42, 0.62, P));
+    repTrunkYaw(cyc, 0.20, 1.0, A);
+    REPTILE_TAIL.forEach((tb,i)=>{ sw(tb, AX.x, -0.14*A); sw(tb, AX.y, Math.sin(TAU*(cyc-1.0*(i/5))+0.3)*(0.10+0.05*i/5)*A); }); // raised + whipping
+    sw('neck', AX.y, Math.sin(a+0.6)*0.12*A);
+    setRootY(Math.max(0, Math.sin(a*2))*0.02*A);                           // slight suspension float
+  }},
+  // ——— Swim: legs fold back against the body; propulsion is a big lateral tail wave (carangiform — amplitude
+  // grows toward the tip). Carries its own forward travel in the root (a swimmer has no stride to synthesise).
+  {id:'rep_swim', name:'Swim', cat:'Aquatic', type:'move', dur:1.5, build:(t,P)=>{ resetPose();
+    const cyc=(t/1.5)*P.speed, A=P.amp;
+    // fold all four legs back and press them flat against the flanks (streamlined — a swimming croc trails its legs)
+    // Fold all four legs back and press them to the flanks (streamlined — a swimming croc trails its legs).
+    for(const L of QUAD_LEGS){ const s=(L.side==='L')?1:-1;
+      sw(L.hip, AX.x, (L.front? 1.05 : -1.05));         // swing the leg back alongside the body
+      sw(L.hip, AX.z, -0.30*s);                          // light adduction — press to the flank
+      sw(L.knee, AX.x, (L.front? 0.70 : -0.70));         // fold the lower leg back
+      sw(L.shin, AX.x, (L.front? 0.25 : -0.25)); }
+    repTrunkYaw(cyc, 0.10, 1.0, A);                                        // trunk feeds the wave
+    repTailWave(cyc, {amp:0.5, waves:1.1, ampRamp:1.4, base:0.15});        // powerful tail beat, amp grows to the tip
+    sw('neck', AX.y, Math.sin(TAU*cyc+0.4)*0.05*A);
+    aqTravel(t, 1.5, 0.62, 0);                                             // ≈0.62 body lengths per beat, level
+  }},
+  // ——— Idle / bask: near-still. Slow flank breathing, an occasional head scan and tail sway, and one slow
+  // gape partway through (crocs bask with the mouth open to thermoregulate).
+  {id:'rep_idle', name:'Idle / Bask', cat:'Idle', type:'idle', dur:5.0, build:(t,P)=>{ resetPose();
+    const A=P.amp, u=(((t/5.0)*P.speed)%1+1)%1;
+    sw('chest', AX.x, Math.sin(TAU*u*2)*0.015*A);                          // breathing
+    sw('neck',  AX.y, Math.sin(TAU*u)*0.10*A);                             // slow head scan
+    sw('head',  AX.y, Math.sin(TAU*u+0.5)*0.06*A);
+    REPTILE_TAIL.forEach((tb,i)=> sw(tb, AX.y, Math.sin(TAU*u + i*0.5)*0.05*A)); // idle tail sway
+    repJaw(Math.max(0, Math.sin((u-0.4)*Math.PI/0.25))*0.5*A);             // one slow gape around u=0.4..0.65
+  }},
+  // ——— Gape / threat: jaw swings wide open and holds; the head lifts a little (nose up). The classic
+  // basking / threat display.
+  {id:'rep_gape', name:'Gape / Threat', cat:'Action', type:'stay', dur:3.0, build:(t,P)=>{ resetPose();
+    const A=P.amp, u=(((t/3.0)*P.speed)%1+1)%1, env=ramp(u,0.06,0.22)*(1-ramp(u,0.80,0.96));
+    repJaw(0.62*env*A);                                                    // wide open, held
+    sw('neck', AX.x, -0.16*env*A);                                         // nose lifts
+    sw('head', AX.x, -0.05*env*A);
+    REPTILE_TAIL.forEach((tb,i)=> sw(tb, AX.y, Math.sin(TAU*u+i*0.5)*0.04*A));
+  }},
+  // ——— Bite / lunge: wind back, then lunge the whole front forward-down as the jaw gapes, snap shut on
+  // contact, recover. Feet braced. The jaw is the star of this one.
+  {id:'rep_bite', name:'Bite / Lunge', cat:'Action', type:'stay', dur:1.2, build:(t,P)=>{ resetPose();
+    const A=P.amp, u=(((t/1.2)*P.speed)%1+1)%1;
+    const wind=ramp(u,0.0,0.22)*(1-ramp(u,0.28,0.42));                     // small pull-back
+    const lunge=ramp(u,0.30,0.52)*(1-ramp(u,0.66,0.85));                   // thrust forward
+    const open=ramp(u,0.28,0.48)*(1-ramp(u,0.52,0.60));                    // mouth open during the thrust
+    const snap=ramp(u,0.56,0.62)*(1-ramp(u,0.70,0.86));                    // then clamp
+    sw('neck', AX.x, (-0.14*wind + 0.30*lunge)*A);                         // wind up (nose up), then drive down-forward
+    sw('chest', AX.x, 0.10*lunge*A);
+    sw('Hips', AX.x, 0.05*lunge*A);
+    repJaw((0.55*open + 0.02)*A - 0.15*snap*A);                            // gape, then snap shut past rest
+    animRoot.position.z += 0.10*lunge*A;                                   // short forward lurch
+  }},
+  // ——— Tail thrash: a big lateral defensive sweep. The tail swings hard to one side while the body counter-
+  // rotates and the legs brace wide; two sweeps.
+  {id:'rep_tailthrash', name:'Tail Thrash', cat:'Action', type:'stay', dur:1.6, build:(t,P)=>{ resetPose();
+    const A=P.amp, u=(((t/1.6)*P.speed)%1+1)%1, env=ramp(u,0.05,0.16)*(1-ramp(u,0.86,1));
+    const sweep=Math.sin(TAU*u*2);                                         // two sweeps
+    REPTILE_TAIL.forEach((tb,i)=> sw(tb, AX.y, sweep*(0.16+0.05*i)*env*A));// whole tail sweeps, tip leads with lag
+    sw('spine01', AX.y, -0.10*sweep*env*A);                               // trunk counter-yaws
+    sw('Hips', AX.y, -0.06*sweep*env*A);
+    sw('neck', AX.y, 0.14*sweep*env*A);                                   // head tracks the sweep
+    sw('frontleg', AX.z, 0.10*env*A); sw('R_frontleg', AX.z, -0.10*env*A); // braced wide
+  }},
+  // ——— Death roll: the crocodilian signature. Head/jaw clamped, the whole body spins about its long axis
+  // (world Z on this rig) — about 1.5 turns — the tail trailing with a slight lag. Used to dismember prey.
+  {id:'rep_deathroll', name:'Death Roll', cat:'Action', type:'stay', dur:2.2, build:(t,P)=>{ resetPose();
+    const A=P.amp, u=(((t/2.2)*P.speed)%1+1)%1;
+    const p=ramp(u,0.06,0.94);                                             // eased 0→1, monotonic
+    const roll=TAU*2*p;                                                    // TWO full revolutions — starts and ends upright so it loops
+    sw('Hips', AX.z, roll);                                                // spin the whole rigid body about its long (Z) axis
+    REPTILE_TAIL.forEach((tb,i)=> sw(tb, AX.y, Math.sin(TAU*p*2 - i*0.4)*0.10*(i/5)*A)); // tail lashes side-to-side as it spins
+    repJaw(0.08*A);                                                        // jaws gripping the prey (slightly parted)
+  }},
+];
+
+const FROG_TEMPLATE=[{"name":"Hips","parent":null,"t":[0,0.2,-0.15],"q":[0.633989,0,0,0.773342]},{"name":"spine","parent":"Hips","t":[0,0.152971,0],"q":[0.016123,0,0,0.99987]},{"name":"chest","parent":"spine","t":[0,0.121655,0],"q":[-0.078221,0,0,0.996936]},{"name":"head","parent":"chest","t":[0,0.126491,0],"q":[0.201066,0,0,0.979578]},{"name":"headend","parent":"head","t":[0,0.120416,0],"q":[0,0,0,1]},{"name":"eye","parent":"head","t":[0.07,0.014948,-0.061454],"q":[0,0,0,1]},{"name":"R_eye","parent":"head","t":[-0.07,0.014948,-0.061454],"q":[0,0,0,1]},{"name":"frontleg","parent":"chest","t":[0.12,0.075895,0.088544],"q":[0.563494,0.156079,-0.216548,0.781806]},{"name":"frontleg0","parent":"frontleg","t":[0,0.116619,0],"q":[-0.065675,-0.026685,0.15347,0.985607]},{"name":"frontleg1","parent":"frontleg0","t":[0,0.087178,0],"q":[0,0,0,1]},{"name":"R_frontleg","parent":"chest","t":[-0.12,0.075895,0.088544],"q":[0.563494,-0.156079,0.216548,0.781806]},{"name":"R_frontleg0","parent":"R_frontleg","t":[0,0.116619,0],"q":[-0.065675,0.026685,-0.15347,0.985607]},{"name":"R_frontleg1","parent":"R_frontleg0","t":[0,0.087178,0],"q":[0,0,0,1]},{"name":"backleg","parent":"Hips","t":[0.13,-0.003922,0.019612],"q":[0.027189,0.005529,-0.199204,0.979565]},{"name":"backleg0","parent":"backleg","t":[0,0.153623,0],"q":[0.854279,0.173726,0.097632,0.480098]},{"name":"backleg1","parent":"backleg0","t":[0,0.152315,0],"q":[-0.742237,0,0,0.670138]},{"name":"backleg2","parent":"backleg1","t":[0,0.167631,0],"q":[0,0,0,1]},{"name":"R_backleg","parent":"Hips","t":[-0.13,-0.003922,0.019612],"q":[0.027189,-0.005529,0.199204,0.979565]},{"name":"R_backleg0","parent":"R_backleg","t":[0,0.153623,0],"q":[0.854279,-0.173726,-0.097632,0.480098]},{"name":"R_backleg1","parent":"R_backleg0","t":[0,0.152315,0],"q":[-0.742237,0,0,0.670138]},{"name":"R_backleg2","parent":"R_backleg1","t":[0,0.167631,0],"q":[0,0,0,1]}];
+const RABBIT_TEMPLATE=[{"name":"Hips","parent":null,"t":[0,0.15,-0.05],"q":[0.082481,0,0,0.996593]},{"name":"spine","parent":"Hips","t":[0,0.182483,0],"q":[-0.020395,0,0,0.999792]},{"name":"chest","parent":"spine","t":[0,0.161245,0],"q":[0.036512,0,0,0.999333]},{"name":"neck","parent":"chest","t":[0,0.10198,0],"q":[0.0806,0,0,0.996747]},{"name":"head","parent":"neck","t":[0,0.08544,0],"q":[0.527945,0,0,0.849279]},{"name":"headend","parent":"head","t":[0,0.100499,0],"q":[0,0,0,1]},{"name":"ear","parent":"head","t":[0.05,-0.00597,-0.141295],"q":[-0.670579,-0.023919,-0.02643,0.740981]},{"name":"earend","parent":"ear","t":[0,0.140357,0],"q":[0,0,0,1]},{"name":"R_ear","parent":"head","t":[-0.05,-0.00597,-0.141295],"q":[-0.670579,0.023919,0.02643,0.740981]},{"name":"R_earend","parent":"R_ear","t":[0,0.140357,0],"q":[0,0,0,1]},{"name":"tail","parent":"Hips","t":[0,-0.01644,-0.098639],"q":[0,0,0,1]},{"name":"frontleg","parent":"chest","t":[0.07,-0.007845,0.062757],"q":[0.980581,0,0,0.196116]},{"name":"frontleg0","parent":"frontleg","t":[0,0.10198,0],"q":[-0.194064,0,0,0.980989]},{"name":"frontleg1","parent":"frontleg0","t":[0,0.072111,0],"q":[0,0,0,1]},{"name":"R_frontleg","parent":"chest","t":[-0.07,-0.007845,0.062757],"q":[0.980581,0,0,0.196116]},{"name":"R_frontleg0","parent":"R_frontleg","t":[0,0.10198,0],"q":[-0.194064,0,0,0.980989]},{"name":"R_frontleg1","parent":"R_frontleg0","t":[0,0.072111,0],"q":[0,0,0,1]},{"name":"backleg","parent":"Hips","t":[0.08,-0.01644,0.023016],"q":[0.823618,0.070113,-0.047737,0.560766]},{"name":"backleg0","parent":"backleg","t":[0,0.118322,0],"q":[0.677001,0.057632,0.062235,0.731078]},{"name":"backleg1","parent":"backleg0","t":[0,0.089443,0],"q":[-0.816339,0,0,0.577572]},{"name":"backleg2","parent":"backleg1","t":[0,0.161245,0],"q":[0,0,0,1]},{"name":"R_backleg","parent":"Hips","t":[-0.08,-0.01644,0.023016],"q":[0.823618,-0.070113,0.047737,0.560766]},{"name":"R_backleg0","parent":"R_backleg","t":[0,0.118322,0],"q":[0.677001,-0.057632,-0.062235,0.731078]},{"name":"R_backleg1","parent":"R_backleg0","t":[0,0.089443,0],"q":[-0.816339,0,0,0.577572]},{"name":"R_backleg2","parent":"R_backleg1","t":[0,0.161245,0],"q":[0,0,0,1]}];
+
+/* ═════ FROG + RABBIT (Sternhalma game pieces) — hop physics ═════
+   Frog jump (Li 2021; JEB take-off/landing): crouch → explosive HIND-leg extension (hip~135°/knee~155°/
+   ankle~150°, proximal→distal) → flight w/ legs trailing & FORElimbs reaching → forelimbs land first
+   (peak landing force ~3× propulsion) → hind fold back under. Rabbit half-bound (rabbit hop kinematics):
+   plantigrade hind foot, ankle extends ~78° through push-off; spine flexes/extends; forefeet land, hind
+   swing under; ears bounce. Authored as JOINT rotations only (the game's travel arc carries the height). */
+const FROG_PAWS=['frontleg1','R_frontleg1','backleg2','R_backleg2'];
+const RABBIT_PAWS=['frontleg1','R_frontleg1','backleg2','R_backleg2'];
+const FROG_MOTIONS=[
+  {id:'hop', name:'Frog Hop', cat:'Locomotion', type:'move', dur:0.62, build:(t,P)=>{
+    resetPose(); const u=(t/0.62)%1, A=P.amp;
+    const ext=clamp(ramp(u,0.14,0.40)-ramp(u,0.60,0.86),0,1);     // hind legs fold→EXTEND→fold
+    const reach=clamp(ramp(u,0.30,0.58)-ramp(u,0.82,1.0),0,1);    // forelimbs reach for landing
+    const tuck=bump(u,0.24,0.14);                                 // forelimbs tuck at takeoff
+    const pu=bump(u,0.30,0.15), pd=bump(u,0.72,0.15);             // body pitch up(takeoff)/down(landing)
+    for(const s of ['','R_']){
+      sw(s+'backleg',  AX.x, ext*0.35*A);
+      sw(s+'backleg0', AX.x, ext*0.95*A);
+      sw(s+'backleg1', AX.x, -ext*1.45*A);
+      sw(s+'backleg2', AX.x, -ext*0.55*A);
+      sw(s+'frontleg',  AX.x, (reach*0.5 - tuck*0.2)*A);
+      sw(s+'frontleg0', AX.x, (tuck*0.9 - reach*0.7)*A);
+      sw(s+'frontleg1', AX.x, (-reach*0.3)*A);
+    }
+    sw('spine', AX.x, (-pu*0.30 + pd*0.28)*A);
+    sw('chest', AX.x, (-pu*0.15 + pd*0.14)*A);
+    sw('head',  AX.x, (pu*0.20 - pd*0.30)*A);
+  }},
+  // SWIM — synchronized hind breaststroke (frog kick): recover with knees splayed → power kick straightens the
+  // 4-segment hind legs (same extension signs as the hop) → glide. Forelegs streamlined back.
+  {id:'swim', name:'Swim (kick)', cat:'Locomotion', type:'move', dur:1.1, build:(t,P)=>{
+    resetPose(); const u=(t/1.1)%1, A=P.amp;
+    const drive=(1-Math.cos(u*TAU))/2;                 // 0 folded → 1 extended (mid) → 0 (loops)
+    for(const s of ['','R_']){
+      sw(s+'backleg',  AX.y, (1-drive)*0.45*A);         // knees splay out on recovery
+      sw(s+'backleg0', AX.x, (drive*0.9 - (1-drive)*0.3)*A);
+      sw(s+'backleg1', AX.x, (-drive*1.4 + (1-drive)*0.6)*A);   // straighten on power, fold on recovery
+      sw(s+'backleg2', AX.x, (-drive*0.6)*A);           // webbed foot paddles back
+      sw(s+'frontleg0', AX.x, 0.25*A);                  // forelegs held streamlined
+    }
+    sw('spine',AX.x, Math.sin(u*TAU)*0.04*A);
+    animRoot.position.z += 0.7*A*(t/1.1);
+  }},
+  {id:'croak', name:'Croak', cat:'Action', type:'action', dur:1.6, build:(t,P)=>{
+    resetPose(); const u=t/1.6, A=P.amp;
+    const env=ramp(u,0.1,0.25)*(1-ramp(u,0.75,0.95));  // vocal-sac inflate window
+    const puff=(Math.sin(u*TAU*4)*0.5+0.5)*env;        // throat pulses 4× while inflated
+    sw('head',AX.x, -(0.14+puff*0.14)*A);              // chin lifts as the throat balloons
+    sw('chest',AX.x, puff*0.10*A); sw('spine',AX.x, puff*0.05*A);
+  }},
+  {id:'sit', name:'Sit (rest)', cat:'Posture', type:'stay', dur:3.0, build:(t,P)=>{
+    resetPose(); const u=t/3.0, A=P.amp, br=Math.sin(u*TAU)*0.05*A;
+    for(const s of ['','R_']){ sw(s+'frontleg0',AX.x,-0.2*A); sw(s+'backleg1',AX.x, 0.35*A); }  // forelegs prop the front up, hind folded under
+    sw('spine',AX.x, 0.14*A+br); sw('chest',AX.x,br*0.7); sw('head',AX.x,-0.12*A);              // upright, breathing, alert
+  }},
+  {id:'idle', name:'Idle (breathe)', cat:'Posture', type:'stay', dur:2.4, build:(t,P)=>{
+    resetPose(); const u=t/2.4, A=P.amp, br=Math.sin(u*TAU)*0.05*A;
+    sw('spine',AX.x,br); sw('chest',AX.x,br*0.7);
+    for(const s of ['','R_']){ sw(s+'eye',AX.x, Math.sin(u*TAU*2+1)*0.03*A); }
+    sw('head',AX.y, Math.sin(u*TAU*0.5)*0.08*A);
+  }},
+];
+const RABBIT_MOTIONS=[
+  {id:'hop', name:'Rabbit Hop', cat:'Locomotion', type:'move', dur:0.50, build:(t,P)=>{
+    resetPose(); const u=(t/0.50)%1, A=P.amp;
+    const crouch=bump(u,0.10,0.12);                              // gather: fold hind + round spine
+    const ext=clamp(ramp(u,0.18,0.44)-ramp(u,0.58,0.86),0,1);   // push-off: hind straighten
+    const reach=clamp(ramp(u,0.34,0.60)-ramp(u,0.84,1.0),0,1);  // forepaws reach for landing
+    const tuck=bump(u,0.30,0.13);                               // forepaws tuck at launch
+    const lean=bump(u,0.44,0.20);                               // slight forward lean — launch/flight ONLY
+    for(const s of ['','R_']){
+      sw(s+'backleg0', AX.x, (-crouch*0.55 + ext*1.05)*A);       // fold on crouch, straighten on push
+      sw(s+'backleg1', AX.x, ( crouch*0.65 - ext*1.25)*A);
+      sw(s+'backleg2', AX.x, (ext*0.55)*A);
+      sw(s+'frontleg',  AX.x, (reach*0.50 - tuck*0.35)*A);
+      sw(s+'frontleg0', AX.x, (tuck*0.70 - reach*0.55)*A);
+      sw(s+'ear',    AX.x, Math.sin(u*TAU-0.7)*0.22*A);          // ears bounce (lag)
+      sw(s+'earend', AX.x, Math.sin(u*TAU-1.1)*0.28*A);
+    }
+    sw('spine', AX.x, (crouch*0.20 - ext*0.10 + lean*0.06)*A);   // round on gather, extend on push
+    sw('chest', AX.x, (crouch*0.10 + lean*0.05)*A);
+    sw('Hips',  AX.x, lean*0.12*A);                              // gentle transient lean (stays upright)
+    sw('head',  AX.x, (-crouch*0.10 - lean*0.10)*A);
+  }},
+  // BOUND — a faster half-bound (run): stronger galloping spine flex/extend + bigger ear bounce, and it travels.
+  {id:'bound', name:'Bound (run)', cat:'Locomotion', type:'move', dur:0.42, build:(t,P)=>{
+    resetPose(); const u=(t/0.42)%1, A=P.amp;
+    const gather=bump(u,0.12,0.14), ext=clamp(ramp(u,0.20,0.46)-ramp(u,0.56,0.82),0,1);
+    const reach=clamp(ramp(u,0.36,0.60)-ramp(u,0.82,1.0),0,1), tuck=bump(u,0.30,0.13);
+    for(const s of ['','R_']){
+      sw(s+'backleg0', AX.x, (-gather*0.6 + ext*1.15)*A);
+      sw(s+'backleg1', AX.x, ( gather*0.75 - ext*1.40)*A);
+      sw(s+'backleg2', AX.x, (ext*0.6)*A);
+      sw(s+'frontleg',  AX.x, (reach*0.55 - tuck*0.40)*A);
+      sw(s+'frontleg0', AX.x, (tuck*0.75 - reach*0.60)*A);
+      sw(s+'ear',    AX.x, Math.sin(u*TAU-0.7)*0.30*A);
+      sw(s+'earend', AX.x, Math.sin(u*TAU-1.1)*0.36*A);
+    }
+    sw('spine', AX.x, (gather*0.32 - ext*0.22)*A);               // strong gallop arch/extend
+    sw('chest', AX.x, (gather*0.14)*A);
+    sw('head',  AX.x, (-gather*0.12)*A);
+    animRoot.position.z += 1.1*A*(t/0.42);
+  }},
+  {id:'situp', name:'Sit up (alert)', cat:'Action', type:'action', dur:2.4, build:(t,P)=>{
+    resetPose(); const u=t/2.4, A=P.amp;
+    const rise=ramp(u,0.12,0.4)*(1-ramp(u,0.82,0.98));           // rear up → hold → settle
+    for(const s of ['','R_']){
+      sw(s+'backleg1', AX.x, rise*0.5*A);                        // haunches fold to sit
+      sw(s+'frontleg', AX.x, -rise*0.9*A);                       // forepaws lift off the ground…
+      sw(s+'frontleg0', AX.x, -rise*0.7*A);                      // …and tuck up to the chest
+      sw(s+'ear', AX.x, -rise*0.12*A + Math.sin(u*TAU*1.5)*0.05*A); // ears erect + twitch
+    }
+    sw('Hips', AX.x, -rise*0.5*A); sw('spine', AX.x, -rise*0.35*A);  // torso rears upright
+    sw('head', AX.x, rise*0.22*A + Math.sin(u*TAU*0.7)*0.06*A);      // head up, scanning
+  }},
+  {id:'graze', name:'Graze (nibble)', cat:'Posture', type:'stay', dur:2.8, build:(t,P)=>{
+    resetPose(); const u=t/2.8, A=P.amp;
+    sw('Hips',AX.x,0.15*A); sw('spine',AX.x,0.18*A); sw('chest',AX.x,0.1*A);   // lower the front to the ground
+    sw('head',AX.x, 0.35*A + bump((u*3)%1,0.5,0.15)*0.12*A);                   // head down, small nibbles
+    for(const s of ['','R_']) sw(s+'ear',AX.x, Math.sin(u*TAU*0.6)*0.06*A);
+  }},
+  {id:'idle', name:'Idle (ear twitch)', cat:'Posture', type:'stay', dur:2.6, build:(t,P)=>{
+    resetPose(); const u=t/2.6, A=P.amp, br=Math.sin(u*TAU)*0.045*A;
+    sw('spine',AX.x,br); sw('chest',AX.x,br*0.7);
+    const tw=bump((u*2)%1,0.5,0.12);
+    sw('ear',AX.z, tw*0.22*A); sw('R_ear',AX.z, -tw*0.18*A);
+    sw('head',AX.y, Math.sin(u*TAU*0.5)*0.07*A);
+  }},
+];
+
+
+/* ===== SEA ARTHROPODS + MANTA (crab/lobster/manta) — templates ===== */
+const CRAB_TEMPLATE=[{"name":"Hips","parent":null,"t":[0,0.55,0],"q":[0,0,0,1]},{"name":"abdomen","parent":"Hips","t":[0,-0.05,-0.4],"q":[0,0,0,1]},{"name":"eye","parent":"Hips","t":[0.18,0.17,0.45],"q":[0,0,0,1]},{"name":"R_eye","parent":"Hips","t":[-0.18,0.17,0.45],"q":[0,0,0,1]},{"name":"claw","parent":"Hips","t":[0.55,-0.03,0.4],"q":[0.781676,0.382401,-0.216512,0.442577]},{"name":"R_claw","parent":"Hips","t":[-0.55,-0.03,0.4],"q":[0.781676,-0.382401,0.216512,0.442577]},{"name":"claw1","parent":"claw","t":[0,0.38,0],"q":[-0.121755,-0.090737,0.263163,0.952726]},{"name":"R_claw1","parent":"R_claw","t":[0,0.38,0],"q":[-0.121755,0.090737,-0.263163,0.952726]},{"name":"claw2","parent":"claw1","t":[0,0.275862,0],"q":[-0.159004,-0.050474,0.062636,0.983995]},{"name":"R_claw2","parent":"R_claw1","t":[0,0.275862,0],"q":[-0.159004,0.050474,-0.062636,0.983995]},{"name":"clawtip","parent":"claw2","t":[0,0.207123,0],"q":[0,0,0,1]},{"name":"R_clawtip","parent":"R_claw2","t":[0,0.207123,0],"q":[0,0,0,1]},{"name":"legA","parent":"Hips","t":[0.5,-0.05,0.28],"q":[0.75738,0.571293,-0.190431,0.25246]},{"name":"R_legA","parent":"Hips","t":[-0.5,-0.05,0.28],"q":[0.75738,-0.571293,0.190431,0.25246]},{"name":"legAk","parent":"legA","t":[0,0.364005,0],"q":[0.143556,0.202448,0.321691,0.91374]},{"name":"R_legAk","parent":"R_legA","t":[0,0.364005,0],"q":[0.143556,-0.202448,-0.321691,0.91374]},{"name":"legAt","parent":"legAk","t":[0,0.519615,0],"q":[0,0,0,1]},{"name":"R_legAt","parent":"R_legAk","t":[0,0.519615,0],"q":[0,0,0,1]},{"name":"legB","parent":"Hips","t":[0.55,-0.05,0.08],"q":[0.785793,0.61059,-0.06046,0.077809]},{"name":"R_legB","parent":"Hips","t":[-0.55,-0.05,0.08],"q":[0.785793,-0.61059,0.06046,0.077809]},{"name":"legBk","parent":"legB","t":[0,0.412795,0],"q":[0.038566,0.062747,0.296124,0.952306]},{"name":"R_legBk","parent":"R_legB","t":[0,0.412795,0],"q":[0.038566,-0.062747,-0.296124,0.952306]},{"name":"legBt","parent":"legBk","t":[0,0.531883,0],"q":[0,0,0,1]},{"name":"R_legBt","parent":"R_legBk","t":[0,0.531883,0],"q":[0,0,0,1]},{"name":"legC","parent":"Hips","t":[0.55,-0.05,-0.12],"q":[0.785793,0.61059,0.06046,-0.077809]},{"name":"R_legC","parent":"Hips","t":[-0.55,-0.05,-0.12],"q":[0.785793,-0.61059,-0.06046,-0.077809]},{"name":"legCk","parent":"legC","t":[0,0.412795,0],"q":[-0.038566,-0.062747,0.296124,0.952306]},{"name":"R_legCk","parent":"R_legC","t":[0,0.412795,0],"q":[-0.038566,0.062747,-0.296124,0.952306]},{"name":"legCt","parent":"legCk","t":[0,0.531883,0],"q":[0,0,0,1]},{"name":"R_legCt","parent":"R_legCk","t":[0,0.531883,0],"q":[0,0,0,1]},{"name":"legD","parent":"Hips","t":[0.5,-0.05,-0.32],"q":[0.747023,0.543608,0.22517,-0.309427]},{"name":"R_legD","parent":"Hips","t":[-0.5,-0.05,-0.32],"q":[0.747023,-0.543608,-0.22517,-0.309427]},{"name":"legDk","parent":"legD","t":[0,0.367831,0],"q":[-0.18732,-0.254777,0.299626,0.900125]},{"name":"R_legDk","parent":"R_legD","t":[0,0.367831,0],"q":[-0.18732,0.254777,-0.299626,0.900125]},{"name":"legDt","parent":"legDk","t":[0,0.519615,0],"q":[0,0,0,1]},{"name":"R_legDt","parent":"R_legDk","t":[0,0.519615,0],"q":[0,0,0,1]}];
+const LOBSTER_TEMPLATE=[{"name":"Hips","parent":null,"t":[0,0.4,0.15],"q":[0,0,0,1]},{"name":"head","parent":"Hips","t":[0,0.04,0.5],"q":[0,0,0,1]},{"name":"eye","parent":"head","t":[0.12,0.06,0.15],"q":[0,0,0,1]},{"name":"R_eye","parent":"head","t":[-0.12,0.06,0.15],"q":[0,0,0,1]},{"name":"antenna","parent":"head","t":[0.12,0.02,0.2],"q":[0.687473,0.027416,-0.028917,0.725116]},{"name":"R_antenna","parent":"head","t":[-0.12,0.02,0.2],"q":[0.687473,-0.027416,0.028917,0.725116]},{"name":"antenna1","parent":"antenna","t":[0,0.753459,0],"q":[0,0,0,1]},{"name":"R_antenna1","parent":"R_antenna","t":[0,0.753459,0],"q":[0,0,0,1]},{"name":"ab1","parent":"Hips","t":[0,0,-0.25],"q":[-0.707107,0,0,0.707107]},{"name":"ab2","parent":"ab1","t":[0,0.25,0],"q":[0,0,0,1]},{"name":"ab3","parent":"ab2","t":[0,0.25,0],"q":[0,0,0,1]},{"name":"ab4","parent":"ab3","t":[0,0.25,0],"q":[0,0,0,1]},{"name":"ab5","parent":"ab4","t":[0,0.25,0],"q":[0,0,0,1]},{"name":"ab6","parent":"ab5","t":[0,0.25,0],"q":[0,0,0,1]},{"name":"telson","parent":"ab6","t":[0,0.25,0],"q":[0,0,0,1]},{"name":"uro","parent":"ab6","t":[0.22,0.25,0],"q":[0,0,0,1]},{"name":"R_uro","parent":"ab6","t":[-0.22,0.25,0],"q":[0,0,0,1]},{"name":"claw","parent":"Hips","t":[0.32,0,0.35],"q":[0.729284,0.157856,-0.140843,0.650684]},{"name":"R_claw","parent":"Hips","t":[-0.32,0,0.35],"q":[0.729284,-0.157856,0.140843,0.650684]},{"name":"claw1","parent":"claw","t":[0,0.386911,0],"q":[-0.013521,-0.004149,0.128213,0.991646]},{"name":"R_claw1","parent":"R_claw","t":[0,0.386911,0],"q":[-0.013521,0.004149,-0.128213,0.991646]},{"name":"claw2","parent":"claw1","t":[0,0.356371,0],"q":[-0.058843,-0.007956,0.03471,0.997632]},{"name":"R_claw2","parent":"R_claw1","t":[0,0.356371,0],"q":[-0.058843,0.007956,-0.03471,0.997632]},{"name":"clawtip","parent":"claw2","t":[0,0.301662,0],"q":[0,0,0,1]},{"name":"R_clawtip","parent":"R_claw2","t":[0,0.301662,0],"q":[0,0,0,1]},{"name":"legA","parent":"Hips","t":[0.28,-0.05,0.3],"q":[0.959102,0.274041,-0.019475,0.068161]},{"name":"R_legA","parent":"Hips","t":[-0.28,-0.05,0.3],"q":[0.959102,-0.274041,0.019475,0.068161]},{"name":"legAt","parent":"legA","t":[0,0.416413,0],"q":[0,0,0,1]},{"name":"R_legAt","parent":"R_legA","t":[0,0.416413,0],"q":[0,0,0,1]},{"name":"legB","parent":"Hips","t":[0.3,-0.05,0.1],"q":[0.960244,0.275871,-0.011801,0.041078]},{"name":"R_legB","parent":"Hips","t":[-0.3,-0.05,0.1],"q":[0.960244,-0.275871,0.011801,0.041078]},{"name":"legBt","parent":"legB","t":[0,0.414488,0],"q":[0,0,0,1]},{"name":"R_legBt","parent":"R_legB","t":[0,0.414488,0],"q":[0,0,0,1]},{"name":"legC","parent":"Hips","t":[0.3,-0.05,-0.1],"q":[0.960822,0.276798,-0.003953,0.013723]},{"name":"R_legC","parent":"Hips","t":[-0.3,-0.05,-0.1],"q":[0.960822,-0.276798,0.003953,0.013723]},{"name":"legCt","parent":"legC","t":[0,0.413521,0],"q":[0,0,0,1]},{"name":"R_legCt","parent":"R_legC","t":[0,0.413521,0],"q":[0,0,0,1]},{"name":"legD","parent":"Hips","t":[0.28,-0.05,-0.3],"q":[0.960244,0.275871,0.011801,-0.041078]},{"name":"R_legD","parent":"Hips","t":[-0.28,-0.05,-0.3],"q":[0.960244,-0.275871,-0.011801,-0.041078]},{"name":"legDt","parent":"legD","t":[0,0.414488,0],"q":[0,0,0,1]},{"name":"R_legDt","parent":"R_legD","t":[0,0.414488,0],"q":[0,0,0,1]}];
+const MANTA_TEMPLATE=[{"name":"Hips","parent":null,"t":[0,0.5,0],"q":[0,0,0,1]},{"name":"spine1","parent":"Hips","t":[0,0,0.35],"q":[0.707107,0,0,0.707107]},{"name":"head","parent":"spine1","t":[0,0.25,0],"q":[0,0,0,1]},{"name":"eye","parent":"head","t":[0.3,-0.05,-0.02],"q":[0,0,0,1]},{"name":"R_eye","parent":"head","t":[-0.3,-0.05,-0.02],"q":[0,0,0,1]},{"name":"ceph","parent":"head","t":[0.22,0.15,0.02],"q":[0.03963,0.004674,-0.117048,0.992324]},{"name":"R_ceph","parent":"head","t":[-0.22,0.15,0.02],"q":[0.03963,-0.004674,0.117048,0.992324]},{"name":"ceph1","parent":"ceph","t":[0,0.257876,0],"q":[0,0,0,1]},{"name":"R_ceph1","parent":"R_ceph","t":[0,0.257876,0],"q":[0,0,0,1]},{"name":"fin","parent":"Hips","t":[0.35,0,0.05],"q":[-0.53667,-0.460419,-0.460419,0.53667]},{"name":"R_fin","parent":"Hips","t":[-0.35,0,0.05],"q":[-0.53667,0.460419,0.460419,0.53667]},{"name":"fin1","parent":"fin","t":[0,0.657647,0],"q":[0,0,0.00625,0.99998]},{"name":"R_fin1","parent":"R_fin","t":[0,0.657647,0],"q":[0,0,-0.00625,0.99998]},{"name":"fin2","parent":"fin1","t":[0,0.608276,0],"q":[0,0,0.107471,0.994208]},{"name":"R_fin2","parent":"R_fin1","t":[0,0.608276,0],"q":[0,0,-0.107471,0.994208]},{"name":"fintip","parent":"fin2","t":[0,0.538516,0],"q":[0,0,0,1]},{"name":"R_fintip","parent":"R_fin2","t":[0,0.538516,0],"q":[0,0,0,1]},{"name":"tail1","parent":"Hips","t":[0,0,-0.35],"q":[-0.71984,0,0,0.69414]},{"name":"tail2","parent":"tail1","t":[0,0.550364,0],"q":[0.008175,0,0,0.999967]},{"name":"tail3","parent":"tail2","t":[0,0.5001,0],"q":[0,0,0,1]},{"name":"tail4","parent":"tail3","t":[0,0.5001,0],"q":[0,0,0,1]}];
+/* ===== SEA ARTHROPODS + MANTA — motions (crab / lobster / manta) ===== */
+/* Convention: +Z forward, +X = LEFT. sw(name,worldAxis,angle). P={speed,amp}. */
+
+// ---------- CRAB ----------
+const CRAB_LEGS = [
+  {hip:'legA',knee:'legAk',foot:'legAt',s:1},{hip:'legB',knee:'legBk',foot:'legBt',s:1},
+  {hip:'legC',knee:'legCk',foot:'legCt',s:1},{hip:'legD',knee:'legDk',foot:'legDt',s:1},
+  {hip:'R_legA',knee:'R_legAk',foot:'R_legAt',s:-1},{hip:'R_legB',knee:'R_legBk',foot:'R_legBt',s:-1},
+  {hip:'R_legC',knee:'R_legCk',foot:'R_legCt',s:-1},{hip:'R_legD',knee:'R_legDk',foot:'R_legDt',s:-1},
+];
+const CRAB_PAWS = CRAB_LEGS.map(l=>l.foot);
+// one leg step: lift+tuck during the swing half, plant+extend (pull) during stance. `s`=+1 L/−1 R mirrors the lift.
+function crabStep(leg, ph, P, o){ o=o||{}; const lift=o.lift??0.5, flex=o.flex??0.4, yaw=o.yaw??0.14;
+  const a=TAU*ph, sn=Math.sin(a); const swingUp=Math.max(0,sn);            // >0 during the swing (lifted)
+  sw(leg.hip,  AX.z, swingUp*lift*leg.s*P.amp);                            // raise the leg while swinging
+  sw(leg.knee, AX.z, (swingUp*flex + 0.06)*leg.s*P.amp);                   // tuck knee in swing, slight base flex
+  sw(leg.hip,  AX.y, sn*yaw*P.amp);                                        // small fore-aft scuttle
+}
+function crabClaws(a, raise, snap){ // raise both chelipeds; snap = pincer open/close
+  for(const s of ['','R_']){ sw(s+'claw', AX.z, raise*(s?-1:1)); sw(s+'claw1', AX.x, -raise*0.8);
+    sw(s+'claw2', AX.x, -raise*0.3); sw(s+'clawtip', AX.x, snap); }
+}
+const CRAB_MOTIONS = [
+  {id:'crab_scuttle_r', name:'Scuttle Right', cat:'Locomotion', type:'move', dur:0.6, build:(t,P)=>{ resetPose();
+    const cyc=(t/0.6)*P.speed; const ph=[0,0.25,0.5,0.75, 0.5,0.75,0,0.25];   // metachronal front→back; L/R offset 0.5 for support
+    CRAB_LEGS.forEach((leg,i)=> crabStep(leg, cyc+ph[i], P, {lift:0.55,flex:0.45,yaw:0.16}));
+    crabClaws(0.35+Math.sin(TAU*cyc)*0.05, 0.35, Math.max(0,Math.sin(TAU*cyc*2))*0.15);
+    sw('eye',AX.x,0.06); sw('R_eye',AX.x,0.06);
+    setRootY(Math.abs(Math.sin(TAU*cyc*2))*0.03*P.amp);                      // 2-beat body bob
+    animRoot.position.x -= 1.4*(t/0.6);                                      // scuttle RIGHT (−X, +X=LEFT by convention)
+  }},
+  {id:'crab_scuttle_l', name:'Scuttle Left', cat:'Locomotion', type:'move', dur:0.6, build:(t,P)=>{ resetPose();
+    const cyc=(t/0.6)*P.speed; const ph=[0,0.25,0.5,0.75, 0.5,0.75,0,0.25];
+    CRAB_LEGS.forEach((leg,i)=> crabStep(leg, cyc+ph[i], P, {lift:0.55,flex:0.45,yaw:0.16}));
+    crabClaws(0.35+Math.sin(TAU*cyc)*0.05, 0.35, Math.max(0,Math.sin(TAU*cyc*2))*0.15);
+    sw('eye',AX.x,0.06); sw('R_eye',AX.x,0.06);
+    setRootY(Math.abs(Math.sin(TAU*cyc*2))*0.03*P.amp);
+    animRoot.position.x += 1.4*(t/0.6);                                      // scuttle LEFT (+X)
+  }},
+  {id:'crab_walk', name:'Walk (forward)', cat:'Locomotion', type:'move', dur:1.0, build:(t,P)=>{ resetPose();
+    const cyc=(t/1.0)*P.speed; const ph=[0,0.25,0.5,0.75, 0.5,0.75,0,0.25];
+    CRAB_LEGS.forEach((leg,i)=> crabStep(leg, cyc+ph[i], P, {lift:0.34,flex:0.28,yaw:0.26}));   // stronger fore-aft stride for a forward gait
+    crabClaws(0.28, 0.28, 0);
+    setRootY(Math.abs(Math.sin(TAU*cyc*2))*0.018*P.amp);
+    animRoot.position.z += 0.7*(t/1.0);                                      // FORWARD travel (+Z)
+  }},
+  {id:'crab_idle', name:'Idle', cat:'Idle', type:'stay', dur:2.2, build:(t,P)=>{ resetPose();
+    const u=t/2.2, br=Math.sin(TAU*u);
+    CRAB_LEGS.forEach((leg,i)=>{ sw(leg.knee,AX.z,(0.06+Math.sin(TAU*u*2+i)*0.03)*leg.s*P.amp); });   // tiny leg jitter
+    crabClaws(0.22+br*0.05*P.amp, 0.22, Math.max(0,Math.sin(TAU*u*2))*0.12*P.amp);                     // claw sway + occasional snap
+    sw('eye',AX.y,Math.sin(TAU*u)*0.25*P.amp); sw('R_eye',AX.y,Math.sin(TAU*u+1)*0.25*P.amp);          // eyestalks swivel
+    setRootY(br*0.01*P.amp);
+  }},
+  {id:'crab_menace', name:'Menace (claws up)', cat:'Action', type:'action', dur:1.9, build:(t,P)=>{ resetPose();
+    const u=t/1.9;
+    const rise = ramp(u,0.06,0.34) * (1 - ramp(u,0.84,1.0));                                             // hoist the claws UP fast, HOLD them high, lower at the very end
+    const held = ramp(u,0.34,0.46) * (1 - ramp(u,0.82,0.94));                                            // "arms up" gate — the shake only happens once they're raised
+    const shake = Math.sin(TAU*u*17) * held * P.amp;                                                     // rapid tremor at the top
+    crabClaws(1.35*rise*P.amp + 0.2, 1.35*rise*P.amp, (0.4+0.5*Math.abs(Math.sin(TAU*u*10)))*held*P.amp);  // claws hoisted HIGH into the air; pincers snap while shaking
+    sw('claw',AX.y,-0.32*rise*P.amp + shake*0.20); sw('R_claw',AX.y,0.32*rise*P.amp - shake*0.20);       // spread wide + shake side-to-side at the top
+    sw('claw1',AX.x,-0.22*rise*P.amp + shake*0.14); sw('R_claw1',AX.x,-0.22*rise*P.amp - shake*0.14);    // forearms tremble
+    CRAB_LEGS.forEach((leg)=> sw(leg.knee,AX.z,-0.17*rise*leg.s*P.amp));                                 // rear up as it hoists
+    setRootY(0.08*rise*P.amp);
+  }},
+  {id:'crab_dig', name:'Dig / burrow', cat:'Locomotion', type:'move', dur:1.6, build:(t,P)=>{ resetPose();
+    const u=t/1.6;
+    CRAB_LEGS.forEach((leg,i)=>{ const paddle=Math.sin(TAU*u*4 + i*0.7);                                 // legs scoop & fling substrate back, continuously
+      sw(leg.hip,AX.z, paddle*0.28*leg.s*P.amp); sw(leg.knee,AX.z, Math.max(0,paddle)*0.36*leg.s*P.amp); });
+    sw('eye',AX.x,0.12*P.amp); sw('R_eye',AX.x,0.12*P.amp);                                              // eyestalks fold down as it sinks
+    crabClaws(0.12+Math.max(0,Math.sin(TAU*u*4))*0.18*P.amp, 0.16, 0);
+    setRootY(-0.6*(t/1.6)*P.amp);                                                                        // sink steadily DOWN into the substrate — net travel so it keeps burrowing under
+  }},
+];
+
+// ---------- LOBSTER ----------
+const LOB_LEGS = [
+  {hip:'legA',foot:'legAt',s:1},{hip:'legB',foot:'legBt',s:1},{hip:'legC',foot:'legCt',s:1},{hip:'legD',foot:'legDt',s:1},
+  {hip:'R_legA',foot:'R_legAt',s:-1},{hip:'R_legB',foot:'R_legBt',s:-1},{hip:'R_legC',foot:'R_legCt',s:-1},{hip:'R_legD',foot:'R_legDt',s:-1},
+];
+const LOB_PAWS = LOB_LEGS.map(l=>l.foot);
+const LOB_AB = ['ab1','ab2','ab3','ab4','ab5','ab6','telson'];
+const LOB_ANT = ['antenna','antenna1','R_antenna','R_antenna1'];
+function lobLegWalk(leg, ph, P, amp){ const a=TAU*ph, sn=Math.sin(a);
+  sw(leg.hip, AX.y, sn*amp*P.amp);                                          // fore-aft step (walk forward)
+  sw(leg.foot, AX.z, (Math.max(0,sn)*0.3+0.05)*leg.s*P.amp);               // lift foot in swing
+}
+function lobClawsFwd(a){ for(const s of ['','R_']){ sw(s+'claw',AX.z,0.08*(s?-1:1)); sw(s+'claw1',AX.x,0.05);
+  sw(s+'claw2',AX.x, Math.sin(a)*0.06); } }
+function lobAntennae(a,amp){ sw('antenna',AX.y,Math.sin(a)*amp); sw('antenna1',AX.y,Math.sin(a-0.6)*amp*1.4);
+  sw('R_antenna',AX.y,Math.sin(a+0.3)*amp); sw('R_antenna1',AX.y,Math.sin(a-0.3)*amp*1.4); }
+const LOBSTER_MOTIONS = [
+  {id:'lob_walk', name:'Walk (forward)', cat:'Locomotion', type:'move', dur:1.1, build:(t,P)=>{ resetPose();
+    const cyc=(t/1.1)*P.speed; const ph=[0,0.5,0,0.5, 0.5,0,0.5,0];        // alternating tetrapod
+    LOB_LEGS.forEach((leg,i)=> lobLegWalk(leg, cyc+ph[i], P, 0.30));
+    lobClawsFwd(TAU*cyc); lobAntennae(TAU*cyc*0.7, 0.12*P.amp);
+    LOB_AB.forEach((b,i)=> sw(b,AX.y,Math.sin(TAU*cyc+i*0.3)*0.02*P.amp));  // slight tail sway
+    setRootY(Math.abs(Math.sin(TAU*cyc*2))*0.012*P.amp);
+    animRoot.position.z += 0.9*(t/1.1);                                     // forward travel
+  }},
+  {id:'lob_idle', name:'Idle', cat:'Idle', type:'stay', dur:2.6, build:(t,P)=>{ resetPose();
+    const u=t/2.6; lobAntennae(TAU*u, 0.28*P.amp); lobClawsFwd(TAU*u);
+    for(const s of ['','R_']) sw(s+'claw',AX.z,Math.sin(TAU*u+0.5)*0.05*P.amp*(s?-1:1));
+    LOB_AB.forEach((b,i)=> sw(b,AX.y,Math.sin(TAU*u+i*0.4)*0.03*P.amp));
+    sw('eye',AX.y,Math.sin(TAU*u*0.5)*0.2*P.amp); sw('R_eye',AX.y,Math.sin(TAU*u*0.5+1)*0.2*P.amp);
+    setRootY(Math.sin(TAU*u)*0.008*P.amp);
+  }},
+  {id:'lob_tailflip', name:'Tail-flip escape', cat:'Action', type:'action', dur:1.3, build:(t,P)=>{ resetPose();
+    const u=t/1.3;
+    // caridoid: fast POWER curl (~1/4), then slower recovery re-extension; thrust from the tail fan → jets BACKWARD.
+    const power=bump(u,0.20,0.12), recov=ramp(u,0.32,0.95);
+    const curl=(power*1.0 + (1-recov)*0.15)*P.amp;                          // ventral abdominal flexion (curl under)
+    LOB_AB.forEach((b,i)=>{ const g=(i+1)/LOB_AB.length; sw(b, AX.x, -curl*0.75*g); });  // VENTRAL curl (tail-fan sweeps down+under, ~180° total), proximal→distal
+    sw('uro',AX.y,-0.5*power*P.amp); sw('R_uro',AX.y,0.5*power*P.amp);       // tail fan spreads on the power stroke
+    LOB_LEGS.forEach(leg=> sw(leg.hip,AX.y,-0.3*power*P.amp));              // legs sweep back / tuck
+    for(const s of ['','R_']){ sw(s+'claw1',AX.x,0.2*power*P.amp); }        // claws trail forward
+    setRootY(0.06*power*P.amp);                                             // hop up off the bottom
+    animRoot.position.z -= 1.6*Math.min(1,u/0.32);                          // jet backward during the power stroke
+  }},
+  {id:'lob_display', name:'Threat display', cat:'Action', type:'action', dur:1.6, build:(t,P)=>{ resetPose();
+    const u=t/1.6, rise=envUpDown(u,0.3,0.7);
+    for(const s of ['','R_']){ sw(s+'claw',AX.z,(0.5*rise)*(s?-1:1)*P.amp+0.08); sw(s+'claw',AX.y,(-0.35*rise)*(s?-1:1)*P.amp);
+      sw(s+'claw1',AX.x,-0.5*rise*P.amp); sw(s+'claw2',AX.x,Math.max(0,Math.sin(TAU*u*3))*0.4*rise*P.amp); }  // claws raised wide, open/close
+    LOB_LEGS.forEach(leg=> sw(leg.hip,AX.y,0.15*rise*P.amp));               // rear up on rear legs
+    LOB_AB.forEach((b)=> sw(b,AX.x,-0.05*rise*P.amp));                      // tail curls down for the rear-up
+    lobAntennae(TAU*u, 0.15*P.amp);
+    setRootY(0.05*rise*P.amp);
+  }},
+  {id:'lob_swim', name:'Swim (glide)', cat:'Locomotion', type:'move', dur:1.5, build:(t,P)=>{ resetPose();
+    const cyc=(t/1.5)*P.speed;
+    LOB_AB.forEach((b,i)=>{ const g=(i+1)/LOB_AB.length; sw(b,AX.x,Math.sin(TAU*cyc - 1.2*g)*0.12*g*P.amp); });  // gentle dorso-ventral undulation
+    LOB_LEGS.forEach(leg=> sw(leg.hip,AX.y,-0.2*P.amp));                    // legs tucked back
+    lobAntennae(TAU*cyc*0.5, 0.1*P.amp); lobClawsFwd(TAU*cyc);
+    animRoot.position.z += 0.5*(t/1.5);
+  }},
+];
+
+// ---------- MANTA ----------
+const MANTA_FIN_L=['fin','fin1','fin2','fintip'], MANTA_FIN_R=['R_fin','R_fin1','R_fin2','R_fintip'];
+const MANTA_TAIL=['tail1','tail2','tail3','tail4'];
+// oscillatory pectoral flight: sinusoidal flap about the fore-aft axis, spanwise wave (root→tip lag) + distal pitch.
+function mantaFlap(cyc, P, o){ o=o||{}; const amp=o.amp??0.55, waves=o.waves??0.5, pitch=o.pitch??0.28, base=o.base??0.35;
+  const n=MANTA_FIN_L.length;
+  for(let i=0;i<n;i++){ const frac=n>1?i/(n-1):0; const ph=cyc - waves*frac;
+    const a=amp*Math.pow(base+frac,1.2)*P.amp; const flap=Math.sin(TAU*ph)*a;
+    sw(MANTA_FIN_L[i], AX.z, +flap); sw(MANTA_FIN_R[i], AX.z, -flap);        // both tips rise together (mirror world-Z)
+    const pit=Math.cos(TAU*ph)*pitch*frac*P.amp;                            // leading edge pitches, distal leads
+    sw(MANTA_FIN_L[i], AX.x, pit); sw(MANTA_FIN_R[i], AX.x, pit);
+  }
+}
+function mantaTail(cyc,amp){ MANTA_TAIL.forEach((b,i)=>{ const g=(i+1)/MANTA_TAIL.length; sw(b,AX.y,Math.sin(TAU*cyc-1.5*g)*amp*g); }); }
+// Banking-turn LOAD (Paul's water-force note): as the manta carves outward the flow over its wings flexes BOTH
+// wing panels UP (graded to the tips) and presses the body DOWN — and the residual body roll leans the OPPOSITE
+// way to the old airplane-style bank (out of the swoop, not into it). `sgn` = turn direction, `env` = 0..1 load.
+function mantaBankLoad(sgn, env, P){
+  const e=env*(P.amp??1);
+  sw('Hips',AX.z, -sgn*0.34*e);                 // residual roll REVERSED (leans out of the swoop)
+  animRoot.position.y -= 0.30*env;              // water force presses the body down through the swoop (returns to 0 at the ends)
+  for(let i=0;i<MANTA_FIN_L.length;i++){ const g=(i+1)/MANTA_FIN_L.length, up=0.42*e*g;   // wings flex up, tips most
+    sw(MANTA_FIN_L[i],AX.z,+up); sw(MANTA_FIN_R[i],AX.z,-up); }   // +Z on L / −Z on R = both tips rise (see mantaFlap)
+}
+const MANTA_MOTIONS = [
+  {id:'manta_cruise', name:'Cruise (flap)', cat:'Locomotion', type:'move', dur:3.2, build:(t,P)=>{ resetPose();   // ~0.31 Hz
+    const cyc=(t/3.2)*P.speed; mantaFlap(cyc,P,{amp:0.6,waves:0.5,pitch:0.3});
+    sw('spine1',AX.x,Math.sin(TAU*cyc)*0.05*P.amp); mantaTail(cyc,0.12*P.amp);
+    sw('ceph',AX.z,0.1); sw('R_ceph',AX.z,-0.1);                            // cephalic fins held forward
+    animRoot.position.z += 1.9*(t/3.2);                                     // ~0.7 body-length per beat (forward = +Z, canonical)
+    animRoot.position.y += Math.sin(TAU*cyc)*0.06*P.amp;                    // slight heave with the beat
+  }},
+  {id:'manta_glide', name:'Glide', cat:'Locomotion', type:'move', dur:2.6, build:(t,P)=>{ resetPose();
+    const cyc=(t/2.6)*P.speed; mantaFlap(cyc,P,{amp:0.12,waves:0.4,pitch:0.1});   // fins nearly still, held level
+    sw('fin',AX.z,0.06); sw('R_fin',AX.z,-0.06);
+    mantaTail(cyc,0.05*P.amp); sw('ceph',AX.z,0.14); sw('R_ceph',AX.z,-0.14);
+    animRoot.position.z += 0.8*(t/2.6);
+  }},
+  // Banked TURNS — a real carving turn, not a roll-in-place: the manta rolls INTO the turn (about its forward
+  // axis) and its HEADING sweeps through ~50° while the PATH curves the same way (the wings redirect the water
+  // → the body carves an arc). Heading is baked as a Hips Y-yaw (the only channel bakeClip captures — animRoot
+  // rotation is not baked) and the travel is numerically integrated so the path tangent tracks the heading
+  // exactly. Yaw is applied BEFORE roll so (three post-multiply) the roll stays about the forward axis, then the
+  // whole banked body yaws. Roll eases in→hold→out (level at the ends); heading is a monotonic eased sweep so
+  // the fish ends up genuinely pointing/travelling in the new direction. Left/right are exact mirrors (sgn).
+  {id:'manta_bank_left', name:'Bank left', cat:'Locomotion', type:'move', dur:2.8, build:(t,P)=>{ resetPose();
+    const D=2.8, u=t/D, cyc=(t/D)*P.speed, TURN=0.85, L=2.4, sgn=1;         // sgn>0 → heading sweeps toward +X
+    mantaFlap(cyc,P,{amp:0.4,waves:0.5,pitch:0.25});
+    sw('Hips',AX.y, sgn*TURN*smooth(u));                                    // heading turn (call first → roll below stays about forward)
+    const bankEnv=envUpDown(u,0.25,0.75);
+    mantaBankLoad(sgn, bankEnv, P);                                         // reversed lean + wings flex UP + body pressed DOWN (water force)
+    mantaTail(cyc,0.1*P.amp);
+    let px=0,pz=0; const K=48; for(let i=1;i<=K;i++){ const s=((i-0.5)/K)*u, th=sgn*TURN*smooth(s), seg=L*(u/K); px+=Math.sin(th)*seg; pz+=Math.cos(th)*seg; }
+    animRoot.position.x += px; animRoot.position.z += pz;                    // curved travel following the heading
+  }},
+  {id:'manta_bank_right', name:'Bank right', cat:'Locomotion', type:'move', dur:2.8, build:(t,P)=>{ resetPose();
+    const D=2.8, u=t/D, cyc=(t/D)*P.speed, TURN=0.85, L=2.4, sgn=-1;        // sgn<0 → heading sweeps toward −X
+    mantaFlap(cyc,P,{amp:0.4,waves:0.5,pitch:0.25});
+    sw('Hips',AX.y, sgn*TURN*smooth(u));
+    const bankEnv=envUpDown(u,0.25,0.75);
+    mantaBankLoad(sgn, bankEnv, P);
+    mantaTail(cyc,0.1*P.amp);
+    let px=0,pz=0; const K=48; for(let i=1;i<=K;i++){ const s=((i-0.5)/K)*u, th=sgn*TURN*smooth(s), seg=L*(u/K); px+=Math.sin(th)*seg; pz+=Math.cos(th)*seg; }
+    animRoot.position.x += px; animRoot.position.z += pz;
+  }},
+  {id:'manta_feed_roll', name:'Feeding barrel-roll', cat:'Action', type:'action', dur:4.0, build:(t,P)=>{ resetPose();
+    const cyc=(t/4.0)*P.speed, u=t/4.0;
+    mantaFlap(cyc,P,{amp:0.45,waves:0.5,pitch:0.3});
+    sw('Hips',AX.z, TAU*ramp(u,0.1,0.9)*P.amp);                             // one slow barrel roll (starts+ends level → loops)
+    sw('ceph',AX.z,0.5+Math.sin(TAU*cyc)*0.15); sw('R_ceph',AX.z,-0.5-Math.sin(TAU*cyc)*0.15);  // cephalic fins unfurled to funnel food
+    mantaTail(cyc,0.12*P.amp); animRoot.position.z += 0.6*(t/4.0);
+  }},
+  // DIVE — mantas descend by pitching NOSE-DOWN and swimming down at a glide angle (steady flapping, body
+  // angled ~28° below horizontal). 'dive' is carried in the Stitcher vertical, so it keeps sinking on loop.
+  {id:'manta_dive', name:'Dive', cat:'Locomotion', type:'move', dur:3.0, build:(t,P)=>{ resetPose();
+    const cyc=(t/3.0)*P.speed, u=t/3.0;
+    mantaFlap(cyc,P,{amp:0.45,waves:0.5,pitch:0.22});
+    sw('Hips',AX.x, ramp(u,0,0.3)*0.5*P.amp);                             // ease into a nose-DOWN attitude — the FACE (−Z end) drops
+    sw('ceph',AX.z,0.1); sw('R_ceph',AX.z,-0.1); mantaTail(cyc,0.1*P.amp);
+    animRoot.position.z += 1.3*(t/3.0);                                    // forward (toward the face)…
+    animRoot.position.y -= 1.3*(t/3.0);                                    // …and descending (net down, carried across loops)
+  }},
+  // BREACH — the iconic manta leap: a couple of powerful wind-up beats, then a ballistic launch clear of the
+  // surface, a full slow back-somersault in the air (wings spread), arcing over and falling back to a splash.
+  // Ballistic parabola in Y (up→apex→back down); one-shot action so it returns to the start height.
+  {id:'manta_breach', name:'Breach (leap)', cat:'Action', type:'action', dur:3.6, build:(t,P)=>{ resetPose();
+    const u=t/3.6, cyc=(t/3.6)*P.speed;
+    const windup = u<0.2 ? Math.sin(u/0.2*Math.PI) : 0;                    // 2 hard beats to build speed before launch
+    mantaFlap(cyc,P,{amp:0.45+0.6*windup, waves:0.5, pitch:0.2});
+    const air = clamp((u-0.18)/0.74, 0, 1);                               // launch ~0.18 → re-entry ~0.92
+    animRoot.position.y += 3.4*P.amp*4*air*(1-air);                        // ballistic parabola: leaps clear, falls back
+    animRoot.position.z += 1.2*u;                                         // forward momentum through the leap (toward the face)
+    sw('Hips', AX.x, -TAU*smooth(air));                                     // one full nose-UP back-somersault in the air (level at launch & splash)
+    const spread=(1-windup)*0.14; sw('fin',AX.z,spread); sw('R_fin',AX.z,-spread);   // wings spread & held for the airborne glide
+    mantaTail(cyc,0.08*P.amp);
+  }},
+  {id:'manta_idle', name:'Hover', cat:'Idle', type:'stay', dur:3.6, build:(t,P)=>{ resetPose();
+    const cyc=(t/3.6)*P.speed; mantaFlap(cyc,P,{amp:0.22,waves:0.5,pitch:0.15});  // slow shallow beat, near-stationary
+    sw('spine1',AX.x,Math.sin(TAU*cyc)*0.03*P.amp); mantaTail(cyc,0.07*P.amp);
+    sw('ceph',AX.z,0.12+Math.sin(TAU*cyc)*0.05); sw('R_ceph',AX.z,-0.12-Math.sin(TAU*cyc)*0.05);
+    animRoot.position.y += Math.sin(TAU*cyc)*0.04*P.amp;
+  }},
+];
+
+
+
+/* ===== JELLYFISH — radial bell template ===== */
+const JELLYFISH_TEMPLATE=[{"name":"apex","parent":null,"t":[0,1.7,0],"q":[0,0,0,1]},{"name":"hub","parent":"apex","t":[0,-0.45,0],"q":[0,0,0,1]},{"name":"spoke0","parent":"hub","t":[0.45,-0.1,0],"q":[0.832408,0.554163,0,0]},{"name":"rim0","parent":"spoke0","t":[0,0.596154,0],"q":[0,0,0.573809,0.818989]},{"name":"ten0a","parent":"rim0","t":[0,0.420476,0],"q":[0,0,0.070261,0.997529]},{"name":"ten0b","parent":"ten0a","t":[0,0.427551,0],"q":[0,0,0,1]},{"name":"spoke1","parent":"hub","t":[0.3182,-0.1,0.3182],"q":[0.814367,0.302212,-0.172376,0.464501]},{"name":"rim1","parent":"spoke1","t":[0,0.596143,0],"q":[0.481008,0.169381,0.312758,0.801326]},{"name":"ten1a","parent":"rim1","t":[0,0.420473,0],"q":[0.050004,-0.004168,0.049532,0.997511]},{"name":"ten1b","parent":"ten1a","t":[0,0.427559,0],"q":[0,0,0,1]},{"name":"spoke2","parent":"hub","t":[0,-0.1,0.45],"q":[0.832408,0,0,0.554163]},{"name":"rim2","parent":"spoke2","t":[0,0.596154,0],"q":[0.573809,0,0,0.818989]},{"name":"ten2a","parent":"rim2","t":[0,0.420476,0],"q":[0.070261,0,0,0.997529]},{"name":"ten2b","parent":"ten2a","t":[0,0.427551,0],"q":[0,0,0,1]},{"name":"spoke3","parent":"hub","t":[-0.3182,-0.1,0.3182],"q":[0.814367,-0.302212,0.172376,0.464501]},{"name":"rim3","parent":"spoke3","t":[0,0.596143,0],"q":[0.481008,-0.169381,-0.312758,0.801326]},{"name":"ten3a","parent":"rim3","t":[0,0.420473,0],"q":[0.050004,0.004168,-0.049532,0.997511]},{"name":"ten3b","parent":"ten3a","t":[0,0.427559,0],"q":[0,0,0,1]},{"name":"spoke4","parent":"hub","t":[-0.45,-0.1,0],"q":[0.832408,-0.554163,0,0]},{"name":"rim4","parent":"spoke4","t":[0,0.596154,0],"q":[0,0,-0.573809,0.818989]},{"name":"ten4a","parent":"rim4","t":[0,0.420476,0],"q":[0,0,-0.070261,0.997529]},{"name":"ten4b","parent":"ten4a","t":[0,0.427551,0],"q":[0,0,0,1]},{"name":"spoke5","parent":"hub","t":[-0.3182,-0.1,-0.3182],"q":[0.814367,-0.302212,-0.172376,-0.464501]},{"name":"rim5","parent":"spoke5","t":[0,0.596143,0],"q":[-0.481008,0.169381,-0.312758,0.801326]},{"name":"ten5a","parent":"rim5","t":[0,0.420473,0],"q":[-0.050004,-0.004168,-0.049532,0.997511]},{"name":"ten5b","parent":"ten5a","t":[0,0.427559,0],"q":[0,0,0,1]},{"name":"spoke6","parent":"hub","t":[0,-0.1,-0.45],"q":[-0.832408,0,0,0.554163]},{"name":"rim6","parent":"spoke6","t":[0,0.596154,0],"q":[0.573809,0,0,-0.818989]},{"name":"ten6a","parent":"rim6","t":[0,0.420476,0],"q":[-0.070261,0,0,0.997529]},{"name":"ten6b","parent":"ten6a","t":[0,0.427551,0],"q":[0,0,0,1]},{"name":"spoke7","parent":"hub","t":[0.3182,-0.1,-0.3182],"q":[0.814367,0.302212,0.172376,-0.464501]},{"name":"rim7","parent":"spoke7","t":[0,0.596143,0],"q":[-0.481008,-0.169381,0.312758,0.801326]},{"name":"ten7a","parent":"rim7","t":[0,0.420473,0],"q":[-0.050004,0.004168,0.049532,0.997511]},{"name":"ten7b","parent":"ten7a","t":[0,0.427559,0],"q":[0,0,0,1]}];
+/* ===== JELLYFISH motions — radial bell-pulse jet propulsion ===== */
+/* 8 rim spokes contract about their TANGENTIAL horizontal axis (bell squeezes → jets water down → thrust UP),
+   then relax slowly (secondary "recapture" thrust). Tentacles trail with a phase lag. +Y up; swims +Y. */
+const JELLY_N=8;
+function jellySpokes(fn){ for(let k=0;k<JELLY_N;k++){ const th=k*TAU/JELLY_N; const tan=new THREE.Vector3(Math.sin(th),0,-Math.cos(th)); fn(k,tan); } }
+const JELLYFISH_MOTIONS=[
+  // PULSE — one smooth bell cycle per clip, authored over global progress g (not a modulo phase) so it reads
+  // as a single fluid stroke and loops cleanly (state at g=1 == g=0). Recovery first (bell OPENS, scales up,
+  // tentacles LIFT), then the power stroke (bell CLOSES, scales down, tentacles LOWER) drives the body UP.
+  // Height gained during the power stroke is kept across loops (the Stitcher now carries `pulse` vertical
+  // travel), so it genuinely swims upward instead of snapping back. Bell size is a real SCALE track on `hub`.
+  {id:'jelly_pulse', name:'Pulse (swim up)', cat:'Locomotion', type:'move', dur:1.4, build:(t,P)=>{ resetPose();
+    const g=Math.min(1,(t/1.4));
+    const open = 0.5 - 0.5*Math.cos(TAU*g);        // 0 squeezed → 1 fully open at mid-clip → 0 (smooth, loops)
+    const squeeze = 1-open;
+    // The bell's SIZE change is carried mostly by a real SCALE track (0.82 squeezed → 1.14 open); the spoke
+    // fold is kept small so it dips the margin without flinging the tentacle chain, letting the tentacles'
+    // OWN rotation win — they lift/splay as the bell grows and hang straight down on the power stroke.
+    scl('hub', 0.82 + 0.32*open*P.amp);
+    jellySpokes((k,tan)=>{
+      sw('spoke'+k, tan, squeeze*0.20*P.amp); sw('rim'+k, tan, squeeze*0.45*P.amp);   // margin curls down/in on the squeeze
+      // Contracting a real bell inherently bunches its tentacles up under the margin, so rather than fight it
+      // into a kink, the trail term just cancels most of that bunching → the tentacles stream calmly below a
+      // pulsing, rising bell (splaying a touch as it opens, hanging on the power stroke) instead of flailing.
+      const lift  = open*0.50*P.amp;
+      const trail = squeeze*0.55*P.amp;
+      const lag   = Math.sin(TAU*(g-0.14))*0.05*P.amp;
+      sw('ten'+k+'a', tan, lift - trail + lag); sw('ten'+k+'b', tan, lift*0.8 - trail*1.25 + lag*1.4);
+    });
+    // vertical: ONE smooth rise per pulse. h(g)=netUp·(g − (a/τ)(sin τ(g−¼)+1)) is the integral of a velocity
+    // netUp·(1 − a·cos τ(g−¼)) that peaks during the closing power stroke (g≈0.75), never reverses, and matches
+    // itself at the loop seam (v(0)=v(1)=netUp) — so chained pulses flow with no hitch between them. h(0)=0, h(1)=netUp.
+    const netUp=1.35*P.speed, a=0.8;
+    animRoot.position.y += netUp*( g - (a/TAU)*(Math.sin(TAU*(g-0.25)) + 1) );
+  }},
+  {id:'jelly_drift', name:'Drift (hover)', cat:'Idle', type:'stay', dur:3.0, build:(t,P)=>{ resetPose();
+    const cyc=(t/3.0)*P.speed, open=0.5-0.5*Math.cos(TAU*cyc), squeeze=1-open;   // gentle shallow continuous pulse
+    scl('hub', 0.94 + 0.10*open*P.amp);            // subtle bell breathing
+    jellySpokes((k,tan)=>{ const fold=squeeze*0.30*P.amp; sw('spoke'+k,tan,fold); sw('rim'+k,tan,fold*0.5);
+      const sway=Math.sin(TAU*(cyc-0.2)+k*0.4)*0.12*P.amp;   // per-spoke tentacle sway (not perfectly in sync)
+      sw('ten'+k+'a',tan,open*0.12*P.amp+sway); sw('ten'+k+'b',tan,open*0.07*P.amp+sway*1.4); });
+    animRoot.position.y += Math.sin(TAU*cyc)*0.06*P.amp;      // gentle hover bob, stays in place
+  }},
+  // BLOOM — the bell balloons wide open (a real scale-up) and spokes splay outward like an opening umbrella,
+  // with a gentle surge, then relaxes back. Replaces the old spoke-rotate-only "big pulse".
+  {id:'jelly_bloom', name:'Bloom (big pulse)', cat:'Action', type:'action', dur:1.9, build:(t,P)=>{ resetPose();
+    const u=t/1.9, e=0.5-0.5*Math.cos(TAU*u);      // smooth bloom OUT and back, peak at mid — NO flat hold (fixes the hang)
+    scl('hub', 1.0 + 0.13*e*P.amp);                // very gentle ~1.13× bloom — subtle, no skin distortion (per Paul)
+    jellySpokes((k,tan)=>{ sw('spoke'+k,tan,-e*0.14*P.amp); sw('rim'+k,tan,-e*0.22*P.amp);   // spread OUTWARD (negative fold)
+      sw('ten'+k+'a',tan,-e*0.16*P.amp + Math.sin(TAU*u)*0.05*P.amp); sw('ten'+k+'b',tan,-e*0.12*P.amp); });
+    animRoot.position.y += 0.3*e*P.amp;            // a gentle surge with the bloom (returns to start)
+  }},
+];
+
+
 const RIGS = {
   biped:       {tpl:BIPED_TEMPLATE_M,      label:'24-bone biped rig (standard humanoid — Hips / spine / arms / legs / head).', motions:BIPED_MOTIONS},
   quad:        {tpl:QUAD_TEMPLATE, orient:QUAD_ORIENT, ground:QUAD_PAWS, label:'27-bone quadruped rig (Hips / legs / spine / tail).', motions:QUAD_MOTIONS},
@@ -6097,6 +6688,13 @@ const RIGS = {
   snake:       {tpl:SNAKE_TEMPLATE, label:'27-bone serpent — serpentine slither / idle / coil / strike.', motions:SNAKE_MOTIONS},
   dragon:      {tpl:DRAGON_TEMPLATE, orient:QUAD_ORIENT, ground:DRAGON_PAWS, label:'43-bone dragon — quad body + wings + long tail; walk / fly / glide / take-off / tail-swipe / roar / idle.', motions:DRAGON_MOTIONS},
   pegasus:     {tpl:PEGASUS_TEMPLATE, orient:QUAD_ORIENT, ground:PEGASUS_PAWS, label:'36-bone pegasus — winged horse (quad body + wings); walk / gallop / fly / glide / take-off / rear / idle.', motions:PEGASUS_MOTIONS},
+  reptile:     {tpl:REPTILE_TEMPLATE, ground:REPTILE_PAWS, label:'29-bone reptile (alligator / crocodile / lizard) — sprawling quad + long tail + opening jaw; belly-crawl / high-walk / sprawl-walk / run / swim / bask / gape / bite / tail-thrash / death-roll.', motions:REPTILE_MOTIONS},
+  frog:        {tpl:FROG_TEMPLATE, ground:FROG_PAWS, label:'21-bone frog — squat amphibian; crouch→hind-leg-catapult hop.', motions:FROG_MOTIONS},
+  rabbit:      {tpl:RABBIT_TEMPLATE, ground:RABBIT_PAWS, label:'25-bone rabbit/hare — upright; bounding hop w/ spine flex + ear bounce.', motions:RABBIT_MOTIONS},
+  crab:        {tpl:CRAB_TEMPLATE,    label:'36-bone crab — wide carapace + 8 sideways legs + 2 claws + eyestalks; scuttle / walk / menace / dig.', motions:CRAB_MOTIONS},
+  lobster:     {tpl:LOBSTER_TEMPLATE, label:'41-bone lobster — cephalothorax + segmented abdomen + tail fan + 2 claws + antennae; walk / caridoid tail-flip / display / swim.', motions:LOBSTER_MOTIONS},
+  manta:       {tpl:MANTA_TEMPLATE,   label:'21-bone manta ray — flat disc + 2 oscillating pectoral fins + cephalic fins + tail; cruise / glide / bank / feeding barrel-roll / hover.', motions:MANTA_MOTIONS},
+  jellyfish:   {tpl:JELLYFISH_TEMPLATE, label:'34-bone jellyfish — radial bell (8 pulsing rim spokes) + trailing tentacles; pulse-jet swim / drift / bloom.', motions:JELLYFISH_MOTIONS},
 };
 
 // ===== State + playback =====
@@ -6165,7 +6763,7 @@ function armClearance(){
 const BAKE_FPS=30;
 function bakeClip(m, D, params){
   const n=Math.max(2,Math.round(D*BAKE_FPS)); const times=[]; for(let i=0;i<n;i++) times.push(i/BAKE_FPS);
-  const q={}; for(const bn of boneList) q[bn]=[]; const root=[]; const noseF=[];
+  const q={}, sc={}; for(const bn of boneList){ q[bn]=[]; sc[bn]=[]; } const root=[]; const noseF=[];
   // Head-to-ground clips also carry the NOSE HEIGHT as a fraction of its standing height (1 = standing, 0 = on the floor), so
   // the Stitcher can solve each character's own neck to that height — joint angles alone land a rhino's low-hung head under
   // the ground and a horse's long neck short of it.
@@ -6174,7 +6772,7 @@ function bakeClip(m, D, params){
   for(let i=0;i<n;i++){ setRootY(0); animRoot.position.set(0,0,0); m.build(times[i], params); armClearance(); animRoot.updateMatrixWorld(false);
     if(noseRest) noseF.push(+QHD_FRAC.toFixed(4));
     if(m.lie) lieF.push(+QLIE_FRAC.toFixed(4));
-    for(const bn of boneList){ const b=boneByName[bn]; q[bn].push(b.quaternion.x,b.quaternion.y,b.quaternion.z,b.quaternion.w); }
+    for(const bn of boneList){ const b=boneByName[bn]; q[bn].push(b.quaternion.x,b.quaternion.y,b.quaternion.z,b.quaternion.w); sc[bn].push(b.scale.x,b.scale.y,b.scale.z); }
     root.push(animRoot.position.x, animRoot.position.y, animRoot.position.z);
   }
   resetPose();
@@ -6196,6 +6794,10 @@ function bakeClip(m, D, params){
     const vals=[]; for(let i=0;i<n;i++) vals.push((base.x+root[i*3])*100, (base.y+root[i*3+1])*100, (base.z+root[i*3+2])*100);
     tracks.push({ name:rootBone+'.position', type:'vector', times:times.slice(), values:vals });
   }
+  // BONE SCALE — baked only for bones that actually change scale (jellyfish bell pulse/bloom). The rig's
+  // rest scale is 1, so the values are the raw multipliers; the Stitcher retarget maps them by bone name
+  // and applies scale on top of the target's own rest scale (identity for our meshes).
+  for(const bn of boneList){ if(sc[bn].some(v=>Math.abs(v-1)>1e-4)) tracks.push({ name:bn+'.scale', type:'vector', times:times.slice(), values:sc[bn] }); }
   const out={ name:'RigAnimator|'+m.name, duration:D, tracks, uuid:crypto.randomUUID(), blendMode:2500 };
   if(noseRest && noseF.length===n) out.nose={ times:times.slice(), frac:noseF };
   if(m.lie && lieF.length===n) out.lie={ times:times.slice(), frac:lieF };   // lying intent: the Stitcher rests the belly/flank on the floor when this is 1
@@ -6247,6 +6849,52 @@ function exportPack(){
   const a=$('#dl'); a.href=URL.createObjectURL(blob); a.download='rig-anim-pack.json'; a.click();
   $('#status').textContent='Downloaded rig-anim-pack.json — run the merge script to add it to GLB Stitcher.';
 }
+
+// ===== Dev/automation hook: bake a whole rig's motions headlessly (natural dur, 1× amp/speed) =====
+// Returns {skeletons, motions, clips, poses} in the SAME shape as an exported pack, so a script can
+// merge/replace it into library-ksol without click-through. Used for the marine motion-fix loop.
+window.__ra = {
+  rigs(){ return Object.keys(RIGS); },
+  motionsOf(k){ return (RIGS[k]?RIGS[k].motions:[]).map(m=>({id:m.id,name:m.name,dur:m.dur,type:m.type,cat:m.cat})); },
+  bakeRig(k){
+    if(!RIGS[k]) throw new Error('no rig '+k);
+    setRig(k);
+    const params={speed:1,amp:1};
+    const sk=skeletonEntry();
+    const out={ skeletons:{}, motions:[], clips:{}, poses:{}, sig:sk.sig };
+    out.skeletons[sk.sig]={ boneNames:sk.boneNames, rest:sk.rest, rootWorldQ:sk.rootWorldQ };
+    for(const m of RIGS[k].motions){
+      const D=m.dur;
+      const id='ra_'+k+'_'+m.id+'_'+Math.round(D*100)+'_'+Math.round(params.amp*100)+'_'+Math.round(params.speed*100);
+      out.motions.push({ id, name:m.name, type:m.type, tags:[m.type,k].concat(m.cat?[m.cat.toLowerCase()]:[]), cat:m.cat||'', sig:sk.sig, duration:D });
+      out.clips[id]=bakeClip(m,D,params);
+      out.poses[id]=poseSig(m,D,params);
+    }
+    resetPose();
+    return out;
+  },
+  // bone probe: a bone's WORLD position at rest vs at motion time t (to verify claw-up, pitch, etc.)
+  boneAt(k, motionId, t, bone){ setRig(k); const m=RIGS[k].motions.find(x=>x.id===motionId);
+    const get=(tt,build)=>{ resetPose(); setRootY(0); animRoot.position.set(0,0,0); if(build&&m) m.build(tt,{speed:1,amp:1}); animRoot.updateMatrixWorld(true);
+      const b=boneByName[bone]; if(!b) return null; b.updateWorldMatrix(true,false); const e=b.matrixWorld.elements; return {x:+e[12].toFixed(3),y:+e[13].toFixed(3),z:+e[14].toFixed(3)}; };
+    const rest=get(0,false), pose=get(t,true); resetPose();
+    if(!rest||!pose) return {bone, err:'no bone'};
+    return { bone, rest, pose, dX:+(pose.x-rest.x).toFixed(3), dY:+(pose.y-rest.y).toFixed(3), dZ:+(pose.z-rest.z).toFixed(3) }; },
+  bones(k){ setRig(k); return Object.keys(boneByName); },
+  // travel probe: net root displacement of a motion over its duration (world units), to verify direction fixes
+  travelOf(k,motionId){ setRig(k); const m=RIGS[k].motions.find(x=>x.id===motionId); if(!m) return null;
+    const s=(t)=>{ setRootY(0); animRoot.position.set(0,0,0); m.build(t,{speed:1,amp:1}); animRoot.updateMatrixWorld(false); return {x:animRoot.position.x,y:animRoot.position.y,z:animRoot.position.z}; };
+    const a=s(0.0001), b=s(m.dur*0.999); resetPose();
+    return { id:motionId, dx:+(b.x-a.x).toFixed(3), dy:+(b.y-a.y).toFixed(3), dz:+(b.z-a.z).toFixed(3) }; },
+  // scale probe: a bone's LOCAL scale at motion time t (to verify bell-scale tracks author correctly)
+  scaleAt(k, motionId, t, bone){ setRig(k); const m=RIGS[k].motions.find(x=>x.id===motionId);
+    resetPose(); setRootY(0); animRoot.position.set(0,0,0); if(m) m.build(t,{speed:1,amp:1});
+    const b=boneByName[bone]; const r=resetPose; const out=b?{x:+b.scale.x.toFixed(4),y:+b.scale.y.toFixed(4),z:+b.scale.z.toFixed(4)}:{err:'no bone'}; resetPose(); return {bone,t,scale:out}; },
+  // list a baked clip's track names + types (confirms .scale tracks made it into the bake)
+  clipTracks(k, motionId){ setRig(k); const m=RIGS[k].motions.find(x=>x.id===motionId); if(!m) return null;
+    const c=bakeClip(m,m.dur,{speed:1,amp:1}); resetPose();
+    return c.tracks.map(tr=>({name:tr.name,type:tr.type,n:tr.values.length})); }
+};
 
 // ===== Wire UI =====
 $('#rigSeg').addEventListener('click',e=>{ const b=e.target.closest('button'); if(b) setRig(b.dataset.rig); });

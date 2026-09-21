@@ -519,6 +519,15 @@
       keys.forEach(k => { if (biome[k] === B.MOUNTAINS) mtnMass[k] = Math.min(1, (dist[k] || 1) / maxd); });
     }
 
+    /* ---- 5d. MOAT + drawbridge around the castle (toggle) — ring the castle grounds with water; where the
+       castle's road crosses the ring the road rides over the water = a drawbridge (renderer bridges it). ---- */
+    if (opts.moat && castle && castleCells.size){
+      const moatRing = new Set();
+      for (const k of castleCells) for (const { k: nk } of nbrs(k)) if (!castleCells.has(nk) && !settleSet.has(nk) && !townCells.has(nk)) moatRing.add(nk);
+      for (const nk of moatRing){ if (mtnSet.has(nk)) continue;                         // don't drown a mountain
+        biome[nk] = B.WATER; feature[nk] = (edges[nk] && edges[nk].includes(P.ROAD)) ? undefined : 'water'; }   // road-over-water cell = drawbridge
+    }
+
     /* ---- 6. realise every cell as a connector-exact tile ---- */
     const defaultFeature = (bm) => ({ plains: 'tufts', forest: 'trees', mountains: 'peaks', village: 'houses', city: 'buildings', water: 'water' })[bm];
     board.clear();
@@ -627,14 +636,18 @@
       }
     }
 
-    // MOAT + DRAWBRIDGE (toggle) — a water ring just inside the curtain wall; where a road crosses it the road
-    // rides over the water = a drawbridge (the tile renderer draws roads-over-water as a bridge automatically).
+    // MOAT + DRAWBRIDGE (toggle) — ring the castle grounds with a water moat just INSIDE the outermost ring of
+    // cells (a band hugging the curtain wall), leaving the wall itself on the border. Where a road crosses the
+    // moat the road rides over the water = a drawbridge (the renderer bridges roads-over-water automatically).
     if (opts.moat && type !== 'village'){
-      const lo = 0.70, hi = 0.86;                                   // the moat band (fraction of the radius)
-      for (const k of keys){ if (k === centerK || isBorder(k)) continue; const rr = dCentre(k) / maxR;
-        if (rr < lo || rr > hi) continue;
-        biome[k] = B.WATER;                                          // moat; street cells keep their P.ROAD edges → render as a drawbridge
-        feature[k] = street.has(k) ? undefined : 'water';           // (a road-over-water tile bridges itself; plain moat gets the water feature)
+      for (const k of keys){ if (k === centerK) continue;
+        // moat = a non-border cell that touches the border (the ring one in from the edge) → a clean water ring
+        // hugging the wall, so it reads as a moat around the castle rather than a puddle in the middle.
+        if (isBorder(k)) continue;
+        const touchesEdge = nbrs(k).some(n => isBorder(n.k)) || offDirs(k).length>0;
+        if (!touchesEdge) continue;
+        biome[k] = B.WATER;
+        feature[k] = street.has(k) ? undefined : 'water';           // road-over-water = drawbridge; else plain moat
       }
     }
 

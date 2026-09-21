@@ -402,7 +402,9 @@
         <span class="mini">×</span>
         <input type="number" id="bTownH" value="10" min="3" max="60" style="width:56px" title="How many cells tall">
         <span class="mini">cells — each map piece shows the portion that falls on it; <b>Extend</b> reveals the rest.</span>
-        <label class="row" style="gap:5px;cursor:pointer;margin-left:4px"><input type="checkbox" id="bMoat"> <span class="mini">🏰 Moat + drawbridge <span style="opacity:.6">(castle/town)</span></span></label>
+      </div>
+      <div class="row wrap" id="bMoatRow" style="align-items:center;display:none">
+        <label class="row" style="gap:5px;cursor:pointer"><input type="checkbox" id="bMoat"> <span class="mini">🏰 Moat + drawbridge <span style="opacity:.6">(rings the castle with water + a drawbridge)</span></span></label>
       </div>
       <div class="row wrap" style="align-items:center">
         <label class="fld" style="margin:0">🍂 Season</label>
@@ -843,7 +845,7 @@ import * as Cards from './cards-deck.js';
 
 const BGC = window.BGC, GAMES = window.BGC_GAMES;
 const TE = window.TileEngine, TLIB = window.TileLibrary;
-const APP_VERSION = 'v0.67';
+const APP_VERSION = 'v0.68';
 const CREDITS = `<b>Ksol Designs</b> — Paul A.T. Ramey<br>www.ksoldesigns.com<br>Built with GLB Studio · Tabletop<br><span class="ver">${APP_VERSION}</span>`;
 // ---- Board credit: a small "KSOL Designs" mark on the board for the FREE build. Owning ANY content pack
 // (TTier expansion) unlocks removing it (⚙ Settings toggle, or click the credit). ----
@@ -3657,7 +3659,20 @@ function bRevealSettlePlan(){                                             // fil
   const foot=bFillCells(), revealed=new Set(), ground=[]; bld.board.clear();
   for(const c of foot){ const k=TE.keyOf(c);
     if(_settlePlan.tiles.has(k)){ bld.board.set(k, {..._settlePlan.tiles.get(k)}); revealed.add(k); } else ground.push(c); }
-  if(ground.length) TE.generateBiomeFill(bld.grid, bld.board, ground, bDefs(), {seed:_settlePlan.seed, biome:_settleGroundBiome(), append:true});   // surrounding land follows Extend-with terrain
+  if(ground.length){
+    const gb=_settleGroundBiome();
+    if(gb==='green'){
+      // DEFAULT countryside surround → VARIED (grass base with coherent forest / orchard / field patches) instead of
+      // one flat green that reads as an out-of-scale texture. Low-frequency noise → contiguous regions; group the
+      // cells by biome and fill each group (reuses the tile realizer). A specific Extend-with terrain stays uniform.
+      const g=bGridObj(), groups={plains:[],forest:[],orchard:[],crops:[]};
+      for(const c of ground){ const w=g.world(c);
+        const n=(Math.sin(w.x*0.55)+Math.cos(w.z*0.5)+Math.sin((w.x+w.z)*0.31)+Math.cos((w.x-w.z)*0.37))/4;   // ≈ -1..1 coherent noise
+        const v=(n+1)/2;
+        groups[v<0.26?'forest':v<0.4?'orchard':v<0.5?'crops':'plains'].push(c); }
+      for(const b in groups) if(groups[b].length) TE.generateBiomeFill(bld.grid, bld.board, groups[b], bDefs(), {seed:_settlePlan.seed, biome:b, append:true});
+    } else TE.generateBiomeFill(bld.grid, bld.board, ground, bDefs(), {seed:_settlePlan.seed, biome:gb, append:true});
+  }
   bld.draw = bClipStrokesToRevealed(_settlePlan.walls, revealed);
   bld.props = (_settlePlan.props||[]).filter(p=>{ const g=bGridObj(); for(const k of revealed){ const [q,r]=k.split(',').map(Number); const w=g.world({q,r}); if((w.x-p.x)**2+(w.z-p.z)**2<=0.5*0.5) return true; } return false; }).map(p=>({...p, rot:p.rot||0}));
   return revealed.size; }
@@ -3686,7 +3701,8 @@ function bGenerateMap(){ bPushUndo();
     bStatus(`Planned a <b>${w}×${h}</b> <b>${SETTLE_THEMES[bld.theme]}</b> <b>#${bld.seed}</b> (${plan.buildings} buildings)${partial?` — this piece shows <b>${shown} of ${total}</b> cells; <b>Extend</b> (◀▶▲▼${TGC_HEXMAT[bld.tgc]?' or a ＋ slot':''}) reveals the rest`:''} · press <b>✨ Generate</b> for another`); return;
   }
   const townSize=Math.max(0,parseInt(document.getElementById('bGenTownSize')?.value)||0);
-  const r=TE.generateMap(bld.grid, bld.board, bFillCells(), bDefs(), {seed:bld.seed, theme:bld.theme, stream:bld.genStream, road:bld.genRoad, battle:bld.scale==='battle', townSize});
+  const moat=!!document.getElementById('bMoat')?.checked;
+  const r=TE.generateMap(bld.grid, bld.board, bFillCells(), bDefs(), {seed:bld.seed, theme:bld.theme, stream:bld.genStream, road:bld.genRoad, battle:bld.scale==='battle', townSize, moat});
   bld.draw = Array.isArray(r.draw) ? r.draw : []; bld.pen=[]; bld.props=[]; bld.selStroke=null; bld.selProp=null; if(TGC_HEXMAT[bld.tgc]) bTrimToHexMatShape(); bRender(); bFit();
   const themeName = ({mixed:'Mixed',forest:'Forest',grassland:'Grassland',desert:'Desert',mountains:'Mountains',wetlands:'Wetlands'})[bld.theme]||bld.theme;
   bStatus(`Generated <b>${themeName}</b> map <b>#${bld.seed}</b> — ${Math.max(0,r.settlements)} settlement${r.settlements===1?'':'s'}, ${r.rivers} stream${r.rivers===1?'':'s'} · press <b>✨ Generate</b> for another, or type a <b>seed</b> to revisit one`); }
@@ -4682,7 +4698,9 @@ document.getElementById('bBlend').onchange=(e)=>{ bld.blend=e.target.checked; };
 document.getElementById('bTheme').onchange=(e)=>{ bld.theme=e.target.value; bSyncTownSizeRow(); };
 function bSyncTownSizeRow(){ const row=document.getElementById('bTownSizeRow'); if(row) row.style.display = SETTLE_THEMES[bld.theme] ? '' : 'none';
   // the generated-map town-size control shows for the scatter-settlement themes (mixed/terrain), not whole-map settlement themes or single-biome fills
-  const gr=document.getElementById('bGenTownRow'); if(gr) gr.style.display = (SETTLE_THEMES[bld.theme] || String(bld.theme).startsWith('biome:')) ? 'none' : ''; }
+  const gr=document.getElementById('bGenTownRow'); if(gr) gr.style.display = (SETTLE_THEMES[bld.theme] || String(bld.theme).startsWith('biome:')) ? 'none' : '';
+  // moat toggle: relevant wherever a castle can appear — the 🏰 Castle/🏘 Town themes, or a generated map (mixed/terrain) that may drop a castle. Not villages or single-biome fills.
+  const mr=document.getElementById('bMoatRow'); if(mr){ const th=String(bld.theme); mr.style.display = (th==='castle'||th==='town'|| (!SETTLE_THEMES[bld.theme] && !th.startsWith('biome:'))) ? '' : 'none'; } }
 document.getElementById('bGenStream').onchange=(e)=>{ bld.genStream=e.target.checked; };
 document.getElementById('bGenRoad').onchange=(e)=>{ bld.genRoad=e.target.checked; };
 document.getElementById('bExtTerrain').onchange=(e)=>{ bld.extTerrain=e.target.value; };
