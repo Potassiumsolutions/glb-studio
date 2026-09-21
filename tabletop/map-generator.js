@@ -576,6 +576,7 @@
     const biome = {}, edges = {}, feature = {};
     keys.forEach(k => { biome[k] = B.GREEN; edges[k] = new Array(N).fill(P.NONE); });
     function setEdge(k, dir, path){ edges[k][dir] = path; const nk = keyOf(g.step(cellOf[k], dir)); if (cset.has(nk)) edges[nk][g.opposite(dir)] = path; }
+    function clearRoadEdge(k, dir){ if (edges[k][dir] !== P.ROAD) return; edges[k][dir] = P.NONE; const nk = keyOf(g.step(cellOf[k], dir)); if (cset.has(nk)) edges[nk][g.opposite(dir)] = P.NONE; }
     function dirTo(a, b){ for (let d = 0; d < N; d++) if (keyOf(g.step(cellOf[a], d)) === b) return d; return -1; }
     function dj(src, dst){ const dist = { [src]: 0 }, prev = {}, pq = [[0, src]];
       while (pq.length){ pq.sort((a, b) => a[0] - b[0]); const [d, k] = pq.shift(); if (k === dst) break; if (d > (dist[k] ?? 1e9)) continue;
@@ -602,8 +603,13 @@
       for (let i = 0; i < nSpokes && byAngle.length; i++) targets.add(byAngle[Math.floor(i * byAngle.length / nSpokes)]);
       for (const t of targets){ if (t !== centerK) layRoad(dj(centerK, t)); }
     }
-    // the gate road spills off the board (so the wall leaves a real gateway there)
-    { const od = offDirs(gate); if (od.length) setEdge(gate, od[ri(od.length)], P.ROAD); street.add(gate); }
+    // the MAIN GATE road continues OFF THE MAP — pick the off-board direction pointing away from the centre so
+    // the castle always has one real road leaving the board edge (never a dead-end; it also extends cleanly).
+    { const od = offDirs(gate);
+      if (od.length){ let best = od[0], bestDot = -Infinity;
+        for (const d of od){ const em = g.edgeMid(d), dot = em[0] * (pos[gate].x - cx) + em[1] * (pos[gate].z - cz);
+          if (dot > bestDot){ bestDot = dot; best = d; } }
+        setEdge(gate, best, P.ROAD); street.add(gate); } }
 
     // centre: castle keep, or an open plaza for a town/village
     biome[centerK] = (type === 'castle') ? B.CITY : B.GREEN;
@@ -641,9 +647,14 @@
     // pool inside the keep. Where the gate road crosses the moat the road rides over water = a drawbridge.
     const moatOn = opts.moat && type !== 'village';
     if (moatOn){
-      for (const k of keys){ if (!isBorder(k)) continue;                 // the plan's outer edge = the moat ring
+      // the plan's outer ring becomes the water moat. Only the GATE keeps a road across it (a drawbridge that
+      // continues off the map). Every other radial spoke that reached the edge would otherwise dead-end in the
+      // moat just outside the wall — strip its road so the moat reads as solid water, not roads-to-nowhere.
+      for (const k of border){
         biome[k] = B.WATER;
-        feature[k] = street.has(k) ? undefined : 'water';               // gate road over water = drawbridge; else plain moat
+        if (k === gate){ feature[k] = undefined; continue; }             // gate = drawbridge (road rides over water)
+        for (let d = 0; d < N; d++) clearRoadEdge(k, d);                 // remove the dead-end spoke on both sides
+        street.delete(k); feature[k] = 'water';                          // solid moat
       }
     }
 
