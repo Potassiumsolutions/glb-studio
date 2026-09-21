@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>🎲 Tabletop — KSOL GLB Studio</title>
+<!-- card designer display fonts (used by the 🃏 Cards tab; degrade to system fonts offline) -->
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=UnifrakturMaguntia&family=Roboto+Slab:wght@400;700&family=IM+Fell+English&display=swap" rel="stylesheet">
 <style>
   :root{ --bg:#14161c; --panel:#1c1f28; --panel2:#232734; --line:#333a49; --txt:#e7eaf0; --mut:#9aa3b4; --acc:#4f8cff; --acc2:#00d0a4; --warn:#ff5d6c; }
   *{box-sizing:border-box}
@@ -146,6 +149,22 @@
   #mapPicker .styb.on,#mapPicker .shpb.on{background:var(--acc);color:#08101f;border-color:var(--acc)}
   #mapPicker .grow{flex:1}
   /* ---- Cards deck designer ---- */
+  /* ---- shared image cropper (cards + tiles) ---- */
+  #cropModal{position:fixed;inset:0;background:rgba(4,6,10,.82);z-index:200;display:none;align-items:center;justify-content:center;padding:16px}
+  #cropModal.on{display:flex}
+  #cropCard{background:var(--panel,#12161d);border:1px solid var(--line,#2a3340);border-radius:14px;box-shadow:0 24px 70px rgba(0,0,0,.6);width:min(940px,96vw);max-height:94vh;display:flex;flex-direction:column;overflow:hidden}
+  #cropCard h3{margin:0;padding:12px 16px;font-size:15px;border-bottom:1px solid var(--line,#2a3340);display:flex;align-items:center;gap:8px;color:var(--txt)}
+  #cropCard h3 .x{margin-left:auto;cursor:pointer;opacity:.7;font-size:18px;background:none;border:none;color:var(--txt)}
+  #cropBody{display:flex;gap:14px;padding:14px 16px;overflow:auto;flex-wrap:wrap}
+  #cropStage{position:relative;flex:1 1 480px;min-width:300px;min-height:340px;background:#0b0e13;border:1px solid var(--line,#2a3340);border-radius:8px;overflow:hidden;display:flex;align-items:center;justify-content:center}
+  #cropCanvas{max-width:100%;max-height:60vh;touch-action:none;cursor:crosshair;display:block}
+  #cropHint{position:absolute;inset:auto 0 8px 0;text-align:center;pointer-events:none;color:#cfd6e0;font-size:13px;opacity:.9;text-shadow:0 1px 3px #000}
+  #cropSide{flex:0 0 220px;display:flex;flex-direction:column;gap:10px}
+  #cropPrevWrap{background:#0b0e13;border:1px solid var(--line,#2a3340);border-radius:8px;padding:10px;display:flex;flex-direction:column;align-items:center;gap:6px}
+  #cropPrev{max-width:100%;border-radius:6px;background:#fff}
+  #cropDrop{border:2px dashed var(--line,#2a3340);border-radius:8px;padding:16px;text-align:center;font-size:12px;color:var(--mut);cursor:pointer}
+  #cropDrop.hot{border-color:var(--acc,#b8933f);color:var(--txt)}
+  #cropFoot{display:flex;gap:8px;justify-content:flex-end;padding:12px 16px;border-top:1px solid var(--line,#2a3340)}
   #cardsStage{position:absolute;inset:0;background:radial-gradient(circle at 50% 30%,#1a1f27,#0b0d11);display:flex;flex-direction:column;z-index:20}
   #cardsBar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 12px;border-bottom:1px solid var(--line);background:rgba(10,12,16,.6)}
   #cardsBar .cnav{display:inline-flex;align-items:center;gap:6px;color:var(--txt);font-size:13px}
@@ -546,6 +565,7 @@
           <button data-v="auto" class="on">Auto</button><button data-v="0">1</button><button data-v="1">2</button><button data-v="2">3</button>
         </div>
         <button class="btn sec" id="bRepaintTool">🖌 Repaint: off</button>
+        <button class="btn sec" id="bImageTool">🖼 Tile image: off</button>
       </div>
       <div class="mini" style="margin:2px 0 6px">Plains, forest, rocky &amp; sand each have 3 painted looks; <b>mountains</b> have 2 — <b>1</b> rocky, <b>2</b> ❄️ snow-capped peaks. <b>Auto</b> keeps one coherent look per map (mountains stay rocky under Auto; 🌲 Winter snow-caps them all); pick 1–3 to force one everywhere. Turn on <b>🖌 Repaint</b> then click any tile to overwrite just that tile's look — with <b>Auto</b> selected each click cycles that tile through the looks, so click a mountain to toggle its snowcap and place peaks exactly where you want them.</div>
       <label class="fld">Tiles — click one, then click a cell to place it · <b>R</b> rotate · <b>Shift</b>+right-click removes. <span class="mini">(Roads &amp; rivers are drawn on with the ✏️ Draw tool — pick a base terrain here.)</span></label>
@@ -581,7 +601,25 @@
       </div>
       <div class="row wrap">
         <div style="flex:1"><label class="fld">Frame</label>
-          <select id="cFrame"><option value="scroll">Gilt scroll border</option><option value="plain">Plain keyline</option></select></div>
+          <select id="cFrame"><option value="scroll">Gilt scroll border</option><option value="plain">Plain keyline</option><option value="custom">Custom (uploaded)</option></select></div>
+        <div style="flex:1"><label class="fld">Font <span style="opacity:.6">(suits follow it)</span></label>
+          <select id="cFont"></select></div>
+      </div>
+      <div id="cFramePanel" style="display:none;border:1px solid var(--line);border-radius:8px;padding:9px;margin-top:2px">
+        <button class="btn sec" id="cFrameUpload" style="width:100%">⬆ Upload frame image</button>
+        <div class="mini" id="cFrameStatus" style="color:var(--mut);margin-top:5px">No custom frame yet — upload a PNG with an empty centre, or use the prompt-builder below.</div>
+        <details style="margin-top:8px"><summary class="mini" style="cursor:pointer;color:var(--acc)">🪄 Frame prompt-builder (make one in Gemini)</summary>
+          <div class="row wrap" style="margin-top:7px;gap:6px">
+            <select id="cfStyle" style="flex:1;min-width:110px"><option value="baroque">Baroque scroll</option><option value="nouveau">Art Nouveau</option><option value="celtic">Celtic knot</option><option value="deco">Art Deco</option><option value="floral">Rococo floral</option><option value="gothic">Gothic / cathedral</option><option value="runic">Norse / runic</option><option value="mechanical">Steampunk gears</option><option value="minimal">Clean minimal line</option><option value="botanical">Botanical vines</option></select>
+            <select id="cfMetal" style="flex:1;min-width:90px"><option value="gold">Gold</option><option value="silver">Silver</option><option value="bronze">Bronze / copper</option><option value="black on cream">Black on cream</option><option value="rose gold">Rose gold</option><option value="verdigris">Verdigris</option></select>
+            <select id="cfMotif" style="flex:1;min-width:100px"><option value="acanthus scrollwork">Acanthus scrolls</option><option value="vines and leaves">Vines & leaves</option><option value="interlacing knots">Interlacing knots</option><option value="geometric rays">Geometric rays</option><option value="roses and filigree">Roses & filigree</option><option value="gears and rivets">Gears & rivets</option><option value="runes and knotwork">Runes & knotwork</option><option value="stars and moons">Stars & moons</option></select>
+            <select id="cfThick" style="flex:1;min-width:90px"><option value="slim">Slim border</option><option value="medium" selected>Medium border</option><option value="thick">Thick border</option></select>
+          </div>
+          <textarea id="cfPrompt" rows="5" style="width:100%;margin-top:7px;font-size:12px;background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:7px;padding:7px"></textarea>
+          <button class="btn sec" id="cfCopy" style="width:100%;margin-top:4px">📋 Copy prompt</button>
+          <div class="mini" style="color:var(--mut);margin-top:5px">Paste into Gemini (or any image AI) → generate → then <b>⬆ Upload frame image</b> above. The empty centre is detected automatically.</div>
+        </details>
+        <input type="file" id="cFrameFile" accept="image/*" hidden>
       </div>
       <div class="row wrap">
         <div style="flex:1"><label class="fld">Accent (gold)</label><input type="color" id="cAccent" value="#b8933f" style="width:100%"></div>
@@ -641,6 +679,19 @@
       <div id="cardsView"></div>
       <div id="cardsCaption" class="mini"></div>
     </div>
+    <div id="cropModal"><div id="cropCard">
+      <h3><span id="cropTitle">Crop image</span><button class="x" id="cropX" title="Close">✕</button></h3>
+      <div id="cropBody">
+        <div id="cropStage"><canvas id="cropCanvas"></canvas><div id="cropHint">Drag a rectangle across the image →</div></div>
+        <div id="cropSide">
+          <div id="cropPrevWrap"><div class="mini">Live preview</div><canvas id="cropPrev" width="150" height="210"></canvas></div>
+          <div id="cropDrop">📁 Choose · drop · paste an image<input type="file" id="cropFile" accept="image/*" hidden></div>
+          <label id="cropToggleRow" class="mini" style="display:none;align-items:center;gap:6px;cursor:pointer;color:var(--txt)"><input type="checkbox" id="cropToggle"><span id="cropToggleLbl"></span></label>
+          <div class="mini" id="cropNote" style="color:var(--mut)"></div>
+        </div>
+      </div>
+      <div id="cropFoot"><button class="btn sec" id="cropCancel">Cancel</button><button class="btn" id="cropUse">✓ Use this crop</button></div>
+    </div></div>
     <div id="loadwrap"><div class="spin"></div><div class="mini">Loading board…</div></div>
     <div id="status">…</div>
     <div id="diceBar" hidden>
@@ -786,7 +837,7 @@ import * as Cards from './cards-deck.js';
 
 const BGC = window.BGC, GAMES = window.BGC_GAMES;
 const TE = window.TileEngine, TLIB = window.TileLibrary;
-const APP_VERSION = 'v0.57';
+const APP_VERSION = 'v0.63';
 const CREDITS = `<b>Ksol Designs</b> — Paul A.T. Ramey<br>www.ksoldesigns.com<br>Built with GLB Studio · Tabletop<br><span class="ver">${APP_VERSION}</span>`;
 // ---- Board credit: a small "KSOL Designs" mark on the board for the FREE build. Owning ANY content pack
 // (TTier expansion) unlocks removing it (⚙ Settings toggle, or click the credit). ----
@@ -1729,7 +1780,7 @@ renderer.domElement.addEventListener('pointerdown', (ev)=>{
     if(typeof bClosePropMenu==='function') bClosePropMenu();   // a fresh click on the board dismisses the prop edit menu
     if(PLAYB){ bPlayClick(ev); return; }
     // With NO click-tool active, clicking a placed prop ARMS a live drag-to-move (needs pointerdown + pointermove).
-    const clickTool = bld.tool||bld.propKind||bld.propGlb||bld.subPaintOn||bld.repaintOn||bld.subTool||bld.sel;
+    const clickTool = bld.tool||bld.propKind||bld.propGlb||bld.subPaintOn||bld.repaintOn||bld.imgToolOn||bld.subTool||bld.sel;
     if(!clickTool){ const pi=bPickProp(ev);                    // click a placed prop to select it; drag to MOVE it (Delete removes)
       if(pi>=0){ bSelectPropAt(pi); const pr=bld.props[pi], gp=bPickPoint(ev);
         bld.dragProp=pi; bld._dragMoved=false; bld._dragGrab=gp?{dx:pr.x-gp.x, dz:pr.z-gp.z}:{dx:0,dz:0};
@@ -1783,6 +1834,7 @@ function bBuildClick(ev){
   if(bld.tool==='measure'){ bMeasureClick(ev); return; }
   if(bld.subPaintOn){ bSubPaintAt(ev); return; }
   if(bld.repaintOn){ bRepaintAt(ev); return; }
+  if(bld.imgToolOn){ bImageAt(ev); return; }
   if(bld.subTool){ bSubdivideAt(ev); return; }
   if(bld.tool==='erase'){ bEraseAt(ev); return; }
   if(bld.tool){ bDrawClickNode(ev); return; }
@@ -2600,7 +2652,7 @@ function bBuildPropTools(){ const el=document.getElementById('bPropTools'); if(!
   for(const k of PROP_KINDS){ const b=document.createElement('button'); b.className='btn sec bproptool'+(bld.propKind===k?' on':'');
     b.dataset.prop=k; b.textContent=PROP_LABEL[k]||k; b.onclick=()=>bSelectPropKind(k); el.appendChild(b); }
   if(typeof bMiniSync==='function') bMiniSync(); if(typeof bMeasureSync==='function') bMeasureSync(); }
-function bSelectPropKind(k){ bld.propKind=(bld.propKind===k)?null:k; if(bld.propKind){ bld.propGlb=null; bld.tool=null; bld.sel=null; bld.selStroke=null; bld.selProp=null; bRepaintOff(); bSubToolOff();
+function bSelectPropKind(k){ bld.propKind=(bld.propKind===k)?null:k; if(bld.propKind){ bld.propGlb=null; bld.tool=null; bld.sel=null; bld.selStroke=null; bld.selProp=null; bRepaintOff(); bImageToolOff(); bSubToolOff();
     document.querySelectorAll('#bDrawTools .bdtool').forEach(x=>x.classList.remove('on')); bHover.visible=false; }
   bBuildPropTools(); if(typeof bBuildLibList==='function') bBuildLibList(); bRender();
   bStatus(bld.propKind ? `Prop: <b>${PROP_LABEL[bld.propKind]||bld.propKind}</b> — click a cell to drop it (${bld.propMode.toUpperCase()} · ${bld.propScale.toFixed(1)}×)` : 'Prop tool off'); }
@@ -2728,7 +2780,7 @@ function bPlaceMini(ev){ const hit=bPickCell(ev); if(!hit || hit.cell===undefine
   bStatus(`Placed a <b>${(MINI_TEAMS[bld.miniTeam]||MINI_TEAMS.gray).name}</b> mini · click more cells · drag to move (snaps to cell) · <b>Delete</b> removes`); }
 function bMiniSet(team){ const same=(bld.tool==='mini' && bld.miniTeam===team);
   if(same){ bld.tool=null; bld.miniTeam=null; }
-  else { bld.tool='mini'; bld.miniTeam=team; bld.propKind=null; bld.propGlb=null; bld.sel=null; bld.selStroke=null; bld.selProp=null; bRepaintOff(); bSubToolOff();
+  else { bld.tool='mini'; bld.miniTeam=team; bld.propKind=null; bld.propGlb=null; bld.sel=null; bld.selStroke=null; bld.selProp=null; bRepaintOff(); bImageToolOff(); bSubToolOff();
     document.querySelectorAll('#bDrawTools .bdtool').forEach(x=>x.classList.remove('on')); bBuildPalette(); if(typeof bBuildLibList==='function') bBuildLibList(); bHover.visible=false; }
   bBuildPropTools(); bRender();                                       // bBuildPropTools() → bMiniSync() re-highlights the team buttons
   bStatus(bld.tool==='mini' ? `Mini: <b>${MINI_TEAMS[bld.miniTeam].name}</b> — click cells to drop; click the same team again to stop.` : 'Mini tool off.'); }
@@ -2758,7 +2810,7 @@ function bMeasureClick(ev){ const hit=bPickCell(ev); if(!hit || hit.cell===undef
   bld.measB=hit.cell; const d=cellDist(bld.measA,bld.measB); bRender();
   bStatus(`Measured <b>${d*FT_PER_CELL} ft</b> (${d} ${d===1?'square':'squares'}). Click a new start cell to measure again, or turn Measure off.`); }
 function bMeasureSet(){ const on=bld.tool!=='measure';
-  if(on){ bld.tool='measure'; bld.miniTeam=null; bld.propKind=null; bld.propGlb=null; bld.sel=null; bld.selStroke=null; bld.selProp=null; bRepaintOff(); bSubToolOff();
+  if(on){ bld.tool='measure'; bld.miniTeam=null; bld.propKind=null; bld.propGlb=null; bld.sel=null; bld.selStroke=null; bld.selProp=null; bRepaintOff(); bImageToolOff(); bSubToolOff();
     document.querySelectorAll('#bDrawTools .bdtool').forEach(x=>x.classList.remove('on')); bBuildPalette(); if(typeof bBuildLibList==='function') bBuildLibList(); bHover.visible=false; }
   else { bld.tool=null; bld.measA=null; bld.measB=null; }
   bBuildPropTools(); bMeasureSync(); bRender();
@@ -2934,7 +2986,7 @@ async function bBuildLibList(){ const el=document.getElementById('bLibList'); if
 }
 function bSelectGlbProp(src,label){ const same=bld.propGlb && JSON.stringify(bld.propGlb.src)===JSON.stringify(src);
   bld.propGlb = same ? null : {src,name:label};
-  if(bld.propGlb){ bld.propKind=null; bld.tool=null; bld.sel=null; bld.selStroke=null; if(bld.repaintOn)bRepaintOff(); if(bld.subTool)bSubToolOff(); bBuildPalette(); bBuildPropTools(); bHover.visible=false; }
+  if(bld.propGlb){ bld.propKind=null; bld.tool=null; bld.sel=null; bld.selStroke=null; if(bld.repaintOn)bRepaintOff(); if(bld.imgToolOn)bImageToolOff(); if(bld.subTool)bSubToolOff(); bBuildPalette(); bBuildPropTools(); bHover.visible=false; }
   bBuildLibList(); bStatus(bld.propGlb? `Library prop: <b>${label}</b> — click a cell to drop it · drag to move`:'Prop off'); }
 // procedural/GLB props are modelled for WORLD tiles; on a 5-ft BATTLE map they'd be tiny next to battle-scale
 // buildings, so render them larger there (minis already handle their own cell sizing).
@@ -3195,7 +3247,7 @@ function bRender(){
   const bHexShape = (TGC_HEXMAT[bld.tgc] || (_tgcc && _tgcc.kind==='mat' && bld.grid==='hex')) ? bHexMatShapeCells() : null;   // flower/invader/hex-mat cells (pre-Generate outline + no stray plates)
   for(const c of bCells()){ const k=TE.keyOf(c); const w=bWorld(c); const pl=bld.board.get(k);
     if(pl){ const seedh=(bld.seed*131 + (c.q*73856+c.r*19349))>>>0;
-      const grp=buildTileMesh(defs[pl.defId], bld.grid, seedh, bResolveVariant(pl, defs[pl.defId], c), pl.mass);
+      const grp=buildTileMesh(defs[pl.defId], bld.grid, seedh, bResolveVariant(pl, defs[pl.defId], c), pl.mass, pl.img?bImgTex(pl.img):null);
       grp.position.copy(w); grp.rotation.y=pl.rot*tileStepAngle(bld.grid);
       grp.traverse(o=>o.userData.cell=c); builderGroup.add(grp); bld.groups.set(k,grp);
     } else if(bHexShape){ /* flower/invader/hex-mat: outline the shape cells (so you SEE the shape before Generate); no plates elsewhere */
@@ -3425,11 +3477,28 @@ function bRepaintAt(ev){ const hit=bPickCell(ev); if(!hit || hit.cell===undefine
   pl.variant=v; bRender(); bStatus(`Repainted this <b>${bLabel(def.biome)}</b> tile → look <b>${v+1}</b>`);
 }
 function bRepaintOff(){ if(!bld.repaintOn) return; bld.repaintOn=false; const b=document.getElementById('bRepaintTool'); if(b){ b.textContent='🖌 Repaint: off'; b.classList.remove('on'); } }
+// ---- custom tile ARTWORK (cut-and-paste an image onto a tile) ----
+const _bImgTexCache=new Map();
+function bImgTex(url){ if(_bImgTexCache.has(url)) return _bImgTexCache.get(url);
+  const t=new THREE.TextureLoader().load(url, ()=>{ if(typeof bRender==='function') bRender(); });   // re-render once the image decodes
+  t.colorSpace=THREE.SRGBColorSpace; t.anisotropy=4; _bImgTexCache.set(url,t); return t; }
+function bImageToolOff(){ if(!bld.imgToolOn) return; bld.imgToolOn=false; const b=document.getElementById('bImageTool'); if(b){ b.textContent='🖼 Tile image: off'; b.classList.remove('on'); } }
+function bImageAt(ev){ const hit=bPickCell(ev); if(!hit || hit.cell===undefined) return;
+  const k=TE.keyOf(hit.cell), pl=bld.board.get(k);
+  if(!pl){ bStatus('Tile image works on a placed tile — click one first.',true); return; }
+  const hex = bld.grid==='hex';
+  window.openCropper({ shape: hex?'hex':'square', aspect: hex?1/0.8660254:1, title:'Tile artwork', note:'Drag a rectangle — it becomes this tile’s top.', out:{w:1024,h:hex?Math.round(1024*0.8660254):1024},
+    toggle:{ label:'Apply to ALL tiles of this terrain' },
+    onDone:(u,all)=>{ bPushUndo();
+      if(all){ const did=pl.defId; for(const p of bld.board.values()) if(p.defId===did) p.img=u; }
+      else pl.img=u;
+      bRender(); bStatus(all?'Applied artwork to all matching tiles.':'Tile artwork set.'); } });
+}
 const bLabel=(id)=>{ if(id&&id.indexOf('custom:')===0){ const c=(CUSTOM_TILES||[]).find(t=>t.id===id); if(c) return c.name; } return id.replace(/_/g,' '); };
 function bStatus(msg,warn){ document.getElementById('status').innerHTML = warn? `<span style="color:#ff9a6c">${msg}</span>` : msg; }
 
 /* ---- palette ---- */
-function bSelectTile(id){ bld.sel=id; bld.rot=0; bld.tool=null; bld.pen=[]; bld.selStroke=null; bld.propKind=null; bld.propGlb=null; bRepaintOff(); bBuildPropTools(); bBuildLibList(); bHover.visible=false;
+function bSelectTile(id){ bld.sel=id; bld.rot=0; bld.tool=null; bld.pen=[]; bld.selStroke=null; bld.propKind=null; bld.propGlb=null; bRepaintOff(); bImageToolOff(); bBuildPropTools(); bBuildLibList(); bHover.visible=false;
   document.querySelectorAll('#bDrawTools .bdtool').forEach(x=>x.classList.remove('on'));
   bBuildPalette(); bRender(); bStatus(`Tile: <b>${bLabel(id)}</b> — click a cell to place it · R rotate`); }
 function bBuildPalette(){ const el=document.getElementById('bPalette'); if(!el) return; el.innerHTML='';
@@ -4184,14 +4253,104 @@ function leaveBuilder(){ BUILD=false; PLAYB=false; builderGroup.visible=false; b
   document.getElementById('builderPanel').classList.add('hide'); }
 
 /* ==================== CARDS — deck designer ==================== */
+/* ===== Shared image cropper (cards + tiles) =====================
+   openCropper({ src?, aspect, shape:'rect'|'square'|'hex', title?, note?, out?, onDone })
+   - drag a rectangle over the image (locked to the target aspect); the card/tile OUTLINE
+     is drawn on the crop + a live preview shows exactly how it will look.
+   - onDone(dataURL) gets a rectangular crop at `out` px (default longer side 1024).      */
+const Crop = (()=>{
+  const modal=()=>document.getElementById('cropModal');
+  let img=null, aspect=0.714, shape='rect', out={w:1024,h:1434}, onDone=null;
+  let dispW=0, dispH=0, sc=1, rect=null, mode=null, anchor=null, grab=null;
+  const $c=()=>document.getElementById('cropCanvas'), $p=()=>document.getElementById('cropPrev');
+  function shapePath(ctx,x,y,w,h){
+    ctx.beginPath();
+    if(shape==='hex'){ const cx=x+w/2, cy=y+h/2, R=w/2, hh=h/2;
+      ctx.moveTo(cx+R,cy); ctx.lineTo(cx+R/2,cy-hh); ctx.lineTo(cx-R/2,cy-hh);
+      ctx.lineTo(cx-R,cy); ctx.lineTo(cx-R/2,cy+hh); ctx.lineTo(cx+R/2,cy+hh); ctx.closePath();
+    } else if(shape==='square'){ ctx.rect(x,y,w,h); }
+    else { const r=Math.min(w,h)*0.08; ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+  }
+  function fit(){ const cv=$c(); const maxW=Math.min(620, window.innerWidth*0.55), maxH=window.innerHeight*0.56;
+    sc=Math.min(maxW/img.naturalWidth, maxH/img.naturalHeight, 1); dispW=Math.round(img.naturalWidth*sc); dispH=Math.round(img.naturalHeight*sc);
+    cv.width=dispW; cv.height=dispH;
+    // default crop = largest aspect-locked rect centred
+    let w=dispW, h=w/aspect; if(h>dispH){ h=dispH; w=h*aspect; } w*=0.9; h*=0.9;
+    rect={ x:(dispW-w)/2, y:(dispH-h)/2, w, h }; draw(); }
+  function draw(){ const cv=$c(), ctx=cv.getContext('2d'); ctx.clearRect(0,0,cv.width,cv.height);
+    ctx.drawImage(img,0,0,dispW,dispH);
+    if(rect){ ctx.save(); ctx.fillStyle='rgba(0,0,0,.5)'; ctx.fillRect(0,0,dispW,dispH);
+      ctx.drawImage(img, rect.x/sc, rect.y/sc, rect.w/sc, rect.h/sc, rect.x, rect.y, rect.w, rect.h);
+      ctx.restore();
+      ctx.save(); ctx.lineWidth=2; ctx.strokeStyle='rgba(0,0,0,.6)'; shapePath(ctx,rect.x+1,rect.y+1,rect.w,rect.h); ctx.stroke();
+      ctx.strokeStyle='#f4d67a'; shapePath(ctx,rect.x,rect.y,rect.w,rect.h); ctx.stroke();
+      ctx.setLineDash([5,4]); ctx.strokeStyle='rgba(255,255,255,.5)'; ctx.strokeRect(rect.x,rect.y,rect.w,rect.h); ctx.setLineDash([]);
+      ctx.fillStyle='#f4d67a'; for(const [hx,hy] of corners()) ctx.fillRect(hx-4,hy-4,8,8);
+      ctx.restore(); }
+    prev();
+  }
+  function corners(){ return rect?[[rect.x,rect.y],[rect.x+rect.w,rect.y],[rect.x,rect.y+rect.h],[rect.x+rect.w,rect.y+rect.h]]:[]; }
+  function prev(){ const p=$p(); if(!rect){ p.getContext('2d').clearRect(0,0,p.width,p.height); return; }
+    let pw=170, ph=Math.round(pw/aspect); if(ph>240){ ph=240; pw=Math.round(ph*aspect); } p.width=pw; p.height=ph;
+    const ctx=p.getContext('2d'); ctx.clearRect(0,0,pw,ph); ctx.save(); shapePath(ctx,1,1,pw-2,ph-2); ctx.clip();
+    ctx.drawImage(img, rect.x/sc, rect.y/sc, rect.w/sc, rect.h/sc, 0,0,pw,ph); ctx.restore();
+    ctx.lineWidth=2; ctx.strokeStyle='#b8933f'; shapePath(ctx,1,1,pw-2,ph-2); ctx.stroke(); }
+  function clampRect(){ if(rect.w>dispW){ rect.w=dispW; rect.h=rect.w/aspect; } if(rect.h>dispH){ rect.h=dispH; rect.w=rect.h*aspect; }
+    rect.x=Math.max(0,Math.min(rect.x,dispW-rect.w)); rect.y=Math.max(0,Math.min(rect.y,dispH-rect.h)); }
+  function evPos(e){ const cv=$c(), r=cv.getBoundingClientRect(); return { x:(e.clientX-r.left)*(cv.width/r.width), y:(e.clientY-r.top)*(cv.height/r.height) }; }
+  function hitCorner(p){ const cs=corners(); for(let i=0;i<cs.length;i++){ if(Math.abs(p.x-cs[i][0])<10 && Math.abs(p.y-cs[i][1])<10) return i; } return -1; }
+  function down(e){ if(!img) return; e.preventDefault(); const p=evPos(e); const ci=hitCorner(p);
+    if(ci>=0){ mode='resize'; anchor=corners()[3-ci]; }         // anchor = opposite corner
+    else if(rect && p.x>rect.x && p.x<rect.x+rect.w && p.y>rect.y && p.y<rect.y+rect.h){ mode='move'; grab={x:p.x-rect.x,y:p.y-rect.y}; }
+    else { mode='new'; anchor={x:p.x,y:p.y}; rect={x:p.x,y:p.y,w:0,h:0}; }
+    $c().setPointerCapture&&$c().setPointerCapture(e.pointerId); }
+  function move(e){ if(!mode) return; const p=evPos(e);
+    if(mode==='move'){ rect.x=p.x-grab.x; rect.y=p.y-grab.y; clampRect(); }
+    else { const dx=p.x-anchor.x, dy=p.y-anchor.y; let w=Math.max(Math.abs(dx),Math.abs(dy)*aspect); let h=w/aspect;
+      w=Math.min(w, dx<0?anchor.x:dispW-anchor.x); h=w/aspect; if(h>(dy<0?anchor.y:dispH-anchor.y)){ h=(dy<0?anchor.y:dispH-anchor.y); w=h*aspect; }
+      rect.w=w; rect.h=h; rect.x=dx<0?anchor.x-w:anchor.x; rect.y=dy<0?anchor.y-h:anchor.y; clampRect(); }
+    draw(); }
+  function up(){ mode=null; }
+  function load(url){ const im=new Image(); im.onload=()=>{ img=im; document.getElementById('cropHint').style.display='none'; fit(); }; im.onerror=()=>setStatus&&setStatus('Could not load that image'); im.src=url; }
+  function open(o){ aspect=o.aspect||0.714; shape=o.shape||'rect'; onDone=o.onDone; out=o.out||{w:1024,h:Math.round(1024/aspect)};
+    document.getElementById('cropTitle').textContent=o.title||'Crop image';
+    document.getElementById('cropNote').textContent=o.note||'';
+    const tr=document.getElementById('cropToggleRow'), tg=document.getElementById('cropToggle');
+    if(o.toggle){ tr.style.display='flex'; document.getElementById('cropToggleLbl').textContent=o.toggle.label; tg.checked=!!o.toggle.default; } else { tr.style.display='none'; tg.checked=false; }
+    img=null; rect=null; const cv=$c(); cv.width=480; cv.height=320; cv.getContext('2d').clearRect(0,0,480,320);
+    document.getElementById('cropHint').style.display=''; prev();
+    modal().classList.add('on'); if(o.src) load(o.src);
+  }
+  function close(){ modal().classList.remove('on'); img=null; rect=null; }
+  function result(){ if(!img||!rect) return null; let ow=out.w, oh=Math.round(ow/aspect);
+    const cv=document.createElement('canvas'); cv.width=ow; cv.height=oh; const ctx=cv.getContext('2d');
+    ctx.drawImage(img, rect.x/sc, rect.y/sc, rect.w/sc, rect.h/sc, 0,0,ow,oh); return cv.toDataURL('image/png'); }
+  let _wired=false;
+  function wire(){ if(_wired) return; _wired=true; const cv=$c();
+    cv.addEventListener('pointerdown',down); cv.addEventListener('pointermove',move); window.addEventListener('pointerup',up);
+    document.getElementById('cropX').onclick=close; document.getElementById('cropCancel').onclick=close;
+    document.getElementById('cropUse').onclick=()=>{ const u=result(); if(u&&onDone) onDone(u, document.getElementById('cropToggle').checked); close(); };
+    const drop=document.getElementById('cropDrop'), file=document.getElementById('cropFile');
+    drop.onclick=()=>file.click();
+    file.onchange=e=>{ const f=e.target.files[0]; e.target.value=''; if(f) load(URL.createObjectURL(f)); };
+    drop.addEventListener('dragover',e=>{e.preventDefault();drop.classList.add('hot');});
+    drop.addEventListener('dragleave',()=>drop.classList.remove('hot'));
+    drop.addEventListener('drop',e=>{ e.preventDefault(); drop.classList.remove('hot'); const f=e.dataTransfer.files[0]; if(f&&/^image/.test(f.type)) load(URL.createObjectURL(f)); });
+    window.addEventListener('paste',e=>{ if(!modal().classList.contains('on')) return; for(const it of (e.clipboardData||{}).items||[]){ if(it.type&&it.type.startsWith('image')){ const f=it.getAsFile(); if(f) load(URL.createObjectURL(f)); } } });
+  }
+  return { open, _wire:wire };
+})();
+window.openCropper = Crop.open;
+try{ Crop._wire(); }catch(e){}   // wire once at load so the cropper works from Build-a-Board too (idempotent)
+
 const cS = {
-  size:'poker', frame:'scroll', accent:'#b8933f', paper:'#f4ead1',
+  size:'poker', frame:'scroll', font:'georgia', accent:'#b8933f', paper:'#f4ead1',
   suitObjs: Cards.defaultSuits(),
   suitsOn: new Set(['spades','hearts','clubs','diamonds']),
   rankObjs: Cards.defaultRanks(),
   ranksOn: new Set(Cards.defaultRanks().map(r=>r.id)),
   jokers:true, custom:[], back:{ field:'#132038', accent:'#b8933f' },
-  art:{}, view:'single', idx:0, list:[], _cid:1
+  art:{}, customFrame:null, view:'single', idx:0, list:[], _cid:1
 };
 let _cardsInit=false;
 const cEsc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -4209,8 +4368,31 @@ function cApplyDeck(){
                         ranks: ranks.length?ranks:cS.rankObjs.slice(0,1),
                         jokers: cS.jokers?['red','black']:[], custom: cS.custom });
   Cards.setCardSize(cS.size);
+  Cards.setFontById(cS.font);
 }
-const cOpt=()=>({ frame: cS.frame==='scroll'?{id:'scroll'}:{id:'plain'}, accent:cS.accent, paper:cS.paper, artMap:cS.art });
+function cSyncFramePanel(){ const p=document.getElementById('cFramePanel'); if(p) p.style.display = cS.frame==='custom' ? 'block' : 'none'; }
+function cFrameOpt(){
+  if(cS.frame==='custom' && cS.customFrame) return { id:'custom', img:cS.customFrame.img, open:cS.customFrame.open };
+  if(cS.frame==='scroll') return { id:'scroll' };
+  return { id:'plain' };
+}
+const cOpt=()=>({ frame: cFrameOpt(), accent:cS.accent, paper:cS.paper, artMap:cS.art });
+// auto-detect the empty central opening of an uploaded frame (fractions of the image 0..1)
+function cDetectOpening(img){
+  const W=Math.min(360,img.naturalWidth||360), H=Math.round(W*(img.naturalHeight/img.naturalWidth));
+  const cv=document.createElement('canvas'); cv.width=W; cv.height=H; const ctx=cv.getContext('2d');
+  ctx.drawImage(img,0,0,W,H); let d; try{ d=ctx.getImageData(0,0,W,H).data; }catch(e){ return {x:0.12,y:0.12,x1:0.88,y1:0.88}; }
+  const cx=W>>1, cy=H>>1, i0=(cy*W+cx)*4, ref=[d[i0],d[i0+1],d[i0+2],d[i0+3]];
+  const border=(x,y)=>{ const i=(y*W+x)*4, a=d[i+3]; if(a<40) return false;          // transparent = still opening
+    const dr=Math.abs(d[i]-ref[0])+Math.abs(d[i+1]-ref[1])+Math.abs(d[i+2]-ref[2]); return dr>110; };  // strong colour change = border ink
+  let L=0,R=W-1,T=0,B=H-1;
+  for(let x=cx;x>=0;x--){ if(border(x,cy)){ L=x; break; } } for(let x=cx;x<W;x++){ if(border(x,cy)){ R=x; break; } }
+  for(let y=cy;y>=0;y--){ if(border(cx,y)){ T=y; break; } } for(let y=cy;y<H;y++){ if(border(cx,y)){ B=y; break; } }
+  const pad=0.012; let o={ x:L/W+pad, y:T/H+pad, x1:R/W-pad, y1:B/H-pad };
+  if(!(o.x1-o.x>0.3 && o.y1-o.y>0.3)) o={x:0.12,y:0.12,x1:0.88,y1:0.88};   // detection failed → sane default
+  return o;
+}
+const cBackOpt=()=>({ accent:cS.back.accent, field:cS.back.field, paper:cS.paper, art:cS.back.art||null });
 function cBuildList(){ cApplyDeck(); cS.list=Cards.fullDeck(cOpt()); if(cS.idx>=cS.list.length) cS.idx=0; }
 function cCardLabel(c){
   if(c.rank==='joker') return 'Joker · '+c.suit;
@@ -4221,11 +4403,13 @@ function cSyncViewSeg(){ document.querySelectorAll('#cViewSeg button').forEach(b
 function cRender(){
   const view=document.getElementById('cardsView'); if(!view) return;
   cBuildList();
-  const back=Cards.cardBack({ accent:cS.back.accent, field:cS.back.field, paper:cS.paper });
+  const back=Cards.cardBack(cBackOpt());
   const single=cS.view==='single';
   document.getElementById('cNav').style.display=single?'':'none';
-  document.getElementById('cArtBtn').style.display=single?'':'none';
-  document.getElementById('cArtClear').style.display=single?'':'none';
+  const artable = single || cS.view==='back';   // front art on a single card, or back art in the back view
+  document.getElementById('cArtBtn').style.display=artable?'':'none';
+  document.getElementById('cArtBtn').textContent = cS.view==='back' ? '🖼 Back artwork' : '🖼 Art for this card';
+  document.getElementById('cArtClear').style.display=artable?'':'none';
   document.getElementById('cDlOne').textContent = cS.view==='sheet' ? '⬇ this' : '⬇ PNG';
   const px=Cards.currentPixels();
   if(cS.view==='sheet'){
@@ -4271,7 +4455,26 @@ function cInitUI(){
   const sz=document.getElementById('cSize'); sz.innerHTML='';
   for(const k in Cards.CARD_SIZES){ const o=document.createElement('option'); o.value=k; o.textContent=Cards.CARD_SIZES[k].name; sz.appendChild(o); }
   sz.value=cS.size; sz.onchange=()=>{ cS.size=sz.value; cRender(); };
-  document.getElementById('cFrame').onchange=e=>{ cS.frame=e.target.value; cRender(); };
+  const ft=document.getElementById('cFont'); ft.innerHTML='';
+  for(const f of Cards.FONTS){ const o=document.createElement('option'); o.value=f.id; o.textContent=f.name; ft.appendChild(o); }
+  ft.value=cS.font; ft.onchange=()=>{ cS.font=ft.value; cRender(); };
+  document.getElementById('cFrame').onchange=e=>{ cS.frame=e.target.value; cSyncFramePanel(); cRender(); };
+  document.getElementById('cFrameUpload').onclick=()=>document.getElementById('cFrameFile').click();
+  document.getElementById('cFrameFile').onchange=e=>{ const f=e.target.files[0]; e.target.value=''; if(!f) return;
+    const fr=new FileReader(); fr.onload=()=>{ const im=new Image(); im.onload=()=>{ const open=cDetectOpening(im);
+      cS.customFrame={ img:fr.result, open }; cS.frame='custom'; document.getElementById('cFrame').value='custom'; cSyncFramePanel();
+      document.getElementById('cFrameStatus').textContent=`Frame loaded · opening ${Math.round((open.x1-open.x)*100)}% × ${Math.round((open.y1-open.y)*100)}% (auto-detected)`;
+      cRender(); }; im.src=fr.result; }; fr.readAsDataURL(f); };
+  const cfCompose=()=>{ const st=document.getElementById('cfStyle').value, me=document.getElementById('cfMetal').value,
+      mo=document.getElementById('cfMotif').value, th=document.getElementById('cfThick').value;
+    const s=Cards.CARD_SIZES[cS.size]||Cards.CARD_SIZES.poker;
+    document.getElementById('cfPrompt').value =
+`A single ornate ${st} playing-card FRAME / decorative border only, ${me} ${mo}, ${th==='slim'?'a THIN SLIM narrow':th==='thick'?'a bold thick':'a medium'} border that takes only an outer margin so the empty centre is very large. The CENTRE is COMPLETELY PLAIN flat solid parchment-cream, edge to edge — no art, no scene, no picture, no text, no suit symbols, no figures inside. Front-facing flat 2D, straight-on, centred, symmetrical, fills the whole image to the edges, ${s.tw}:${s.th} card aspect ratio, high detail, clean, print quality. Plain cream (or transparent) centre so a card face can be composited inside.`; };
+  document.getElementById('cfStyle').onchange=cfCompose; document.getElementById('cfMetal').onchange=cfCompose;
+  document.getElementById('cfMotif').onchange=cfCompose; document.getElementById('cfThick').onchange=cfCompose; cfCompose();
+  document.getElementById('cfCopy').onclick=async()=>{ const t=document.getElementById('cfPrompt').value;
+    try{ await navigator.clipboard.writeText(t); }catch(e){ const ta=document.getElementById('cfPrompt'); ta.select(); document.execCommand('copy'); }
+    const b=document.getElementById('cfCopy'); b.textContent='✓ Copied'; setTimeout(()=>b.textContent='📋 Copy prompt',1400); };
   document.getElementById('cAccent').oninput=e=>{ cS.accent=e.target.value; cRender(); };
   document.getElementById('cPaper').oninput=e=>{ cS.paper=e.target.value; cRender(); };
   document.getElementById('cUseJokers').onchange=e=>{ cS.jokers=e.target.checked; cRender(); };
@@ -4288,31 +4491,43 @@ function cInitUI(){
   document.querySelectorAll('#cViewSeg button').forEach(b=> b.onclick=()=>{ cS.view=b.dataset.view; cSyncViewSeg(); cRender(); });
   document.getElementById('cPrev').onclick=()=>{ if(!cS.list.length)return; cS.idx=(cS.idx-1+cS.list.length)%cS.list.length; cRender(); };
   document.getElementById('cNext').onclick=()=>{ if(!cS.list.length)return; cS.idx=(cS.idx+1)%cS.list.length; cRender(); };
-  document.getElementById('cArtBtn').onclick=()=>document.getElementById('cArtFile').click();
-  document.getElementById('cArtFile').onchange=async e=>{ const f=e.target.files[0]; e.target.value=''; if(!f)return;
-    const url=await cReadDataURL(f); const c=cS.list[cS.idx]; if(c){ cS.art[c.name]=url; cRender(); } };
-  document.getElementById('cArtClear').onclick=()=>{ const c=cS.list[cS.idx]; if(c&&cS.art[c.name]){ delete cS.art[c.name]; cRender(); } };
+  document.getElementById('cArtBtn').onclick=()=>{
+    const s=Cards.CARD_SIZES[cS.size]||Cards.CARD_SIZES.poker, asp=s.tw/s.th, out={w:1024,h:Math.round(1024/(s.tw/s.th))};
+    if(cS.view==='back'){
+      window.openCropper({ aspect:asp, shape:'rect', title:'Card back artwork', note:'Fills the back, framed in gold.', out, onDone:u=>{ cS.back.art=u; cRender(); } });
+    } else {
+      const c=cS.list[cS.idx]; if(!c) return;
+      const across = c.rank!=='joker' && c.rank!=='custom';
+      window.openCropper({ aspect:asp, shape:'rect', title:'Artwork — '+cCardLabel(c), note:'Fills this card face.', out,
+        toggle: across?{ label:'Apply to all suits (rank '+c.rank+')' }:null,
+        onDone:(u,all)=>{ if(all && across){ cS.suitObjs.filter(s=>cS.suitsOn.has(s.id)).forEach(s=>{ cS.art[c.rank+'-'+s.id]=u; }); } else { cS.art[c.name]=u; } cRender(); } });
+    }
+  };
+  document.getElementById('cArtClear').onclick=()=>{ if(cS.view==='back'){ if(cS.back.art){ delete cS.back.art; cRender(); } return; } const c=cS.list[cS.idx]; if(c&&cS.art[c.name]){ delete cS.art[c.name]; cRender(); } };
+  Crop._wire();
   document.getElementById('cDlOne').onclick=()=>cExportOne();
   document.getElementById('cExport').onclick=()=>cExportDeck();
   document.getElementById('cSaveDeck').onclick=()=>cSaveDeck();
   document.getElementById('cLoadDeckBtn').onclick=()=>document.getElementById('cLoadDeck').click();
   document.getElementById('cLoadDeck').onchange=e=>cLoadDeck(e);
-  cBuildSuitChips(); cBuildRankChips(); cBuildCustomList();
+  cBuildSuitChips(); cBuildRankChips(); cBuildCustomList(); cSyncFramePanel();
 }
 async function cExportOne(){
+  try{ await document.fonts.ready; }catch(e){}
   cBuildList(); let svgStr, base;
-  if(cS.view==='back'){ svgStr=Cards.cardBack({accent:cS.back.accent,field:cS.back.field,paper:cS.paper}); base='card-back'; }
+  if(cS.view==='back'){ svgStr=Cards.cardBack(cBackOpt()); base='card-back'; }
   else { const c=cS.list[cS.idx]; if(!c) return; svgStr=c.svg; base=c.name; }
   const px=Cards.currentPixels(), cv=await cSvgToCanvas(svgStr,px.w,px.h);
   bDownload(await bCanvasBlob(cv), `${base}_${px.w}x${px.h}.png`);
 }
 async function cExportDeck(){
+  try{ await document.fonts.ready; }catch(e){}
   const st=document.getElementById('cExportStatus'); cApplyDeck();
   const opt=cOpt(), list=Cards.fullDeck(opt), px=Cards.currentPixels(), files=[]; let i=0;
   const pad=n=>String(n).padStart(2,'0');
   st.textContent=`Rendering ${list.length+1} cards…`;
   for(const c of list){ const cv=await cSvgToCanvas(c.svg,px.w,px.h); files.push({ name:`${pad(++i)}_${c.name}.png`, data:await bCanvasBytes(cv) }); st.textContent=`Rendering ${i}/${list.length}…`; }
-  const bcv=await cSvgToCanvas(Cards.cardBack({accent:cS.back.accent,field:cS.back.field,paper:cS.paper}),px.w,px.h);
+  const bcv=await cSvgToCanvas(Cards.cardBack(cBackOpt()),px.w,px.h);
   files.push({ name:'00_card-back.png', data:await bCanvasBytes(bcv) });
   const readme=`Deck exported from Tabletop — Cards\r\nSize: ${px.name} (${px.w}x${px.h}px, 300 DPI, includes 1/8" bleed)\r\nCards: ${list.length} + 1 shared back\r\n\r\nUpload each numbered PNG to The Game Crafter as a card face; use 00_card-back.png as the shared back.\r\n— KSOL Designs`;
   files.push({ name:'READ-ME.txt', data:new TextEncoder().encode(readme) });
@@ -4320,18 +4535,18 @@ async function cExportDeck(){
   st.textContent=`✓ Exported ${list.length}+1 cards (${px.w}×${px.h}px) as ZIP.`;
 }
 function cSaveDeck(){
-  const data={ v:1, size:cS.size, frame:cS.frame, accent:cS.accent, paper:cS.paper, suitObjs:cS.suitObjs,
-    suitsOn:[...cS.suitsOn], ranksOn:[...cS.ranksOn], jokers:cS.jokers, custom:cS.custom, back:cS.back, art:cS.art };
+  const data={ v:1, size:cS.size, frame:cS.frame, font:cS.font, accent:cS.accent, paper:cS.paper, suitObjs:cS.suitObjs,
+    suitsOn:[...cS.suitsOn], ranksOn:[...cS.ranksOn], jokers:cS.jokers, custom:cS.custom, back:cS.back, art:cS.art, customFrame:cS.customFrame||null };
   bDownload(new Blob([JSON.stringify(data)],{type:'application/json'}), 'deck-design.json');
 }
 async function cLoadDeck(e){
   const f=e.target.files[0]; e.target.value=''; if(!f) return;
   try{ const d=JSON.parse(await f.text());
-    cS.size=d.size||'poker'; cS.frame=d.frame||'scroll'; cS.accent=d.accent||'#b8933f'; cS.paper=d.paper||'#f4ead1';
+    cS.size=d.size||'poker'; cS.frame=d.frame||'scroll'; cS.font=d.font||'georgia'; cS.accent=d.accent||'#b8933f'; cS.paper=d.paper||'#f4ead1';
     if(d.suitObjs) cS.suitObjs=d.suitObjs; cS.suitsOn=new Set(d.suitsOn||['spades','hearts','clubs','diamonds']);
     cS.ranksOn=new Set(d.ranksOn||cS.rankObjs.map(r=>r.id)); cS.jokers=d.jokers!==false; cS.custom=d.custom||[];
-    cS.back=d.back||cS.back; cS.art=d.art||{};
-    document.getElementById('cSize').value=cS.size; document.getElementById('cFrame').value=cS.frame;
+    cS.back=d.back||cS.back; cS.art=d.art||{}; cS.customFrame=d.customFrame||null;
+    document.getElementById('cSize').value=cS.size; document.getElementById('cFrame').value=cS.frame; document.getElementById('cFont').value=cS.font; cSyncFramePanel();
     document.getElementById('cAccent').value=cS.accent; document.getElementById('cPaper').value=cS.paper;
     document.getElementById('cUseJokers').checked=cS.jokers; document.getElementById('cBackField').value=cS.back.field||'#132038';
     document.getElementById('cBackGold').value=cS.back.accent||'#b8933f';
@@ -4368,16 +4583,16 @@ function bSubToolOff(){ if(bld.subTool){ bld.subTool=false; const b=document.get
   if(bld.subPaintOn){ bld.subPaintOn=false; const b=document.getElementById('bSubPaintTool'); if(b){ b.textContent='🖌 Paint pieces: off'; b.classList.remove('on'); } } }
 // Cancel / deselect EVERY active build tool or selection (Esc key, or clicking away). Returns true if anything was active.
 function bCancelTools(){
-  const had = !!(bld.tool||bld.propKind||bld.propGlb||bld.miniTeam||bld.repaintOn||bld.subTool||bld.subPaintOn||bld.sel||bld.selStroke!=null||bld.selProp!=null||bld.measA);
+  const had = !!(bld.tool||bld.propKind||bld.propGlb||bld.miniTeam||bld.repaintOn||bld.imgToolOn||bld.subTool||bld.subPaintOn||bld.sel||bld.selStroke!=null||bld.selProp!=null||bld.measA);
   bld.tool=null; bld.pen=[]; bld.propKind=null; bld.propGlb=null; bld.miniTeam=null;
   bld.sel=null; bld.rot=0; bld.selStroke=null; bld.selProp=null; bld.measA=null; bld.measB=null;
-  bRepaintOff(); bSubToolOff();
+  bRepaintOff(); bImageToolOff(); bSubToolOff();
   document.querySelectorAll('#bDrawTools .bdtool').forEach(x=>x.classList.remove('on'));
   bBuildPalette(); bBuildPropTools(); bBuildLibList(); bMiniSync(); bMeasureSync();
   bHover.visible=false; bRender();
   return had;
 }
-function bSelectTool(t){ bld.tool = (bld.tool===t) ? null : t; bld.pen=[]; bld.selStroke=null; if(bld.tool){ bld.sel=null; bld.propKind=null; bld.propGlb=null; bRepaintOff(); bSubToolOff(); bBuildPalette(); bBuildPropTools(); bBuildLibList(); }
+function bSelectTool(t){ bld.tool = (bld.tool===t) ? null : t; bld.pen=[]; bld.selStroke=null; if(bld.tool){ bld.sel=null; bld.propKind=null; bld.propGlb=null; bRepaintOff(); bImageToolOff(); bSubToolOff(); bBuildPalette(); bBuildPropTools(); bBuildLibList(); }
   document.querySelectorAll('#bDrawTools .bdtool').forEach(x=>x.classList.toggle('on', x.dataset.tool===bld.tool));
   bHover.visible=false; bRender();
   bStatus(bld.tool ? (bld.tool==='erase' ? 'Erase — click a drawn line to remove it' : `${bLabel(bld.tool)} — click connector dots (edges &amp; corners) to trace a line`) : 'Draw tool off — click a tile to place, or pick a draw type'); }
@@ -4416,18 +4631,23 @@ function bSetVariant(v){ bld.variant = v;
 document.querySelectorAll('#bVariantSeg button').forEach(b=> b.onclick=()=> bSetVariant(b.dataset.v==='auto' ? 'auto' : (+b.dataset.v)));
 document.getElementById('bSeason').onchange=(e)=> bSetVariant(e.target.value==='auto' ? 'auto' : (+e.target.value));
 document.getElementById('bRepaintTool').onclick=()=>{ bld.repaintOn=!bld.repaintOn;
-  if(bld.repaintOn){ bld.tool=null; bld.propKind=null; bld.sel=null; bld.selStroke=null; bld.selProp=null; bld.subTool=false; bld.subPaintOn=false;
+  if(bld.repaintOn){ bld.tool=null; bld.propKind=null; bld.sel=null; bld.selStroke=null; bld.selProp=null; bld.subTool=false; bld.subPaintOn=false; bImageToolOff();
     document.querySelectorAll('#bDrawTools .bdtool').forEach(x=>x.classList.remove('on')); bBuildPropTools(); bHover.visible=false; }
   const b=document.getElementById('bRepaintTool'); b.textContent='🖌 Repaint: '+(bld.repaintOn?'on':'off'); b.classList.toggle('on',bld.repaintOn);
   bStatus(bld.repaintOn ? 'Repaint <b>on</b> — click any terrain tile to overwrite its look'+(bld.variant==='auto'?' (Auto = cycle through looks)':` (set to look ${(+bld.variant||0)+1})`) : 'Repaint off'); };
+document.getElementById('bImageTool').onclick=()=>{ bld.imgToolOn=!bld.imgToolOn;
+  if(bld.imgToolOn){ bld.tool=null; bld.propKind=null; bld.sel=null; bld.selStroke=null; bld.selProp=null; bld.subTool=false; bld.subPaintOn=false; bRepaintOff();
+    document.querySelectorAll('#bDrawTools .bdtool').forEach(x=>x.classList.remove('on')); bBuildPropTools(); bHover.visible=false; }
+  const b=document.getElementById('bImageTool'); b.textContent='🖼 Tile image: '+(bld.imgToolOn?'on':'off'); b.classList.toggle('on',bld.imgToolOn);
+  bStatus(bld.imgToolOn ? 'Tile image <b>on</b> — click a placed tile to cut an image onto it' : 'Tile image off'); };
 /* subdivide wiring */
-function bSubToolSet(on){ bld.subTool=on; if(on){ bld.tool=null; bld.propKind=null; bld.sel=null; bld.selStroke=null; bld.selProp=null; bRepaintOff();
+function bSubToolSet(on){ bld.subTool=on; if(on){ bld.tool=null; bld.propKind=null; bld.sel=null; bld.selStroke=null; bld.selProp=null; bRepaintOff(); bImageToolOff();
     if(bld.subPaintOn){ bld.subPaintOn=false; const pb=document.getElementById('bSubPaintTool'); pb.textContent='🖌 Paint pieces: off'; pb.classList.remove('on'); }
     document.querySelectorAll('#bDrawTools .bdtool').forEach(x=>x.classList.remove('on')); bBuildPropTools(); }
   const b=document.getElementById('bSubTool'); b.textContent='◈ Subdivide: '+(on?'on':'off'); b.classList.toggle('on',on);
   bRender(); bStatus(on ? `Subdivide ON — click a cell to split it into ${subdivisionCount(bld.grid,bSubMode(),bld.subN)} pieces` : 'Subdivide off'); }
 document.getElementById('bSubTool').onclick=()=>bSubToolSet(!bld.subTool);
-function bSubPaintToolSet(on){ bld.subPaintOn=on; if(on){ bld.subTool=false; bld.tool=null; bld.propKind=null; bld.sel=null; bld.selStroke=null; bld.selProp=null; bRepaintOff();
+function bSubPaintToolSet(on){ bld.subPaintOn=on; if(on){ bld.subTool=false; bld.tool=null; bld.propKind=null; bld.sel=null; bld.selStroke=null; bld.selProp=null; bRepaintOff(); bImageToolOff();
     const sb=document.getElementById('bSubTool'); sb.textContent='◈ Subdivide: off'; sb.classList.remove('on');
     document.querySelectorAll('#bDrawTools .bdtool').forEach(x=>x.classList.remove('on')); bBuildPalette(); bBuildPropTools(); bBuildPaintSwatches(); }
   const b=document.getElementById('bSubPaintTool'); b.textContent='🖌 Paint pieces: '+(on?'on':'off'); b.classList.toggle('on',on);

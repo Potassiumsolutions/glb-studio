@@ -235,14 +235,14 @@
 
   /* ---- save / load a board (portable JSON the Game Designer can store) ---- */
   function serializeBoard(gridKind, board, zones, meta){
-    const tiles = []; for (const [k,pl] of board){ const [q,r]=k.split(',').map(Number); const t={q,r,tile:pl.defId,rot:pl.rot}; if(typeof pl.variant==='number') t.variant=pl.variant; if(typeof pl.mass==='number') t.mass=pl.mass; tiles.push(t); }
+    const tiles = []; for (const [k,pl] of board){ const [q,r]=k.split(',').map(Number); const t={q,r,tile:pl.defId,rot:pl.rot}; if(typeof pl.variant==='number') t.variant=pl.variant; if(typeof pl.mass==='number') t.mass=pl.mass; if(pl.img) t.img=pl.img; tiles.push(t); }
     const z = []; if(zones) for (const [k,name] of zones){ const [q,r]=k.split(',').map(Number); z.push({q,r,zone:name}); }
     return { format:'ksol-board', version:1, grid:gridKind, meta:meta||{}, tiles, zones:z };
   }
   function deserializeBoard(data){
     if(!data || data.format!=='ksol-board') throw new Error('not a ksol-board file');
     const board = new Map(), zones = new Map();
-    for (const t of (data.tiles||[])){ const rec={ defId:t.tile, rot:t.rot||0 }; if(typeof t.variant==='number') rec.variant=t.variant; if(typeof t.mass==='number') rec.mass=t.mass; board.set(t.q+','+t.r, rec); }
+    for (const t of (data.tiles||[])){ const rec={ defId:t.tile, rot:t.rot||0 }; if(typeof t.variant==='number') rec.variant=t.variant; if(typeof t.mass==='number') rec.mass=t.mass; if(t.img) rec.img=t.img; board.set(t.q+','+t.r, rec); }
     for (const zn of (data.zones||[])) zones.set(zn.q+','+zn.r, zn.zone);
     return { grid:data.grid||'square', board, zones, meta:data.meta||{} };
   }

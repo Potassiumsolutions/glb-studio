@@ -21,13 +21,22 @@ export const DPI = 300;
 
 /* ---------- The Game Crafter card sizes (finished inches) ----------- *
    image px = finished*DPI + bleed*2  (bleed = 1/8")                     */
+/* The Game Crafter's real card catalogue — finished (cut) sizes, verified from
+   thegamecrafter.com. ids are stable so saved decks keep loading.                */
 export const CARD_SIZES = {
-  poker:  { id:'poker',  name:'Poker 2.5 × 3.5"',   tw:2.5,  th:3.5  },
-  bridge: { id:'bridge', name:'Bridge 2.25 × 3.5"', tw:2.25, th:3.5  },
-  mini:   { id:'mini',   name:'Mini 1.75 × 2.45"',  tw:1.75, th:2.45 },
-  square: { id:'square', name:'Square 3.5 × 3.5"',  tw:3.5,  th:3.5  },
-  tarot:  { id:'tarot',  name:'Tarot 2.75 × 4.75"', tw:2.75, th:4.75 },
-  jumbo:  { id:'jumbo',  name:'Jumbo 3.5 × 5.5"',   tw:3.5,  th:5.5  },
+  poker:       { id:'poker',       name:'Poker 2.5 × 3.5"',        tw:2.5,  th:3.5  },
+  bridge:      { id:'bridge',      name:'Bridge 2.25 × 3.5"',      tw:2.25, th:3.5  },
+  europoker:   { id:'europoker',   name:'Euro Poker 2.48 × 3.46"', tw:2.48, th:3.46 },
+  mini:        { id:'mini',        name:'Mini 1.75 × 2.5"',        tw:1.75, th:2.5  },
+  micro:       { id:'micro',       name:'Micro 1.25 × 1.75"',      tw:1.25, th:1.75 },
+  tarot:       { id:'tarot',       name:'Tarot 2.75 × 4.75"',      tw:2.75, th:4.75 },
+  jumbo:       { id:'jumbo',       name:'Jumbo 3.5 × 5.5"',        tw:3.5,  th:5.5  },
+  square:      { id:'square',      name:'Square 3.5 × 3.5"',       tw:3.5,  th:3.5  },
+  smallsquare: { id:'smallsquare', name:'Small Square 2.5 × 2.5"', tw:2.5,  th:2.5  },
+  domino:      { id:'domino',      name:'Domino 1.75 × 3.5"',      tw:1.75, th:3.5  },
+  business:    { id:'business',    name:'Business 2 × 3.5"',       tw:2,    th:3.5  },
+  usgame:      { id:'usgame',      name:'US Game 2.2 × 3.43"',     tw:2.2,  th:3.43 },
+  minttin:     { id:'minttin',     name:'Mint Tin 2.05 × 3.43"',   tw:2.05, th:3.43 },
 };
 
 /* mutable print geometry — recomputed by setCardSize() ---------------- */
@@ -68,6 +77,38 @@ export const SUIT_SHAPES = {
   diamonds: 'M50 6 C64 32 74 42 92 50 C74 58 64 68 50 94 C36 68 26 58 8 50 C26 42 36 32 50 6 Z',
   clubs:    'M50 6 C60 6 68 14 68 24 C68 29 66 33 63 37 C70 32 80 34 84 42 C89 51 84 62 73 63 C66 64 60 60 56 55 C58 66 62 74 70 82 L30 82 C38 74 42 66 44 55 C40 60 34 64 27 63 C16 62 11 51 16 42 C20 34 30 32 37 37 C34 33 32 29 32 24 C32 14 40 6 50 6 Z',
 };
+
+/* ---------- suit STYLES: the pip shape shifts slightly with the chosen font -----
+   Each is a subtle transform (scale about the pip centre) + optional edge, so a
+   deck's suits echo its typography (tall & lean under a roman face, fuller under
+   a heavy blackletter, etc.).  Authored as transforms so every suit adapts.       */
+export const SUIT_STYLES = {
+  classic: { sx:1.00, sy:1.00 },
+  sleek:   { sx:0.88, sy:1.12 },                                  // tall & narrow — elegant serif / roman caps
+  bold:    { sx:1.08, sy:1.02, strokeW:5, strokeCol:'rgba(0,0,0,.28)' },  // fuller, edged — heavy / blackletter
+  round:   { sx:1.06, sy:0.94 },                                  // squat & round — soft geometric sans
+};
+
+/* ---------- font presets: a family + the suit style it pairs with ---------------
+   Google families (Cinzel / UnifrakturMaguntia / Roboto Slab) are linked in the
+   host <head>; the rest are system fonts so they always render, online or not.     */
+export const FONTS = [
+  { id:'georgia',  name:'Georgia — classic',        family:"Georgia,'Times New Roman',serif",              suit:'classic' },
+  { id:'garamond', name:'Garamond — old-style',     family:"'Garamond','Palatino Linotype','Book Antiqua',serif", suit:'sleek' },
+  { id:'cinzel',   name:'Cinzel — roman caps',      family:"'Cinzel',Georgia,serif",                       suit:'sleek' },
+  { id:'fell',     name:'IM Fell — antique press',  family:"'IM Fell English',Georgia,serif",              suit:'classic' },
+  { id:'gothic',   name:'Blackletter — gothic',     family:"'UnifrakturMaguntia','Old English Text MT',serif", suit:'bold' },
+  { id:'slab',     name:'Roboto Slab — slab serif', family:"'Roboto Slab','Rockwell',serif",               suit:'bold' },
+  { id:'modern',   name:'Modern — clean sans',      family:"'Segoe UI','Helvetica Neue',Arial,sans-serif", suit:'round' },
+  { id:'mono',     name:'Typewriter — mono',        family:"'Courier New',ui-monospace,monospace",         suit:'classic' },
+];
+
+/* mutable typography state (recomputed by setFont / setSuitStyle) ---------------- */
+export let FONT_FAMILY  = "Georgia,'Times New Roman',serif";
+export let SUIT_STYLE_ID = 'classic';
+export function setFont(family){ FONT_FAMILY = family || "Georgia,serif"; }
+export function setSuitStyle(id){ SUIT_STYLE_ID = SUIT_STYLES[id] ? id : 'classic'; }
+export function setFontById(id){ const f=FONTS.find(x=>x.id===id); if(f){ setFont(f.family); setSuitStyle(f.suit); } return f; }
 
 /* ---------- deck model (configurable) ------------------------------ */
 const STD_SUITS = [
@@ -124,7 +165,7 @@ export const PIP_LAYOUTS = {
   '4': [[L,yT,0],[R,yT,0],[L,yB,1],[R,yB,1]],
   '5': [[L,yT,0],[R,yT,0],[C,yM,0],[L,yB,1],[R,yB,1]],
   '6': [[L,yT,0],[R,yT,0],[L,yM,0],[R,yM,0],[L,yB,1],[R,yB,1]],
-  '7': [[L,yT,0],[R,yT,0],[C,g1,0],[L,yM,0],[R,yM,0],[L,yB,1],[R,yB,1]],
+  '7': [[L,q1,0],[R,q1,0],[C,q2,0],[L,q3,1],[R,q3,1],[L,q4,1],[R,q4,1]],   // evenly distributed (top pair · lone centre · two pairs) — balanced top-to-bottom
   '8': [[L,yT,0],[R,yT,0],[C,g1,0],[L,yM,0],[R,yM,0],[C,g2,1],[L,yB,1],[R,yB,1]],
   '9': [[L,q1,0],[R,q1,0],[L,q2,0],[R,q2,0],[C,yM,0],[L,q3,1],[R,q3,1],[L,q4,1],[R,q4,1]],
   '10':[[L,q1,0],[R,q1,0],[C,0.20,0],[L,q2,0],[R,q2,0],[L,q3,1],[R,q3,1],[C,0.80,1],[L,q4,1],[R,q4,1]],
@@ -133,13 +174,17 @@ export const PIP_LAYOUTS = {
 /* ---------- small svg helpers -------------------------------------- */
 const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 function pip(suit, cx, cy, size, rot){
-  const s = suitById(suit), k = size/100;
+  const s = suitById(suit), k = size/100, st = SUIT_STYLES[SUIT_STYLE_ID] || SUIT_STYLES.classic;
+  // t centres the 0..100 box on (cx,cy): translate(-50 -50) is REQUIRED or the pip lands 50k off (and rot pips
+  // shift the opposite way → collisions + asymmetry). The style scale is applied ABOUT the box centre, inside.
   const t = `translate(${cx.toFixed(1)} ${cy.toFixed(1)}) scale(${k.toFixed(3)}) ${rot?'rotate(180)':''} translate(-50 -50)`;
-  if(s.shape && SUIT_SHAPES[s.shape])
-    return `<path d="${SUIT_SHAPES[s.shape]}" fill="${s.color}" transform="${t}"/>`;
+  const styled = inner => (st.sx!==1||st.sy!==1) ? `<g transform="translate(50 50) scale(${st.sx} ${st.sy}) translate(-50 -50)">${inner}</g>` : inner;
+  if(s.shape && SUIT_SHAPES[s.shape]){
+    const edge = st.strokeW ? ` stroke="${st.strokeCol||'rgba(0,0,0,.25)'}" stroke-width="${st.strokeW}"` : '';
+    return `<g transform="${t}">${styled(`<path d="${SUIT_SHAPES[s.shape]}" fill="${s.color}"${edge}/>`)}</g>`;
+  }
   // glyph fallback: render the unicode symbol centred in the 0..100 box
-  return `<text x="50" y="50" transform="${t}" text-anchor="middle" dominant-baseline="central"
-     font-family="'Segoe UI Symbol','Apple Symbols',serif" font-size="86" fill="${s.color}">${esc(s.symbol||'●')}</text>`;
+  return `<g transform="${t}">${styled(`<text x="50" y="50" text-anchor="middle" dominant-baseline="central" font-family="'Segoe UI Symbol','Apple Symbols',serif" font-size="86" fill="${s.color}">${esc(s.symbol||'●')}</text>`)}</g>`;
 }
 
 /* ---------- PAPER pad ---------------------------------------------- */
@@ -213,7 +258,7 @@ export function indexPad(rankLabel, suit, opt={}){
       <rect x="${(-pw/2).toFixed(1)}" y="${(-ph/2).toFixed(1)}" width="${pw.toFixed(1)}" height="${ph.toFixed(1)}" rx="${17*sc}"
             fill="${PAPER_HI}" stroke="${gold}" stroke-width="2.4" opacity="0.97"/>
       <text x="0" y="${(-ph/2+rfs*0.82+8*sc).toFixed(1)}" text-anchor="middle"
-            font-family="Georgia,'Times New Roman',serif" font-weight="700"
+            font-family="${FONT_FAMILY}" font-weight="700"
             font-size="${rfs.toFixed(1)}" fill="${s.color}">${esc(rankLabel)}</text>
       ${pip(suit, 0, ph/2-40*sc, 54*sc, false)}</g>`;
   const cx = Rct.x+pw/2+16*sc, cy = Rct.y+ph/2+16*sc;
@@ -267,9 +312,11 @@ export function courtCenter(rankId, suit, artUrl, box, rect){
   if(artUrl) return mirroredArt(artUrl, box, R);
   const rk=rankById(rankId), s=suitById(suit);
   const mx=R.x+R.w/2, my=R.y+R.h/2, ah=(my-R.y), ay=R.y;
-  const half=`${pip(suit,mx,ay+ah*0.4,170,false)}
-      <text x="${mx}" y="${ay+ah*0.8}" text-anchor="middle" font-family="Georgia,serif"
-            font-size="38" fill="${s.color}" letter-spacing="5">${esc((rk.figure||rk.label).toUpperCase())}</text>`;
+  // scale the placeholder to the card so the two mirrored halves never collide on small/narrow sizes
+  const ps=Math.min(R.w*0.26, ah*0.42), fs=Math.max(13,R.w*0.05);
+  const half=`${pip(suit,mx,ay+ah*0.36,ps,false)}
+      <text x="${mx}" y="${ay+ah*0.78}" text-anchor="middle" font-family="${FONT_FAMILY}"
+            font-size="${fs.toFixed(0)}" fill="${s.color}" letter-spacing="${(fs*0.13).toFixed(1)}">${esc((rk.figure||rk.label).toUpperCase())}</text>`;
   return `<g class="pad-center-court placeholder">${half}
     <g transform="rotate(180 ${mx} ${my})">${half}</g></g>`;
 }
@@ -302,9 +349,13 @@ export function buildCard(rankId, suit, opt={}){
   const key=`${rankId}-${suit}`;
   const artUrl=opt.artUrl||(opt.artMap&&opt.artMap[key])||null;
   const box=opt.artBox&&opt.artBox[key];
+  // Uploaded art fills the frame opening by default (a cropped photo/illustration = the whole card face).
+  // Set opt.artMirror[key] (or opt.artMirror===true) to use the classic mirrored double-header instead.
+  const mirror = artUrl && (opt.artMirror===true || (opt.artMirror && opt.artMirror[key]));
   const fr=resolveFrame(opt);
   const center = artUrl
-      ? courtCenter(rankId, suit, artUrl, box, fr.rect)   // uploaded art wins on any card
+      ? (mirror ? courtCenter(rankId, suit, artUrl, box, fr.rect)
+                : singleArt(artUrl, fr.rect))              // uploaded art fills the card face
       : (rk.kind==='court' ? courtCenter(rankId, suit, null, box, fr.rect)
                            : pipCenter(rankId, suit, fr.rect));
   const body = fr.kind==='image'
@@ -322,12 +373,12 @@ export function buildCustomCard(spec, opt={}){
   const s = spec.suit ? suitById(spec.suit) : null;
   const center = artUrl ? singleArt(artUrl, R)
     : `<g class="pad-center-art placeholder"><rect x="${R.x+R.w*0.1}" y="${R.y+R.h*0.12}" width="${R.w*0.8}" height="${R.h*0.62}" rx="20" fill="none" stroke="${opt.accent||GOLD}" stroke-width="3" opacity="0.6"/>
-        <text x="${R.x+R.w/2}" y="${R.y+R.h*0.44}" text-anchor="middle" font-family="Georgia,serif" font-size="34" fill="#9aa3b2">drop art</text></g>`;
+        <text x="${R.x+R.w/2}" y="${R.y+R.h*0.44}" text-anchor="middle" font-family="${FONT_FAMILY}" font-size="34" fill="#9aa3b2">drop art</text></g>`;
   // title banner near the bottom
   const ty=R.y+R.h*0.86;
   const title = spec.title ? `<g class="pad-title">
       <rect x="${R.x+R.w*0.06}" y="${(ty-46).toFixed(1)}" width="${R.w*0.88}" height="74" rx="14" fill="${PAPER_HI}" stroke="${opt.accent||GOLD}" stroke-width="2.4" opacity="0.96"/>
-      <text x="${R.x+R.w/2}" y="${(ty+6).toFixed(1)}" text-anchor="middle" font-family="Georgia,serif" font-weight="700" font-size="40" fill="#20222a">${esc(spec.title)}</text></g>` : '';
+      <text x="${R.x+R.w/2}" y="${(ty+6).toFixed(1)}" text-anchor="middle" font-family="${FONT_FAMILY}" font-weight="700" font-size="40" fill="#20222a">${esc(spec.title)}</text></g>` : '';
   const corner = (spec.corner||s) ? cornerBadge(spec.corner || (s?s.symbol:''), spec.suit, {...opt, rect:R}) : '';
   const body = fr.kind==='image' ? `${framePad(opt)}${fr.img}${center}`
       : `${framePad(opt)}${center}${frameOverlay(fr,opt)}`;
@@ -338,7 +389,7 @@ function cornerBadge(text, suit, opt){
   const s=suit?suitById(suit):null, col=s?s.color:'#20222a';
   const one=(cx,cy,rot)=>`<g transform="translate(${cx.toFixed(1)} ${cy.toFixed(1)}) ${rot?'rotate(180)':''}">
       <circle r="34" fill="${PAPER_HI}" stroke="${gold}" stroke-width="2.4"/>
-      <text y="14" text-anchor="middle" font-family="Georgia,serif" font-weight="700" font-size="40" fill="${col}">${esc(text)}</text></g>`;
+      <text y="14" text-anchor="middle" font-family="${FONT_FAMILY}" font-weight="700" font-size="40" fill="${col}">${esc(text)}</text></g>`;
   const cx=R.x+46, cy=R.y+46;
   return `<g class="pad-corner">${one(cx,cy,false)}${one(CARD.w-cx,CARD.h-cy,true)}</g>`;
 }
@@ -373,17 +424,31 @@ function starPath(cx,cy,outer,inner,points,rotDeg=-90){
 export function cardBack(opt={}){
   const gold=opt.accent||GOLD, goldL=opt.accentLt||GOLD_LT, paper=opt.paper||PAPER;
   const field=opt.field||'#132038', field2=opt.field2||'#22365e', ink=opt.ink||'#0d1626';
-  const x=OX,y=OY,w=TRIM.w,h=TRIM.h,r=42,in1=26,in2=40, cx=CARD.w/2, cy=CARD.h/2;
-  const fx=x+in2,fy=y+in2,fw=w-in2*2,fh=h-in2*2,fr=r-24;
+  const u = Math.min(TRIM.w,TRIM.h)/750;   // scale everything off the poker baseline so the design stays centred + proportional at ANY card size
+  const x=OX,y=OY,w=TRIM.w,h=TRIM.h,r=42*u,in1=26*u,in2=40*u, cx=CARD.w/2, cy=CARD.h/2;
+  // Uploaded back ART: fill the whole card with the image, framed by the gold keylines. Returns early.
+  if(opt.art){
+    const bid='bkart'+(++_uid);
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${CARD.w} ${CARD.h}" class="card card-back" data-rank="back" data-suit="back" width="${CARD.w}" height="${CARD.h}">
+      <defs><clipPath id="${bid}"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${r}"/></clipPath></defs>
+      <rect x="0" y="0" width="${CARD.w}" height="${CARD.h}" fill="${paper}"/>
+      <image href="${opt.art}" x="0" y="0" width="${CARD.w}" height="${CARD.h}" preserveAspectRatio="xMidYMid slice" clip-path="url(#${bid})"/>
+      <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${r}" fill="none" stroke="${ink}" stroke-width="2"/>
+      <rect x="${x+in1}" y="${y+in1}" width="${w-in1*2}" height="${h-in1*2}" rx="${r-14*u}" fill="none" stroke="${gold}" stroke-width="${6*u}"/>
+      <rect x="${x+in1+9*u}" y="${y+in1+9*u}" width="${w-(in1+9*u)*2}" height="${h-(in1+9*u)*2}" rx="${r-20*u}" fill="none" stroke="${goldL}" stroke-width="${1.4*u}" opacity="0.8"/>
+    </svg>`;
+  }
+  const fx=x+in2,fy=y+in2,fw=w-in2*2,fh=h-in2*2,fr=r-24*u;
+  const M=Math.min(246*u, Math.min(fw,fh)*0.46), ms=M/246;   // medallion outer radius, clamped to fit the field → scales with size
   const goldPip=(suit,px,py,size)=>{ const s=suitById(suit); if(!s) return ''; const k=size/100;
     if(s.shape&&SUIT_SHAPES[s.shape]) return `<path d="${SUIT_SHAPES[s.shape]}" fill="${gold}" transform="translate(${px} ${py}) scale(${k}) translate(-50 -50)"/>`;
     return `<text x="${px}" y="${py}" text-anchor="middle" dominant-baseline="central" font-family="'Segoe UI Symbol',serif" font-size="${size}" fill="${gold}">${esc(s.symbol||'●')}</text>`; };
   const orbit = DECK.suits.slice(0,4).map(s=>s.id);
   while(orbit.length<4) orbit.push(orbit[orbit.length-1]||'spades');
-  const Rr=182;
-  const flourish=(px,py,sx,sy)=>`<g transform="translate(${px} ${py}) scale(${sx} ${sy})">
-      <path d="M0 46 C0 20 20 0 46 0" fill="none" stroke="${gold}" stroke-width="3"/>
-      <path d="M8 60 C8 30 30 8 60 8" fill="none" stroke="${gold}" stroke-width="1.5" opacity="0.7"/>
+  const Rr=182*ms;
+  const flourish=(px,py,sx,sy)=>`<g transform="translate(${px} ${py}) scale(${sx*u} ${sy*u})">
+      <path d="M0 46 C0 20 20 0 46 0" fill="none" stroke="${gold}" stroke-width="${3/u}"/>
+      <path d="M8 60 C8 30 30 8 60 8" fill="none" stroke="${gold}" stroke-width="${1.5/u}" opacity="0.7"/>
       <circle cx="52" cy="52" r="4" fill="${gold}"/></g>`;
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${CARD.w} ${CARD.h}"
       class="card card-back" data-rank="back" data-suit="back" width="${CARD.w}" height="${CARD.h}">
@@ -399,20 +464,20 @@ export function cardBack(opt={}){
     <rect x="${x+in1}" y="${y+in1}" width="${w-in1*2}" height="${h-in1*2}" rx="${r-14}" fill="none" stroke="${gold}" stroke-width="6"/>
     <rect x="${fx}" y="${fy}" width="${fw}" height="${fh}" rx="${fr}" fill="url(#bkField)"/>
     <g clip-path="url(#bkClip)"><rect x="${fx}" y="${fy}" width="${fw}" height="${fh}" fill="url(#bkLattice)"/>
-      ${flourish(fx+14,fy+14,1,1)} ${flourish(fx+fw-14,fy+14,-1,1)}
-      ${flourish(fx+14,fy+fh-14,1,-1)} ${flourish(fx+fw-14,fy+fh-14,-1,-1)}</g>
-    <rect x="${fx+16}" y="${fy+16}" width="${fw-32}" height="${fh-32}" rx="${fr-8}" fill="none" stroke="${gold}" stroke-width="1.5" opacity="0.75"/>
-    <circle cx="${cx}" cy="${cy}" r="246" fill="url(#bkField)" opacity="0.55"/>
-    <circle cx="${cx}" cy="${cy}" r="246" fill="none" stroke="${gold}" stroke-width="2.5"/>
-    <circle cx="${cx}" cy="${cy}" r="230" fill="none" stroke="${gold}" stroke-width="6" opacity="0.9"/>
-    <circle cx="${cx}" cy="${cy}" r="216" fill="none" stroke="${goldL}" stroke-width="1.4" opacity="0.8"/>
-    ${goldPip(orbit[0],cx,cy-Rr,74)}${goldPip(orbit[1],cx+Rr,cy,74)}
-    ${goldPip(orbit[2],cx,cy+Rr,74)}${goldPip(orbit[3],cx-Rr,cy,74)}
-    <circle cx="${cx}" cy="${cy}" r="150" fill="none" stroke="${gold}" stroke-width="2"/>
-    <path d="${starPath(cx,cy,138,60,8,-90)}" fill="${field}" stroke="${gold}" stroke-width="2.5"/>
-    <path d="${starPath(cx,cy,120,52,8,-67.5)}" fill="none" stroke="${goldL}" stroke-width="1.4" opacity="0.85"/>
-    <circle cx="${cx}" cy="${cy}" r="40" fill="${field2}" stroke="${gold}" stroke-width="2.5"/>
-    <path d="${starPath(cx,cy,30,12,4,-90)}" fill="${gold}"/><circle cx="${cx}" cy="${cy}" r="6" fill="${goldL}"/>
+      ${flourish(fx+14*u,fy+14*u,1,1)} ${flourish(fx+fw-14*u,fy+14*u,-1,1)}
+      ${flourish(fx+14*u,fy+fh-14*u,1,-1)} ${flourish(fx+fw-14*u,fy+fh-14*u,-1,-1)}</g>
+    <rect x="${fx+16*u}" y="${fy+16*u}" width="${fw-32*u}" height="${fh-32*u}" rx="${fr-8*u}" fill="none" stroke="${gold}" stroke-width="${1.5*u}" opacity="0.75"/>
+    <circle cx="${cx}" cy="${cy}" r="${246*ms}" fill="url(#bkField)" opacity="0.55"/>
+    <circle cx="${cx}" cy="${cy}" r="${246*ms}" fill="none" stroke="${gold}" stroke-width="${2.5*ms}"/>
+    <circle cx="${cx}" cy="${cy}" r="${230*ms}" fill="none" stroke="${gold}" stroke-width="${6*ms}" opacity="0.9"/>
+    <circle cx="${cx}" cy="${cy}" r="${216*ms}" fill="none" stroke="${goldL}" stroke-width="${1.4*ms}" opacity="0.8"/>
+    ${goldPip(orbit[0],cx,cy-Rr,74*ms)}${goldPip(orbit[1],cx+Rr,cy,74*ms)}
+    ${goldPip(orbit[2],cx,cy+Rr,74*ms)}${goldPip(orbit[3],cx-Rr,cy,74*ms)}
+    <circle cx="${cx}" cy="${cy}" r="${150*ms}" fill="none" stroke="${gold}" stroke-width="${2*ms}"/>
+    <path d="${starPath(cx,cy,138*ms,60*ms,8,-90)}" fill="${field}" stroke="${gold}" stroke-width="${2.5*ms}"/>
+    <path d="${starPath(cx,cy,120*ms,52*ms,8,-67.5)}" fill="none" stroke="${goldL}" stroke-width="${1.4*ms}" opacity="0.85"/>
+    <circle cx="${cx}" cy="${cy}" r="${40*ms}" fill="${field2}" stroke="${gold}" stroke-width="${2.5*ms}"/>
+    <path d="${starPath(cx,cy,30*ms,12*ms,4,-90)}" fill="${gold}"/><circle cx="${cx}" cy="${cy}" r="${6*ms}" fill="${goldL}"/>
   </svg>`;
 }
 
@@ -426,14 +491,14 @@ export function jokerCard(variant='red', opt={}){
   let center;
   if(artUrl){ center=mirroredArt(artUrl, box, R); }
   else {
-    const ah=my-R.y;
-    const half=`<path d="${starPath(mx,R.y+ah*0.4,110,44,5,-90)}" fill="${col}"/>
-      <text x="${mx}" y="${R.y+ah*0.82}" text-anchor="middle" font-family="Georgia,serif" font-size="36" fill="${col}" letter-spacing="7">JOKER</text>`;
+    const ah=my-R.y, so=Math.min(R.w*0.17, ah*0.30), si=so*0.42, jfs=Math.max(13,R.w*0.048);
+    const half=`<path d="${starPath(mx,R.y+ah*0.36,so,si,5,-90)}" fill="${col}"/>
+      <text x="${mx}" y="${R.y+ah*0.80}" text-anchor="middle" font-family="${FONT_FAMILY}" font-size="${jfs.toFixed(0)}" fill="${col}" letter-spacing="${(jfs*0.19).toFixed(1)}">JOKER</text>`;
     center=`<g class="pad-center-court placeholder">${half}<g transform="rotate(180 ${mx} ${my})">${half}</g></g>`;
   }
   const letters='JOKER'.split(''), sc=Math.min(1,Math.max(0.72,R.w/560));
   const stack=(x,y,rot)=>`<g transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) ${rot?'rotate(180)':''}" text-anchor="middle"
-      font-family="Georgia,serif" font-weight="700" font-size="${(34*sc).toFixed(1)}" fill="${col}">
+      font-family="${FONT_FAMILY}" font-weight="700" font-size="${(34*sc).toFixed(1)}" fill="${col}">
       ${letters.map((c,i)=>`<text y="${(i*35*sc).toFixed(1)}">${c}</text>`).join('')}
       <path d="${starPath(0,letters.length*35*sc+6,17*sc,7*sc,5,-90)}" fill="${col}"/></g>`;
   const ix=R.x+30*sc, iy=R.y+42*sc;

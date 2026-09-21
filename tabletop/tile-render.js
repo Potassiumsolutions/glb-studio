@@ -550,7 +550,7 @@ export function connectorNubs(def, gridKind){
   return grp;
 }
 
-export function buildTileMesh(def, gridKind, seed, variant, mass){
+export function buildTileMesh(def, gridKind, seed, variant, mass, customTex){
   const g = TE.gridFor(gridKind);
   const grp = new THREE.Group(); grp.userData.defId=def.id;
   // base slab — a DARKENED biome tone so where the painted top feathers out at the edges it reads as a
@@ -564,15 +564,15 @@ export function buildTileMesh(def, gridKind, seed, variant, mass){
   // layer floating over a darker base. (Water has no BIOME_TEXTURE → it keeps its own reflective surface.)
   // OPAQUE, full-coverage art whose rim is tinted to the biome colour → reads as the painted TOP SURFACE
   // (not a translucent layer over a dark base) AND blends softly into neighbouring tiles at the seam.
-  const tex = biomeTexture(def.biome, variant||0, gridKind, false, TE.BIOME_COLOR[def.biome]||0x777777);
+  const tex = customTex || biomeTexture(def.biome, variant||0, gridKind, false, TE.BIOME_COLOR[def.biome]||0x777777);   // uploaded tile art wins
   if (tex){
     // drawn UNLIT (art shows as painted). Now that the slab sits at [0,TOP], this plane at TOP+0.02 is a
     // real depth-tested surface — so 3-D features that belong ON the terrain (mountain peaks, etc.) render
     // ABOVE it instead of being hidden by an always-on-top plane. (depthTest:false used to occlude them.)
     const top = new THREE.Mesh(topGeo(gridKind), new THREE.MeshBasicMaterial({ map:tex }));
     top.position.y = TOP + 0.02; top.renderOrder = 1;
-    const rr = rng32((((seed||1)*40503)>>>0)); const steps = gridKind==='hex'?6:4;   // rotate per tile to hide the repeat (tile shape is n-fold symmetric so it still covers)
-    top.rotation.y = (gridKind==='hex'?Math.PI/3:Math.PI/2) * Math.floor(rr()*steps);
+    if(!customTex){ const rr = rng32((((seed||1)*40503)>>>0)); const steps = gridKind==='hex'?6:4;   // rotate per tile to hide the repeat (tile shape is n-fold symmetric so it still covers)
+      top.rotation.y = (gridKind==='hex'?Math.PI/3:Math.PI/2) * Math.floor(rr()*steps); }   // uploaded art stays upright
     grp.add(top);
   }
   // rim — a crisp thin tile outline drawn on top (depth-test off) so the hex/grid line stays clean over the blend
@@ -583,17 +583,19 @@ export function buildTileMesh(def, gridKind, seed, variant, mass){
   transitionTint(grp, def, gridKind);
   // walls stay straight segments along their edge; roads/trails/rivers are CURVED painted ribbons that
   // still exit at the exact edge midpoint (so they connect) but bend + wobble through the tile.
-  def.edges.forEach((e,dir)=>{ if(e.path===P.WALL){ const [ex,ez]=g.edgeMid(dir); wallSeg(grp, ex, ez, edgeLenOf(gridKind)); } });
+  if(!customTex) def.edges.forEach((e,dir)=>{ if(e.path===P.WALL){ const [ex,ez]=g.edgeMid(dir); wallSeg(grp, ex, ez, edgeLenOf(gridKind)); } });
   // GENERATED tiles (def.gen) draw their roads/rivers/trails as CONTINUOUS swept strokes (bld.draw) instead
   // of per-tile ribbons, so they don't truncate/misalign at tile joins. Only hand-placed LIBRARY tiles use
   // the per-tile ribbon renderer here. (Tile edges stay set either way for the play/graph layer.)
-  if(!def.gen) buildPaths(grp, def, gridKind, seed);
+  if(!def.gen && !customTex) buildPaths(grp, def, gridKind, seed);
   // features — skip the procedural 3D scatter when a painted texture already shows the terrain
   // (keep it for untextured biomes: village houses, city buildings, castle keep, water, transitions).
   // EXCEPTION: mountains still get scattered 3D PEAKS on top of the rocky ground — otherwise every mountain
   // tile shows the SAME texture with a centred peak, so a mountain region reads as peaks in a straight grid.
-  if (!tex) scatter(grp, def, gridKind, seed||1, mass, variant);
-  else if (def.feature==='houses' || def.feature==='buildings' || def.feature==='keep' || def.feature==='peaks') scatter(grp, def, gridKind, seed||1, mass, variant);
+  if (!customTex){
+    if (!tex) scatter(grp, def, gridKind, seed||1, mass, variant);
+    else if (def.feature==='houses' || def.feature==='buildings' || def.feature==='keep' || def.feature==='peaks') scatter(grp, def, gridKind, seed||1, mass, variant);
+  }
   return grp;
 }
 
