@@ -636,24 +636,22 @@
       }
     }
 
-    // MOAT + DRAWBRIDGE (toggle) — ring the castle grounds with a water moat just INSIDE the outermost ring of
-    // cells (a band hugging the curtain wall), leaving the wall itself on the border. Where a road crosses the
-    // moat the road rides over the water = a drawbridge (the renderer bridges roads-over-water automatically).
-    if (opts.moat && type !== 'village'){
-      for (const k of keys){ if (k === centerK) continue;
-        // moat = a non-border cell that touches the border (the ring one in from the edge) → a clean water ring
-        // hugging the wall, so it reads as a moat around the castle rather than a puddle in the middle.
-        if (isBorder(k)) continue;
-        const touchesEdge = nbrs(k).some(n => isBorder(n.k)) || offDirs(k).length>0;
-        if (!touchesEdge) continue;
+    // MOAT + DRAWBRIDGE (toggle) — the OUTERMOST ring of the plan becomes the water moat, which sits OUTSIDE the
+    // curtain wall (the wall is moved one ring in, below). So it reads castle → wall → moat → countryside, not a
+    // pool inside the keep. Where the gate road crosses the moat the road rides over water = a drawbridge.
+    const moatOn = opts.moat && type !== 'village';
+    if (moatOn){
+      for (const k of keys){ if (!isBorder(k)) continue;                 // the plan's outer edge = the moat ring
         biome[k] = B.WATER;
-        feature[k] = street.has(k) ? undefined : 'water';           // road-over-water = drawbridge; else plain moat
+        feature[k] = street.has(k) ? undefined : 'water';               // gate road over water = drawbridge; else plain moat
       }
     }
 
-    // perimeter WALL with a gate gap (castle + town; villages stay open)
+    // perimeter WALL with a gate gap (castle + town; villages stay open). With a moat the wall rings the INNER
+    // cells (one in from the edge) so the moat sits OUTSIDE the wall; otherwise it rings the whole plan.
     const walls = [];
-    if (type !== 'village') ringWall(new Set(keys), k => cellOf[k], k => pos[k], g, k => edges[k], N).forEach(w => walls.push(w));
+    if (type !== 'village'){ const wallSet = moatOn ? new Set(keys.filter(k => !isBorder(k))) : new Set(keys);
+      ringWall(wallSet, k => cellOf[k], k => pos[k], g, k => edges[k], N).forEach(w => walls.push(w)); }
 
     // realise every cell as a connector-exact tile
     const defFeat = (bm) => ({ plains: 'tufts', forest: 'trees', mountains: 'peaks', village: 'houses', city: 'buildings', water: 'water' })[bm];
