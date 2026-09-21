@@ -497,10 +497,13 @@ export function jokerCard(variant='red', opt={}){
     center=`<g class="pad-center-court placeholder">${half}<g transform="rotate(180 ${mx} ${my})">${half}</g></g>`;
   }
   const letters='JOKER'.split(''), sc=Math.min(1,Math.max(0.72,R.w/560));
-  const stack=(x,y,rot)=>`<g transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) ${rot?'rotate(180)':''}" text-anchor="middle"
-      font-family="${FONT_FAMILY}" font-weight="700" font-size="${(34*sc).toFixed(1)}" fill="${col}">
+  const gold=opt.accent||GOLD;
+  const stack=(x,y,rot)=>`<g transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) ${rot?'rotate(180)':''}">
+      <rect x="${(-21*sc).toFixed(1)}" y="${(-28*sc).toFixed(1)}" width="${(42*sc).toFixed(1)}" height="${(198*sc).toFixed(1)}" rx="${(12*sc).toFixed(1)}"
+            fill="${PAPER_HI}" stroke="${gold}" stroke-width="${(2.2*sc).toFixed(1)}" opacity="0.97"/>
+      <g text-anchor="middle" font-family="${FONT_FAMILY}" font-weight="700" font-size="${(34*sc).toFixed(1)}" fill="${col}">
       ${letters.map((c,i)=>`<text y="${(i*35*sc).toFixed(1)}">${c}</text>`).join('')}
-      <path d="${starPath(0,letters.length*35*sc+6,17*sc,7*sc,5,-90)}" fill="${col}"/></g>`;
+      <path d="${starPath(0,letters.length*35*sc+6,17*sc,7*sc,5,-90)}" fill="${col}"/></g></g>`;
   const ix=R.x+30*sc, iy=R.y+42*sc;
   const body=fr.kind==='image'?`${framePad(opt)}${fr.img}${center}`:`${framePad(opt)}${center}${frameOverlay(fr,opt)}`;
   return svg('card joker','joker',variant,`${body}${stack(ix,iy,false)}${stack(CARD.w-ix,CARD.h-iy,true)}`);
