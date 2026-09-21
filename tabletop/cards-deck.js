@@ -249,20 +249,26 @@ export function indexPad(rankLabel, suit, opt={}){
   const s = suitById(suit);
   const gold = opt.accent || GOLD;
   const Rct = opt.rect || TRIM_RECT;
-  const sc = Math.min(1, Math.max(0.72, Rct.w/560));
+  const padScale = (opt.pad && opt.pad.scale) || 1;                 // user pad-size control (grows number + suit + pill together)
+  const sc = Math.min(1, Math.max(0.72, Rct.w/560)) * padScale;
   const isTen = String(rankLabel).length>=2;
-  const rfs = (isTen?84:100)*sc;
-  const pw  = (isTen?96:80)*sc;
-  const ph  = 158*sc;
+  const pw  = (isTen ? 108 : 90) * sc;                              // pill width
+  const ph  = pw * 1.74;                                            // pill height (taller than wide)
+  const rfs = (isTen ? pw*0.70 : pw*0.92);                          // rank digit sized to fit the pill width
+  const pipSz = pw * 0.50;
+  // number in the UPPER half, suit pip in the LOWER half, with a clear gap so they never overlap
   const badge=(cx,cy,rot)=>`<g transform="translate(${cx.toFixed(1)} ${cy.toFixed(1)}) ${rot?'rotate(180)':''}">
-      <rect x="${(-pw/2).toFixed(1)}" y="${(-ph/2).toFixed(1)}" width="${pw.toFixed(1)}" height="${ph.toFixed(1)}" rx="${17*sc}"
-            fill="${PAPER_HI}" stroke="${gold}" stroke-width="2.4" opacity="0.97"/>
-      <text x="0" y="${(-ph/2+rfs*0.82+8*sc).toFixed(1)}" text-anchor="middle"
+      <rect x="${(-pw/2).toFixed(1)}" y="${(-ph/2).toFixed(1)}" width="${pw.toFixed(1)}" height="${ph.toFixed(1)}" rx="${16*sc}"
+            fill="${PAPER_HI}" stroke="${gold}" stroke-width="${2.4}" opacity="0.97"/>
+      <text x="0" y="${(-ph*0.10 + rfs*0.36).toFixed(1)}" text-anchor="middle" dominant-baseline="alphabetic"
             font-family="${FONT_FAMILY}" font-weight="700"
             font-size="${rfs.toFixed(1)}" fill="${s.color}">${esc(rankLabel)}</text>
-      ${pip(suit, 0, ph/2-40*sc, 54*sc, false)}</g>`;
-  const cx = Rct.x+pw/2+16*sc, cy = Rct.y+ph/2+16*sc;
-  return `<g class="pad-index">${badge(cx,cy,false)}${badge(CARD.w-cx,CARD.h-cy,true)}</g>`;
+      ${pip(suit, 0, ph*0.26, pipSz, false)}</g>`;
+  const defCx = Rct.x + pw/2 + 16*sc, defCy = Rct.y + ph/2 + 16*sc;
+  // opt.pad.pos = the top-left pad centre as fractions of the card; the other pad mirrors through the centre (symmetry)
+  const cx = (opt.pad && opt.pad.pos) ? opt.pad.pos.x*CARD.w : defCx;
+  const cy = (opt.pad && opt.pad.pos) ? opt.pad.pos.y*CARD.h : defCy;
+  return `<g class="pad-index" data-pad="1">${badge(cx,cy,false)}${badge(CARD.w-cx,CARD.h-cy,true)}</g>`;
 }
 
 /* ---------- CENTER: pips ------------------------------------------- */
@@ -436,6 +442,16 @@ function starPath(cx,cy,outer,inner,points,rotDeg=-90){
     d+=(i?'L':'M')+(cx+rr*Math.cos(a)).toFixed(1)+' '+(cy+rr*Math.sin(a)).toFixed(1); }
   return d+'Z';
 }
+// optional custom text on the back — a centred gold plaque, drawn on top of art or the procedural design
+function backText(opt){
+  if(!opt.text) return '';
+  const t=String(opt.text).slice(0,40), gold=opt.accent||GOLD, cx=CARD.w/2, cy=CARD.h/2;
+  const fs=Math.max(20, Math.min(TRIM.w*0.12, (TRIM.w*0.82)/Math.max(5,t.length)*1.55));
+  const padW=Math.min(TRIM.w*0.9, fs*t.length*0.62+44*(fs/60)+20), padH=fs*1.8;
+  return `<g class="pad-backtext">
+    <rect x="${(cx-padW/2).toFixed(1)}" y="${(cy-padH/2).toFixed(1)}" width="${padW.toFixed(1)}" height="${padH.toFixed(1)}" rx="${(padH*0.26).toFixed(1)}" fill="${opt.field||'#132038'}" stroke="${gold}" stroke-width="3" opacity="0.96"/>
+    <text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" font-family="${FONT_FAMILY}" font-weight="700" font-size="${fs.toFixed(1)}" fill="${gold}" letter-spacing="1">${esc(t)}</text></g>`;
+}
 export function cardBack(opt={}){
   const gold=opt.accent||GOLD, goldL=opt.accentLt||GOLD_LT, paper=opt.paper||PAPER;
   const field=opt.field||'#132038', field2=opt.field2||'#22365e', ink=opt.ink||'#0d1626';
@@ -451,6 +467,7 @@ export function cardBack(opt={}){
       <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${r}" fill="none" stroke="${ink}" stroke-width="2"/>
       <rect x="${x+in1}" y="${y+in1}" width="${w-in1*2}" height="${h-in1*2}" rx="${r-14*u}" fill="none" stroke="${gold}" stroke-width="${6*u}"/>
       <rect x="${x+in1+9*u}" y="${y+in1+9*u}" width="${w-(in1+9*u)*2}" height="${h-(in1+9*u)*2}" rx="${r-20*u}" fill="none" stroke="${goldL}" stroke-width="${1.4*u}" opacity="0.8"/>
+      ${backText(opt)}
     </svg>`;
   }
   const fx=x+in2,fy=y+in2,fw=w-in2*2,fh=h-in2*2,fr=r-24*u;
@@ -493,6 +510,7 @@ export function cardBack(opt={}){
     <path d="${starPath(cx,cy,120*ms,52*ms,8,-67.5)}" fill="none" stroke="${goldL}" stroke-width="${1.4*ms}" opacity="0.85"/>
     <circle cx="${cx}" cy="${cy}" r="${40*ms}" fill="${field2}" stroke="${gold}" stroke-width="${2.5*ms}"/>
     <path d="${starPath(cx,cy,30*ms,12*ms,4,-90)}" fill="${gold}"/><circle cx="${cx}" cy="${cy}" r="${6*ms}" fill="${goldL}"/>
+    ${backText(opt)}
   </svg>`;
 }
 

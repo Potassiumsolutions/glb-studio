@@ -630,8 +630,17 @@
         <input type="file" id="cFrameFile" accept="image/*" hidden>
       </div>
       <div class="row wrap">
-        <div style="flex:1"><label class="fld">Accent (gold)</label><input type="color" id="cAccent" value="#b8933f" style="width:100%"></div>
-        <div style="flex:1"><label class="fld">Paper</label><input type="color" id="cPaper" value="#f4ead1" style="width:100%"></div>
+        <div style="flex:1"><label class="fld">Accent (gold)</label>
+          <div style="display:flex;gap:4px"><input type="color" id="cAccent" value="#b8933f" style="width:42px;flex:0 0 auto"><input type="text" id="cAccentHex" value="#b8933f" spellcheck="false" style="flex:1;min-width:0"></div></div>
+        <div style="flex:1"><label class="fld">Paper</label>
+          <div style="display:flex;gap:4px"><input type="color" id="cPaper" value="#f4ead1" style="width:42px;flex:0 0 auto"><input type="text" id="cPaperHex" value="#f4ead1" spellcheck="false" style="flex:1;min-width:0"></div></div>
+      </div>
+      <div class="mini" style="color:var(--mut);margin-top:3px">Type a hex code (<code>#RRGGBB</code>) or <code>rgb(r,g,b)</code> in the box, or tap the swatch.</div>
+      <div class="row wrap" style="margin-top:8px;align-items:flex-end">
+        <div style="flex:1"><label class="fld">🔢 Index-pad size <span id="cPadSizeVal" style="opacity:.6"></span></label>
+          <input type="range" id="cPadSize" min="0.6" max="2" step="0.05" value="1" style="width:100%"></div>
+        <button class="btn sec" id="cPadMove" style="flex:0 0 auto" title="Drag a corner pad on the card to reposition both symmetrically">📍 Move pads</button>
+        <button class="btn sec" id="cPadReset" style="flex:0 0 auto" title="Reset pads to the corners">↺</button>
       </div>
       <div class="divider"></div>
       <label class="fld">Suits</label>
@@ -662,8 +671,14 @@
           <select id="cBackStyle"><option value="proc">Procedural (colours below)</option><optgroup label="Ornate (built-in)"><option value="damask">Royal damask</option><option value="mandala">Mandala rosette</option><option value="artdeco">Art Deco sunburst</option><option value="celtic">Celtic knotwork</option><option value="floral">Floral arabesque</option><option value="arcane">Arcane sigil</option></optgroup></select></div>
       </div>
       <div class="row wrap" id="cBackColorRow">
-        <div style="flex:1"><label class="mini">Field</label><input type="color" id="cBackField" value="#132038" style="width:100%"></div>
-        <div style="flex:1"><label class="mini">Gold</label><input type="color" id="cBackGold" value="#b8933f" style="width:100%"></div>
+        <div style="flex:1"><label class="mini">Field</label>
+          <div style="display:flex;gap:4px"><input type="color" id="cBackField" value="#132038" style="width:38px;flex:0 0 auto"><input type="text" id="cBackFieldHex" value="#132038" spellcheck="false" style="flex:1;min-width:0"></div></div>
+        <div style="flex:1"><label class="mini">Gold</label>
+          <div style="display:flex;gap:4px"><input type="color" id="cBackGold" value="#b8933f" style="width:38px;flex:0 0 auto"><input type="text" id="cBackGoldHex" value="#b8933f" spellcheck="false" style="flex:1;min-width:0"></div></div>
+      </div>
+      <div class="row wrap" style="margin-top:6px">
+        <div style="flex:1"><label class="mini">✍ Back text (optional)</label>
+          <input type="text" id="cBackText" maxlength="40" placeholder="e.g. a name or title" style="width:100%"></div>
       </div>
       <div class="divider"></div>
       <div class="row wrap">
@@ -853,7 +868,7 @@ import * as Cards from './cards-deck.js';
 
 const BGC = window.BGC, GAMES = window.BGC_GAMES;
 const TE = window.TileEngine, TLIB = window.TileLibrary;
-const APP_VERSION = 'v0.72';
+const APP_VERSION = 'v0.73';
 const CREDITS = `<b>Ksol Designs</b> — Paul A.T. Ramey<br>www.ksoldesigns.com<br>Built with GLB Studio · Tabletop<br><span class="ver">${APP_VERSION}</span>`;
 // ---- Board credit: a small "KSOL Designs" mark on the board for the FREE build. Owning ANY content pack
 // (TTier expansion) unlocks removing it (⚙ Settings toggle, or click the credit). ----
@@ -4388,8 +4403,9 @@ const cS = {
   suitsOn: new Set(['spades','hearts','clubs','diamonds']),
   rankObjs: Cards.defaultRanks(),
   ranksOn: new Set(Cards.defaultRanks().map(r=>r.id)),
-  jokers:true, custom:[], back:{ field:'#132038', accent:'#b8933f' },
-  art:{}, customFrame:null, view:'single', idx:0, list:[], _cid:1
+  jokers:true, custom:[], back:{ field:'#132038', accent:'#b8933f', text:'' },
+  art:{}, customFrame:null, view:'single', idx:0, list:[], _cid:1,
+  pad:{ scale:1, pos:null }, padMove:false     // index-pad size + custom position (null = default corners); padMove = drag mode
 };
 let _cardsInit=false;
 const cEsc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -4434,7 +4450,34 @@ function cLoadBuiltinBack(name){
   cFetchAsDataURL(C_BACKS[name]).then(dataUrl=>{ cS._bbCache[name]=dataUrl; cS.back.art=dataUrl; cS.back.style=name; cRender(); })
     .catch(e=>console.warn('[cards] back load failed',name,e));
 }
-const cOpt=()=>({ frame: cFrameOpt(), accent:cS.accent, paper:cS.paper, artMap:cS.art });
+const cOpt=()=>({ frame: cFrameOpt(), accent:cS.accent, paper:cS.paper, artMap:cS.art, pad:cS.pad });
+// ---- colour hex/RGB parsing + a colour-picker⇄text pairing ----
+function cToHex(v){ v=(v||'').trim(); let m;
+  if(/^#[0-9a-f]{6}$/i.test(v)) return v.toLowerCase();
+  if((m=v.match(/^#([0-9a-f]{3})$/i))) return '#'+m[1].split('').map(c=>c+c).join('').toLowerCase();
+  if((m=v.match(/^rgba?\(\s*(\d+)\D+(\d+)\D+(\d+)/i))) return '#'+[m[1],m[2],m[3]].map(n=>Math.max(0,Math.min(255,+n)).toString(16).padStart(2,'0')).join('');
+  return null; }
+function cWireColor(colorId, hexId, apply){
+  const col=document.getElementById(colorId), hex=document.getElementById(hexId); if(!col||!hex) return;
+  col.oninput=()=>{ hex.value=col.value; hex.style.color=''; apply(col.value); };
+  hex.onchange=()=>{ const h=cToHex(hex.value); if(h){ col.value=h; hex.value=h; hex.style.color=''; apply(h); } else hex.style.color='#e0736b'; };
+}
+function cUpdatePadMoveBtn(){ const b=document.getElementById('cPadMove'); if(b){ b.classList.toggle('on',cS.padMove); b.textContent=cS.padMove?'✓ Moving':'📍 Move pads'; }
+  const v=document.getElementById('cardsView'); if(v) v.style.cursor=cS.padMove?'crosshair':''; }
+// drag a corner pad on the single card to reposition BOTH pads symmetrically (updates every card)
+let _padRaf=0; function cRenderPadThrottle(){ if(_padRaf) return; _padRaf=requestAnimationFrame(()=>{ _padRaf=0; cRender(); }); }
+function cSetupPadDrag(){ const view=document.getElementById('cardsView'); if(!view||view._padWired) return; view._padWired=true;
+  let dragging=false;
+  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+  function frac(ev){ const svg=view.querySelector('svg'); if(!svg) return null; const r=svg.getBoundingClientRect(); if(!r.width) return null;
+    let x=(ev.clientX-r.left)/r.width, y=(ev.clientY-r.top)/r.height;
+    if(x>0.5) x=1-x; if(y>0.5) y=1-y;                       // fold either pad into the top-left quadrant (symmetry)
+    return { x:clamp(x,0.05,0.48), y:clamp(y,0.05,0.48) }; }
+  view.addEventListener('pointerdown', ev=>{ if(!cS.padMove || cS.view!=='single') return; const f=frac(ev); if(!f) return;
+    dragging=true; cS.pad.pos=f; try{ view.setPointerCapture(ev.pointerId); }catch(e){} ev.preventDefault(); cRender(); });
+  view.addEventListener('pointermove', ev=>{ if(!dragging) return; const f=frac(ev); if(f){ cS.pad.pos=f; cRenderPadThrottle(); } });
+  window.addEventListener('pointerup', ()=>{ if(dragging){ dragging=false; cRender(); } });
+}
 // auto-detect the empty central opening of an uploaded frame (fractions of the image 0..1)
 function cDetectOpening(img){
   const W=Math.min(360,img.naturalWidth||360), H=Math.round(W*(img.naturalHeight/img.naturalWidth));
@@ -4450,7 +4493,7 @@ function cDetectOpening(img){
   if(!(o.x1-o.x>0.3 && o.y1-o.y>0.3)) o={x:0.12,y:0.12,x1:0.88,y1:0.88};   // detection failed → sane default
   return o;
 }
-const cBackOpt=()=>({ accent:cS.back.accent, field:cS.back.field, paper:cS.paper, art:cS.back.art||null });
+const cBackOpt=()=>({ accent:cS.back.accent, field:cS.back.field, paper:cS.paper, art:cS.back.art||null, text:cS.back.text||'' });
 function cBuildList(){ cApplyDeck(); cS.list=Cards.fullDeck(cOpt()); if(cS.idx>=cS.list.length) cS.idx=0; }
 function cCardLabel(c){
   if(c.rank==='joker') return 'Joker · '+c.suit;
@@ -4534,11 +4577,19 @@ function cInitUI(){
   document.getElementById('cfCopy').onclick=async()=>{ const t=document.getElementById('cfPrompt').value;
     try{ await navigator.clipboard.writeText(t); }catch(e){ const ta=document.getElementById('cfPrompt'); ta.select(); document.execCommand('copy'); }
     const b=document.getElementById('cfCopy'); b.textContent='✓ Copied'; setTimeout(()=>b.textContent='📋 Copy prompt',1400); };
-  document.getElementById('cAccent').oninput=e=>{ cS.accent=e.target.value; cRender(); };
-  document.getElementById('cPaper').oninput=e=>{ cS.paper=e.target.value; cRender(); };
+  // colour pickers each paired with a hex/RGB text box (two-way). Accepts #rgb, #rrggbb or rgb(r,g,b).
+  cWireColor('cAccent','cAccentHex', v=>{ cS.accent=v; cRender(); });
+  cWireColor('cPaper','cPaperHex', v=>{ cS.paper=v; cRender(); });
+  cWireColor('cBackField','cBackFieldHex', v=>{ cS.back.field=v; cRender(); });
+  cWireColor('cBackGold','cBackGoldHex', v=>{ cS.back.accent=v; cRender(); });
   document.getElementById('cUseJokers').onchange=e=>{ cS.jokers=e.target.checked; cRender(); };
-  document.getElementById('cBackField').oninput=e=>{ cS.back.field=e.target.value; cRender(); };
-  document.getElementById('cBackGold').oninput=e=>{ cS.back.accent=e.target.value; cRender(); };
+  // index-pad size / move / reset + custom back text
+  const padVal=document.getElementById('cPadSizeVal');
+  document.getElementById('cPadSize').oninput=e=>{ cS.pad.scale=+e.target.value; if(padVal)padVal.textContent='×'+(+e.target.value).toFixed(2); cRender(); };
+  document.getElementById('cPadReset').onclick=()=>{ cS.pad.pos=null; cRender(); };
+  document.getElementById('cPadMove').onclick=()=>{ cS.padMove=!cS.padMove; if(cS.padMove){ cS.view='single'; cSyncViewSeg(); } cUpdatePadMoveBtn(); cRender(); };
+  document.getElementById('cBackText').oninput=e=>{ cS.back.text=e.target.value; cRender(); };
+  cSetupPadDrag();
   document.getElementById('cBackStyle').onchange=e=>{ const v=e.target.value;
     const colRow=document.getElementById('cBackColorRow'); if(colRow) colRow.style.opacity = v==='proc'?'1':'0.45';
     if(v==='proc'){ delete cS.back.art; cS.back.style='proc'; cRender(); } else cLoadBuiltinBack(v); };
@@ -4609,7 +4660,7 @@ async function cExportDeck(){
 }
 function cSaveDeck(){
   const data={ v:1, size:cS.size, frame:cS.frame, font:cS.font, accent:cS.accent, paper:cS.paper, suitObjs:cS.suitObjs,
-    suitsOn:[...cS.suitsOn], ranksOn:[...cS.ranksOn], jokers:cS.jokers, custom:cS.custom, back:cS.back, art:cS.art, customFrame:cS.customFrame||null };
+    suitsOn:[...cS.suitsOn], ranksOn:[...cS.ranksOn], jokers:cS.jokers, custom:cS.custom, back:cS.back, art:cS.art, customFrame:cS.customFrame||null, pad:cS.pad };
   bDownload(new Blob([JSON.stringify(data)],{type:'application/json'}), 'deck-design.json');
 }
 async function cLoadDeck(e){
@@ -4618,11 +4669,16 @@ async function cLoadDeck(e){
     cS.size=d.size||'poker'; cS.frame=d.frame||'scroll'; cS.font=d.font||'georgia'; cS.accent=d.accent||'#b8933f'; cS.paper=d.paper||'#f4ead1';
     if(d.suitObjs) cS.suitObjs=d.suitObjs; cS.suitsOn=new Set(d.suitsOn||['spades','hearts','clubs','diamonds']);
     cS.ranksOn=new Set(d.ranksOn||cS.rankObjs.map(r=>r.id)); cS.jokers=d.jokers!==false; cS.custom=d.custom||[];
-    cS.back=d.back||cS.back; cS.art=d.art||{}; cS.customFrame=d.customFrame||null;
+    cS.back=d.back||cS.back; if(cS.back.text==null) cS.back.text=''; cS.art=d.art||{}; cS.customFrame=d.customFrame||null;
+    cS.pad=d.pad||{scale:1,pos:null}; if(cS.pad.scale==null) cS.pad.scale=1;
     document.getElementById('cSize').value=cS.size; document.getElementById('cFrame').value=cS.frame; document.getElementById('cFont').value=cS.font; cSyncFramePanel();
-    document.getElementById('cAccent').value=cS.accent; document.getElementById('cPaper').value=cS.paper;
-    document.getElementById('cUseJokers').checked=cS.jokers; document.getElementById('cBackField').value=cS.back.field||'#132038';
-    document.getElementById('cBackGold').value=cS.back.accent||'#b8933f';
+    document.getElementById('cAccent').value=cS.accent; document.getElementById('cAccentHex').value=cS.accent;
+    document.getElementById('cPaper').value=cS.paper; document.getElementById('cPaperHex').value=cS.paper;
+    document.getElementById('cUseJokers').checked=cS.jokers;
+    document.getElementById('cBackField').value=cS.back.field||'#132038'; document.getElementById('cBackFieldHex').value=cS.back.field||'#132038';
+    document.getElementById('cBackGold').value=cS.back.accent||'#b8933f'; document.getElementById('cBackGoldHex').value=cS.back.accent||'#b8933f';
+    document.getElementById('cBackText').value=cS.back.text||'';
+    document.getElementById('cPadSize').value=cS.pad.scale; { const pv=document.getElementById('cPadSizeVal'); if(pv)pv.textContent='×'+(+cS.pad.scale).toFixed(2); }
     { const bs=document.getElementById('cBackStyle'), v=(cS.back.art?(cS.back.style||'proc'):'proc'); if(bs) bs.value=(v!=='custom'&&C_BACKS[v])?v:'proc';
       const colRow=document.getElementById('cBackColorRow'); if(colRow) colRow.style.opacity = (cS.back.art?'0.45':'1'); }
     cBuildSuitChips(); cBuildRankChips(); cBuildCustomList(); cS.idx=0; cS.view='single'; cSyncViewSeg(); cRender();
