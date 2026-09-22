@@ -534,6 +534,33 @@
       for (const k of castleCells) for (const { k: nk } of nbrs(k)) if (!castleCells.has(nk) && !settleSet.has(nk) && !townCells.has(nk)) moatRing.add(nk);
       for (const nk of moatRing){ if (mtnSet.has(nk)) continue;                         // don't drown a mountain
         biome[nk] = B.WATER; feature[nk] = (edges[nk] && edges[nk].includes(P.ROAD)) ? undefined : 'water'; }   // road-over-water cell = drawbridge
+      // FEED THE MOAT: unless a river already touches it, carve a stream from the moat out to the nearest
+      // existing river / lake / board edge, so the moat reads as fed & drained — not an isolated magic ring.
+      const moatW = [...moatRing].filter(k => biome[k] === B.WATER);
+      const touchesRiver = moatW.some(k => (edges[k] || []).includes(P.RIVER) || nbrs(k).some(n => riverSet.has(n.k)));
+      if (moatW.length && !touchesRiver){
+        const blocked = (k) => castleCells.has(k) || settleSet.has(k) || townCells.has(k);
+        const isTarget = (k) => !moatRing.has(k) && ((riverSet.has(k)) || (waterSet.has(k)) || isBorder(k));
+        const dist = {}, prev = {}, pq = [];
+        for (const k of moatW){ dist[k] = 0; pq.push([0, k]); }
+        let hit = null;
+        while (pq.length){
+          pq.sort((a, b) => a[0] - b[0]); const [d, k] = pq.shift();
+          if (d > (dist[k] ?? Infinity)) continue;
+          if (isTarget(k)){ hit = k; break; }
+          for (const { k: nk } of nbrs(k)){ if (blocked(nk)) continue;
+            const c = mtnSet.has(nk) ? 6 : (waterSet.has(nk) ? 0.4 : 1 + rng() * 0.7);
+            const nd = d + c; if (nd < (dist[nk] ?? Infinity)){ dist[nk] = nd; prev[nk] = k; pq.push([nd, nk]); } }
+        }
+        if (hit){
+          const path = [hit]; let k = hit; while (prev[k] != null){ k = prev[k]; path.push(k); }   // hit(target) … → moat cell
+          for (const c of path){ if (moatRing.has(c) || waterSet.has(c)) continue;                    // don't overwrite water/moat
+            riverSet.add(c); biome[c] = B.PLAINS; if (feature[c] !== 'water') feature[c] = undefined; }
+          for (let i = 0; i < path.length - 1; i++) setEdge(path[i], dirTo(path[i], path[i + 1]), P.RIVER);
+          if (isBorder(hit) && !waterSet.has(hit) && !riverSet.has(hit)) { riverSet.add(hit); }        // border land end becomes a river cell
+          if (isBorder(hit)){ const od = offDirs(hit); if (od.length) setEdge(hit, od[ri(od.length)], P.RIVER); }   // spill off-board so it flows through
+        }
+      }
     }
 
     /* ---- 6. realise every cell as a connector-exact tile ---- */
@@ -742,6 +769,7 @@
     hills:       { dom:B.PLAINS,    snow:false, rocks:5, lakes:0, river:false, big:false },
     riverbottom: { dom:B.PLAINS,    snow:false, rocks:0, lakes:0, river:true,  big:false },
     largelake:   { dom:B.PLAINS,    snow:false, rocks:0, lakes:0, river:false, big:true },
+    water:       { dom:B.WATER,     snow:false, rocks:0, lakes:0, river:false, big:false },   // solid ocean — surround a map with water (seam gives a natural shoreline)
   };
 
   function generateNextSection(gridKind, board, defs, newCellsSorted, opts){

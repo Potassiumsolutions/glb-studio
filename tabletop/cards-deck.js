@@ -252,18 +252,18 @@ export function indexPad(rankLabel, suit, opt={}){
   const padScale = (opt.pad && opt.pad.scale) || 1;                 // user pad-size control (grows number + suit + pill together)
   const sc = Math.min(1, Math.max(0.72, Rct.w/560)) * padScale;
   const isTen = String(rankLabel).length>=2;
-  const pw  = (isTen ? 108 : 90) * sc;                              // pill width
-  const ph  = pw * 1.74;                                            // pill height (taller than wide)
-  const rfs = (isTen ? pw*0.70 : pw*0.92);                          // rank digit sized to fit the pill width
-  const pipSz = pw * 0.50;
+  const pw  = (isTen ? 96 : 90) * sc;                              // pill width — "10" only a touch wider than a single rank (it's kerned tight below)
+  const ph  = 90 * 1.74 * sc;                                      // pill height — the SAME on every pad so the "10" pad matches the others
+  const rfs = (isTen ? pw*0.72 : pw*0.92);                         // rank digit sized to fit the pill width
+  const pipSz = 90 * 0.50 * sc;                                    // uniform pip size across all ranks
   // number in the UPPER half, suit pip in the LOWER half, with a clear gap so they never overlap
   const badge=(cx,cy,rot)=>`<g transform="translate(${cx.toFixed(1)} ${cy.toFixed(1)}) ${rot?'rotate(180)':''}">
       <rect x="${(-pw/2).toFixed(1)}" y="${(-ph/2).toFixed(1)}" width="${pw.toFixed(1)}" height="${ph.toFixed(1)}" rx="${16*sc}"
-            fill="${PAPER_HI}" stroke="${gold}" stroke-width="${2.4}" opacity="0.97"/>
-      <text x="0" y="${(-ph*0.10 + rfs*0.36).toFixed(1)}" text-anchor="middle" dominant-baseline="alphabetic"
-            font-family="${FONT_FAMILY}" font-weight="700"
+            fill="${opt.padFill||PAPER_HI}" stroke="${gold}" stroke-width="${2.4}" opacity="0.97"/>
+      <text x="0" y="${(-ph*0.20 + rfs*0.34).toFixed(1)}" text-anchor="middle" dominant-baseline="alphabetic"
+            font-family="${FONT_FAMILY}" font-weight="700"${isTen?` letter-spacing="${(-rfs*0.11).toFixed(1)}"`:''}
             font-size="${rfs.toFixed(1)}" fill="${s.color}">${esc(rankLabel)}</text>
-      ${pip(suit, 0, ph*0.26, pipSz, false)}</g>`;
+      ${pip(suit, 0, ph*0.30, pipSz, false)}</g>`;   // rank raised into the upper third + pip lowered so a serif J's descender (Garamond) clears the pip
   const defCx = Rct.x + pw/2 + 16*sc, defCy = Rct.y + ph/2 + 16*sc;
   // opt.pad.pos = the top-left pad centre as fractions of the card; the other pad mirrors through the centre (symmetry)
   const cx = (opt.pad && opt.pad.pos) ? opt.pad.pos.x*CARD.w : defCx;
@@ -363,6 +363,102 @@ function frameOverlay(fr,opt){
   return fr.kind==='scroll'?frameVine(opt):(fr.kind==='plain'?plainKeyline(opt):'');
 }
 
+/* ================= FRONT text-box OVERLAYS ==========================================
+   User-placed label boxes for game stats / abilities (MTG-style). Shapes modelled on
+   real brass engraving plates + parchment — the TEXT is whatever the user types.
+   spec: { shape, text:'multi\nline', x,y (CENTRE as fractions of the card),
+           scale, textScale, color, corners:'round'|'square'|'notched', screws, material:'wood'|'stone' } */
+export const OVERLAY_SHAPES = [
+  { id:'plate',     name:'Engraving plate (brass)' },
+  { id:'scroll',    name:'Aged scroll' },
+  { id:'parchment', name:'Torn parchment' },
+  { id:'plaque',    name:'Wood / stone plaque' },
+  { id:'banner',    name:'Banner ribbon' },
+];
+function ovRRect(x,y,w,h,r){ r=Math.min(r,w/2,h/2); const f=n=>n.toFixed(1);
+  return `M${f(x+r)} ${f(y)} H${f(x+w-r)} A${f(r)} ${f(r)} 0 0 1 ${f(x+w)} ${f(y+r)} V${f(y+h-r)} A${f(r)} ${f(r)} 0 0 1 ${f(x+w-r)} ${f(y+h)} H${f(x+r)} A${f(r)} ${f(r)} 0 0 1 ${f(x)} ${f(y+h-r)} V${f(y+r)} A${f(r)} ${f(r)} 0 0 1 ${f(x+r)} ${f(y)} Z`; }
+function ovNotch(x,y,w,h,k){ k=Math.min(k,w/2,h/2); const f=n=>n.toFixed(1);   // concave quarter-circle corners (classic engraving-plate look)
+  return `M${f(x+k)} ${f(y)} H${f(x+w-k)} A${f(k)} ${f(k)} 0 0 0 ${f(x+w)} ${f(y+k)} V${f(y+h-k)} A${f(k)} ${f(k)} 0 0 0 ${f(x+w-k)} ${f(y+h)} H${f(x+k)} A${f(k)} ${f(k)} 0 0 0 ${f(x)} ${f(y+h-k)} V${f(y+k)} A${f(k)} ${f(k)} 0 0 0 ${f(x+k)} ${f(y)} Z`; }
+function ovPlate(x,y,w,h,corners){
+  if(corners==='square'){ const f=n=>n.toFixed(1); return `M${f(x)} ${f(y)} h${f(w)} v${f(h)} h${f(-w)} Z`; }
+  if(corners==='notched') return ovNotch(x,y,w,h,Math.min(w,h)*0.17);
+  return ovRRect(x,y,w,h,Math.min(w,h)*0.13);
+}
+function ovText(cx, top, lines, fs, lineH, fill, engrave){
+  const f=n=>n.toFixed(1);
+  const one=(ln,i,dy,col,op)=>`<text x="${f(cx)}" y="${f(top+i*lineH+dy)}" text-anchor="middle" dominant-baseline="middle" font-family="${FONT_FAMILY}" font-weight="600" font-size="${f(fs)}" fill="${col}"${op?` opacity="${op}"`:''}>${esc(ln)}</text>`;
+  const sh = engrave ? lines.map((ln,i)=>one(ln,i,1.5,'#241a06',0.28)).join('') : '';
+  return sh + lines.map((ln,i)=>one(ln,i,0,fill,0)).join('');
+}
+export function overlayOne(o={}, idx=0, opt={}){
+  const gold=opt.accent||GOLD, f=n=>n.toFixed(1);
+  const shape=o.shape||'plate';
+  const lines=String(o.text==null?'':o.text).split('\n');
+  const fs=CARD.h*0.030*(o.textScale||1);
+  const lineH=fs*1.32, padY=fs*1.05, padX=fs*(shape==='banner'?2.2:1.5);
+  const textH=lines.length*lineH;
+  const longest=lines.reduce((a,l)=>Math.max(a,l.length),1);
+  const estTextW=longest*fs*0.56;                              // ≈ glyph advance — box GROWS to fit the text (both directions)
+  const w=Math.min(CARD.w*0.92, Math.max(CARD.w*0.24, estTextW+padX*2)*(o.scale||1));
+  const h=Math.max(textH+padY*2, fs*2.6);
+  const cx=(o.x==null?0.5:o.x)*CARD.w, cy=(o.y==null?0.66:o.y)*CARD.h;
+  const x=cx-w/2, y=cy-h/2, t0=cy-textH/2+lineH/2;
+  let bg='', fill=o.color, engrave=false;
+  if(shape==='plate'){
+    const bid='ovg'+idx, corners=o.corners||'round';
+    bg=`<defs><linearGradient id="${bid}" x1="0" y1="0" x2="0.35" y2="1"><stop offset="0" stop-color="${GOLD_LT}"/><stop offset="0.5" stop-color="${gold}"/><stop offset="1" stop-color="${GOLD_DK}"/></linearGradient></defs>`
+      +`<path d="${ovPlate(x,y,w,h,corners)}" fill="url(#${bid})" stroke="${GOLD_DK}" stroke-width="2.2"/>`
+      +`<path d="${ovPlate(x+4,y+4,w-8,h-8,corners)}" fill="none" stroke="${GOLD_LT}" stroke-width="1.5" opacity="0.75"/>`;
+    if(o.screws){ const sr=Math.min(w,h)*0.045, off=Math.min(w,h)*0.15;
+      [[x+off,y+off],[x+w-off,y+off],[x+off,y+h-off],[x+w-off,y+h-off]].forEach(p=>{ bg+=`<circle cx="${f(p[0])}" cy="${f(p[1])}" r="${f(sr)}" fill="${GOLD_DK}" opacity="0.6"/>`; }); }
+    fill=fill||'#f8f1da'; engrave=true;
+  } else if(shape==='scroll'){
+    const rw=Math.max(9,w*0.045);
+    bg=`<path d="${ovRRect(x+rw,y,w-2*rw,h,Math.min(w,h)*0.05)}" fill="${PAPER_HI}" stroke="#c9b48a" stroke-width="1.5"/>`;
+    const roller=rx=>`<rect x="${f(rx)}" y="${f(y-5)}" width="${f(rw*1.7)}" height="${f(h+10)}" rx="${f(rw*0.85)}" fill="#d8c39a" stroke="#a98f5f" stroke-width="1.5"/><rect x="${f(rx+rw*0.55)}" y="${f(y-2)}" width="${f(rw*0.55)}" height="${f(h+4)}" rx="${f(rw*0.28)}" fill="#efdfb8" opacity="0.75"/>`;
+    bg+=roller(x-rw*0.35)+roller(x+w-rw*1.35);
+    fill=fill||'#3f3327';
+  } else if(shape==='parchment'){
+    const seg=Math.max(6,Math.round(w/26)), jit=i=>(Math.abs(Math.sin(i*12.9898+idx*7.13)*43758.5)%1)*7-3.5;
+    let d=`M${f(x)} ${f(y+6)}`;
+    for(let i=1;i<=seg;i++) d+=` L${f(x+w*i/seg)} ${f(y+4+jit(i))}`;
+    d+=` L${f(x+w)} ${f(y+h-6)}`;
+    for(let i=seg-1;i>=0;i--) d+=` L${f(x+w*i/seg)} ${f(y+h-4+jit(i+50))}`;
+    d+=' Z';
+    const bid='ovp'+idx;
+    bg=`<defs><radialGradient id="${bid}" cx="50%" cy="45%" r="72%"><stop offset="0" stop-color="${PAPER_HI}"/><stop offset="1" stop-color="#e6d7b4"/></radialGradient></defs>`
+      +`<path d="${d}" fill="url(#${bid})" stroke="#b89f72" stroke-width="1.4"/>`;
+    fill=fill||'#3f3327';
+  } else if(shape==='plaque'){
+    const mat=o.material||'wood', bid='ovq'+idx;
+    const d=ovRRect(x,y,w,h,Math.min(w,h)*0.10), d2=ovRRect(x+5,y+5,w-10,h-10,Math.min(w,h)*0.08);
+    if(mat==='stone'){
+      bg=`<defs><linearGradient id="${bid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#93969c"/><stop offset="1" stop-color="#5c6066"/></linearGradient></defs>`
+        +`<path d="${d}" fill="url(#${bid})" stroke="#3f4247" stroke-width="2.4"/>`;
+      fill=fill||'#f2f3f5';
+    } else {
+      bg=`<defs><linearGradient id="${bid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7c5432"/><stop offset="1" stop-color="#4e3418"/></linearGradient></defs>`
+        +`<path d="${d}" fill="url(#${bid})" stroke="#2f2010" stroke-width="2.4"/>`;
+      for(let i=1;i<4;i++) bg+=`<path d="M${f(x+7)} ${f(y+h*i/4)} H${f(x+w-7)}" stroke="#3a2510" stroke-width="1.1" opacity="0.28"/>`;
+      fill=fill||'#f4ead1';
+    }
+    bg+=`<path d="${d2}" fill="none" stroke="${gold}" stroke-width="1.8" opacity="0.9"/>`;
+  } else if(shape==='banner'){
+    const tail=h*0.5, bid='ovb'+idx;
+    const d=`M${f(x)} ${f(y)} H${f(x+w)} L${f(x+w-tail)} ${f(y+h/2)} L${f(x+w)} ${f(y+h)} H${f(x)} L${f(x+tail)} ${f(y+h/2)} Z`;
+    bg=`<defs><linearGradient id="${bid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${GOLD_LT}"/><stop offset="1" stop-color="${gold}"/></linearGradient></defs>`
+      +`<path d="M${f(x+3)} ${f(y+h)} l${f(-tail*0.55)} ${f(tail*0.42)} l0 ${f(-tail*0.42)} Z" fill="${GOLD_DK}"/>`
+      +`<path d="M${f(x+w-3)} ${f(y+h)} l${f(tail*0.55)} ${f(tail*0.42)} l0 ${f(-tail*0.42)} Z" fill="${GOLD_DK}"/>`
+      +`<path d="${d}" fill="url(#${bid})" stroke="${GOLD_DK}" stroke-width="2"/>`;
+    fill=fill||'#3a2a12';
+  }
+  return `<g class="card-overlay" data-ov="${idx}">${bg}${ovText(cx,t0,lines,fs,lineH,fill,engrave)}</g>`;
+}
+export function renderOverlays(list, opt={}){
+  if(!Array.isArray(list)||!list.length) return '';
+  return list.map((o,i)=>overlayOne(o,i,opt)).join('');
+}
+
 /* ---------- assemble a standard rank+suit card --------------------- */
 export function buildCard(rankId, suit, opt={}){
   const rk=rankById(rankId);
@@ -382,7 +478,10 @@ export function buildCard(rankId, suit, opt={}){
   const body = fr.kind==='image'
       ? `${framePad(opt)}${fr.img}${paperFill(fr,opt)}${center}`   // paper fills the ornate frame's opening → Paper picker works
       : `${framePad(opt)}${center}${frameOverlay(fr,opt)}`;
-  return svg(`card`, rankId, suit, `${body}${indexPad(rk.label, suit, {...opt, rect:fr.rect})}`);
+  const noPads = opt.padsOff && opt.padsOff[key];                          // per-card: drop the rank+suit index pads (MTG-style)
+  const pads = noPads ? '' : indexPad(rk.label, suit, {...opt, rect:fr.rect});
+  const overlays = renderOverlays(opt.overlaysMap && opt.overlaysMap[key], opt);   // per-card text-box plates on top
+  return svg(`card`, rankId, suit, `${body}${pads}${overlays}`);
 }
 
 /* ---------- assemble a free-form custom card ----------------------- *
@@ -403,7 +502,9 @@ export function buildCustomCard(spec, opt={}){
   const corner = (spec.corner||s) ? cornerBadge(spec.corner || (s?s.symbol:''), spec.suit, {...opt, rect:R}) : '';
   const body = fr.kind==='image' ? `${framePad(opt)}${fr.img}${center}`
       : `${framePad(opt)}${center}${frameOverlay(fr,opt)}`;
-  return svg('card custom', 'custom', spec.id, `${body}${title}${corner}`);
+  const cnm='custom-'+spec.id;
+  const cCorner = (opt.padsOff && opt.padsOff[cnm]) ? '' : corner;
+  return svg('card custom', 'custom', spec.id, `${body}${title}${cCorner}${renderOverlays(opt.overlaysMap && opt.overlaysMap[cnm], opt)}`);
 }
 function cornerBadge(text, suit, opt){
   const R=opt.rect||TRIM_RECT, gold=opt.accent||GOLD;
@@ -529,17 +630,23 @@ export function jokerCard(variant='red', opt={}){
       <text x="${mx}" y="${R.y+ah*0.80}" text-anchor="middle" font-family="${FONT_FAMILY}" font-size="${jfs.toFixed(0)}" fill="${col}" letter-spacing="${(jfs*0.19).toFixed(1)}">JOKER</text>`;
     center=`<g class="pad-center-court placeholder">${half}<g transform="rotate(180 ${mx} ${my})">${half}</g></g>`;
   }
-  const letters='JOKER'.split(''), sc=Math.min(1,Math.max(0.72,R.w/560));
-  const gold=opt.accent||GOLD;
-  const stack=(x,y,rot)=>`<g transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) ${rot?'rotate(180)':''}">
-      <rect x="${(-21*sc).toFixed(1)}" y="${(-28*sc).toFixed(1)}" width="${(42*sc).toFixed(1)}" height="${(198*sc).toFixed(1)}" rx="${(12*sc).toFixed(1)}"
-            fill="${PAPER_HI}" stroke="${gold}" stroke-width="${(2.2*sc).toFixed(1)}" opacity="0.97"/>
+  const letters='JOKER'.split(''), gold=opt.accent||GOLD, N=letters.length;
+  const padScale=(opt.pad&&opt.pad.scale)||1;
+  const sc=Math.min(1,Math.max(0.72,R.w/560))*padScale;         // joker index pill scales with the pad-size control (matches the rank pads)
+  const pillW=42*sc, pillH=198*sc;
+  const stack=(cx,cy,rot)=>`<g transform="translate(${cx.toFixed(1)} ${cy.toFixed(1)}) ${rot?'rotate(180)':''}">
+      <rect x="${(-pillW/2).toFixed(1)}" y="${(-pillH/2).toFixed(1)}" width="${pillW.toFixed(1)}" height="${pillH.toFixed(1)}" rx="${(12*sc).toFixed(1)}"
+            fill="${opt.padFill||PAPER_HI}" stroke="${gold}" stroke-width="${(2.2*sc).toFixed(1)}" opacity="0.97"/>
       <g text-anchor="middle" font-family="${FONT_FAMILY}" font-weight="700" font-size="${(34*sc).toFixed(1)}" fill="${col}">
-      ${letters.map((c,i)=>`<text y="${(i*35*sc).toFixed(1)}">${c}</text>`).join('')}
-      <path d="${starPath(0,letters.length*35*sc+6,17*sc,7*sc,5,-90)}" fill="${col}"/></g></g>`;
-  const ix=R.x+30*sc, iy=R.y+42*sc;
+      ${letters.map((c,i)=>`<text y="${(((i-(N-1)/2)*35-8)*sc).toFixed(1)}">${c}</text>`).join('')}
+      <path d="${starPath(0,(((N-1)/2*35)+20)*sc-8*sc,17*sc,7*sc,5,-90)}" fill="${col}"/></g></g>`;
+  // follow the SAME size + dragged position as the rank pads (pill CENTRE)
+  const defCx=R.x+30*sc, defCy=R.y+113*sc;
+  const jx=(opt.pad&&opt.pad.pos)?opt.pad.pos.x*CARD.w:defCx;
+  const jy=(opt.pad&&opt.pad.pos)?opt.pad.pos.y*CARD.h:defCy;
   const body=fr.kind==='image'?`${framePad(opt)}${fr.img}${center}`:`${framePad(opt)}${center}${frameOverlay(fr,opt)}`;
-  return svg('card joker','joker',variant,`${body}${stack(ix,iy,false)}${stack(CARD.w-ix,CARD.h-iy,true)}`);
+  const jnm='joker-'+variant, jPads=(opt.padsOff && opt.padsOff[jnm])?'':`${stack(jx,jy,false)}${stack(CARD.w-jx,CARD.h-jy,true)}`;
+  return svg('card joker','joker',variant,`${body}${jPads}${renderOverlays(opt.overlaysMap && opt.overlaysMap[jnm], opt)}`);
 }
 
 /* ---------- print-size helpers ------------------------------------- */

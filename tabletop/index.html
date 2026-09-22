@@ -442,6 +442,7 @@
           <option value="lakes" data-exp="terrain">Land of lakes</option>
           <option value="riverbottom" data-exp="terrain">River bottom</option>
           <option value="largelake" data-exp="terrain">Large lake</option>
+          <option value="water" data-exp="terrain">💧 Water / Ocean (surround)</option>
         </select>
         <select id="bExtFeature" style="flex:1;min-width:100px">
           <option value="bare">Bare</option>
@@ -641,6 +642,18 @@
           <input type="range" id="cPadSize" min="0.6" max="2" step="0.05" value="1" style="width:100%"></div>
         <button class="btn sec" id="cPadMove" style="flex:0 0 auto" title="Drag a corner pad on the card to reposition both symmetrically">📍 Move pads</button>
         <button class="btn sec" id="cPadReset" style="flex:0 0 auto" title="Reset pads to the corners">↺</button>
+      </div>
+      <div style="margin-top:7px"><label class="fld">🎨 Index-pad colour</label>
+        <div style="display:flex;gap:4px"><input type="color" id="cPadCol" value="#faf3de" style="width:42px;flex:0 0 auto"><input type="text" id="cPadColHex" value="#faf3de" spellcheck="false" style="flex:1;min-width:0"></div></div>
+      <div id="cOvSec" style="margin-top:10px">
+        <label class="fld">🧩 Text boxes &amp; pads <span id="cOvWhich" class="mini" style="opacity:.7"></span></label>
+        <label class="mini" style="display:block;margin:2px 0 7px"><input type="checkbox" id="cHidePads"> Hide index pads on this card <span style="opacity:.65">(drops the rank &amp; suits — for Magic-style faces)</span></label>
+        <div id="cOvList"></div>
+        <div class="row wrap" style="margin-top:4px">
+          <select id="cOvShape" style="flex:1;min-width:120px"></select>
+          <button class="btn sec" id="cOvAdd" style="flex:0 0 auto">＋ Add text box</button>
+        </div>
+        <div class="mini" style="color:var(--mut);margin-top:3px">Add a shaped plate, type your game stats, then tap <b>📍</b> and drag it on the card. The box grows to fit the text; the Size slider scales it.</div>
       </div>
       <div class="divider"></div>
       <label class="fld">Suits</label>
@@ -868,7 +881,7 @@ import * as Cards from './cards-deck.js';
 
 const BGC = window.BGC, GAMES = window.BGC_GAMES;
 const TE = window.TileEngine, TLIB = window.TileLibrary;
-const APP_VERSION = 'v0.74';
+const APP_VERSION = 'v0.81';
 const CREDITS = `<b>Ksol Designs</b> — Paul A.T. Ramey<br>www.ksoldesigns.com<br>Built with GLB Studio · Tabletop<br><span class="ver">${APP_VERSION}</span>`;
 // ---- Board credit: a small "KSOL Designs" mark on the board for the FREE build. Owning ANY content pack
 // (TTier expansion) unlocks removing it (⚙ Settings toggle, or click the credit). ----
@@ -3676,18 +3689,25 @@ function bClipStrokesToRevealed(strokes, revealed){                       // kee
 function _settleGroundBiome(){ const t=bld.extTerrain;
   if(!t || t==='match') return 'green';
   if(t.indexOf('custom:')===0) return t;
-  return ({forest:'forest',plains:'plains',desert:'sand',mountains:'mountains',snow:'snow',hills:'plains',lakes:'water',riverbottom:'water',largelake:'water'})[t] || 'green'; }
+  return ({forest:'forest',plains:'plains',desert:'sand',mountains:'mountains',snow:'snow',hills:'plains',lakes:'water',riverbottom:'water',largelake:'water',water:'water'})[t] || 'green'; }
 function bRevealSettlePlan(){                                             // fill the CURRENT piece from the plan; land elsewhere
   if(!_settlePlan) return 0;
   const foot=bFillCells(), revealed=new Set(), ground=[]; bld.board.clear();
   for(const c of foot){ const k=TE.keyOf(c);
     if(_settlePlan.tiles.has(k)){ bld.board.set(k, {..._settlePlan.tiles.get(k)}); revealed.add(k); } else ground.push(c); }
+  // the settlement's own roads/rivers (spokes) end at the CASTLE edge; carry them across the surround to the ISLAND edge
+  const settleStrokes = (_settlePlan.walls||[]).filter(s=>s.type==='road'||s.type==='trail'||s.type==='river');
+  const gb=_settleGroundBiome();
+  let carried=[];
   if(ground.length){
-    const gb=_settleGroundBiome();
-    if(gb==='green'){
-      // DEFAULT countryside surround → VARIED (grass base with coherent forest / orchard / field patches) instead of
-      // one flat green that reads as an out-of-scale texture. Low-frequency noise → contiguous regions; group the
-      // cells by biome and fill each group (reuses the tile realizer). A specific Extend-with terrain stays uniform.
+    if(settleStrokes.length && gb==='green'){
+      // DEFAULT surround: generateNextSection matches terrain OUTWARD from the castle (varied countryside) AND
+      // continues the drawbridge roads/rivers to the far ISLAND edge — so spokes don't dead-end in the fields.
+      const priorStrokes = settleStrokes.flatMap(s=>[{type:s.type,end:s.pts[s.pts.length-1]},{type:s.type,end:s.pts[0]}]);
+      const r=TE.generateNextSection(bld.grid, bld.board, bDefs(), ground, {seed:_settlePlan.seed, terrain:'match', feature:'bare', priorStrokes});
+      carried = Array.isArray(r.draw) ? r.draw.filter(s=>s.type==='road'||s.type==='trail'||s.type==='river') : [];
+    } else if(gb==='green'){
+      // no settlement roads to carry → keep the VARIED countryside surround (grass + coherent forest/orchard/field patches)
       const g=bGridObj(), groups={plains:[],forest:[],orchard:[],crops:[]};
       for(const c of ground){ const w=g.world(c);
         const n=(Math.sin(w.x*0.55)+Math.cos(w.z*0.5)+Math.sin((w.x+w.z)*0.31)+Math.cos((w.x-w.z)*0.37))/4;   // ≈ -1..1 coherent noise
@@ -3696,7 +3716,7 @@ function bRevealSettlePlan(){                                             // fil
       for(const b in groups) if(groups[b].length) TE.generateBiomeFill(bld.grid, bld.board, groups[b], bDefs(), {seed:_settlePlan.seed, biome:b, append:true});
     } else TE.generateBiomeFill(bld.grid, bld.board, ground, bDefs(), {seed:_settlePlan.seed, biome:gb, append:true});
   }
-  bld.draw = bClipStrokesToRevealed(_settlePlan.walls, revealed);
+  bld.draw = bClipStrokesToRevealed(_settlePlan.walls, revealed).concat(carried);
   bld.props = (_settlePlan.props||[]).filter(p=>{ const g=bGridObj(); for(const k of revealed){ const [q,r]=k.split(',').map(Number); const w=g.world({q,r}); if((w.x-p.x)**2+(w.z-p.z)**2<=0.5*0.5) return true; } return false; }).map(p=>({...p, rot:p.rot||0}));
   return revealed.size; }
 function bGenerateMap(){ bPushUndo();
@@ -4052,7 +4072,7 @@ function bGenerateNextSection(dir){
   // gets CONTINUED into the new land (instead of being stranded mid-map by this extension).
   let added=newCells.length;
   if(!bExtCustomFill(newCells)){                                                        // custom texture → uniform fill; else procedural section
-    const priorStrokes = bld.draw.filter(s=>s.type==='road'||s.type==='river'||s.type==='trail').map(s=>({type:s.type, end:s.pts[s.pts.length-1]}));
+    const priorStrokes = bld.draw.filter(s=>s.type==='road'||s.type==='river'||s.type==='trail').flatMap(s=>[{type:s.type, end:s.pts[s.pts.length-1]},{type:s.type, end:s.pts[0]}]);   // BOTH endpoints — a road whose continuing end is its FIRST vertex must also carry across the extend seam (was only pts[last] → castle roads stubbed at the flower edge)
     const r=TE.generateNextSection(bld.grid, bld.board, bDefs(), newCells, {seed: 1+Math.floor(Math.random()*9999), terrain:bld.extTerrain, feature:bld.extFeature, priorStrokes});
     added=r.added;
     if(Array.isArray(r.draw) && r.draw.length) bld.draw = bld.draw.concat(r.draw);        // append the section's walls
@@ -4085,7 +4105,7 @@ function bExtendHexSheet(dir){
   } else if(theme.startsWith('biome:')){
     TE.generateBiomeFill(bld.grid, bld.board, newCells, bDefs(), {seed:1+Math.floor(Math.random()*9999), biome:theme.slice(6), append:true});
   } else {
-    const priorStrokes=bld.draw.filter(s=>s.type==='road'||s.type==='river'||s.type==='trail').map(s=>({type:s.type, end:s.pts[s.pts.length-1]}));
+    const priorStrokes=bld.draw.filter(s=>s.type==='road'||s.type==='river'||s.type==='trail').flatMap(s=>[{type:s.type, end:s.pts[s.pts.length-1]},{type:s.type, end:s.pts[0]}]);   // BOTH endpoints — a road whose continuing end is its FIRST vertex must also carry across the extend seam (was only pts[last] → castle roads stubbed at the flower edge)
     const r=TE.generateNextSection(bld.grid, bld.board, bDefs(), newCells, {seed:1+Math.floor(Math.random()*9999), terrain:bld.extTerrain, feature:bld.extFeature, priorStrokes});
     if(Array.isArray(r.draw) && r.draw.length) bld.draw=bld.draw.concat(r.draw);
     if(Array.isArray(r.props) && r.props.length) bld.props=bld.props.concat(r.props.map(p=>({...p, rot:p.rot||0})));
@@ -4136,9 +4156,9 @@ function bHexMatRefill(){
   // bare, we fall back to the generate-time theme (settlement grows, single-biome continues, mixed seam-matches).
   if(bExtCustomFill(cells)) return;                                       // custom texture → uniform fill the new unit
   const explicit = (bld.extTerrain && bld.extTerrain!=='match') || (bld.extFeature && bld.extFeature!=='bare');
-  const priorStrokes = bld.draw.filter(s=>s.type==='road'||s.type==='river'||s.type==='trail').map(s=>({type:s.type, end:s.pts[s.pts.length-1]}));
+  const priorStrokes = bld.draw.filter(s=>s.type==='road'||s.type==='river'||s.type==='trail').flatMap(s=>[{type:s.type, end:s.pts[s.pts.length-1]},{type:s.type, end:s.pts[0]}]);   // BOTH endpoints — a road whose continuing end is its FIRST vertex must also carry across the extend seam (was only pts[last] → castle roads stubbed at the flower edge)
   if(!explicit){
-    if(SETTLE_THEMES[theme]){ const r=TE.generateSettlement(bld.grid, bld.board, bFillCells(), bDefs(), {seed:bld.seed, settlementType:theme});
+    if(SETTLE_THEMES[theme]){ const r=TE.generateSettlement(bld.grid, bld.board, bFillCells(), bDefs(), {seed:bld.seed, settlementType:theme, moat:!!document.getElementById('bMoat')?.checked});   // carry the MOAT toggle into the extend regen (was dropped → moat vanished on Extend)
       bld.draw=Array.isArray(r.draw)?r.draw:[]; bld.props=[]; bld.selStroke=null; return; }
     if(theme.startsWith('biome:')){                                      // single-biome fill (no roads/rivers → nothing to dead-end)
       TE.generateBiomeFill(bld.grid, bld.board, cells, bDefs(), {seed:1+Math.floor(Math.random()*9999), biome:theme.slice(6), append:true}); return; }
@@ -4405,7 +4425,9 @@ const cS = {
   ranksOn: new Set(Cards.defaultRanks().map(r=>r.id)),
   jokers:true, custom:[], back:{ field:'#132038', accent:'#b8933f', text:'' },
   art:{}, customFrame:null, view:'single', idx:0, list:[], _cid:1,
-  pad:{ scale:1, pos:null }, padMove:false     // index-pad size + custom position (null = default corners); padMove = drag mode
+  pad:{ scale:1, pos:null }, padMove:false,     // index-pad size + custom position (null = default corners); padMove = drag mode
+  overlays:{}, padsOff:{}, _ovSel:null,          // per-card text-box plates {cardName:[spec,...]} + per-card hide-pads flags; _ovSel = {name,i} being dragged/edited
+  padColor:'#faf3de'                             // index-pad (pill) background colour
 };
 let _cardsInit=false;
 const cEsc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -4450,7 +4472,7 @@ function cLoadBuiltinBack(name){
   cFetchAsDataURL(C_BACKS[name]).then(dataUrl=>{ cS._bbCache[name]=dataUrl; cS.back.art=dataUrl; cS.back.style=name; cRender(); })
     .catch(e=>console.warn('[cards] back load failed',name,e));
 }
-const cOpt=()=>({ frame: cFrameOpt(), accent:cS.accent, paper:cS.paper, artMap:cS.art, pad:cS.pad });
+const cOpt=()=>({ frame: cFrameOpt(), accent:cS.accent, paper:cS.paper, artMap:cS.art, pad:cS.pad, padFill:cS.padColor, overlaysMap:cS.overlays, padsOff:cS.padsOff });
 // ---- colour hex/RGB parsing + a colour-picker⇄text pairing ----
 function cToHex(v){ v=(v||'').trim(); let m;
   if(/^#[0-9a-f]{6}$/i.test(v)) return v.toLowerCase();
@@ -4467,16 +4489,20 @@ function cUpdatePadMoveBtn(){ const b=document.getElementById('cPadMove'); if(b)
 // drag a corner pad on the single card to reposition BOTH pads symmetrically (updates every card)
 let _padRaf=0; function cRenderPadThrottle(){ if(_padRaf) return; _padRaf=requestAnimationFrame(()=>{ _padRaf=0; cRender(); }); }
 function cSetupPadDrag(){ const view=document.getElementById('cardsView'); if(!view||view._padWired) return; view._padWired=true;
-  let dragging=false;
+  let dragging=false, dragOv=false;
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-  function frac(ev){ const svg=view.querySelector('svg'); if(!svg) return null; const r=svg.getBoundingClientRect(); if(!r.width) return null;
-    let x=(ev.clientX-r.left)/r.width, y=(ev.clientY-r.top)/r.height;
+  function rawFrac(ev){ const svg=view.querySelector('svg'); if(!svg) return null; const r=svg.getBoundingClientRect(); if(!r.width) return null;
+    return { x:clamp((ev.clientX-r.left)/r.width,0.06,0.94), y:clamp((ev.clientY-r.top)/r.height,0.06,0.94) }; }
+  function padFrac(ev){ const f=rawFrac(ev); if(!f) return null; let x=f.x,y=f.y;
     if(x>0.5) x=1-x; if(y>0.5) y=1-y;                       // fold either pad into the top-left quadrant (symmetry)
     return { x:clamp(x,0.05,0.48), y:clamp(y,0.05,0.48) }; }
-  view.addEventListener('pointerdown', ev=>{ if(!cS.padMove || cS.view!=='single') return; const f=frac(ev); if(!f) return;
+  function ovSet(ev){ const o=cS._ovSel; if(!o) return false; const arr=cS.overlays[o.name]; if(!arr||!arr[o.i]) return false; const f=rawFrac(ev); if(!f) return false; arr[o.i].x=f.x; arr[o.i].y=f.y; return true; }
+  view.addEventListener('pointerdown', ev=>{ if(cS.view!=='single') return;
+    if(cS._ovSel){ if(!ovSet(ev)) return; dragOv=true; try{ view.setPointerCapture(ev.pointerId); }catch(e){} ev.preventDefault(); cRenderCard(); return; }
+    if(!cS.padMove) return; const f=padFrac(ev); if(!f) return;
     dragging=true; cS.pad.pos=f; try{ view.setPointerCapture(ev.pointerId); }catch(e){} ev.preventDefault(); cRender(); });
-  view.addEventListener('pointermove', ev=>{ if(!dragging) return; const f=frac(ev); if(f){ cS.pad.pos=f; cRenderPadThrottle(); } });
-  window.addEventListener('pointerup', ()=>{ if(dragging){ dragging=false; cRender(); } });
+  view.addEventListener('pointermove', ev=>{ if(dragOv){ ovSet(ev); cRenderCardThrottle(); } else if(dragging){ const f=padFrac(ev); if(f){ cS.pad.pos=f; cRenderPadThrottle(); } } });
+  window.addEventListener('pointerup', ()=>{ if(dragOv){ dragOv=false; cRenderCard(); } if(dragging){ dragging=false; cRender(); } });
 }
 // auto-detect the empty central opening of an uploaded frame (fractions of the image 0..1)
 function cDetectOpening(img){
@@ -4504,6 +4530,7 @@ function cSyncViewSeg(){ document.querySelectorAll('#cViewSeg button').forEach(b
 function cRender(){
   const view=document.getElementById('cardsView'); if(!view) return;
   cBuildList();
+  cBuildOverlayPanel();
   const back=Cards.cardBack(cBackOpt());
   const single=cS.view==='single';
   document.getElementById('cNav').style.display=single?'':'none';
@@ -4529,6 +4556,48 @@ function cRender(){
     document.getElementById('cWhich').textContent=c?cCardLabel(c):'—';
     document.getElementById('cardsCaption').textContent=`${cS.list.length?cS.idx+1:0} / ${cS.list.length} · ${px.name} · ${px.w}×${px.h}px print`;
   }
+}
+// ---- per-card text-box OVERLAYS + hide-pads ----
+function cCurName(){ if(cS.view!=='single') return null; const c=cS.list[cS.idx]||cS.list[0]; return c?c.name:null; }
+function cRenderCard(){ if(cS.view!=='single') return cRender(); cBuildList(); const view=document.getElementById('cardsView'); const c=cS.list[cS.idx]||cS.list[0]; if(view&&c) view.innerHTML=c.svg; }   // re-render ONLY the preview SVG (keeps the editor DOM/focus intact while typing/sliding)
+let _cardRaf=0; function cRenderCardThrottle(){ if(_cardRaf) return; _cardRaf=requestAnimationFrame(()=>{ _cardRaf=0; cRenderCard(); }); }
+function cBuildOverlayPanel(){
+  const sec=document.getElementById('cOvSec'); if(!sec) return;
+  const name=cCurName(); sec.style.display = name ? '' : 'none'; if(!name) return;
+  const c=cS.list[cS.idx]||cS.list[0];
+  document.getElementById('cOvWhich').textContent = c?('· '+cCardLabel(c)):'';
+  document.getElementById('cHidePads').checked = !!cS.padsOff[name];
+  const list=document.getElementById('cOvList'), arr=cS.overlays[name]||[]; list.innerHTML='';
+  arr.forEach((o,i)=>{
+    const sel = cS._ovSel && cS._ovSel.name===name && cS._ovSel.i===i;
+    const box=document.createElement('div');
+    box.style.cssText='border:1px solid var(--line);border-radius:8px;padding:7px;margin-bottom:6px;background:var(--panel2)';
+    box.innerHTML=`<div class="row" style="gap:5px;align-items:center;margin-bottom:4px">
+        <select data-k="shape" style="flex:1;min-width:0">${Cards.OVERLAY_SHAPES.map(s=>`<option value="${s.id}"${o.shape===s.id?' selected':''}>${s.name}</option>`).join('')}</select>
+        <button class="btn sec" data-k="place" style="flex:0 0 auto;padding:5px 9px${sel?';background:var(--acc);color:#08101f':''}" title="Place: drag it on the card">📍</button>
+        <button class="btn sec" data-k="del" style="flex:0 0 auto;padding:5px 9px" title="Delete this text box">🗑</button></div>
+      <textarea data-k="text" rows="2" placeholder="Line 1&#10;Line 2 …" style="width:100%;box-sizing:border-box;resize:vertical;background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:6px;padding:5px 7px;font-size:12px">${cEsc(o.text||'')}</textarea>
+      <div class="row wrap" style="margin-top:4px;gap:8px;align-items:center">
+        <label class="mini" style="flex:1;min-width:74px">Size<input type="range" data-k="scale" min="0.5" max="2.4" step="0.05" value="${o.scale||1}" style="width:100%"></label>
+        <label class="mini" style="flex:1;min-width:74px">Text<input type="range" data-k="textScale" min="0.6" max="2.2" step="0.05" value="${o.textScale||1}" style="width:100%"></label>
+        <input type="color" data-k="color" value="${o.color||(o.shape==='plate'?'#f8f1da':'#3a2f1e')}" style="width:36px;padding:2px" title="Text colour"></div>
+      ${o.shape==='plate'?`<div class="row wrap" style="margin-top:5px;gap:6px;align-items:center">
+        <select data-k="corners" style="flex:1;min-width:0"><option value="round"${(o.corners==='round'||!o.corners)?' selected':''}>Rounded</option><option value="notched"${o.corners==='notched'?' selected':''}>Notched</option><option value="square"${o.corners==='square'?' selected':''}>Square</option></select>
+        <label class="mini" style="flex:0 0 auto"><input type="checkbox" data-k="screws"${o.screws?' checked':''}> screws</label></div>`:''}
+      ${o.shape==='plaque'?`<div class="row" style="margin-top:5px"><select data-k="material" style="flex:1"><option value="wood"${o.material!=='stone'?' selected':''}>Wood</option><option value="stone"${o.material==='stone'?' selected':''}>Stone</option></select></div>`:''}`;
+    const q=k=>box.querySelector(`[data-k="${k}"]`);
+    q('shape').onchange=e=>{ o.shape=e.target.value; cBuildOverlayPanel(); cRender(); };
+    q('text').oninput=e=>{ o.text=e.target.value; cRenderCardThrottle(); };
+    q('scale').oninput=e=>{ o.scale=+e.target.value; cRenderCardThrottle(); };
+    q('textScale').oninput=e=>{ o.textScale=+e.target.value; cRenderCardThrottle(); };
+    q('color').oninput=e=>{ o.color=e.target.value; cRenderCardThrottle(); };
+    if(q('corners')) q('corners').onchange=e=>{ o.corners=e.target.value; cRenderCard(); };
+    if(q('screws')) q('screws').onchange=e=>{ o.screws=e.target.checked; cRenderCard(); };
+    if(q('material')) q('material').onchange=e=>{ o.material=e.target.value; cRenderCard(); };
+    q('place').onclick=()=>{ cS._ovSel = sel? null : {name,i}; if(cS._ovSel && cS.padMove){ cS.padMove=false; cUpdatePadMoveBtn(); } const v=document.getElementById('cardsView'); if(v) v.style.cursor=cS._ovSel?'crosshair':''; cBuildOverlayPanel(); };
+    q('del').onclick=()=>{ arr.splice(i,1); if(!arr.length) delete cS.overlays[name]; if(cS._ovSel&&cS._ovSel.name===name){ cS._ovSel=null; const v=document.getElementById('cardsView'); if(v) v.style.cursor=''; } cBuildOverlayPanel(); cRender(); };
+    list.appendChild(box);
+  });
 }
 function cBuildSuitChips(){
   const host=document.getElementById('cSuits'); host.innerHTML='';
@@ -4587,7 +4656,7 @@ function cInitUI(){
   const padVal=document.getElementById('cPadSizeVal');
   document.getElementById('cPadSize').oninput=e=>{ cS.pad.scale=+e.target.value; if(padVal)padVal.textContent='×'+(+e.target.value).toFixed(2); cRender(); };
   document.getElementById('cPadReset').onclick=()=>{ cS.pad.pos=null; cRender(); };
-  document.getElementById('cPadMove').onclick=()=>{ cS.padMove=!cS.padMove; if(cS.padMove){ cS.view='single'; cSyncViewSeg(); } cUpdatePadMoveBtn(); cRender(); };
+  document.getElementById('cPadMove').onclick=()=>{ cS.padMove=!cS.padMove; if(cS.padMove){ cS._ovSel=null; cS.view='single'; cSyncViewSeg(); const v=document.getElementById('cardsView'); if(v) v.style.cursor=''; } cUpdatePadMoveBtn(); cRender(); };
   document.getElementById('cBackText').oninput=e=>{ cS.back.text=e.target.value; cRender(); };
   cSetupPadDrag();
   document.getElementById('cBackStyle').onchange=e=>{ const v=e.target.value;
@@ -4629,6 +4698,16 @@ function cInitUI(){
   };
   document.getElementById('cArtClear').onclick=()=>{ if(cS.view==='back'){ if(cS.back.art){ delete cS.back.art; cRender(); } return; } const c=cS.list[cS.idx]; if(c&&cS.art[c.name]){ delete cS.art[c.name]; cRender(); } };
   Crop._wire();
+  // per-card text-box overlays + pad colour
+  { const sh=document.getElementById('cOvShape'); if(sh) sh.innerHTML=Cards.OVERLAY_SHAPES.map(s=>`<option value="${s.id}">${s.name}</option>`).join(''); }
+  document.getElementById('cOvAdd').onclick=()=>{ const name=cCurName(); if(!name) return;
+    if(!cS.overlays[name]) cS.overlays[name]=[]; const arr=cS.overlays[name];
+    const shape=(document.getElementById('cOvShape')||{}).value||'plate';
+    arr.push({ shape, text:'Text', x:0.5, y:0.66, scale:1, textScale:1, color:(shape==='plate'?'#f8f1da':'#3a2f1e'), corners:'round' });
+    cS._ovSel={ name, i:arr.length-1 }; const v=document.getElementById('cardsView'); if(v) v.style.cursor='crosshair';
+    cBuildOverlayPanel(); cRender(); };
+  document.getElementById('cHidePads').onchange=e=>{ const name=cCurName(); if(!name) return; if(e.target.checked) cS.padsOff[name]=true; else delete cS.padsOff[name]; cRender(); };
+  cWireColor('cPadCol','cPadColHex', v=>{ cS.padColor=v; cRender(); });
   document.getElementById('cDlOne').onclick=()=>cExportOne();
   document.getElementById('cExport').onclick=()=>cExportDeck();
   document.getElementById('cSaveDeck').onclick=()=>cSaveDeck();
@@ -4660,7 +4739,8 @@ async function cExportDeck(){
 }
 function cSaveDeck(){
   const data={ v:1, size:cS.size, frame:cS.frame, font:cS.font, accent:cS.accent, paper:cS.paper, suitObjs:cS.suitObjs,
-    suitsOn:[...cS.suitsOn], ranksOn:[...cS.ranksOn], jokers:cS.jokers, custom:cS.custom, back:cS.back, art:cS.art, customFrame:cS.customFrame||null, pad:cS.pad };
+    suitsOn:[...cS.suitsOn], ranksOn:[...cS.ranksOn], jokers:cS.jokers, custom:cS.custom, back:cS.back, art:cS.art, customFrame:cS.customFrame||null, pad:cS.pad,
+    padColor:cS.padColor, overlays:cS.overlays, padsOff:cS.padsOff };
   bDownload(new Blob([JSON.stringify(data)],{type:'application/json'}), 'deck-design.json');
 }
 async function cLoadDeck(e){
@@ -4671,6 +4751,8 @@ async function cLoadDeck(e){
     cS.ranksOn=new Set(d.ranksOn||cS.rankObjs.map(r=>r.id)); cS.jokers=d.jokers!==false; cS.custom=d.custom||[];
     cS.back=d.back||cS.back; if(cS.back.text==null) cS.back.text=''; cS.art=d.art||{}; cS.customFrame=d.customFrame||null;
     cS.pad=d.pad||{scale:1,pos:null}; if(cS.pad.scale==null) cS.pad.scale=1;
+    cS.padColor=d.padColor||'#faf3de'; cS.overlays=d.overlays||{}; cS.padsOff=d.padsOff||{}; cS._ovSel=null;
+    { const pc=document.getElementById('cPadCol'), pch=document.getElementById('cPadColHex'); if(pc){pc.value=cS.padColor;} if(pch){pch.value=cS.padColor;} }
     document.getElementById('cSize').value=cS.size; document.getElementById('cFrame').value=cS.frame; document.getElementById('cFont').value=cS.font; cSyncFramePanel();
     document.getElementById('cAccent').value=cS.accent; document.getElementById('cAccentHex').value=cS.accent;
     document.getElementById('cPaper').value=cS.paper; document.getElementById('cPaperHex').value=cS.paper;

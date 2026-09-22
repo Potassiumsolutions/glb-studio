@@ -368,7 +368,7 @@ function pathCurve(A, B, wob, toHub){
 function buildPaths(grp, def, gridKind, seed){
   const g=TE.gridFor(gridKind);
   const rng=rng32((((seed||1)*2246822519)>>>0)); const wob=()=> (rng()*2-1)*0.085;
-  const SPEC={ [P.RIVER]:{tex:riverTex(),w:0.26,y:TOP+0.026,ro:3}, [P.TRAIL]:{tex:trailTex(),w:0.15,y:TOP+0.03,ro:3,blend:'multiply'}, [P.ROAD]:{tex:roadTex(),w:0.22,y:TOP+0.032,ro:3} };
+  const SPEC={ [P.RIVER]:{tex:riverTex(),w:0.26,y:TOP+0.026,ro:3}, [P.TRAIL]:{tex:trailTex(),w:0.09,y:TOP+0.03,ro:3,blend:'multiply'}, [P.ROAD]:{tex:roadTex(),w:0.11,y:TOP+0.032,ro:3} };   // road/trail halved to match the thinner map-scale roads
   for(const type of [P.RIVER, P.TRAIL, P.ROAD]){             // river first (under), road last (on top)
     const spec=SPEC[type]; if(!spec) continue;
     const edges=[]; def.edges.forEach((e,dir)=>{ if(e.path===type){ const [ex,ez]=g.edgeMid(dir); edges.push({x:ex,z:ez}); } });
@@ -419,11 +419,19 @@ function tree(x,z,s){ const g=new THREE.Group();
   const tr=new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.03,0.1), trunkMat); tr.position.y=TOP+0.05; g.add(tr);
   const cn=new THREE.Mesh(new THREE.ConeGeometry(0.09*s,0.24*s,7), treeMat); cn.position.y=TOP+0.22*s; g.add(cn);
   cn.castShadow=true; g.position.set(x,0,z); return g; }
-function house(x,z,rot,tall){ const g=new THREE.Group();
-  const bw=0.16, bh=tall?0.22:0.14;
-  const b=new THREE.Mesh(new THREE.BoxGeometry(bw,bh,bw), mat(tall?0xb9b2a6:0xcaa877,{roughness:0.85})); b.position.y=TOP+bh/2; g.add(b);
-  const roof=new THREE.Mesh(new THREE.ConeGeometry(0.14,0.1,4), mat(0x8a3b2f)); roof.position.y=TOP+bh+0.05; roof.rotation.y=Math.PI/4; g.add(roof);
-  b.castShadow=true; roof.castShadow=true; g.position.set(x,0,z); g.rotation.y=rot; return g; }
+function house(x,z,rot,tall,r){ r=r||Math.random; const g=new THREE.Group();   // castle 'buildings' (tall=true) are bigger + VARIED: footprint, wall height, roof height/shape/colour all jitter per building
+  const big=!!tall;
+  const bw=(big?0.21:0.14)*(0.8+r()*0.6);                                       // footprint width
+  const bd=bw*(0.72+r()*0.6);                                                   // depth ≠ width → non-square footprints (halls vs towers)
+  const bh=(big?0.26:0.15)*(0.68+r()*1.05);                                     // wall height jitters a lot → mixed roof heights
+  const wallCols = big?[0xb9b2a6,0xc9bfa8,0xa89a86,0xbfae90,0xcdbd9b]:[0xcaa877,0xc7a06a,0xd8bd93];
+  const b=new THREE.Mesh(new THREE.BoxGeometry(bw,bh,bd), mat(wallCols[(r()*wallCols.length)|0],{roughness:0.85})); b.position.y=TOP+bh/2; b.castShadow=true; g.add(b);
+  const roofCols=[0x8a3b2f,0x7a3b30,0x6e4b32,0x8f5a34,0x5f4a34];
+  const rh=(0.07+r()*0.14)*(big?1.5:1.0);                                        // roof height varies
+  const sides=(r()<0.72)?4:3;                                                    // hip (4-sided) vs peaked (3-sided) → mixed roof shapes
+  const roof=new THREE.Mesh(new THREE.ConeGeometry(Math.max(bw,bd)*0.82, rh*2, sides), mat(roofCols[(r()*roofCols.length)|0]));
+  roof.position.y=TOP+bh+rh; roof.rotation.y=Math.PI/4; roof.castShadow=true; g.add(roof);
+  g.position.set(x,0,z); g.rotation.y=rot; return g; }
 // a mountain peak with SHAPE variety — random face count, height/radius/footprint independent of size, so a
 // range reads as varied crags rather than a grid of identical hex-cones. `s` sets overall size; `r` an rng.
 function peak(x,z,s,r,snow){ r=r||Math.random;
@@ -467,10 +475,12 @@ export function tileFlat(){ return _flat; }
 function flatDecal(w,h,color,op){ const geo=new THREE.PlaneGeometry(w,h); geo.rotateX(-Math.PI/2);
   const m=new THREE.Mesh(geo, new THREE.MeshBasicMaterial({color, transparent:true, opacity:op==null?0.96:op, depthWrite:false}));
   m.renderOrder=3; return m; }
-function flatRoof(x,z,big,r){ const g=new THREE.Group(); const s=big?0.17:0.13, rot=r()*1.57;
-  const sh=flatDecal(s*1.15,s*1.15,0x000000,0.28); sh.position.set(x+0.01,TOP+0.045,z+0.012); sh.rotation.y=rot; g.add(sh);   // soft shadow
-  const roof=flatDecal(s,s, big?0xb9b2a6:0xc59a5f, 0.98); roof.position.set(x,TOP+0.05,z); roof.rotation.y=rot; g.add(roof);
-  const ridge=flatDecal(s,s*0.16,0x7a3b30,0.9); ridge.position.set(x,TOP+0.052,z); ridge.rotation.y=rot; g.add(ridge); return g; }   // roof ridge line
+function flatRoof(x,z,big,r){ const g=new THREE.Group();                        // bigger + VARIED: size, footprint aspect, rotation & roof colour jitter per building
+  const base=big?0.215:0.14, w=base*(0.8+r()*0.55), h=w*(0.66+r()*0.62), rot=r()*3.14;
+  const sh=flatDecal(w*1.18,h*1.18,0x000000,0.28); sh.position.set(x+0.012,TOP+0.045,z+0.014); sh.rotation.y=rot; g.add(sh);   // soft shadow
+  const roofCols = big?[0xb9b2a6,0xc9bfa8,0xa89a86,0xbfae90]:[0xc59a5f,0xb98a52,0xd8bd93];
+  const roof=flatDecal(w,h, roofCols[(r()*roofCols.length)|0], 0.98); roof.position.set(x,TOP+0.05,z); roof.rotation.y=rot; g.add(roof);
+  const ridge=flatDecal(w,h*0.17,[0x7a3b30,0x6e4b32,0x8a3b2f][(r()*3)|0],0.9); ridge.position.set(x,TOP+0.052,z); ridge.rotation.y=rot; g.add(ridge); return g; }   // roof ridge line
 
 // scatter a feature over the tile, keeping clear of any path strips. `mass` (0..1) = mountain-massif depth:
 // core cells build a tall central peak + satellites, fringe cells a single small foothill.
@@ -508,9 +518,9 @@ function scatter(group, def, gridKind, seed, mass, variant){
     const big = 0.6 + M*1.9, n = 1 + Math.round(M*3);
     group.add(peak((r()*2-1)*0.14, (r()*2-1)*0.14, big, r, snowPeaks));                 // central summit near tile centre
     for(let i=1;i<n;i++){ const [x,z]=pts[i]||[(r()*2-1)*rad,(r()*2-1)*rad]; group.add(peak(x,z, big*(0.38+r()*0.42), r, snowPeaks)); } }  // lower shoulders
-  else if(f==='houses') take(4).forEach(([x,z])=> group.add(house(x,z,r()*6.28,false)));
-  else if(f==='buildings') take(4).forEach(([x,z])=> group.add(house(x,z,r()*6.28,true)));
-  else if(f==='farm' && pts[0]) group.add(house(pts[0][0],pts[0][1],r()*6.28,false));
+  else if(f==='houses') take(4).forEach(([x,z])=> group.add(house(x,z,r()*6.28,false,r)));
+  else if(f==='buildings') take(5).forEach(([x,z])=> group.add(house(x,z,r()*6.28,true,r)));
+  else if(f==='farm' && pts[0]) group.add(house(pts[0][0],pts[0][1],r()*6.28,false,r));
   else if(f==='keep'){ // castle: central keep + ring wall around the perimeter (gap at the road/gate edge)
     const k=new THREE.Mesh(new THREE.BoxGeometry(0.26,0.42,0.26), mat(0x9a9298)); k.position.y=TOP+0.21; k.castShadow=true; group.add(k);
     const t=new THREE.Mesh(new THREE.CylinderGeometry(0.07,0.07,0.16,8), mat(0xb9b2a6)); t.position.y=TOP+0.5; group.add(t);
@@ -612,9 +622,9 @@ export const stepAngle = (kind)=> kind==='hex' ? Math.PI/3 : Math.PI/2;
 // read as a real ~5-10 ft way — roughly one 5-ft cell wide — so widen them when _scale==='battle'.
 const DRAW_SPEC = {
   river: ()=>({ tex:riverTex(), w:_scale==='battle'?0.95:0.24, y:TOP+0.028, ro:5 }),
-  trail: ()=>({ tex:trailTex(), w:_scale==='battle'?0.55:0.15, y:TOP+0.030, ro:6, blend:'multiply' }),
-  road:  ()=>({ tex:roadTex(),  w:_scale==='battle'?0.90:0.22, y:TOP+0.034, ro:7 }),
-  paved: ()=>({ tex:pavedTex(), w:_scale==='battle'?1.00:0.24, y:TOP+0.035, ro:7 }),
+  trail: ()=>({ tex:trailTex(), w:_scale==='battle'?0.55:0.09, y:TOP+0.030, ro:6, blend:'multiply' }),   // World roads/trails halved — too thick for the map scale (Paul)
+  road:  ()=>({ tex:roadTex(),  w:_scale==='battle'?0.90:0.11, y:TOP+0.034, ro:7 }),
+  paved: ()=>({ tex:pavedTex(), w:_scale==='battle'?1.00:0.12, y:TOP+0.035, ro:7 }),
 };
 // a flat textured ribbon of the given type following world points [{x,z},…]
 // The drawn points are the clicked connector dots; instead of hard straight segments between
