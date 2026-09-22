@@ -328,19 +328,27 @@
         for (const nk of ring){ if (blob.size >= target) break; if (blob.has(nk) || claimed.has(nk)) continue; blob.add(nk); claimed.add(nk); } }
       return blob; }
     const claimed = new Set(settlements);
-    // TOWN: the central settlement grows into a cluster that gets a ringed city WALL (built after roads, §4b)
+    // The castle is normally a NON-town settlement pulled out toward the mountains, with the TOWN in the centre.
+    // On SQUARE maps, ~40% of the time we SWAP those two: the keep takes the centre (the board's landmark) and the
+    // town shifts out toward the hills — same sizes, just swapped positions — so the castle isn't always off-centre.
+    const castleExists = settlements.length >= 3 && mtn.length;
+    const mtnNearest   = castleExists ? settlements.slice(1).sort((a, b) => nearBlob(a, mtn) - nearBlob(b, mtn))[0] : null;
+    const centerCastle = castleExists && gridKind === 'square' && rng() < 0.4;
+    const townSeed   = centerCastle ? mtnNearest     : settlements[0];
+    const castleSeed = centerCastle ? settlements[0] : mtnNearest;
+    // TOWN: the (usually central) settlement grows into a cluster that gets a ringed city WALL (built after roads, §4b)
     const townCells = new Set();
-    if (settlements.length) {
-      if (grownSettle) growBlob(settlements[0], townTarget, claimed).forEach(k => townCells.add(k));
-      else { townCells.add(settlements[0]);
-        nbrs(settlements[0]).map(n => n.k).filter(k => buildable(k) && !settleSet.has(k))
+    if (settlements.length && townSeed != null) {
+      if (grownSettle) growBlob(townSeed, townTarget, claimed).forEach(k => townCells.add(k));
+      else { townCells.add(townSeed);
+        nbrs(townSeed).map(n => n.k).filter(k => buildable(k) && !settleSet.has(k))
           .sort((a, b) => Math.hypot(pos[a].x - cx, pos[a].z - cz) - Math.hypot(pos[b].x - cx, pos[b].z - cz))
           .forEach(k => { if (townCells.size < townTarget) { townCells.add(k); claimed.add(k); } }); }
     }
-    // optional castle: a NON-town settlement nearest the mountains becomes a keep + (in battle) a walled compound
+    // optional castle: a keep + (in battle) a walled compound — near the mountains, or dead-centre when centerCastle
     let castle = null; const castleCells = new Set();
-    if (settlements.length >= 3 && mtn.length) {
-      castle = settlements.slice(1).sort((a, b) => nearBlob(a, mtn) - nearBlob(b, mtn))[0];
+    if (castleExists) {
+      castle = castleSeed;
       if (castle) { if (grownSettle) growBlob(castle, castleTarget, claimed).forEach(k => castleCells.add(k)); else castleCells.add(castle);
         for (const k of castleCells) { biome[k] = B.CITY; feature[k] = 'buildings'; } feature[castle] = 'keep';
         // ring the castle grounds with variety — orchards/gardens + a few trees — so its surroundings aren't plain
