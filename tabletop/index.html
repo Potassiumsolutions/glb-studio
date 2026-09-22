@@ -1004,7 +1004,7 @@ import * as Tuck from './tuckbox-designer.js';
 
 const BGC = window.BGC, GAMES = window.BGC_GAMES;
 const TE = window.TileEngine, TLIB = window.TileLibrary;
-const APP_VERSION = 'v0.82';
+const APP_VERSION = 'v0.83';
 const CREDITS = `<b>Ksol Designs</b> — Paul A.T. Ramey<br>www.ksoldesigns.com<br>Built with GLB Studio · Tabletop<br><span class="ver">${APP_VERSION}</span>`;
 // ---- Board credit: a small "KSOL Designs" mark on the board for the FREE build. Owning ANY content pack
 // (TTier expansion) unlocks removing it (⚙ Settings toggle, or click the credit). ----
@@ -3797,9 +3797,41 @@ function bBuildSettlePlan(type,w,h){                                      // gen
   const anchor=bAnchorCell(), cells=bSettleRegionCells(w,h,anchor), tmp=new Map();
   const moat=!!document.getElementById('bMoat')?.checked;
   const r=TE.generateSettlement(bld.grid, tmp, cells, bDefs(), {seed:bld.seed, settlementType:type, moat});
+  const settleWalls = Array.isArray(r.draw)?r.draw:[];
+  // Bake the surround (countryside terrain + the roads/rivers that carry the settlement's spokes out to the
+  // island edge) ONCE, here, over the WHOLE plan region — NOT per-Extend. Previously bRevealSettlePlan re-ran
+  // generateNextSection over the growing set of revealed cells every Extend, so the carried roads (and surround)
+  // re-routed each time and shifted a user's already-placed map. Baking once + clipping-to-revealed on Extend
+  // keeps every road pinned. (tmp already holds the settlement, so seam-matching still works.)
+  const ground = cells.filter(c=> !tmp.has(TE.keyOf(c)));
+  const settleStrokes = settleWalls.filter(s=>s.type==='road'||s.type==='trail'||s.type==='river');
+  const carry = _settleSurround(tmp, ground, settleStrokes, bld.seed);
   const tiles=new Map(); for(const [k,v] of tmp) tiles.set(k,{defId:v.defId, rot:v.rot||0});
-  _settlePlan={ type, seed:bld.seed, w, h, anchor, tiles, walls:Array.isArray(r.draw)?r.draw:[], props:Array.isArray(r.props)?r.props:[], buildings:r.buildings||0 };
+  _settlePlan={ type, seed:bld.seed, w, h, anchor, tiles, walls:settleWalls, carry, props:Array.isArray(r.props)?r.props:[], buildings:r.buildings||0 };
   return _settlePlan; }
+// surround countryside fill (mutates `board`) + returns the carried road/river strokes — computed once per plan
+function _settleSurround(board, ground, settleStrokes, seed){
+  if(!ground.length) return [];
+  const gb=_settleGroundBiome();
+  if(settleStrokes.length && gb==='green'){
+    // continue the drawbridge roads/rivers OUT across the countryside to the island edge (varied matched terrain)
+    const priorStrokes = settleStrokes.flatMap(s=>[{type:s.type,end:s.pts[s.pts.length-1]},{type:s.type,end:s.pts[0]}]);
+    const r=TE.generateNextSection(bld.grid, board, bDefs(), ground, {seed, terrain:'match', feature:'bare', priorStrokes});
+    return Array.isArray(r.draw) ? r.draw.filter(s=>s.type==='road'||s.type==='trail'||s.type==='river') : [];
+  }
+  if(gb==='green'){
+    // no roads to carry → coherent grass + forest/orchard/field patches (deterministic noise, no RNG drift)
+    const g=bGridObj(), groups={plains:[],forest:[],orchard:[],crops:[]};
+    for(const c of ground){ const w=g.world(c);
+      const n=(Math.sin(w.x*0.55)+Math.cos(w.z*0.5)+Math.sin((w.x+w.z)*0.31)+Math.cos((w.x-w.z)*0.37))/4;
+      const v=(n+1)/2;
+      groups[v<0.26?'forest':v<0.4?'orchard':v<0.5?'crops':'plains'].push(c); }
+    for(const b in groups) if(groups[b].length) TE.generateBiomeFill(bld.grid, board, groups[b], bDefs(), {seed, biome:b, append:true});
+    return [];
+  }
+  TE.generateBiomeFill(bld.grid, board, ground, bDefs(), {seed, biome:gb, append:true});
+  return [];
+}
 function bClipStrokesToRevealed(strokes, revealed){                       // keep only wall/road segments over revealed cells
   const g=bGridObj(), C=[]; for(const k of revealed){ const [q,r]=k.split(',').map(Number); const w=g.world({q,r}); C.push([w.x,w.z]); }
   const near=(x,z)=>{ for(const c of C){ if((c[0]-x)**2+(c[1]-z)**2 <= 0.58*0.58) return true; } return false; };
@@ -3814,33 +3846,25 @@ function _settleGroundBiome(){ const t=bld.extTerrain;
   if(!t || t==='match') return 'green';
   if(t.indexOf('custom:')===0) return t;
   return ({forest:'forest',plains:'plains',desert:'sand',mountains:'mountains',snow:'snow',hills:'plains',lakes:'water',riverbottom:'water',largelake:'water',water:'water'})[t] || 'green'; }
-function bRevealSettlePlan(){                                             // fill the CURRENT piece from the plan; land elsewhere
+function bRevealSettlePlan(){                                             // fill the CURRENT piece from the BAKED plan; land beyond the island
   if(!_settlePlan) return 0;
-  const foot=bFillCells(), revealed=new Set(), ground=[]; bld.board.clear();
+  const foot=bFillCells(), revealed=new Set(), beyond=[]; bld.board.clear();
   for(const c of foot){ const k=TE.keyOf(c);
-    if(_settlePlan.tiles.has(k)){ bld.board.set(k, {..._settlePlan.tiles.get(k)}); revealed.add(k); } else ground.push(c); }
-  // the settlement's own roads/rivers (spokes) end at the CASTLE edge; carry them across the surround to the ISLAND edge
-  const settleStrokes = (_settlePlan.walls||[]).filter(s=>s.type==='road'||s.type==='trail'||s.type==='river');
-  const gb=_settleGroundBiome();
-  let carried=[];
-  if(ground.length){
-    if(settleStrokes.length && gb==='green'){
-      // DEFAULT surround: generateNextSection matches terrain OUTWARD from the castle (varied countryside) AND
-      // continues the drawbridge roads/rivers to the far ISLAND edge — so spokes don't dead-end in the fields.
-      const priorStrokes = settleStrokes.flatMap(s=>[{type:s.type,end:s.pts[s.pts.length-1]},{type:s.type,end:s.pts[0]}]);
-      const r=TE.generateNextSection(bld.grid, bld.board, bDefs(), ground, {seed:_settlePlan.seed, terrain:'match', feature:'bare', priorStrokes});
-      carried = Array.isArray(r.draw) ? r.draw.filter(s=>s.type==='road'||s.type==='trail'||s.type==='river') : [];
-    } else if(gb==='green'){
-      // no settlement roads to carry → keep the VARIED countryside surround (grass + coherent forest/orchard/field patches)
+    if(_settlePlan.tiles.has(k)){ bld.board.set(k, {..._settlePlan.tiles.get(k)}); revealed.add(k); } else beyond.push(c); }
+  // cells OUTSIDE the planned island (Extended past it) get plain countryside — no roads, so nothing re-routes
+  if(beyond.length){
+    const gb=_settleGroundBiome();
+    if(gb==='green'){
       const g=bGridObj(), groups={plains:[],forest:[],orchard:[],crops:[]};
-      for(const c of ground){ const w=g.world(c);
+      for(const c of beyond){ const w=g.world(c);
         const n=(Math.sin(w.x*0.55)+Math.cos(w.z*0.5)+Math.sin((w.x+w.z)*0.31)+Math.cos((w.x-w.z)*0.37))/4;   // ≈ -1..1 coherent noise
         const v=(n+1)/2;
         groups[v<0.26?'forest':v<0.4?'orchard':v<0.5?'crops':'plains'].push(c); }
       for(const b in groups) if(groups[b].length) TE.generateBiomeFill(bld.grid, bld.board, groups[b], bDefs(), {seed:_settlePlan.seed, biome:b, append:true});
-    } else TE.generateBiomeFill(bld.grid, bld.board, ground, bDefs(), {seed:_settlePlan.seed, biome:gb, append:true});
+    } else TE.generateBiomeFill(bld.grid, bld.board, beyond, bDefs(), {seed:_settlePlan.seed, biome:gb, append:true});
   }
-  bld.draw = bClipStrokesToRevealed(_settlePlan.walls, revealed).concat(carried);
+  // roads/rivers are BAKED (settlement spokes + carried surround) → just clip to what's revealed. They never move.
+  bld.draw = bClipStrokesToRevealed((_settlePlan.walls||[]).concat(_settlePlan.carry||[]), revealed);
   bld.props = (_settlePlan.props||[]).filter(p=>{ const g=bGridObj(); for(const k of revealed){ const [q,r]=k.split(',').map(Number); const w=g.world({q,r}); if((w.x-p.x)**2+(w.z-p.z)**2<=0.5*0.5) return true; } return false; }).map(p=>({...p, rot:p.rot||0}));
   return revealed.size; }
 function bGenerateMap(){ bPushUndo();
