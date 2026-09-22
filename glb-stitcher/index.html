@@ -84,6 +84,11 @@
   .orbit-view{position:absolute;top:120px;left:12px;z-index:4;background:rgba(20,26,34,.85);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer}
   .center-active{position:absolute;top:156px;left:12px;z-index:4;background:rgba(20,26,34,.85);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer}
   .center-active:hover{border-color:var(--accent)}
+  .flip-facing{position:absolute;top:192px;left:12px;z-index:4;background:rgba(20,26,34,.85);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer}
+  .flip-facing:hover{border-color:var(--accent)}
+  .facing-arrow{position:absolute;top:228px;left:12px;z-index:4;background:rgba(20,26,34,.85);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer}
+  .facing-arrow:hover{border-color:var(--accent)}
+  .facing-arrow.on{background:var(--accent);color:#00142e;border-color:var(--accent);font-weight:600}
   .orbit-view:hover{border-color:var(--accent)}
   .orbit-view.on{background:var(--accent);color:#00142e;border-color:var(--accent);font-weight:600}
   /* Move/Rotate toggle chip that floats on the gizmo itself */
@@ -954,7 +959,7 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 
 const $ = s => document.querySelector(s);
-const APP_NAME='GLB Stitcher', APP_VERSION='1.9.8', APP_BUILD='2026-09-21';   // version shown in About + footer
+const APP_NAME='GLB Stitcher', APP_VERSION='1.9.9', APP_BUILD='2026-09-21';   // version shown in About + footer
 // Bump APP_BUILD whenever the app or the bundled motion library changes. It is printed to the console and
 // shown in the footer so "am I running the current version?" can be answered by looking, not by guessing —
 // a stale browser tab kept an old build alive twice while the files on disk were already up to date.
@@ -2120,13 +2125,13 @@ function sizeEnv(){
   const gs=Math.max(20, parseFloat($('#envGroundSize').value)||80);
   const R=gs*0.5; envHW=R;
   const bR=R*envBackRMul;                      // backdrop radius (horizon distance) — independent of the ground
-  const key=gs+'|'+envBackHMul.toFixed(2)+'|'+envBackRMul.toFixed(2);
-  if(key!==envLastGS){   // rebuild geometry only when ground SIZE or a backdrop multiplier changes (not every reframe → keeps the CPU displacement)
+  const geoKey=gs+'|'+envBackHMul.toFixed(2)+'|'+envBackRMul.toFixed(2);   // NB: NOT `key` — that name is the global DirectionalLight used below (shadowing it broke the shadow-camera sizing)
+  if(geoKey!==envLastGS){   // rebuild geometry only when ground SIZE or a backdrop multiplier changes (not every reframe → keeps the CPU displacement)
     envGround.geometry.dispose(); envGround.geometry=new THREE.PlaneGeometry(gs,gs,ENV_GROUND_SEG,ENV_GROUND_SEG); envGround.position.set(0,0,0);
     // Backdrop: its own radius (bR) and height (bR*2*heightMul). Centered at y=0 so the panorama's horizon stays at
     // ground level; a taller cylinder makes the skyline/hills loom larger, a smaller radius pulls the horizon in close.
     envBackdrop.geometry.dispose(); envBackdrop.geometry=new THREE.CylinderGeometry(bR,bR,bR*2*envBackHMul,72,1,true); envBackdrop.position.set(0,0,0);
-    envLastGS=key; applyEnvTiling(); rebuildEnvRelief();   // re-displace the fresh geometry to match the terrain
+    envLastGS=geoKey; applyEnvTiling(); rebuildEnvRelief();   // re-displace the fresh geometry to match the terrain
   }
   sizeWater();
   const s=Math.max(6,dist*2.2);   // shadow frustum stays tight on the subject, not the whole huge ground
@@ -6546,8 +6551,10 @@ async function renderStudioLibrary(){
     row.innerHTML=`<span style="font-size:16px">${icon[m.skeleton]||'🧍'}</span>`
       +`<div style="flex:1;min-width:0"><div style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.name}</div>`
       +`<div class="hint" style="margin:0">${m.skeleton}</div></div>`
-      +`<button class="btn sm" style="width:auto;flex:none;padding:4px 14px;font-size:12px">Load</button>`;
-    row.querySelector('button').onclick=()=>loadStudioModel(m.id);
+      +`<button class="btn sm" data-act="load" style="width:auto;flex:none;padding:4px 14px;font-size:12px">Load</button>`
+      +`<button class="btn ghost sm" data-act="del" title="Remove this rigged character from the shared Studio Library (your original .glb file is not affected)" style="width:auto;flex:none;padding:4px 9px;font-size:12px">🗑</button>`;
+    row.querySelector('[data-act="load"]').onclick=()=>loadStudioModel(m.id);
+    row.querySelector('[data-act="del"]').onclick=async()=>{ if(!confirm('Remove “'+m.name+'” from the Studio Library?\n(Your original .glb file is not affected — this only clears the saved copy.)')) return; try{ await StudioLib.deleteModel(m.id); }catch(e){} renderStudioLibrary(); };
     host.appendChild(row);
   }
 }
