@@ -185,7 +185,9 @@
   /* ---- Tuck box designer ---- */
   #tuckStage{position:absolute;inset:0;background:radial-gradient(circle at 50% 30%,#1a1f27,#0b0d11);display:flex;flex-direction:column;z-index:20}
   #tuckView{flex:1;overflow:auto;display:flex;align-items:center;justify-content:center;padding:20px}
-  #tuckView svg{background:#fff;border-radius:8px;box-shadow:0 14px 44px rgba(0,0,0,.55);max-width:100%;max-height:78vh;width:auto;height:auto}
+  #tuckView svg{display:block;flex:0 0 auto;margin:auto;background:#fff;border-radius:6px;box-shadow:0 14px 44px rgba(0,0,0,.55);cursor:default;user-select:none}
+  #tuckView{outline:none}
+  #tuckView.zoomed{align-items:flex-start;justify-content:flex-start}
   #tuckCaption{padding:6px 12px;text-align:center;color:var(--mut)}
 </style>
 </head>
@@ -710,7 +712,7 @@
       <div class="mini" id="cExportStatus" style="margin-top:6px"></div>
     </div>
     <div id="tuckPanel" class="panel hide">
-      <div class="hint">Design a <b>box</b> and <b>export print-ready</b> artwork for <b>The Game Crafter</b> — the full unfolded die-line at their exact size, 300 DPI, RGB, with the built-in ⅛" bleed. The background fills the whole sheet, so the tuck flaps &amp; box sides are covered. Add text &amp; image layers, then <b>drag to place</b> or use the <b>align</b> tools.</div>
+      <div class="hint">Design <b>box art</b> on The Game Crafter's <b>real die-lines</b> — every face, side, tuck flap, dust flap &amp; wall is its own panel. <b>Click a panel</b> to give it art (clipped to the flap's shape, auto-turned to read upright once folded). <b>Click art</b> to select it · <b>drag</b> or use the <b>arrow keys</b> (Shift = ×10) · <b>Delete</b> removes. Die-lines, names &amp; placeholders show only here — never in the exported PNG.</div>
       <div class="row wrap" style="align-items:center">
         <label class="fld" style="margin:0">📦 Box</label>
         <select id="tBox" style="flex:1;min-width:170px"></select>
@@ -721,7 +723,7 @@
       </div>
 
       <div class="divider"></div>
-      <label class="fld">🎨 Background <span style="opacity:.6">(fills the whole sheet incl. flaps)</span></label>
+      <label class="fld">🎨 Background <span style="opacity:.6">(the whole sheet — every flap &amp; the bleed)</span></label>
       <div class="seg" id="tBgSeg" style="margin:4px 0">
         <button data-bg="solid">Solid</button><button data-bg="gradient" class="on">Gradient</button><button data-bg="image">Image</button>
       </div>
@@ -740,7 +742,33 @@
       </div>
 
       <div class="divider"></div>
-      <label class="fld">🧩 Layers <span class="mini" style="opacity:.6">(tap to select · drag on the box to move)</span></label>
+      <label class="fld">🧩 Panels &amp; flaps <span class="mini" style="opacity:.6">(click one on the box, or pick here)</span></label>
+      <select id="tRegionPick" style="width:100%;margin-top:4px"></select>
+      <div id="tRegionEditor" style="display:none;border:1px solid var(--line);border-radius:9px;padding:9px;margin-top:8px;background:var(--panel2)">
+        <div style="font-weight:700;font-size:13px" id="tRegName">Panel</div>
+        <div class="mini" id="tRegSize" style="color:var(--mut);margin-bottom:6px"></div>
+        <div class="row wrap">
+          <button class="btn sec" id="tRegImg" style="flex:1">🖼 Add art to this panel</button>
+          <button class="btn sec" id="tRegImgClear" style="flex:0 0 auto" title="Remove art">✕</button>
+        </div>
+        <div id="tRegImgCtl">
+          <div class="row wrap" style="margin-top:6px;align-items:center">
+            <div class="seg" id="tRegFit" style="flex:0 0 auto"><button data-f="cover" class="on">Fill</button><button data-f="contain">Fit</button></div>
+            <span class="mini" style="opacity:.7">Turn</span>
+            <div class="seg" id="tRegRot" style="flex:0 0 auto"><button data-r="0">0°</button><button data-r="90">90°</button><button data-r="180">180°</button><button data-r="-90">270°</button></div>
+          </div>
+          <label class="mini" style="display:block;margin-top:6px">Zoom <input type="range" id="tRegZoom" min="0.5" max="3" step="0.02" value="1" style="width:70%;vertical-align:middle"></label>
+          <div class="mini" style="opacity:.65;margin-top:2px">Arrow keys / drag pan the art inside the panel.</div>
+        </div>
+        <label class="mini" style="display:flex;gap:6px;align-items:center;margin-top:7px"><input type="checkbox" id="tRegColOn"> Colour fill <input type="color" id="tRegCol" value="#2c4a7a" style="width:36px;padding:2px"></label>
+        <div class="row wrap" style="margin-top:7px">
+          <button class="btn sec" id="tRegText" style="flex:1">＋ Text on this panel</button>
+          <button class="btn sec" id="tRegPic" style="flex:1">＋ Image on this panel</button>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+      <label class="fld">🅣 Text &amp; image layers <span class="mini" style="opacity:.6">(click on the box to select)</span></label>
       <div id="tLayerList" style="margin:5px 0"></div>
       <div class="row wrap">
         <button class="btn sec" id="tAddText" style="flex:1">＋ Text</button>
@@ -755,7 +783,7 @@
             <div style="display:flex;gap:4px;align-items:center"><input type="color" id="tLColor" value="#ffffff" style="width:36px;padding:2px"></div>
           </div>
           <div class="row wrap" style="margin-top:6px;align-items:center">
-            <label class="mini" style="flex:1;min-width:88px">Text size <input type="range" id="tLSize" min="6" max="240" step="1" style="width:100%"></label>
+            <label class="mini" style="flex:1;min-width:88px">Text size <input type="range" id="tLSize" min="10" max="700" step="1" style="width:100%"></label>
             <div class="seg" id="tLWeight" style="flex:0 0 auto"><button data-w="bold" class="on">B</button><button data-w="normal">R</button></div>
           </div>
           <div class="row wrap" style="margin-top:6px;align-items:center">
@@ -766,17 +794,18 @@
         <div id="tImageControls" style="display:none">
           <div class="row wrap"><button class="btn sec" id="tLImgPick" style="flex:1">🖼 Choose / replace image</button></div>
           <div class="row wrap" style="margin-top:6px;align-items:center">
-            <label class="mini" style="flex:1;min-width:88px">Height <input type="range" id="tLImgH" min="20" max="4000" step="1" style="width:100%"></label>
+            <label class="mini" style="flex:1;min-width:88px">Height <input type="range" id="tLImgH" min="20" max="6000" step="1" style="width:100%"></label>
             <div class="seg" id="tLFit" style="flex:0 0 auto"><button data-f="contain" class="on">Fit</button><button data-f="cover">Fill</button></div>
           </div>
           <label class="mini" style="display:block;margin-top:5px">Rounded <input type="range" id="tLRound" min="0" max="0.5" step="0.02" value="0" style="width:60%;vertical-align:middle"></label>
         </div>
         <div class="row wrap" style="margin-top:7px;align-items:center">
-          <label class="mini" style="flex:1;min-width:88px">Width <input type="range" id="tLWidth" min="20" max="4000" step="1" style="width:100%"></label>
+          <label class="mini" style="flex:1;min-width:88px">Width <input type="range" id="tLWidth" min="20" max="6000" step="1" style="width:100%"></label>
           <label class="mini" style="flex:1;min-width:88px">Rotate <input type="range" id="tLRot" min="-180" max="180" step="5" value="0" style="width:100%"></label>
         </div>
+        <label class="mini" style="display:block;margin-top:6px">✂ Clip to panel <select id="tLClip" style="max-width:62%"></select></label>
         <div class="divider" style="margin:8px 0"></div>
-        <label class="fld" style="font-size:11px">📐 Align to <select id="tAlignTarget" style="margin-left:4px"></select></label>
+        <label class="fld" style="font-size:11px">📐 Align to <select id="tAlignTarget" style="margin-left:4px;max-width:66%"></select></label>
         <div class="row wrap" style="margin-top:5px;gap:4px">
           <button class="btn sec taln" data-op="left" title="Left edge">⇤</button>
           <button class="btn sec taln" data-op="cx" title="Centre horizontally">⇔</button>
@@ -788,11 +817,7 @@
           <button class="btn sec taln" data-op="fill" title="Fill the panel">▣ fill</button>
         </div>
         <div class="row wrap" style="margin-top:6px;gap:4px;align-items:center">
-          <span class="mini" style="opacity:.6">Nudge</span>
-          <button class="btn sec tnud" data-dx="-8" data-dy="0">◀</button>
-          <button class="btn sec tnud" data-dx="8" data-dy="0">▶</button>
-          <button class="btn sec tnud" data-dx="0" data-dy="-8">▲</button>
-          <button class="btn sec tnud" data-dx="0" data-dy="8">▼</button>
+          <button class="btn sec" id="tLUpright" title="Turn to read upright once folded">⟲ Upright</button>
           <span style="flex:1"></span>
           <button class="btn sec" id="tLDup" title="Duplicate">⧉</button>
           <button class="btn sec" id="tLDel" title="Delete layer">🗑</button>
@@ -800,8 +825,7 @@
       </div>
 
       <div class="divider"></div>
-      <label class="mini" id="tGlueRow" style="display:block"><input type="checkbox" id="tGlue" checked> Keep glue tab white <span style="opacity:.65">(tuck only — helps the glue bond)</span></label>
-      <label class="mini" style="display:block;margin-top:5px"><input type="checkbox" id="tGuide" checked> Show die-line guide <span style="opacity:.65">(cut / fold / safe — never printed)</span></label>
+      <label class="mini" id="tGlueRow" style="display:block"><input type="checkbox" id="tGlue" checked> Keep glue flap white <span style="opacity:.65">(ink stops the glue bonding)</span></label>
 
       <div class="divider"></div>
       <div class="row wrap">
@@ -813,20 +837,21 @@
         <button class="btn" id="tExport" style="flex:1">🖨 Export box art for print</button>
       </div>
       <div class="mini" id="tExportStatus" style="margin-top:6px"></div>
-      <input type="file" id="tImgFile" accept="image/*" hidden>
     </div>
   </div>
 
   <div id="stage">
     <div id="tuckStage" hidden>
       <div id="cardsBar">
-        <div class="seg" id="tViewSeg"><button data-view="art" class="on">🎨 Art</button><button data-view="die">📐 Die-line</button></div>
+        <div class="seg" id="tSheetSeg"></div>
         <span class="mini" id="tWhich" style="color:var(--txt);font-weight:600">Box</span>
         <span style="flex:1"></span>
+        <button class="btn sec" id="tDieBtn" title="Show / hide TGC's die-line (never printed)">📐 Die-line</button>
+        <button class="btn sec" id="tLblBtn" title="Show / hide panel names + placeholders (never printed)">🏷 Names</button>
+        <div class="seg" id="tZoomSeg"><button data-z="-1">−</button><button data-z="0">Fit</button><button data-z="1">＋</button></div>
         <button class="btn sec" id="tDlOne">⬇ PNG</button>
       </div>
-      <div id="tuckView"></div>
-      <img id="tuckDie" alt="TGC die-line" style="display:none;max-width:100%;max-height:78vh;margin:10px auto;background:#fff;border-radius:8px">
+      <div id="tuckView" tabindex="0"></div>
       <div id="tuckCaption" class="mini"></div>
     </div>
     <div id="cardsStage" hidden>
@@ -1004,7 +1029,7 @@ import * as Tuck from './tuckbox-designer.js';
 
 const BGC = window.BGC, GAMES = window.BGC_GAMES;
 const TE = window.TileEngine, TLIB = window.TileLibrary;
-const APP_VERSION = 'v0.83';
+const APP_VERSION = 'v0.84';
 const CREDITS = `<b>Ksol Designs</b> — Paul A.T. Ramey<br>www.ksoldesigns.com<br>Built with GLB Studio · Tabletop<br><span class="ver">${APP_VERSION}</span>`;
 // ---- Board credit: a small "KSOL Designs" mark on the board for the FREE build. Owning ANY content pack
 // (TTier expansion) unlocks removing it (⚙ Settings toggle, or click the credit). ----
@@ -4934,37 +4959,50 @@ function leaveCards(){ CARDS=false;
 window.__cards={ state:()=>({size:cS.size,view:cS.view,idx:cS.idx,n:cS.list.length,suits:[...cS.suitsOn],ranks:[...cS.ranksOn],custom:cS.custom.length}),
   enter:enterCards, render:cRender, set:(k,v)=>{ cS[k]=v; cRender(); }, count:()=>Cards.deckCount(), px:()=>Cards.currentPixels() };
 
-/* ================= Box designer (TGC packaging — tuck + fold boxes) ================= */
+/* ================= Box designer (TGC packaging — real die-lines, per-flap art, two-piece boxes) ================= */
 let tS = Tuck.defaultState();
 let _tuckInit=false;
-let tView='art';
-const tBox=()=>Tuck.BOXES[tS.box]||Tuck.BOXES.p54;
-const tSel=()=>(tS.layers||[]).find(L=>L.id===tS.sel)||null;
+let tZoom=1;
+const tBox=()=>Tuck.getBox(tS.box);
+const tSheet=()=>Tuck.getSheet(tS.box,tS.sheet);
+const tSS=()=>{ Tuck.ensureSheets(tS); return tS.sheets[tS.sheet]; };
+const tLayers=()=>tSS().layers;
+const tSel=()=>tLayers().find(L=>L.id===tS.sel)||null;
+const tReg=()=>tS.selRegion?Tuck.getRegion(tSheet(),tS.selRegion):null;
+/* images live once in tS.images (data URLs, used for export + save); preview uses blob URLs */
+const _tBlob=new Map();
+function tUrl(id){ if(!id) return null; let u=_tBlob.get(id); if(u) return u; const d=tS.images[id]; if(!d) return null;
+  try{ const [h,b64]=d.split(','), mime=(h.match(/data:([^;]+)/)||[])[1]||'image/png', bin=atob(b64), a=new Uint8Array(bin.length);
+    for(let i=0;i<bin.length;i++) a[i]=bin.charCodeAt(i); u=URL.createObjectURL(new Blob([a],{type:mime})); }catch(e){ u=d; }
+  _tBlob.set(id,u); return u; }
+function tAddImg(dataUrl){ const id=Tuck.uid('img'); tS.images[id]=dataUrl; return id; }
+/* photos → JPEG (keeps saves small); layer images keep PNG transparency */
+function tJpeg(dataUrl){ return new Promise(res=>{ const im=new Image(); im.onload=()=>{ const c=document.createElement('canvas'); c.width=im.naturalWidth; c.height=im.naturalHeight;
+  const x=c.getContext('2d'); x.fillStyle='#fff'; x.fillRect(0,0,c.width,c.height); x.drawImage(im,0,0); res(c.toDataURL('image/jpeg',0.92)); }; im.onerror=()=>res(dataUrl); im.src=dataUrl; }); }
+/* drop images nothing references (after deletes / replaces) */
+function tGcImages(){ const used=new Set(); if(tS.bg.img) used.add(tS.bg.img);
+  for(const k in tS.sheets){ const S=tS.sheets[k]; for(const L of S.layers||[]) if(L.img) used.add(L.img); for(const r in S.patches||{}) if(S.patches[r].img) used.add(S.patches[r].img); }
+  for(const id of Object.keys(tS.images)) if(!used.has(id)){ delete tS.images[id]; const u=_tBlob.get(id); if(u&&u.startsWith('blob:')) URL.revokeObjectURL(u); _tBlob.delete(id); } }
+
 function tRender(){
   const view=document.getElementById('tuckView'); if(!view) return;
-  const b=tBox();
-  document.getElementById('tWhich').textContent=b.name;
-  document.getElementById('tBoxDims').textContent=b.dims;
-  document.getElementById('tGlueRow').style.display = b.type==='tuck' ? '' : 'none';
-  const die=document.getElementById('tuckDie');
-  if(tView==='die'){
-    view.style.display='none'; die.style.display='block'; die.src=b.guide;
-    document.getElementById('tuckCaption').textContent=`The Game Crafter official die-line — cut (red) · fold (green) · safe (blue). Your art is hidden in this view.`;
-    return;
-  }
-  view.style.display=''; die.style.display='none';
-  const guide=document.getElementById('tGuide') ? document.getElementById('tGuide').checked : true;
-  view.innerHTML=Tuck.renderNet(tS,{guide});
-  tWireDrag();
-  const px=Tuck.boxPixels(tS.box);
-  document.getElementById('tuckCaption').textContent=`${b.name} · ${px.w}×${px.h}px print (300 DPI, incl. ⅛" bleed)`;
+  const b=tBox(), sh=tSheet();
+  document.getElementById('tWhich').textContent=b.name+(b.sheets.length>1?' — '+sh.label:'');
+  document.getElementById('tBoxDims').textContent=`${b.dims}${b.sheets.length>1?' · two-piece: Lid + Bottom sheets':''}`;
+  document.getElementById('tGlueRow').style.display = b.family==='tuck' ? '' : 'none';
+  tRenderArt();
+  document.getElementById('tuckCaption').textContent=`${b.name}${b.sheets.length>1?' · '+sh.label:''} · ${sh.w}×${sh.h}px print file (300 DPI, incl. ⅛" bleed) · pink = trimmed away`;
 }
-let _tRaf=0; function tRenderThrottle(){ if(_tRaf) return; _tRaf=requestAnimationFrame(()=>{ _tRaf=0; tRender(); }); }
-// re-render only the SVG preview (keeps editor focus while typing/sliding)
-function tRenderArt(){ if(tView!=='art') return; const view=document.getElementById('tuckView'); if(!view) return;
-  const guide=document.getElementById('tGuide') ? document.getElementById('tGuide').checked : true;
-  view.innerHTML=Tuck.renderNet(tS,{guide}); tWireDrag(); }
+function tRenderArt(){ const view=document.getElementById('tuckView'); if(!view) return;
+  const st=view.scrollTop, sl=view.scrollLeft;
+  view.innerHTML=Tuck.renderSheet(tS,{preview:true,url:tUrl});
+  const svg=view.querySelector('svg'); if(svg){ svg.removeAttribute('width'); svg.removeAttribute('height'); tApplyZoom(svg); }
+  view.scrollTop=st; view.scrollLeft=sl; }
 let _tArtRaf=0; function tRenderArtThrottle(){ if(_tArtRaf) return; _tArtRaf=requestAnimationFrame(()=>{ _tArtRaf=0; tRenderArt(); }); }
+function tApplyZoom(svg){ svg=svg||document.querySelector('#tuckView svg'); if(!svg) return; const view=document.getElementById('tuckView'), sh=tSheet();
+  const fit=Math.min((view.clientWidth-40)/sh.w, (view.clientHeight-40)/sh.h);
+  svg.style.width=Math.max(50,Math.round(sh.w*fit*tZoom))+'px'; svg.style.height=Math.max(50,Math.round(sh.h*fit*tZoom))+'px';
+  view.classList.toggle('zoomed', tZoom>1); }
 
 function tSyncBg(){
   const t=tS.bg.type;
@@ -4974,35 +5012,75 @@ function tSyncBg(){
   document.getElementById('tBgImageRow').style.display = t==='image'?'':'none';
   document.querySelectorAll('#tBgSeg button').forEach(x=>x.classList.toggle('on',x.dataset.bg===t));
 }
-function tPickImage(aspect,title,note,set){
-  window.openCropper({ aspect, shape:'rect', title, note, out:{w:1400,h:Math.round(1400/aspect)}, onDone:u=>{ set(u); tRender(); } });
+function tPickImage(aspect,title,note,outW,done){
+  window.openCropper({ aspect, shape:'square', title, note, out:{w:Math.round(outW),h:Math.round(outW/aspect)}, onDone:u=>done(u) });
 }
+function tSyncSheetSeg(){
+  const seg=document.getElementById('tSheetSeg'), b=tBox(); seg.innerHTML='';
+  seg.style.display=b.sheets.length>1?'':'none';
+  for(const s of b.sheets){ const x=document.createElement('button'); x.textContent=s.id==='top'?'🔝 Lid':s.id==='bottom'?'⬇ Bottom':s.label; x.classList.toggle('on',s.id===tS.sheet);
+    x.onclick=()=>{ tS.sheet=s.id; tS.sel=null; tS.selRegion=null; tSyncSheetSeg(); tRefreshAll(); }; seg.appendChild(x); }
+}
+function tSyncToggles(){ document.getElementById('tDieBtn').classList.toggle('on',tS.showDie!==false); document.getElementById('tLblBtn').classList.toggle('on',tS.showLabels!==false);
+  document.getElementById('tDieBtn').style.opacity=tS.showDie!==false?'1':'.55'; document.getElementById('tLblBtn').style.opacity=tS.showLabels!==false?'1':'.55'; }
+function tRefreshAll(){ tFillRegionPick(); tBuildRegionEditor(); tBuildLayerList(); tBuildLayerEditor(); tRender(); }
+
+// ---- panels / flaps ----
+function tFillRegionPick(){ const sel=document.getElementById('tRegionPick'), sh=tSheet(), S=tSS(); sel.innerHTML='<option value="">— pick a panel / flap —</option>';
+  for(const r of sh.regions){ const o=document.createElement('option'); const P=S.patches[r.id]; o.value=r.id; o.textContent=(P&&(P.img||P.color)?'● ':'○ ')+r.name; sel.appendChild(o); }
+  sel.value=tS.selRegion||''; }
+function tBuildRegionEditor(){ const ed=document.getElementById('tRegionEditor'), r=tReg();
+  if(!r){ ed.style.display='none'; return; } ed.style.display='';
+  const P=tSS().patches[r.id]||{};
+  document.getElementById('tRegName').textContent=r.name;
+  document.getElementById('tRegSize').textContent=`${(r.bbox[2]/300).toFixed(2)}" × ${(r.bbox[3]/300).toFixed(2)}" (${r.bbox[2]}×${r.bbox[3]}px) · ${r.dir==='face'?'main face':r.dir==='corner'?'corner / dust flap':'folds on its '+({top:'bottom',bottom:'top',left:'right',right:'left'}[r.dir])+' edge'}`;
+  document.getElementById('tRegImg').textContent=P.img?'🖼 Replace art':'🖼 Add art to this panel';
+  document.getElementById('tRegImgCtl').style.display=P.img?'':'none';
+  document.querySelectorAll('#tRegFit button').forEach(x=>x.classList.toggle('on',x.dataset.f===(P.fit||'cover')));
+  document.querySelectorAll('#tRegRot button').forEach(x=>x.classList.toggle('on',+x.dataset.r===((P.rot||0)===270?-90:(P.rot||0))));
+  document.getElementById('tRegZoom').value=P.zoom||1;
+  document.getElementById('tRegColOn').checked=!!P.color; if(P.color) document.getElementById('tRegCol').value=P.color;
+}
+function tPatch(create){ const r=tReg(); if(!r) return null; const S=tSS(); if(!S.patches[r.id]&&create) S.patches[r.id]={ img:null, fit:'cover', rot:Tuck.uprightRot(tBox(),tSheet(),r), zoom:1, ox:0, oy:0, color:null }; return S.patches[r.id]||null; }
+function tCleanPatch(){ const r=tReg(); if(!r) return; const S=tSS(), P=S.patches[r.id]; if(P&&!P.img&&!P.color) delete S.patches[r.id]; }
+function tSelectRegion(rid){ tS.selRegion=rid||null; tS.sel=null; tFillRegionPick(); tBuildRegionEditor(); tBuildLayerList(); tBuildLayerEditor(); tRenderArt(); }
+function tRegionArt(){ const r=tReg(); if(!r) return; const box=tBox(), sh=tSheet(), rot=Tuck.uprightRot(box,sh,r), side=Math.abs(rot)===90;
+  const w=side?r.bbox[3]:r.bbox[2], h=side?r.bbox[2]:r.bbox[3];
+  tPickImage(w/h, 'Art for: '+r.name, `Cropped to this panel's shape${rot?' and turned '+rot+'° so it reads upright once folded':''}. Use a big image — ${w}×${h}px is full print quality.`, Math.min(w,2600),
+    async u=>{ const P=tPatch(true); P.img=tAddImg(await tJpeg(u)); P.rot=rot; P.ox=0; P.oy=0; P.zoom=1; tGcImages(); tFillRegionPick(); tBuildRegionEditor(); tRenderArt(); }); }
+
 // ---- layer list + editor ----
 function tBuildLayerList(){
   const host=document.getElementById('tLayerList'); if(!host) return; host.innerHTML='';
-  (tS.layers||[]).forEach((L,i)=>{
+  const Ls=tLayers(), sh=tSheet();
+  Ls.forEach((L,i)=>{
     const sel=L.id===tS.sel;
     const row=document.createElement('div');
     row.style.cssText='display:flex;gap:5px;align-items:center;padding:5px 7px;margin-bottom:4px;border:1px solid '+(sel?'var(--acc)':'var(--line)')+';border-radius:7px;background:'+(sel?'rgba(184,147,63,.16)':'var(--panel2)')+';cursor:pointer';
-    const lbl=L.kind==='image'?'🖼 Image':('🅣 '+(String(L.text||'').split('\n')[0].slice(0,18)||'text'));
+    const reg=Tuck.hitRegion(sh,L.cx,L.cy);
+    const lbl=(L.kind==='image'?'🖼 Image':('🅣 '+(String(L.text||'').split('\n')[0].slice(0,16)||'text')))+(reg?` <span style="opacity:.55">· ${reg.name}</span>`:'');
     row.innerHTML=`<span style="flex:1;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${lbl}</span>
-      <button class="btn sec" data-act="up" style="padding:2px 6px">▲</button>
-      <button class="btn sec" data-act="down" style="padding:2px 6px">▼</button>
+      <button class="btn sec" data-act="up" style="padding:2px 6px" title="Bring forward">▲</button>
+      <button class="btn sec" data-act="down" style="padding:2px 6px" title="Send back">▼</button>
       <button class="btn sec" data-act="del" style="padding:2px 6px">🗑</button>`;
     row.onclick=(e)=>{ const a=e.target.dataset.act;
-      if(a==='up'){ if(i>0){ const t=tS.layers[i-1]; tS.layers[i-1]=tS.layers[i]; tS.layers[i]=t; } }
-      else if(a==='down'){ if(i<tS.layers.length-1){ const t=tS.layers[i+1]; tS.layers[i+1]=tS.layers[i]; tS.layers[i]=t; } }
-      else if(a==='del'){ tS.layers.splice(i,1); if(tS.sel===L.id) tS.sel=null; }
-      else { tS.sel=L.id; }
-      tBuildLayerList(); tBuildLayerEditor(); tRender(); };
+      if(a==='down'){ if(i>0){ [Ls[i-1],Ls[i]]=[Ls[i],Ls[i-1]]; } }
+      else if(a==='up'){ if(i<Ls.length-1){ [Ls[i+1],Ls[i]]=[Ls[i],Ls[i+1]]; } }
+      else if(a==='del'){ Ls.splice(i,1); if(tS.sel===L.id) tS.sel=null; tGcImages(); }
+      else { tS.sel=L.id; tS.selRegion=null; }
+      tFillRegionPick(); tBuildRegionEditor(); tBuildLayerList(); tBuildLayerEditor(); tRenderArt(); };
     host.appendChild(row);
   });
-  if(!(tS.layers||[]).length) host.innerHTML='<div class="mini" style="opacity:.6">No layers yet — add text or an image.</div>';
+  if(!Ls.length) host.innerHTML='<div class="mini" style="opacity:.6">No layers on this sheet — add text or an image.</div>';
 }
 function tFillAlignTargets(){
-  const sel=document.getElementById('tAlignTarget'); if(!sel) return; const cur=sel.value;
-  sel.innerHTML=''; for(const p of Tuck.panelsFor(tS.box)){ const o=document.createElement('option'); o.value=p.id; o.textContent=p.name; sel.appendChild(o); }
-  const L=tSel(); if(L && L.panel && [...sel.options].some(o=>o.value===L.panel)) sel.value=L.panel; else if(cur) sel.value=cur;
+  const sh=tSheet(), L=tSel();
+  const sel=document.getElementById('tAlignTarget'); const cur=sel.value; sel.innerHTML='<option value="sheet">Whole sheet</option>';
+  for(const r of sh.regions){ const o=document.createElement('option'); o.value=r.id; o.textContent=r.name+(r.safe?' (safe area)':''); sel.appendChild(o); }
+  const under=L&&Tuck.hitRegion(sh,L.cx,L.cy); sel.value=under?under.id:(cur||'sheet'); if(!sel.value) sel.value='sheet';
+  const cl=document.getElementById('tLClip'); cl.innerHTML='<option value="">— none (free) —</option>';
+  for(const r of sh.regions){ const o=document.createElement('option'); o.value=r.id; o.textContent=r.name; cl.appendChild(o); }
+  cl.value=(L&&L.clip)||'';
 }
 function tBuildLayerEditor(){
   const ed=document.getElementById('tLayerEditor'), L=tSel();
@@ -5011,7 +5089,7 @@ function tBuildLayerEditor(){
   document.getElementById('tImageControls').style.display = L.kind==='image'?'':'none';
   if(L.kind==='text'){
     document.getElementById('tLText').value=L.text||'';
-    const ff=document.getElementById('tLFont'); ff.value=L.font||'';
+    document.getElementById('tLFont').value=L.font||'';
     document.getElementById('tLColor').value=L.color||'#ffffff';
     document.getElementById('tLSize').value=L.size;
     document.querySelectorAll('#tLWeight button').forEach(x=>x.classList.toggle('on',x.dataset.w===L.weight));
@@ -5026,47 +5104,87 @@ function tBuildLayerEditor(){
   document.getElementById('tLRot').value=L.rot||0;
   tFillAlignTargets();
 }
-function tSelectLayer(id){ tS.sel=id; tBuildLayerList(); tBuildLayerEditor(); tRender(); }
+function tSelectLayer(id){ tS.sel=id; tS.selRegion=null; tFillRegionPick(); tBuildRegionEditor(); tBuildLayerList(); tBuildLayerEditor(); tRenderArt(); }
+function tAddLayer(L){ tLayers().push(L); tSelectLayer(L.id); }
 
-// drag a selected layer on the SVG (maps client px -> template pt)
-function tWireDrag(){
-  const view=document.getElementById('tuckView'); const svg=view&&view.querySelector('svg'); if(!svg) return;
+// ---- pointer: click selects art (else the panel under it); drag moves art / pans panel art ----
+function tWireView(){
+  const view=document.getElementById('tuckView');
+  const toPx=ev=>{ const svg=view.querySelector('svg'); if(!svg) return null; const m=svg.getScreenCTM(); if(!m) return null;
+    const p=svg.createSVGPoint(); p.x=ev.clientX; p.y=ev.clientY; const q=p.matrixTransform(m.inverse()); return {x:q.x,y:q.y,scale:m.a}; };
   let drag=null;
-  const toPt=(ev)=>{ const b=tBox(), r=svg.getBoundingClientRect(); if(!r.width) return null;
-    return { x:(ev.clientX-r.left)/r.width*b.vbW, y:(ev.clientY-r.top)/r.height*b.vbH }; };
-  svg.style.touchAction='none';
-  svg.addEventListener('pointerdown', ev=>{ const L=tSel(); if(!L) return; const p=toPt(ev); if(!p) return;
-    drag={ ox:L.cx-p.x, oy:L.cy-p.y }; try{ svg.setPointerCapture(ev.pointerId); }catch(e){} ev.preventDefault(); });
-  svg.addEventListener('pointermove', ev=>{ if(!drag) return; const L=tSel(); if(!L) return; const p=toPt(ev); if(!p) return;
-    L.cx=Math.round(p.x+drag.ox); L.cy=Math.round(p.y+drag.oy); tRenderArtThrottle(); });
-  window.addEventListener('pointerup', ()=>{ if(drag){ drag=null; } });
+  view.addEventListener('pointerdown', ev=>{ if(ev.button!==0) return; const p=toPx(ev); if(!p) return; view.focus({preventScroll:true});
+    const sh=tSheet(), L=Tuck.hitLayer(tLayers(),p.x,p.y,tS.font);
+    if(L){ if(tS.sel!==L.id) tSelectLayer(L.id); drag={ kind:'layer', id:L.id, x0:p.x, y0:p.y, sc:p.scale, moved:false }; }
+    else { const r=Tuck.hitRegion(sh,p.x,p.y);
+      if(!r){ if(tS.sel||tS.selRegion) tSelectRegion(null); return; }
+      if(tS.selRegion!==r.id) tSelectRegion(r.id);
+      const P=tSS().patches[r.id]; drag={ kind:'region', id:r.id, x0:p.x, y0:p.y, sc:p.scale, moved:false, pan:!!(P&&P.img), ox:P?P.ox||0:0, oy:P?P.oy||0:0 }; }
+    try{ view.setPointerCapture(ev.pointerId); }catch(e){} ev.preventDefault(); });
+  view.addEventListener('pointermove', ev=>{ if(!drag) return; const p=toPx(ev); if(!p) return;
+    const dx=p.x-drag.x0, dy=p.y-drag.y0; if(!drag.moved && Math.hypot(dx,dy)*drag.sc<3) return; drag.moved=true;
+    if(drag.kind==='layer'){ // move just the DOM group while dragging (no full re-render = smooth)
+      for(const g of view.querySelectorAll(`[data-lid="${drag.id}"],[data-sel="${drag.id}"]`)) g.setAttribute('transform',`translate(${dx} ${dy})`);
+      drag.dx=dx; drag.dy=dy; }
+    else if(drag.pan){ const P=tSS().patches[drag.id]; if(P){ P.ox=Math.round(drag.ox+dx); P.oy=Math.round(drag.oy+dy); tRenderArtThrottle(); } } });
+  const end=ev=>{ if(!drag) return; const d=drag; drag=null;
+    if(d.kind==='layer' && d.moved){ const L=tLayers().find(l=>l.id===d.id); if(L){ L.cx=Math.round(L.cx+(d.dx||0)); L.cy=Math.round(L.cy+(d.dy||0)); } tBuildLayerList(); tFillAlignTargets(); tRenderArt(); }
+    else if(d.kind==='region' && !d.moved && !d.pan && ev.detail>=2) tRegionArt(); };
+  view.addEventListener('pointerup', end); view.addEventListener('pointercancel', end);
+  view.addEventListener('dblclick', ev=>{ if(tReg() && !tSel()) tRegionArt(); });
+  // keyboard: arrows move the selected art (Shift ×10), Delete removes, Esc deselects
+  document.addEventListener('keydown', ev=>{ if(!TUCK) return; const t=ev.target, tag=(t&&t.tagName)||'';
+    if(/^(INPUT|TEXTAREA|SELECT)$/.test(tag) || (t&&t.isContentEditable)) return;
+    if(document.getElementById('cropModal')?.classList.contains('on')) return;
+    const k=ev.key, step=ev.shiftKey?30:3; let dx=0, dy=0;
+    if(k==='ArrowLeft') dx=-step; else if(k==='ArrowRight') dx=step; else if(k==='ArrowUp') dy=-step; else if(k==='ArrowDown') dy=step;
+    const L=tSel();
+    if(dx||dy){ if(L){ L.cx+=dx; L.cy+=dy; ev.preventDefault(); tRenderArtThrottle(); clearTimeout(tWireView._t); tWireView._t=setTimeout(()=>{ tBuildLayerList(); tFillAlignTargets(); },250); return; }
+      const P=tReg()&&tSS().patches[tS.selRegion]; if(P&&P.img){ P.ox=(P.ox||0)+dx; P.oy=(P.oy||0)+dy; ev.preventDefault(); tRenderArtThrottle(); } return; }
+    if((k==='Delete'||k==='Backspace') && L){ ev.preventDefault(); tS.sheets[tS.sheet].layers=tLayers().filter(x=>x.id!==L.id); tS.sel=null; tGcImages(); tBuildLayerList(); tBuildLayerEditor(); tRenderArt(); return; }
+    if(k==='Escape' && (tS.sel||tS.selRegion)){ tSelectRegion(null); } });
+  window.addEventListener('resize', ()=>{ if(TUCK) tApplyZoom(); });
 }
 
 function tInitUI(){
   const bx=document.getElementById('tBox'); bx.innerHTML='';
-  const og1=document.createElement('optgroup'); og1.label='Tuck-lid boxes (cards)';
-  const og2=document.createElement('optgroup'); og2.label='Fold boxes (fit quad-fold boards)';
-  for(const id of Tuck.boxIds()){ const o=document.createElement('option'); o.value=id; o.textContent=Tuck.BOXES[id].name; (Tuck.boxType(id)==='fold'?og2:og1).appendChild(o); }
-  bx.appendChild(og1); bx.appendChild(og2); bx.value=tS.box;
-  bx.onchange=()=>{ tS.box=bx.value; tS.layers=Tuck.defaultLayers(tS.box); tS.sel=null; tBuildLayerList(); tBuildLayerEditor(); tRender(); };
+  const groups={};
+  for(const t of Tuck.TEMPLATES){ if(!groups[t.group]){ groups[t.group]=document.createElement('optgroup'); groups[t.group].label=t.group; bx.appendChild(groups[t.group]); }
+    const o=document.createElement('option'); o.value=t.id; o.textContent=t.name; groups[t.group].appendChild(o); }
+  bx.value=tS.box;
+  bx.onchange=()=>{ const keep={ font:tS.font, bg:tS.bg, glueWhite:tS.glueWhite, showDie:tS.showDie, showLabels:tS.showLabels, images:tS.images };
+    tS={ ...Tuck.defaultState(bx.value), ...keep }; tGcImages(); tSyncSheetSeg(); tRefreshAll(); };
   const ft=document.getElementById('tFont'); ft.innerHTML='';
   for(const f of Tuck.FONTS){ const o=document.createElement('option'); o.value=f.id; o.textContent=f.name; ft.appendChild(o); }
-  ft.value=tS.font; ft.onchange=()=>{ tS.font=ft.value; tRender(); };
+  ft.value=tS.font; ft.onchange=()=>{ tS.font=ft.value; tRenderArt(); };
   const lf=document.getElementById('tLFont'); lf.innerHTML='<option value="">Default font</option>';
   for(const f of Tuck.FONTS){ const o=document.createElement('option'); o.value=f.id; o.textContent=f.name; lf.appendChild(o); }
-  // view toggle
-  document.querySelectorAll('#tViewSeg button').forEach(b=> b.onclick=()=>{ tView=b.dataset.view; document.querySelectorAll('#tViewSeg button').forEach(x=>x.classList.toggle('on',x===b)); tRender(); });
+  // stage bar
+  document.getElementById('tDieBtn').onclick=()=>{ tS.showDie=tS.showDie===false; tSyncToggles(); tRenderArt(); };
+  document.getElementById('tLblBtn').onclick=()=>{ tS.showLabels=tS.showLabels===false; tSyncToggles(); tRenderArt(); };
+  document.querySelectorAll('#tZoomSeg button').forEach(b=> b.onclick=()=>{ const z=+b.dataset.z; tZoom = z===0?1:Math.max(1,Math.min(6, z>0?tZoom*1.5:tZoom/1.5)); tApplyZoom(); });
   // background
-  document.querySelectorAll('#tBgSeg button').forEach(b=> b.onclick=()=>{ tS.bg.type=b.dataset.bg; tSyncBg(); tRender(); });
+  document.querySelectorAll('#tBgSeg button').forEach(b=> b.onclick=()=>{ tS.bg.type=b.dataset.bg; tSyncBg(); tRenderArt(); });
   cWireColor('tBg1','tBg1Hex', v=>{ tS.bg.color=v; tRenderArt(); });
   cWireColor('tBg2','tBg2Hex', v=>{ tS.bg.color2=v; tRenderArt(); });
   document.getElementById('tBgAngle').oninput=e=>{ tS.bg.angle=+e.target.value; tRenderArtThrottle(); };
-  document.getElementById('tBgImgBtn').onclick=()=>{ const b=tBox(); tPickImage(b.vbW/b.vbH,'Background image','Fills the whole sheet (all panels + flaps). Full-bleed art works best.',u=>tS.bg.image=u); };
-  document.getElementById('tBgImgClear').onclick=()=>{ tS.bg.image=null; tRender(); };
+  document.getElementById('tBgImgBtn').onclick=()=>{ const sh=tSheet(); tPickImage(sh.w/sh.h,'Background image','Fills the whole sheet — every panel, flap and the bleed.',Math.min(sh.w,3600), async u=>{ tS.bg.img=tAddImg(await tJpeg(u)); tGcImages(); tRenderArt(); }); };
+  document.getElementById('tBgImgClear').onclick=()=>{ tS.bg.img=null; tGcImages(); tRenderArt(); };
+  // panels / flaps
+  document.getElementById('tRegionPick').onchange=e=>tSelectRegion(e.target.value||null);
+  document.getElementById('tRegImg').onclick=()=>tRegionArt();
+  document.getElementById('tRegImgClear').onclick=()=>{ const P=tPatch(false); if(P){ P.img=null; tCleanPatch(); tGcImages(); tFillRegionPick(); tBuildRegionEditor(); tRenderArt(); } };
+  document.querySelectorAll('#tRegFit button').forEach(b=> b.onclick=()=>{ const P=tPatch(false); if(P){ P.fit=b.dataset.f; tBuildRegionEditor(); tRenderArt(); } });
+  document.querySelectorAll('#tRegRot button').forEach(b=> b.onclick=()=>{ const P=tPatch(false); if(P){ P.rot=+b.dataset.r; tBuildRegionEditor(); tRenderArt(); } });
+  document.getElementById('tRegZoom').oninput=e=>{ const P=tPatch(false); if(P){ P.zoom=+e.target.value; tRenderArtThrottle(); } };
+  document.getElementById('tRegColOn').onchange=e=>{ const P=tPatch(true); if(!P) return; P.color=e.target.checked?document.getElementById('tRegCol').value:null; tCleanPatch(); tFillRegionPick(); tRenderArt(); };
+  document.getElementById('tRegCol').oninput=e=>{ const P=tPatch(true); if(!P) return; P.color=e.target.value; document.getElementById('tRegColOn').checked=true; tFillRegionPick(); tRenderArtThrottle(); };
+  document.getElementById('tRegText').onclick=()=>{ const r=tReg(); if(!r) return; tAddLayer(Tuck.textForRegion(tBox(),tSheet(),r,'Text')); };
+  document.getElementById('tRegPic').onclick=()=>{ const r=tReg(); if(!r) return; const rr=Tuck.regionRect(r);
+    tPickImage(1,'Image on: '+r.name,'Placed as a movable image layer on this panel (logo, icon…). Transparent PNGs keep their transparency.',1400, u=>{ const L=Tuck.newLayer('image',tSheet(),rr); L.img=tAddImg(u); L.rot=Tuck.uprightRot(tBox(),tSheet(),r); tAddLayer(L); }); };
   // add layers
-  document.getElementById('tAddText').onclick=()=>{ const L=Tuck.newLayer('text',tS.box); tS.layers.push(L); tSelectLayer(L.id); };
-  document.getElementById('tAddImage').onclick=()=>{ const b=tBox();
-    tPickImage(1,'Layer image','Placed as a movable image layer — drag it onto any panel.',u=>{ const L=Tuck.newLayer('image',tS.box); L.src=u; tS.layers.push(L); tSelectLayer(L.id); }); };
+  document.getElementById('tAddText').onclick=()=>tAddLayer(Tuck.newLayer('text',tSheet()));
+  document.getElementById('tAddImage').onclick=()=>tPickImage(1,'Layer image','Placed as a movable image layer — drag it (or use the arrow keys) onto any panel.',1400, u=>{ const L=Tuck.newLayer('image',tSheet()); L.img=tAddImg(u); tAddLayer(L); });
   // text controls
   document.getElementById('tLText').oninput=e=>{ const L=tSel(); if(L){ L.text=e.target.value; tRenderArtThrottle(); tBuildLayerList(); } };
   document.getElementById('tLFont').onchange=e=>{ const L=tSel(); if(L){ L.font=e.target.value; tRenderArt(); } };
@@ -5076,30 +5194,32 @@ function tInitUI(){
   document.querySelectorAll('#tLTextAlign button').forEach(b=> b.onclick=()=>{ const L=tSel(); if(L){ L.align=b.dataset.a; document.querySelectorAll('#tLTextAlign button').forEach(x=>x.classList.toggle('on',x===b)); tRenderArt(); } });
   document.getElementById('tLStroke').onchange=e=>{ const L=tSel(); if(L){ L.stroke=e.target.checked; tRenderArt(); } };
   // image controls
-  document.getElementById('tLImgPick').onclick=()=>{ const L=tSel(); if(!L) return; tPickImage(L.w/L.h||1,'Replace image','',u=>{ L.src=u; tRender(); }); };
+  document.getElementById('tLImgPick').onclick=()=>{ const L=tSel(); if(!L) return; tPickImage((L.w/L.h)||1,'Replace image','',1400,u=>{ L.img=tAddImg(u); tGcImages(); tRenderArt(); }); };
   document.getElementById('tLImgH').oninput=e=>{ const L=tSel(); if(L){ L.h=+e.target.value; tRenderArtThrottle(); } };
   document.querySelectorAll('#tLFit button').forEach(b=> b.onclick=()=>{ const L=tSel(); if(L){ L.fit=b.dataset.f; document.querySelectorAll('#tLFit button').forEach(x=>x.classList.toggle('on',x===b)); tRenderArt(); } });
   document.getElementById('tLRound').oninput=e=>{ const L=tSel(); if(L){ L.round=+e.target.value; tRenderArtThrottle(); } };
   // common
   document.getElementById('tLWidth').oninput=e=>{ const L=tSel(); if(L){ L.w=+e.target.value; tRenderArtThrottle(); } };
   document.getElementById('tLRot').oninput=e=>{ const L=tSel(); if(L){ L.rot=+e.target.value; tRenderArtThrottle(); } };
-  // align + nudge
+  document.getElementById('tLClip').onchange=e=>{ const L=tSel(); if(L){ L.clip=e.target.value||null; tRenderArt(); } };
+  // align
   document.querySelectorAll('#tLayerEditor .taln').forEach(b=> b.onclick=()=>{ const L=tSel(); if(!L) return;
-    const tid=document.getElementById('tAlignTarget').value; const p=Tuck.panelsFor(tS.box).find(p=>p.id===tid); if(!p) return;
-    L.panel=tid; Tuck.alignLayer(L,p.rect,b.dataset.op,tBox()); tBuildLayerEditor(); tRenderArt(); });
-  document.querySelectorAll('#tLayerEditor .tnud').forEach(b=> b.onclick=()=>{ const L=tSel(); if(!L) return; L.cx+=+b.dataset.dx; L.cy+=+b.dataset.dy; tRenderArt(); });
-  document.getElementById('tLDup').onclick=()=>{ const L=tSel(); if(!L) return; const c={...L,id:Tuck.uid(),cx:L.cx+24,cy:L.cy+24}; tS.layers.push(c); tSelectLayer(c.id); };
-  document.getElementById('tLDel').onclick=()=>{ const L=tSel(); if(!L) return; tS.layers=tS.layers.filter(x=>x.id!==L.id); tS.sel=null; tBuildLayerList(); tBuildLayerEditor(); tRender(); };
+    const tid=document.getElementById('tAlignTarget').value, sh=tSheet(), r=tid==='sheet'?null:Tuck.getRegion(sh,tid);
+    Tuck.alignLayer(L, r?Tuck.regionRect(r):Tuck.sheetRect(sh), b.dataset.op, tS.font); tBuildLayerEditor(); tRenderArt(); });
+  document.getElementById('tLUpright').onclick=()=>{ const L=tSel(); if(!L) return; const tid=document.getElementById('tAlignTarget').value, r=Tuck.getRegion(tSheet(),tid)||Tuck.hitRegion(tSheet(),L.cx,L.cy);
+    if(r){ L.rot=Tuck.uprightRot(tBox(),tSheet(),r); tBuildLayerEditor(); tRenderArt(); } };
+  document.getElementById('tLDup').onclick=()=>{ const L=tSel(); if(!L) return; tAddLayer({...L,id:Tuck.uid(),cx:L.cx+40,cy:L.cy+40}); };
+  document.getElementById('tLDel').onclick=()=>{ const L=tSel(); if(!L) return; tS.sheets[tS.sheet].layers=tLayers().filter(x=>x.id!==L.id); tS.sel=null; tGcImages(); tBuildLayerList(); tBuildLayerEditor(); tRenderArt(); };
   // toggles
   document.getElementById('tGlue').onchange=e=>{ tS.glueWhite=e.target.checked; tRenderArt(); };
-  document.getElementById('tGuide').onchange=()=>tRenderArt();
   // save / load / export
   document.getElementById('tSave').onclick=()=>tSaveDesign();
   document.getElementById('tLoadBtn').onclick=()=>document.getElementById('tLoad').click();
   document.getElementById('tLoad').onchange=e=>tLoadDesign(e);
   document.getElementById('tExport').onclick=()=>tExport();
   document.getElementById('tDlOne').onclick=()=>tExport();
-  tSyncControls(); tSyncBg(); tBuildLayerList(); tBuildLayerEditor();
+  tWireView();
+  tSyncControls(); tSyncBg(); tSyncSheetSeg(); tSyncToggles(); tFillRegionPick(); tBuildRegionEditor(); tBuildLayerList(); tBuildLayerEditor();
 }
 function tSyncControls(){
   const g=(id,v)=>{ const el=document.getElementById(id); if(el) el.value=v; };
@@ -5110,28 +5230,40 @@ function tSyncControls(){
 async function tExport(){
   try{ await document.fonts.ready; }catch(e){}
   const st=document.getElementById('tExportStatus'); if(st) st.textContent='Rendering…';
-  const px=Tuck.boxPixels(tS.box), b=tBox();
-  const svg=Tuck.renderNet(tS,{guide:false});   // print output NEVER includes the die-line guide or selection
-  const cv=await cSvgToCanvas(svg,px.w,px.h);
-  const art=await bCanvasBytes(cv);
-  const base=`tgcbox_${tS.box}_${px.w}x${px.h}`;
+  const b=tBox(), files=[], made=[], cur=tS.sheet;
+  try{
+    for(const sh of b.sheets){
+      tS.sheet=sh.id;
+      const svg=Tuck.renderSheet(tS,{preview:false});   // print output: art only — no die-line, names, placeholders or selection
+      const cv=await cSvgToCanvas(svg,sh.w,sh.h);
+      const name=`tgc_${b.id}${b.sheets.length>1?'_'+sh.label.toLowerCase():''}_${sh.w}x${sh.h}.png`;
+      files.push({name,data:await bCanvasBytes(cv)}); made.push(`${name}  →  TGC "${b.name}" ${b.sheets.length>1?sh.label.toUpperCase()+' side':'artwork'}`);
+    }
+  } finally { tS.sheet=cur; }
   const readme=`Box artwork exported from Tabletop — Box designer\r\n`+
-    `Box: ${b.name} (${b.dims})\r\n`+
-    `File: ${base}.png  —  ${px.w}×${px.h}px, 300 DPI, RGB, includes the ⅛" bleed.\r\n\r\n`+
-    `Upload ${base}.png to The Game Crafter as the artwork for the matching box product.\r\n`+
-    `The die-line guide is NOT printed — only your art is. TGC accepts RGB PNG/JPG only (not CMYK).\r\n— KSOL Designs`;
-  const files=[{name:`${base}.png`,data:art},{name:'READ-ME.txt',data:new TextEncoder().encode(readme)}];
-  const zip=bZip(files); bDownload(new Blob([zip],{type:'application/zip'}), `${base}.zip`);
-  if(st) st.textContent=`✓ Exported ${px.w}×${px.h}px (300 DPI) as ZIP — upload the PNG to The Game Crafter.`;
+    `Box: ${b.name} (${b.dims}) — The Game Crafter product "${b.tgc}"\r\n\r\n`+made.join('\r\n')+`\r\n\r\n`+
+    `Each PNG is exactly TGC's template size at 300 DPI, RGB, including the ⅛" bleed.\r\n`+
+    (b.sheets.length>1?`This is a TWO-PIECE box: upload the Lid file to the Top slot and the Bottom file to the Bottom slot.\r\n`:'')+
+    `The die-line, panel names and placeholders are NOT printed — only your art is. TGC accepts RGB PNG/JPG only (not CMYK).\r\n— KSOL Designs`;
+  files.push({name:'READ-ME.txt',data:new TextEncoder().encode(readme)});
+  const zip=bZip(files); bDownload(new Blob([zip],{type:'application/zip'}), `tgc_${b.id}_box-art.zip`);
+  if(st) st.textContent=`✓ Exported ${b.sheets.length} print file${b.sheets.length>1?'s (Lid + Bottom)':''} as ZIP — upload to The Game Crafter.`;
 }
-function tSaveDesign(){ bDownload(new Blob([JSON.stringify({v:2,...tS})],{type:'application/json'}), `tgcbox-${tS.box}.json`); }
+function tSaveDesign(){ tGcImages(); const {sel,selRegion,...d}=tS; bDownload(new Blob([JSON.stringify(d)],{type:'application/json'}), `tgcbox-${tS.box}.json`); }
 async function tLoadDesign(e){
   const f=e.target.files[0]; e.target.value=''; if(!f) return;
   try{ const d=JSON.parse(await f.text());
-    if(!Tuck.BOXES[d.box]) d.box='p54';
-    const def=Tuck.defaultState(d.box);
-    tS={ ...def, ...d, bg:{...def.bg,...(d.bg||{})}, layers:Array.isArray(d.layers)?d.layers:def.layers, sel:null };
-    tSyncControls(); tSyncBg(); tBuildLayerList(); tBuildLayerEditor(); tRender();
+    if(d.v!==3){ // v0.82 design: old box ids, point coordinates, single sheet — keep its look, reset the layout
+      const id=Tuck.LEGACY_IDS[d.box]||Tuck.DEFAULT_BOX, n=Tuck.defaultState(id);
+      if(d.bg){ n.bg={...n.bg, type:d.bg.type==='image'?'gradient':d.bg.type, color:d.bg.color||n.bg.color, color2:d.bg.color2||n.bg.color2, angle:d.bg.angle??n.bg.angle}; }
+      n.font=d.font||n.font; tS=n; alert('This design was made with the older Box designer — its box, colours and font were kept; text & images need re-placing on the new real die-line.');
+    } else {
+      if(!Tuck.BOXES[d.box]) d.box=Tuck.DEFAULT_BOX;
+      const def=Tuck.defaultState(d.box);
+      tS={ ...def, ...d, bg:{...def.bg,...(d.bg||{})}, images:d.images||{}, sheets:d.sheets||def.sheets, sel:null, selRegion:null };
+    }
+    Tuck.ensureSheets(tS); for(const u of _tBlob.values()) if(u.startsWith('blob:')) URL.revokeObjectURL(u); _tBlob.clear();
+    tSyncControls(); tSyncBg(); tSyncSheetSeg(); tSyncToggles(); tRefreshAll();
   }catch(err){ alert('Could not load design: '+err.message); }
 }
 function enterTuck(){ TUCK=true;
@@ -5151,7 +5283,8 @@ function leaveTuck(){ TUCK=false;
   document.getElementById('tuckStage').hidden=true;
   document.querySelector('.tabs').style.display='';
 }
-window.__tuck={ state:()=>({box:tS.box,layers:(tS.layers||[]).length,sel:tS.sel}), enter:enterTuck, render:tRender, set:(k,v)=>{ tS[k]=v; tRender(); }, px:()=>Tuck.boxPixels(tS.box) };
+window.__tuck={ state:()=>({box:tS.box,sheet:tS.sheet,layers:tLayers().length,sel:tS.sel,selRegion:tS.selRegion,patches:Object.keys(tSS().patches)}),
+  S:()=>tS, enter:enterTuck, render:tRender, sheet:()=>tSheet(), set:(k,v)=>{ tS[k]=v; tRender(); } };
 
 /* builder UI wiring */
 document.querySelectorAll('#bGridSeg button').forEach(b=> b.onclick=()=>{ if(PLAYB) bStopPlay(); if(b.dataset.grid!==bld.grid) bPushUndo(); bld.grid=b.dataset.grid;
@@ -5421,7 +5554,7 @@ function populateGameSel(){ const sel=document.getElementById('gameSel'); sel.in
     const o=document.createElement('option'); o.value=id; o.textContent=(g.icon?g.icon+' ':'')+g.name; sel.appendChild(o); }
   const o=document.createElement('option'); o.value=BUILDER_ID; o.textContent='🛠 Build a Board'; sel.appendChild(o);
   const oc=document.createElement('option'); oc.value=CARDS_ID; oc.textContent='🃏 Cards — deck designer'; sel.appendChild(oc);
-  const ot=document.createElement('option'); ot.value=TUCK_ID; ot.textContent='📦 Tuck Box — TGC packaging'; sel.appendChild(ot); }
+  const ot=document.createElement('option'); ot.value=TUCK_ID; ot.textContent='📦 Box designer — TGC packaging'; sel.appendChild(ot); }
 
 // Set def + rebuild everything for a game (authoring mode).
 async function selectGame(id){
