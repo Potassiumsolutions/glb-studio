@@ -69,6 +69,7 @@
       <h2>Rig type</h2>
       <div class="seg" id="rigSeg">
         <button data-rig="biped" class="on">🧍 Biped</button>
+        <button data-rig="bipedhand">🖐 Biped + Fingers</button>
         <button data-rig="quad">🐕 Quadruped</button>
         <button data-rig="birdFlight">🕊 Bird (flight)</button>
         <button data-rig="birdPerched">🦶 Bird (perched)</button>
@@ -204,6 +205,13 @@ const BIPED_ARMS = [
 ];
 const BIPED_SPINE = ['Spine02','Spine01','Spine'];
 const B_HEAD='Head', B_NECK='neck', B_LARM=BIPED_ARMS[0], B_RARM=BIPED_ARMS[1], B_LLEG=BIPED_LEGS[0], B_RLEG=BIPED_LEGS[1];
+// ===== Fingered biped (bipedhand) — 24 body bones + 30 finger bones (Mixamo-named). Finger local offsets
+// match the Character Rigger's BIPED_HAND_FINGERS (computed from Mixamo's hand bind). Curl authored locally. =====
+const BIPED_HAND_FINGERS=[{"name":"LeftHandThumb1","parent":"LeftHand","t":[-2.163,4.492,1.793],"q":[0,0,0,1]},{"name":"LeftHandThumb2","parent":"LeftHandThumb1","t":[-1.33,4.181,1.808],"q":[0,0,0,1]},{"name":"LeftHandThumb3","parent":"LeftHandThumb2","t":[-1.228,3.861,1.669],"q":[0,0,0,1]},{"name":"LeftHandIndex1","parent":"LeftHand","t":[0.037,12.578,-0.537],"q":[0,0,0,1]},{"name":"LeftHandIndex2","parent":"LeftHandIndex1","t":[0.886,3.785,-0.189],"q":[0,0,0,1]},{"name":"LeftHandIndex3","parent":"LeftHandIndex2","t":[0.778,3.321,-0.166],"q":[0,0,0,1]},{"name":"LeftHandMiddle1","parent":"LeftHand","t":[2.909,12.425,-0.62],"q":[0,0,0,1]},{"name":"LeftHandMiddle2","parent":"LeftHandMiddle1","t":[0.823,3.515,-0.175],"q":[0,0,0,1]},{"name":"LeftHandMiddle3","parent":"LeftHandMiddle2","t":[0.788,3.365,-0.168],"q":[0,0,0,1]},{"name":"LeftHandRing1","parent":"LeftHand","t":[4.922,11.315,-0.464],"q":[0,0,0,1]},{"name":"LeftHandRing2","parent":"LeftHandRing1","t":[0.82,3.502,-0.175],"q":[0,0,0,1]},{"name":"LeftHandRing3","parent":"LeftHandRing2","t":[0.753,3.216,-0.16],"q":[0,0,0,1]},{"name":"LeftHandPinky1","parent":"LeftHand","t":[7.069,9.561,-0.015],"q":[0,0,0,1]},{"name":"LeftHandPinky2","parent":"LeftHandPinky1","t":[0.942,4.023,-0.201],"q":[0,0,0,1]},{"name":"LeftHandPinky3","parent":"LeftHandPinky2","t":[0.591,2.524,-0.126],"q":[0,0,0,1]},{"name":"RightHandThumb1","parent":"RightHand","t":[2.299,4.397,1.858],"q":[0,0,0,1]},{"name":"RightHandThumb2","parent":"RightHandThumb1","t":[1.455,4.115,1.861],"q":[0,0,0,1]},{"name":"RightHandThumb3","parent":"RightHandThumb2","t":[1.344,3.8,1.719],"q":[0,0,0,1]},{"name":"RightHandIndex1","parent":"RightHand","t":[0.401,12.576,-0.412],"q":[0,0,0,1]},{"name":"RightHandIndex2","parent":"RightHandIndex1","t":[-0.753,3.815,-0.159],"q":[0,0,0,1]},{"name":"RightHandIndex3","parent":"RightHandIndex2","t":[-0.661,3.348,-0.14],"q":[0,0,0,1]},{"name":"RightHandMiddle1","parent":"RightHand","t":[-2.473,12.523,-0.523],"q":[0,0,0,1]},{"name":"RightHandMiddle2","parent":"RightHandMiddle1","t":[-0.7,3.543,-0.148],"q":[0,0,0,1]},{"name":"RightHandMiddle3","parent":"RightHandMiddle2","t":[-0.67,3.391,-0.142],"q":[0,0,0,1]},{"name":"RightHandRing1","parent":"RightHand","t":[-4.525,11.482,-0.397],"q":[0,0,0,1]},{"name":"RightHandRing2","parent":"RightHandRing1","t":[-0.697,3.53,-0.147],"q":[0,0,0,1]},{"name":"RightHandRing3","parent":"RightHandRing2","t":[-0.64,3.242,-0.135],"q":[0,0,0,1]},{"name":"RightHandPinky1","parent":"RightHand","t":[-6.735,9.799,0.014],"q":[0,0,0,1]},{"name":"RightHandPinky2","parent":"RightHandPinky1","t":[-0.801,4.055,-0.169],"q":[0,0,0,1]},{"name":"RightHandPinky3","parent":"RightHandPinky2","t":[-0.502,2.544,-0.106],"q":[0,0,0,1]}];
+const BIPED_HAND_TEMPLATE=[...BIPED_TEMPLATE, ...BIPED_HAND_FINGERS];
+// finger phalanx name groups, per hand (proximal→distal)
+const FINGERS={ L:{thumb:['LeftHandThumb1','LeftHandThumb2','LeftHandThumb3'],index:['LeftHandIndex1','LeftHandIndex2','LeftHandIndex3'],middle:['LeftHandMiddle1','LeftHandMiddle2','LeftHandMiddle3'],ring:['LeftHandRing1','LeftHandRing2','LeftHandRing3'],pinky:['LeftHandPinky1','LeftHandPinky2','LeftHandPinky3']},
+  R:{thumb:['RightHandThumb1','RightHandThumb2','RightHandThumb3'],index:['RightHandIndex1','RightHandIndex2','RightHandIndex3'],middle:['RightHandMiddle1','RightHandMiddle2','RightHandMiddle3'],ring:['RightHandRing1','RightHandRing2','RightHandRing3'],pinky:['RightHandPinky1','RightHandPinky2','RightHandPinky3']} };
 
 const AX = { x:new THREE.Vector3(1,0,0), y:new THREE.Vector3(0,1,0), z:new THREE.Vector3(0,0,1) };
 const TAU = Math.PI*2, clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -288,7 +296,9 @@ function buildRig(tpl, orient, ground){
   // Size the proxy off the SKELETON (before any proxy meshes exist), so girth is proportional to the rig.
   {
     const bb = new THREE.Box3(), p = new THREE.Vector3();
-    for(const n of boneList){ boneByName[n].getWorldPosition(p); bb.expandByPoint(p); }
+    // BODY bones only: finger bones (bipedhand) stretch the T-pose box ~2%, which fattened the proxy (arm-clearance
+    // guard) and lowered its foot spheres (+0.36 cm grounding) — the fingered rig must reproduce the biped body EXACTLY.
+    for(const n of boneList){ if(/Hand(Thumb|Index|Middle|Ring|Pinky)\d/.test(n)) continue; boneByName[n].getWorldPosition(p); bb.expandByPoint(p); }
     const diag = bb.getSize(new THREE.Vector3()).length();
     RIG_SCALE = clamp(diag / 1.90, 0.08, 2.5);            // 1.90 = the biped template's own diagonal
   }
@@ -304,7 +314,7 @@ function buildRig(tpl, orient, ground){
       const v=new THREE.Vector3(c.t[0],c.t[1],c.t[2]); const len=v.length(); if(len<1e-4) continue;
       const g=GIRTH(c.name);
       const seg=new THREE.Mesh(new THREE.CylinderGeometry(g*0.7,g,len,8), new THREE.MeshStandardMaterial({color:COL(c.name),roughness:.75}));
-      seg.castShadow=true; seg.position.copy(v.clone().multiplyScalar(0.5));
+      seg.castShadow=true; seg.position.copy(v.clone().multiplyScalar(0.5)); if(/Hand(Thumb|Index|Middle|Ring|Pinky)\d/.test(c.name)) seg.userData.finger=1;   // bipedhand finger proxy (kept out of the size/centring box)
       seg.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), v.clone().normalize());
       bone.add(seg);
     }
@@ -313,7 +323,8 @@ function buildRig(tpl, orient, ground){
   // quadruped's tail tip and a bird's tail hang below the paws/toes, so both were grounded on their TAILS
   // and stood with their feet in the air. Rigs that name their contact bones are grounded on those.
   animRoot.updateMatrixWorld(true);
-  const box=new THREE.Box3().setFromObject(animRoot);
+  // centre/ground from the BODY proxies only — the finger proxies (bipedhand) shifted the box a few mm, and every world-space reach target (climb holds, jump landings) then solved to different arm/leg angles than the biped rig
+  const box=new THREE.Box3(); animRoot.traverse(o=>{ if(o.isMesh && !o.userData.finger && !(o.parent && /Hand(Thumb|Index|Middle|Ring|Pinky)\d/.test(o.parent.name||''))) box.expandByObject(o); });
   let groundY = box.min.y;
   if(ground && ground.length){
     const gp=new THREE.Vector3(); let lo=Infinity;
@@ -342,6 +353,27 @@ function scl(name, f){
   const b=boneByName[name]; if(!b) return; const r=restLocalS[name]||{x:1,y:1,z:1};
   if(typeof f==='number') b.scale.set(r.x*f, r.y*f, r.z*f);
   else b.scale.set(r.x*f[0], r.y*f[1], r.z*f[2]);
+}
+// ===== Finger articulation (bipedhand rig) =====
+// Finger bones point +Y (up the finger) in their LOCAL frame (= the hand's frame: palm normal ∓X, thumb ∓Z).
+// A curl folds the fingertip toward the palm — a LOCAL hinge about Z, sign per hand. bendLocal rotates a bone
+// about its OWN local axis on top of rest, so a curl is independent of the arm's world pose.
+const _flq=new THREE.Quaternion(); const FAX_CURL=new THREE.Vector3(0,0,1);
+function bendLocal(name, ax, ang){ const b=boneByName[name]; if(!b||!ang) return; b.quaternion.multiply(_flq.setFromAxisAngle(ax, ang)); }
+const fingerSign=(side)=> side==='L'? 1 : -1;               // curl-angle sign (calibrated visually)
+// curl one finger's phalanges [prox,mid,dist] by base angle a (rad), distributed per joint
+function curl1(bones, a, s, w){ w=w||[0.95,1.1,0.85]; for(let i=0;i<bones.length;i++) bendLocal(bones[i], FAX_CURL, a*s*w[i]); }
+// curl the four fingers (index..pinky) by 0..1 (1 = tight fist)
+function curlFour(side, amt){ const s=fingerSign(side), F=FINGERS[side], a=1.55*amt;
+  curl1(F.index,a,s); curl1(F.middle,a,s); curl1(F.ring,a,s); curl1(F.pinky,a,s); }
+function curlThumb(side, amt){ curl1(FINGERS[side].thumb, 1.05*amt, fingerSign(side), [0.8,0.9,0.7]); }
+// Named hand poses. Rest = flat open hand (fingers straight out). Poses curl toward the palm.
+function handPose(side, pose, amt){ amt=(amt==null?1:amt);            // → hand layer (curl = local X toward the palm)
+  const zero={c:[0,0,0,0],t:0.3,s:0.2,lo:0.3};
+  if(pose==='open'||pose==='flat') return;
+  const target = pose==='relax' ? 'relax' : pose;
+  const from = pose==='relax' ? zero : HL_POSES.relax;
+  hlApplyPose(side, hlLerp(hlPose(from), hlPose(target), amt), 0);
 }
 // Root height, measured FROM the standing height that bstand() solved (0 = standing). Keeping that
 // baseline is what lets every existing caller keep passing "how far below standing" unchanged.
@@ -2374,6 +2406,9 @@ function handDev(Ar, a){
 //   handFrame(Ar, {thumb:V, palm:V})  or  handFrame(Ar, {fingers:V, palm:V})
 const _hfM = new THREE.Matrix4(), _hfA = new THREE.Matrix4(), _hfQ = new THREE.Quaternion(), _hfP = new THREE.Quaternion();
 function handFrame(Ar, o){
+  // FINGERED rig (Mixamo-ready bipedhand): its hand frame is the anatomical one (palm +Z) — see handFrameA. The plain biped keeps
+  // this convention (tuned to the Meshy mesh hand, whose bone is rolled 90°), so every approved biped clip bakes unchanged.
+  if(rigKey==='bipedhand' && typeof handFrameA==='function') return handFrameA(Ar, o);
   const ha = boneByName[Ar.hand]; if(!ha || !o) return;
   const palmL = new THREE.Vector3(-Ar.s, 0, 0), thumbL = new THREE.Vector3(0, 0, -1), fingL = new THREE.Vector3(0, 1, 0);
   let a1, a2, b1, b2;
@@ -2390,6 +2425,47 @@ function handFrame(Ar, o){
   ha.quaternion.copy(_hfP.invert().multiply(_hfQ));
   ha.updateMatrixWorld(true);
 }
+// ── ANATOMICAL hand frame (2026-09-23). Measured on the fingered rig's bind (the Mixamo-derived finger layout): fingers
+// = hand-local +Y, PALM = +Z (the T-pose rest puts it facing the floor, as a real T-pose does), thumb/radial side = −s·X.
+// handFrame() above assumes palm = −s·X / thumb = −Z, i.e. it is rolled 90° about the finger axis — on a FINGERED
+// character every hand it poses shows its thumb edge where the palm should be (an "open palm" faces sideways). It is
+// left as-is for the prop grips tuned against the Stitcher's prop attach; fingered gestures use this one.
+// Also anatomical: the WRIST has limits (flexion ~70°, extension ~65°, radial/ulnar deviation ~20/30°; forearm
+// pronation/supination ~80-90° each way — AAOS). The requested hand attitude is expressed relative to the forearm's
+// NEUTRAL wrist, split into swing (flex/ext + deviation) and twist (pro/supination), each clamped, so an unreachable
+// request bends the wrist as far as a wrist bends instead of snapping the hand through the forearm.
+let WRIST_CLAMPS=0; const WRIST_LIM={ flex:1.45, dev:0.44, twist:1.5 };   // flex/ext 83°: a loaded wrist (push-up, handstand) reaches 80-90° of extension
+function handFrameA(Ar, o){
+  const ha = boneByName[Ar.hand]; if(!ha || !o) return;
+  const fingL=new THREE.Vector3(0,1,0), palmL=new THREE.Vector3(0,0,1), thumbL=new THREE.Vector3(-Ar.s,0,0);
+  let a1,a2,b1,b2; const palmW=o.palm.clone().normalize();
+  if(o.thumb){ a1=thumbL; a2=palmL; b1=o.thumb.clone().normalize(); b2=palmW; } else { a1=fingL; a2=palmL; b1=o.fingers.clone().normalize(); b2=palmW; }
+  b2.sub(b1.clone().multiplyScalar(b2.dot(b1))).normalize();
+  const a3=new THREE.Vector3().crossVectors(a1,a2), b3=new THREE.Vector3().crossVectors(b1,b2);
+  const R=new THREE.Matrix4().makeBasis(b1,b2,b3).multiply(new THREE.Matrix4().makeBasis(a1,a2,a3).invert());
+  const want=new THREE.Quaternion().setFromRotationMatrix(R);
+  animRoot.updateMatrixWorld(false); const Fw=new THREE.Quaternion(); ha.parent.getWorldQuaternion(Fw);
+  const rest=restLocalQ[Ar.hand].clone();
+  const D=rest.clone().invert().multiply(Fw.clone().invert().multiply(want));      // deviation from the neutral wrist, hand frame
+  // twist-swing about the finger axis (+Y): D = twist · swing — the forearm ROLLS first (pro/supination), then the wrist bends in
+  // the HAND's own frame, so flex/ext is always about hand-local X and deviation about Z (swing-then-twist misread a 90° roll
+  // + 90° extension as sideways deviation and clamped it)
+  const tw=new THREE.Quaternion(0,D.y,0,D.w).normalize(); const sw=tw.clone().invert().multiply(D);
+  let ta=2*Math.atan2(tw.y,tw.w); if(ta>Math.PI) ta-=2*Math.PI; if(ta<-Math.PI) ta+=2*Math.PI;
+  const sa=2*Math.acos(Math.min(1,Math.abs(sw.w))); const ss=Math.sin(sa/2)||1; let vx=(sw.x/ss)*sa*Math.sign(sw.w||1), vz=(sw.z/ss)*sa*Math.sign(sw.w||1);
+  const cx=clamp(vx,-WRIST_LIM.flex,WRIST_LIM.flex), cz=clamp(vz,-WRIST_LIM.dev,WRIST_LIM.dev), ct=clamp(ta,-WRIST_LIM.twist,WRIST_LIM.twist);
+  if(cx!==vx||cz!==vz||ct!==ta) WRIST_CLAMPS++;
+  const sv=new THREE.Vector3(cx,0,cz), sl=sv.length();
+  const swC= sl>1e-9 ? new THREE.Quaternion().setFromAxisAngle(sv.clone().divideScalar(sl), sl) : new THREE.Quaternion();
+  const twC=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0), ct);
+  ha.quaternion.copy(rest.multiply(twC.multiply(swC)));
+  ha.updateMatrixWorld(true);
+}
+// ── WEIGHT-BEARING HAND: a hand pushing on the floor lies PALM-FLAT, fingers forward (the wrist extends ~90° over it). Without
+// this the hand just continued the vertical forearm and the fingers stabbed ~20 cm through the floor (push-up, plank, burpee).
+// k blends it in as the hand plants (0 = leave the hand as the arm put it, 1 = flat on the floor).
+function flatHand(Ar, k, fingers){ if(!(k>0)) return; const ha=boneByName[Ar.hand]; if(!ha) return; const q0=ha.quaternion.clone();
+  handFrame(Ar, {fingers:fingers||V(0,0,1), palm:V(0,-1,0)}); if(k<1){ ha.quaternion.copy(q0.slerp(ha.quaternion.clone(), k)); ha.updateMatrixWorld(true); } }
 // ── Two-handed props: orient BOTH hands round ONE shaft so the prop reads as gripped by both hands (the Stitcher attaches a
 // prop to one hand; if the other hand's grip axis points elsewhere that hand floats beside the haft — the prop audit
 // measured 45-90° between the two hands on every two-handed weapon). kind = the Stitcher's grip type for the prop:
@@ -3179,18 +3255,53 @@ function gaitIK(t,P,dur,o){
 //   4. LANDING — the feet touch and the knees/hips flex to absorb, dipping BELOW standing height before
 //      recovering. Landing rigid reads as a floaty mistake; the absorption dip is what gives it weight.
 // Returns: y = root height offset, crouch = 0..1 leg-compression amount, air = 0..1 airborne-ness.
+// PHYSICS (2026-09-23): in flight only gravity acts, so apex height and air time are ONE quantity, not two:
+//   rise h (take-off → apex) and fall h−L (apex → landing, L = landing height above take-off) take
+//   T = √(2h/g) + √(2(h−L)/g).   Passing o.T (the cycle's length in SECONDS) makes the profile physical: the
+// author's HEIGHT is the intent, the landing instant follows from g, and the arc is the real parabola
+// y(τ) = v0·τ − g·τ²/2 with v0 = √(2gh). The landing keeps ≥ 150 ms (and ≥ 10% of the cycle) to absorb the
+// impact (landing absorption 100-250 ms: Devita & Skelly 1992; Zhang 2000); if the height can't fit, the
+// height is lowered to what the available air time allows. Without o.T the old arc is used (other rigs).
+const GRAV=9.81;
+function jumpFlight(h, L){ return Math.sqrt(2*Math.max(0,h)/GRAV)+Math.sqrt(2*Math.max(0,h-L)/GRAV); }
 function jumpProfile(u, o){
   o=o||{};
-  const t0=o.crouchEnd??0.26, t1=o.takeoff??0.36, t2=o.land??0.78, t3=1.0;
-  const dip=o.dip??0.16, h=o.height??0.34, absorb=o.absorb??0.13;
+  const t0=o.crouchEnd??0.26, t1=o.takeoff??0.36, t3=1.0;
+  let t2=o.land??0.78;
+  const dip=o.dip??0.16, absorb=o.absorb??0.13, L=o.landY??0; let h=o.height??0.34;
+  let phys=null;
+  if(o.T>0){
+    const maxT2=1-Math.max(0.20/o.T, 0.10);                    // ground contact after touch-down ≥ 200 ms (absorb + recover)
+    let Tf=jumpFlight(h,L); t2=t1+Tf/o.T;
+    if(t2>maxT2){ t2=maxT2; Tf=(t2-t1)*o.T; let lo=Math.max(0,L), hi=6; for(let k=0;k<50;k++){ const m=(lo+hi)/2; if(jumpFlight(m,L)>Tf) hi=m; else lo=m; } h=lo; }
+    phys={ Tf, v0:Math.sqrt(2*GRAV*h), vLand:Math.sqrt(2*GRAV*Math.max(0,h-L)), apexU:t1+Math.sqrt(2*h/GRAV)/o.T };
+  }
+  const info={ tLand:t2, apexU: phys?phys.apexU:(t1+t2)/2, height:h };
   // `flight` is 1 ONLY while genuinely airborne. `air` also ramps up through the push-off, for things that
   // should anticipate the launch (the arm swing). Posing the legs off `air` instead of `flight` tucked them
   // up while the feet were still driving against the floor, which put them through it.
-  if(u<t0){ const s=smooth(u/t0);            return {y:-dip*s,        crouch:s,   air:0, flight:0, land:0, s}; }
-  if(u<t1){ const s=smooth((u-t0)/(t1-t0));  return {y:-dip*(1-s),    crouch:1-s, air:s, flight:0, land:0, s}; }
-  if(u<t2){ const s=(u-t1)/(t2-t1);          return {y:h*4*s*(1-s),   crouch:0,   air:1, flight:1, land:0, s}; }
+  if(u<t0){ const s=smooth(u/t0);            return {y:-dip*s,        crouch:s,   air:0, flight:0, land:0, s, ...info}; }
+  // PUSH-OFF (physical): the legs accelerate the body from rest at the bottom of the dip to the take-off speed v0 AT the instant
+  // it leaves the floor (vertical velocity is continuous — Newton), rather than easing to a stop and then leaping at v0.
+  // Cubic Hermite: y(0)=−dip, y'(0)=0, y(1)=0, y'(1)=v0·Tpush. Mean push acceleration ≈ v0/Tpush ≈ 1-2 g → 2-3 BW, as measured
+  // for countermovement jumps (Linthorne 2001).
+  if(u<t1){ const s=(u-t0)/(t1-t0);
+    if(phys){ const m=phys.v0*(t1-t0)*o.T, s2=s*s, s3=s2*s; return {y:-dip*(2*s3-3*s2+1)+m*(s3-s2), crouch:1-smooth(s), air:smooth(s), flight:0, land:0, s:smooth(s), ...info}; }
+    const ss=smooth(s); return {y:-dip*(1-ss), crouch:1-ss, air:ss, flight:0, land:0, s:ss, ...info}; }
+  if(u<t2){ const s=(u-t1)/(t2-t1);
+    const y = phys ? (()=>{ const tau=s*phys.Tf; return phys.v0*tau-0.5*GRAV*tau*tau; })() : h*4*s*(1-s);
+    return {y, crouch:0, air:1, flight:1, land:0, s, ...info}; }
+  // LANDING (physical): the body arrives at the impact speed vLand and the legs bring it to rest over ~40% of the landing phase
+  // (≈ 50-80 ms → 3-5 BW peak, drop-landing data: Zhang 2000), then it rises back to standing. Velocity is continuous at contact.
+  if(phys){ const s=clamp((u-t2)/(t3-t2),0,1), Tl=(t3-t2)*o.T;
+    // stopping from vLand over depth d at ~uniform deceleration takes 2d/vLand; it may use at most 60% of the landing phase
+    // (the rest is the recovery back up). If that is too short the body can only sink vLand·T/2 — the depth follows the physics.
+    const Td=Math.min(phys.vLand>1e-3 ? 2*absorb/phys.vLand : 0.6*Tl, 0.6*Tl), dep=phys.vLand>1e-3 ? Math.min(absorb, phys.vLand*Td/2) : absorb, k=Math.max(0.15, Td/Tl);
+    if(s<k){ const q=s/k, m=-phys.vLand*Tl*k, q2=q*q, q3=q2*q; const y=L*(2*q3-3*q2+1)+m*(q3-2*q2+q)+(L-dep)*(-2*q3+3*q2);
+      return {y, crouch:Math.sin(Math.PI*s), air:0, flight:0, land:1, s:Math.sin(Math.PI*s), ...info}; }
+    const q=smooth((s-k)/(1-k)); return {y:L-dep*(1-q), crouch:Math.sin(Math.PI*s), air:0, flight:0, land:1, s:Math.sin(Math.PI*s), ...info}; }
   const s=Math.sin(Math.PI*clamp((u-t2)/(t3-t2),0,1));
-  return {y:-absorb*s, crouch:s, air:0, flight:0, land:1, s};
+  return {y:L-absorb*s, crouch:s, air:0, flight:0, land:1, s, ...info};
 }
 // Airborne foot attitude: the toes point most at the apex and dorsiflex again to meet the floor. Ramping
 // it across the flight phase (rather than snapping to a fixed point angle) avoids a visible pop at the
@@ -3335,7 +3446,7 @@ const BIPED_MOTIONS=[
     footAim(B_RLEG, footDirYaw(B_RLEG, reachableSole(B_RLEG,-0.18*rl*A), 0), 0);
     groundClamp(0,'up'); }},
   {id:'hop', name:'Bunny Hops', cat:'Jumping', type:'move', dur:0.6, build:(t,P)=>{ bstand(); const A=P.amp;
-    const j=jumpProfile(((t/0.6)*P.speed)%1,{crouchEnd:0.20,takeoff:0.30,land:0.74,dip:0.09,height:0.17,absorb:0.08});
+    const j=jumpProfile(((t/0.6)*P.speed)%1,{T:0.6/P.speed,crouchEnd:0.20,takeoff:0.30,land:0.74,dip:0.09,height:0.17,absorb:0.08});
     setRootY(j.y*A); leanF(0.10*A + j.crouch*0.16*A);
     [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,(0.35*j.air - 0.25*j.crouch)*A); elb(Ar,0.5*A); });
     if(j.flight) [B_LLEG,B_RLEG].forEach(L=>{ legF(L,0.12*A); kneeB(L,0.35*A); airFoot(L,j.s,0.75); })
@@ -3343,7 +3454,7 @@ const BIPED_MOTIONS=[
   // A maximal standing jump for distance: deep countermovement, a big double-arm swing that drives the
   // body up and forward, legs extended in flight, then reaching the feet out to land.
   {id:'bound', name:'Standing Bound', cat:'Jumping', type:'stay', dur:1.2, build:(t,P)=>{ bstand(); const A=P.amp;
-    const j=jumpProfile(t/1.2,{crouchEnd:0.24,takeoff:0.36,land:0.80,dip:0.20,height:0.42,absorb:0.16});
+    const j=jumpProfile(t/1.2,{T:1.2,crouchEnd:0.24,takeoff:0.36,land:0.80,dip:0.20,height:0.42,absorb:0.16});
     setRootY(j.y*A); animRoot.position.z -= (j.crouch*0.09 - j.air*0.05)*A;
     leanF((0.10 + j.crouch*0.42 - j.air*0.12 + j.land*0.35)*A);
     [B_LARM,B_RARM].forEach(Ar=>gaitArm(Ar,(-0.9*j.crouch + 1.5*j.air - 0.5*j.land)*A, 0.4*A, 0.13));
@@ -3351,7 +3462,7 @@ const BIPED_MOTIONS=[
     else plantFeet(0.02,0.02,{width:0.085}); }},
   // Tuck jump: knees driven hard to the chest at the apex, then extended again to land.
   {id:'tuck', name:'Tuck Leap', cat:'Jumping', type:'stay', dur:1.0, build:(t,P)=>{ bstand(); const A=P.amp;
-    const j=jumpProfile(t/1.0,{crouchEnd:0.22,takeoff:0.34,land:0.80,dip:0.17,height:0.40,absorb:0.14});
+    const j=jumpProfile(t/1.0,{T:1.0,crouchEnd:0.22,takeoff:0.34,land:0.80,dip:0.17,height:0.40,absorb:0.14});
     const tk=j.air?Math.sin(Math.PI*j.s):0;                                // tuck peaks at the apex
     setRootY(j.y*A); leanF((0.08 + j.crouch*0.34 + tk*0.30 + j.land*0.30)*A);
     [B_LARM,B_RARM].forEach(Ar=>gaitArm(Ar,(-0.8*j.crouch + 1.1*j.air)*A, (0.4+0.9*tk)*A, 0.13));
@@ -3361,19 +3472,25 @@ const BIPED_MOTIONS=[
   // front for the landing, arms thrown forward to keep the feet ahead of the body.
   {id:'longjump', name:'Long Jump', cat:'Jumping', type:'move', dur:1.5, build:(t,P)=>{ bstand(); const A=P.amp;
     const u=t/1.5, AIR0=0.30, AIR1=0.82, DIST=4.6;   // ~15 ft by scale — a real long-jumper's distance, covered while airborne
-    const j=jumpProfile(u,{crouchEnd:0.20,takeoff:AIR0,land:AIR1,dip:0.16,height:0.46,absorb:0.18});   // higher, longer arc = more hang time
+    const j=jumpProfile(u,{T:1.5,crouchEnd:0.20,takeoff:AIR0,land:AIR1,dip:0.16,height:0.46,absorb:0.18});   // higher, longer arc = more hang time
     setRootY(j.y*A);
     // Horizontal travel is BAKED so the body carries forward through the air and lands well ahead: a small
     // load-back in the crouch, then a forward leap that ramps across the flight and HOLDS on landing.
-    const fwd = DIST*clamp((u-AIR0)/(AIR1-AIR0),0,1) - 0.06*j.crouch;
+    const fwd = DIST*clamp((u-AIR0)/(j.tLand-AIR0),0,1) - 0.06*j.crouch;   // the travel spans the PHYSICAL air time
     animRoot.position.z += fwd*A;
     leanF((0.12 + j.crouch*0.38 + j.air*0.30 + j.land*0.50)*A);
     [B_LARM,B_RARM].forEach(Ar=>gaitArm(Ar,(-1.0*j.crouch + 1.3*j.air - 0.8*j.land)*A, 0.45*A, 0.13));
     if(j.flight) [B_LLEG,B_RLEG].forEach(L=>{ legF(L,(0.4+0.9*j.s)*A); kneeB(L,(1.1-0.7*j.s)*A); airFoot(L,j.s,0.20,1); })
-    else plantFeet(j.land?0.16:0.02, j.land?0.16:0.02, {width:0.085}); }},
+    // FIX 2026-09-23: plantFeet takes WORLD z — after a 4.6 m flight the landing feet must be planted at the LANDING spot
+    // (they were reaching back toward the take-off spot, leaving the jumper sitting in mid-air 0.65 m up).
+    // Touch-down: the feet land ~0.72 m AHEAD of the hips (where the flight pose reached them) and STAY there (planted in the sand);
+    // the body's horizontal momentum then carries the hips 0.56 m forward over them during the absorb (no 17 m/s foot snap).
+    else if(j.land){ const slide=smooth(clamp((u-j.tLand)/Math.max(0.05,1-j.tLand)*1.6,0,1)); animRoot.position.z += 0.56*slide*A;
+      const lz=DIST*A+0.72*A; plantFeet(lz, lz, {width:0.085}); }
+    else plantFeet(0.02, 0.02, {width:0.085}); }},
   // Repeated squat jumps: a deep squat between each rep, so the dip is much bigger than the hop's.
   {id:'squatjump', name:'Squat Jump', cat:'Jumping', type:'move', dur:0.9, build:(t,P)=>{ bstand(); const A=P.amp;
-    const j=jumpProfile(((t/0.9)*P.speed)%1,{crouchEnd:0.24,takeoff:0.36,land:0.72,dip:0.26,height:0.26,absorb:0.24});
+    const j=jumpProfile(((t/0.9)*P.speed)%1,{T:0.9/P.speed,crouchEnd:0.24,takeoff:0.36,land:0.72,dip:0.26,height:0.26,absorb:0.24});
     setRootY(j.y*A); animRoot.position.z -= (j.crouch*0.10)*A;
     leanF((0.08 + j.crouch*0.45)*A);
     [B_LARM,B_RARM].forEach(Ar=>gaitArm(Ar,(-0.7*j.crouch + 1.0*j.air)*A, 0.4*A, 0.13));
@@ -3388,7 +3505,7 @@ const BIPED_MOTIONS=[
     else plantFeet(0.01,0.01,{width:0.070+o*0.115}); }},                   // feet land wide, then together
   // Hopping on one leg: the other knee is held up, and the landing leg absorbs everything.
   {id:'onefoot', name:'One-Foot Hops', cat:'Jumping', type:'move', dur:0.55, build:(t,P)=>{ bstand(); const A=P.amp;
-    const j=jumpProfile(((t/0.55)*P.speed)%1,{crouchEnd:0.20,takeoff:0.30,land:0.72,dip:0.11,height:0.19,absorb:0.10});
+    const j=jumpProfile(((t/0.55)*P.speed)%1,{T:0.55/P.speed,crouchEnd:0.20,takeoff:0.30,land:0.72,dip:0.11,height:0.19,absorb:0.10});
     setRootY(j.y*A); leanF((0.10+j.crouch*0.22)*A);
     legF(B_RLEG,0.95*A); kneeB(B_RLEG,1.45*A); footAim(B_RLEG,footDir(B_RLEG,-0.418),0);   // free leg held up
     gaitArm(B_LARM,(0.3*j.air-0.2*j.crouch)*A,0.6*A,0.13); gaitArm(B_RARM,(-0.2*j.air)*A,0.9*A,0.16);
@@ -3397,7 +3514,7 @@ const BIPED_MOTIONS=[
       footAim(B_LLEG,footDir(B_LLEG,0),0); } }},
   // Split leap: legs scissor to a full split at the apex, arms opened out for line.
   {id:'splitleap', name:'Split Leap', cat:'Jumping', type:'stay', dur:1.1, build:(t,P)=>{ bstand(); const A=P.amp;
-    const j=jumpProfile(t/1.1,{crouchEnd:0.20,takeoff:0.32,land:0.82,dip:0.15,height:0.38,absorb:0.14});
+    const j=jumpProfile(t/1.1,{T:1.1,crouchEnd:0.20,takeoff:0.32,land:0.82,dip:0.15,height:0.38,absorb:0.14});
     const sp=j.air?Math.sin(Math.PI*j.s):0;
     setRootY(j.y*A); leanF((0.06+j.crouch*0.30+j.land*0.28)*A);
     [B_LARM,B_RARM].forEach(Ar=>{ armO(Ar,(0.25+sp*1.15)*A); armF(Ar,(-0.5*j.crouch)*A); });
@@ -3407,16 +3524,16 @@ const BIPED_MOTIONS=[
   // Box jump: the landing is HIGHER than the take-off — the feet come down on the box, so the whole body
   // finishes elevated in a deep absorbed squat rather than returning to the floor.
   {id:'boxjump', name:'Box Jump', cat:'Jumping', type:'stay', dur:1.2, build:(t,P)=>{ bstand(); const A=P.amp; const u=t/1.2;
-    const j=jumpProfile(u,{crouchEnd:0.24,takeoff:0.36,land:0.70,dip:0.20,height:0.40,absorb:0.02});
-    const box=0.30*A, on=ramp(u,0.66,0.78);                                // box top, and being ON it
-    setRootY(j.y*A + on*box*0.62); animRoot.position.z -= (j.crouch*0.09 - (j.air+on)*0.10)*A;
+    const j=jumpProfile(u,{T:1.2,crouchEnd:0.24,takeoff:0.36,land:0.70,dip:0.20,height:0.40,absorb:0.02,landY:0.30*A*0.62});   // lands ON the box: the arc ends 0.19 m up
+    const box=0.30*A, on=ramp(u,j.tLand-0.04,j.tLand+0.08);                                // box top, and being ON it
+    setRootY(j.y*A); animRoot.position.z -= (j.crouch*0.09 - (j.air+on)*0.10)*A;
     leanF((0.10 + j.crouch*0.42 + j.air*0.25 + on*0.40)*A);
     [B_LARM,B_RARM].forEach(Ar=>gaitArm(Ar,(-1.0*j.crouch + 1.3*j.air - 0.7*on)*A, 0.45*A, 0.13));
     if(j.flight && on<0.02) [B_LLEG,B_RLEG].forEach(L=>{ legF(L,(0.5+0.9*j.s)*A); kneeB(L,(1.2+0.5*j.s)*A); airFoot(L,j.s,0.30,0.95); })
     else plantFeet(0.14*on+0.02, 0.14*on+0.02, {width:0.090, y:GROUND_ANKLE+on*box}); }},   // feet land on the box
   // Spin jump: a full 360° turn about the vertical while airborne, arms pulled in to spin faster.
   {id:'spinjump', name:'Spin Jump', cat:'Jumping', type:'stay', dur:1.0, build:(t,P)=>{ bstand(); const A=P.amp; const u=t/1.0;
-    const j=jumpProfile(u,{crouchEnd:0.22,takeoff:0.34,land:0.80,dip:0.16,height:0.34,absorb:0.13});
+    const j=jumpProfile(u,{T:1.0,crouchEnd:0.22,takeoff:0.34,land:0.80,dip:0.16,height:0.34,absorb:0.13});
     setRootY(j.y*A); leanF((0.08+j.crouch*0.32+j.land*0.28)*A);
     sw('Hips',AX.y, TAU*smooth(clamp((u-0.30)/0.52,0,1))*A);               // the turn happens in the air
     [B_LARM,B_RARM].forEach(Ar=>{ armO(Ar,(0.2+0.5*j.air)*A); elb(Ar,(0.6+0.9*j.air)*A); });   // arms tuck in
@@ -3632,7 +3749,7 @@ const BIPED_MOTIONS=[
   // Leap up and reach UP-AND-FORWARD to pull in a ball above the head. Hands solved with reachIK to points
   // high and in FRONT (+Z) so the arms can't wind up pointing down or behind; the body leans forward into it.
   {id:'catch', name:'Leaping Catch', cat:'Football', type:'stay', dur:1.0, build:(t,P)=>{ bstand(); const A=P.amp, u=t/1.0;
-    const j=jumpProfile(u,{crouchEnd:0.22,takeoff:0.34,land:0.76,dip:0.15,height:0.34,absorb:0.13});
+    const j=jumpProfile(u,{T:1.0,crouchEnd:0.22,takeoff:0.34,land:0.76,dip:0.15,height:0.34,absorb:0.13});
     const reach=bump(u,0.52,0.34);
     setRootY(j.y*A);
     leanF((0.12 + 0.34*reach - 0.10*j.crouch)*A);                       // lean forward into the catch
@@ -4165,8 +4282,8 @@ const BIPED_MOTIONS=[
   // Jump shot: gather and dip, rise, and release the ball at the TOP of the jump — the shot happens at the
   // apex where the body is momentarily still, which is the whole point of shooting off a jump.
   {id:'jumpshot', name:'Jump Shot', cat:'Sports', type:'stay', dur:1.0, build:(t,P)=>{ bstand(); const A=P.amp;
-    const j=jumpProfile(t/1.0,{crouchEnd:0.22,takeoff:0.34,land:0.82,dip:0.19,height:0.30,absorb:0.14});
-    const rel=bump(t/1.0,0.56,0.18);                                       // release at the apex
+    const j=jumpProfile(t/1.0,{T:1.0,crouchEnd:0.22,takeoff:0.34,land:0.82,dip:0.19,height:0.30,absorb:0.14});
+    const rel=bump(t/1.0,j.apexU,0.18);                                     // release at the (physical) apex
     setRootY(j.y*A); leanF((0.06 + j.crouch*0.34 + j.land*0.26)*A);
     if(j.flight) [B_LLEG,B_RLEG].forEach(L=>{ legF(L,0.20*A); kneeB(L,(0.45+0.3*j.s)*A); airFoot(L,j.s,0.55); });
     else plantFeet(0.02,0.02,{width:0.085});
@@ -4592,6 +4709,7 @@ const BIPED_MOTIONS=[
     const _sp=new THREE.Vector3(), oy=0.62*(1-k)+0.05*k, py=-1*(1-k)-0.15*k, pz=-0.5*(1-k)-1*k;
     boneByName[B_LARM.arm].getWorldPosition(_sp); reachIK(B_LARM, V(-0.16*(1-k)+_sp.x*k, oy, 0.12*(1-k)+_sp.z*k), V(0.35*(1-k)+0.05*k, py, pz));
     boneByName[B_RARM.arm].getWorldPosition(_sp); reachIK(B_RARM, V( 0.16*(1-k)+_sp.x*k, oy, 0.12*(1-k)+_sp.z*k), V(-0.35*(1-k)-0.05*k, py, pz));
+    flatHand(B_LARM, smooth(clamp((k-0.55)/0.4,0,1))); flatHand(B_RARM, smooth(clamp((k-0.55)/0.4,0,1)));   // palms flat on the floor
     sw(B_HEAD,AX.x,-0.12*k*A); }},   // head near neutral, gaze slightly down
   // Entry/transition: stand → crouch → hands to the floor → walk into the plank. Ends EXACTLY in the Push-Up /
   // Plank start pose, so sequencing "Get Down to Floor → Push-Up" flows (the character lowers into position
@@ -4607,6 +4725,7 @@ const BIPED_MOTIONS=[
     const pole=(s)=>V(0.35*s*(1-lp)+0.05*s*lp, -1*(1-lp)-0.15*lp, -0.5*(1-lp)-1*lp);
     boneByName[B_LARM.arm].getWorldPosition(_sp); reachIK(B_LARM, V(-0.16*(1-lp)+_sp.x*lp, oy, 0.12*(1-lp)+_sp.z*lp), pole(1));
     boneByName[B_RARM.arm].getWorldPosition(_sp); reachIK(B_RARM, V( 0.16*(1-lp)+_sp.x*lp, oy, 0.12*(1-lp)+_sp.z*lp), pole(-1));
+    flatHand(B_LARM, smooth(clamp((lp-0.55)/0.4,0,1))); flatHand(B_RARM, smooth(clamp((lp-0.55)/0.4,0,1)));
     sw(B_HEAD,AX.x,-0.3*k*A); }},
   // Exit/transition: the reverse — STARTS in the plank (Push-Up/Plank end pose) and stands back up. Sequence
   // "Push-Up → Get Up from Floor" and the character rises out of the plank instead of snapping upright.
@@ -4620,6 +4739,7 @@ const BIPED_MOTIONS=[
     const pole=(s)=>V(0.35*s*(1-lp)+0.05*s*lp, -1*(1-lp)-0.15*lp, -0.5*(1-lp)-1*lp);
     boneByName[B_LARM.arm].getWorldPosition(_sp); reachIK(B_LARM, V(-0.16*(1-lp)+_sp.x*lp, oy, 0.12*(1-lp)+_sp.z*lp), pole(1));
     boneByName[B_RARM.arm].getWorldPosition(_sp); reachIK(B_RARM, V( 0.16*(1-lp)+_sp.x*lp, oy, 0.12*(1-lp)+_sp.z*lp), pole(-1));
+    flatHand(B_LARM, smooth(clamp((lp-0.55)/0.4,0,1))); flatHand(B_RARM, smooth(clamp((lp-0.55)/0.4,0,1)));
     sw(B_HEAD,AX.x,-0.3*k*A); }},
   // Self-contained (same reason as Push-Up): a bare horizontal plank tips ~86° against any standing pose at the
   // seam/loop. Stand → get down → HOLD the plank → get up → stand; starts and ends standing so it blends cleanly.
@@ -4631,8 +4751,12 @@ const BIPED_MOTIONS=[
     const crouch=Math.sin(Math.PI*k)*(1-k);
     [B_LLEG,B_RLEG].forEach(L=>{ kneeB(L,(0.05+0.9*crouch)*A); sw(L.foot,AX.x,0.8*k*A); });
     animRoot.updateMatrixWorld(true);
-    const oy=0.62*(1-k)+0.05*k, hz=0.12*(1-k)+0.22*k;
-    reachIK(B_LARM, V(-0.16,oy,hz), V(0.35*(1-k)+0.05*k,-1*(1-k)-0.5*k,-0.5)); reachIK(B_RARM, V(0.16,oy,hz), V(-0.35*(1-k)-0.05*k,-1*(1-k)-0.5*k,-0.5));
+    // Straight-arm plank = the push-up TOP: each hand planted UNDER its shoulder (read live), arm vertical, palm flat (2026-09-23 —
+    // the old fixed target sat behind the elbow, sloping the forearm backward so a flat palm needed >90° of wrist extension).
+    const _sp=new THREE.Vector3(), oy=0.62*(1-k)+0.05*k, py=-1*(1-k)-0.15*k, pz=-0.5*(1-k)-1*k;
+    boneByName[B_LARM.arm].getWorldPosition(_sp); reachIK(B_LARM, V(-0.16*(1-k)+_sp.x*k, oy, 0.12*(1-k)+_sp.z*k), V(0.35*(1-k)+0.05*k, py, pz));
+    boneByName[B_RARM.arm].getWorldPosition(_sp); reachIK(B_RARM, V( 0.16*(1-k)+_sp.x*k, oy, 0.12*(1-k)+_sp.z*k), V(-0.35*(1-k)-0.05*k, py, pz));
+    flatHand(B_LARM, smooth(clamp((k-0.55)/0.4,0,1))); flatHand(B_RARM, smooth(clamp((k-0.55)/0.4,0,1)));
     sw(B_HEAD,AX.x,-0.2*k*A); }},
   {id:'fitburpee', name:'Burpee', cat:'Fitness', type:'stay', dur:1.6, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.6*P.speed)%1;
     const squat=bump(u,0.14,0.14), jump=bump(u,0.86,0.1);
@@ -4645,7 +4769,7 @@ const BIPED_MOTIONS=[
     // hands: wherever the arms hang/reach → planted on the floor for the plank, as ONE continuous blend (the switch popped ~45°)
     animRoot.updateMatrixWorld(true);
     [[B_LARM,V(0.16,0.05,0.30),V(0.35,-1,-0.5)],[B_RARM,V(-0.16,0.05,0.30),V(-0.35,-1,-0.5)]].forEach(([Ar,fp,pole])=>{ const hc=new THREE.Vector3(); boneByName[Ar.hand].getWorldPosition(hc);
-      reachIK(Ar, orbitLerp(hc, fp, inPlank, {arms:[Ar]}), pole); }); }},
+      reachIK(Ar, orbitLerp(hc, fp, inPlank, {arms:[Ar]}), pole); flatHand(Ar, smooth(clamp((inPlank-0.55)/0.4,0,1))); }); }},
   // ═════ STEALTH & SNEAKING ════════════════════════════════════════════════════════════════════════
   {id:'sneakcreep', name:'Sneak Walk', cat:'Stealth', type:'move', dur:1.8, build:(t,P)=>{
     bipedGait(t,P,1.8,{legAmp:0.4, kneeAmp:0.9, armAmp:0.2, bob:0.01, sway:0.03, lean:0.18, knee0:0.5});
@@ -5111,6 +5235,7 @@ const BIPED_MOTIONS=[
 // motion authoring match the quad/bird convention. Quaternions (rest orientation) are kept EXACTLY, so the baked
 // rotations still retarget onto the Rigger's biped characters (the Stitcher rescales positions cm↔m at retarget).
 const BIPED_TEMPLATE_M = BIPED_TEMPLATE.map(b=>({ name:b.name, parent:b.parent, t:[b.t[0]/100,b.t[1]/100,b.t[2]/100], q:b.q.slice() }));
+const BIPED_HAND_TEMPLATE_M = BIPED_HAND_TEMPLATE.map(b=>({ name:b.name, parent:b.parent, t:[b.t[0]/100,b.t[1]/100,b.t[2]/100], q:b.q.slice() }));
 
 // ═════ ELEPHANT — trunk (muscular hydrostat) + ears ══════════════════════════════════════════════
 // Physics (Dagenais et al., Current Biology 2021; Schulz et al. 2023): the trunk is a muscular hydrostat
@@ -6676,8 +6801,443 @@ const JELLYFISH_MOTIONS=[
 ];
 
 
+// <<HAND-LAYER>>
+// ===== HAND LAYER (bipedhand rig) — physics-based finger animation on top of the biped body motions =====
+// Source of truth: tools/hand-layer.src.js (injected between the HAND-LAYER markers by tools/inject-hand-layer.mjs).
+// Numbers come from HAND-RESEARCH.md (biomechanics reference). Nothing here touches a body bone: every biped
+// motion keeps its body animation EXACTLY; this layer only rotates the 30 finger bones, and only on bipedhand.
+//
+// FINGER AXES (measured with __ra.handProbe, 2026-09-22): finger bones point +Y in the hand frame, knuckles fan
+// along ±X, the PALM (volar) side is local +Z for BOTH hands. So FLEXION (curl toward the palm) = +rotation about
+// local X (same sign both hands); SPREAD (abduction) = rotation about local Z (toward the thumb = +Z for the left
+// hand, −Z for the right). The first finger helpers curled about Z, which fanned the fingers SIDEWAYS.
+//
+// A hand pose = { c:[index,middle,ring,pinky] curl 0..1, t: thumb 0..1, s: spread 0..1, j: joint mode, lo: looseness }
+//   curl 1 = MCP 90° / PIP 105° / DIP 75° (tight fist). Relaxed cascade = .25/.30/.35/.40.
+//   thumb 0 = abducted out · .3 relaxed beside index · .6 opposed · 1 wrapped over the fingers (fist).
+//   spread 0 = touching · .2 natural · 1 max fan.   j = how a curl splits over MCP/PIP/DIP (hook, crimp, flat …).
+//   lo (looseness 0..1) = how strongly the passive spring (inertia) moves the fingers.
+const HL_FULL=[90,105,75], HL_LIM=[[-25,92],[0,112],[-22,82]], HL_D2R=Math.PI/180;
+const HL_JMODE={ norm:[1,1,1], hook:[0.25,1.3,1.0], crimp:[0.25,1.35,-0.3], knuckle:[-0.35,1.3,1.0], flat:[1.2,0.12,0.08], claw:[0.3,1.05,1.05] };
+const HL_SPREAD=[0.30,0.05,-0.12,-0.30];          // rad per unit spread above the template's natural fan (index..pinky), + toward the thumb
+const HL_FNAMES=['index','middle','ring','pinky'];
+const hp=(c,t,s,lo,o)=>Object.assign({c,t,s,lo},o||{});
+const HL_POSES={
+  // resting / passive
+  relax:hp([.25,.30,.35,.40],.28,.18,.85), limp:hp([.30,.35,.40,.45],.30,.20,1), thighs:hp([.20,.25,.30,.35],.25,.15,.3),
+  open:hp([.12,.14,.16,.20],.20,.35,.6), sneak:hp([.15,.20,.25,.30],.20,.35,.6), flathand:hp([.10,.10,.10,.10],.15,.02,.3),
+  // locomotion
+  brisk:hp([.45,.50,.55,.60],.45,.05,.5), loosefist:hp([.45,.50,.55,.60],.50,.05,.4),
+  blade:hp([.05,.05,.08,.10],.10,0,.3), clinch:hp([.55,.60,.62,.65],.50,0,.3),
+  splay:hp([.10,.10,.10,.12],.10,.60,.3), bridge:hp([.10,.10,.10,.10],0,.35,.08),
+  // weight-bearing / contact
+  flat:hp([.02,.02,.02,.03],.05,.60,.1), push:hp([.05,.05,.06,.08],.15,.50,.1), brace:hp([.05,.05,.06,.08],.10,.60,.25),
+  reach:hp([.10,.10,.12,.15],.10,.30,.4), hook:hp([.70,.70,.70,.70],.30,.05,.12,{j:'hook'}),
+  crate:hp([.72,.72,.72,.72],.20,.20,.1,{j:'hook'}), ropegrip:hp([.75,.80,.80,.80],.80,0,.08),
+  // fighting
+  guard:hp([.70,.72,.75,.78],.80,0,.3), fist:hp([1,1,1,1],1,0,.05), chop:hp([0,0,.05,.05],.30,0,.05),
+  // grips
+  power:hp([.75,.80,.82,.85],.80,0,.05), powertight:hp([.95,.97,1,1],.92,0,0), guide:hp([.65,.65,.68,.70],.60,0,.1),
+  golf:hp([.70,.70,.72,.75],.60,0,.05), foilgrip:hp([.55,.55,.50,.45],.45,0,.1), foiltight:hp([.62,.65,.62,.58],.55,0,.05),
+  offhand:hp([.25,.30,.35,.40],.25,.15,.55), reins:hp([.60,.65,.65,.70],.60,0,.3), knuckle:hp([.75,.75,.75,.75],.30,0,0,{j:'knuckle'}),
+  // throwing / catching
+  ball:hp([.30,.30,.80,.85],.70,.25,.1), release:hp([.05,.05,.10,.15],.15,.30,.4), football:hp([.35,.35,.38,.40],.20,.50,.1),
+  jav:hp([.20,.75,.80,.80],.70,.10,.05), shot:hp([.25,.25,.25,.30],.20,.45,.05), flick:hp([0,0,.03,.05],.10,.45,.3),
+  discus:hp([.15,.15,.15,.15],.20,.55,.05), bowlgrip:hp([.20,.55,.55,.25],.55,.50,.05),
+  catchready:hp([.10,.10,.12,.15],.10,.60,.3), catchhold:hp([.55,.58,.60,.60],.60,.30,.1),
+  highfive:hp([.02,.02,.02,.03],.10,.40,.05), dribble:hp([.18,.18,.20,.22],.15,.50,.2),
+  // archery / firearms
+  bowhand:hp([.25,.30,.30,.30],.15,.10,.55), drawhook:hp([.55,.55,.55,.60],.55,0,.1,{j:'hook'}), drawrelease:hp([.30,.32,.34,.38],.35,.10,.6),
+  trigger:hp([0,.85,.85,.85],.30,0,.05), support:hp([.80,.85,.85,.85],.30,0,.05), cradle:hp([.50,.50,.55,.55],.40,.05,.1),
+  // gestures / emotes
+  wave:hp([.05,.05,.08,.10],.10,.40,.6), point:hp([0,.90,.95,.95],.70,0,.2), shrug:hp([.10,.12,.15,.20],.05,.50,.5),
+  facepalm:hp([.10,.10,.10,.10],.20,.25,.2), clap:hp([.08,.08,.10,.12],.15,.05,.2), cheeropen:hp([.10,.10,.10,.10],.10,.60,.4),
+  thumbsup:hp([.95,.95,.95,.95],0,0,.05,{tx:.95}), salute:hp([0,0,0,0],.10,0,0), cry:hp([.25,.25,.25,.25],.30,.20,.3),
+  angry:hp([.90,.92,.95,.97],.90,0,.05,{tr:.03,trf:9}), chin:hp([.10,.60,.60,.60],.10,.10,.1), tuck:hp([.40,.40,.42,.45],.35,.05,.2),
+  pocket:hp([.45,.45,.47,.50],.30,.05,.2), phone:hp([.45,.50,.55,.35],.20,.10,.1), cup:hp([.55,.60,.62,.65],.55,.05,.1),
+  knob:hp([.50,.55,.55,.60],.55,.35,.1), beckoncurl:hp([.80,.75,.75,.75],.60,.05,.3),
+  raisehands:hp([.05,.05,.06,.08],.10,.30,.4), clutch:hp([.12,.12,.12,.12],.20,.20,.1), shiver:hp([.80,.80,.82,.85],.70,0,.1,{tr:.04,trf:10}),
+  mudra:hp([.10,.10,.10,.10],.40,.10,.2), chestbeat:hp([.20,.20,.22,.25],.15,.05,.2),
+  // music / magic / dance
+  fret:hp([.50,.55,.55,.60],.30,.50,.2), pick:hp([.50,.35,.40,.45],.30,.10,.15), drumstick:hp([.45,.60,.65,.70],.35,0,.15),
+  baton:hp([.35,.45,.55,.60],.40,0,.2), piano:hp([.40,.42,.42,.45],.15,.40,.2), bowhold:hp([.45,.50,.50,.50],.50,.20,.15), mic:hp([.60,.60,.60,.60],.55,0,.1),
+  blast:hp([0,0,.02,.05],0,.90,.2), claw:hp([.70,.70,.70,.70],.50,.60,.1,{j:'claw'}), channel:hp([.20,.20,.20,.20],.20,.45,.3,{tr:.03,trf:8}),
+  levitate:hp([.18,.18,.18,.18],.20,.35,.5), robot:hp([0,0,0,0],.05,0,0), jazz:hp([0,0,0,0],0,1,.3,{tr:.05,trf:7}),
+  scratch:hp([.45,.45,.45,.45],.30,.25,.2,{j:'claw'}), pinch:hp([.45,.60,.70,.75],.55,.05,.1),
+};
+function hlPose(p){ if(typeof p==='string'){ const q=HL_POSES[p]; if(!q) throw new Error('hand pose? '+p); p=q; }
+  const W=(p.j&&typeof p.j!=='string')?p.j.map(m=>HL_JMODE[m]):[0,1,2,3].map(()=>HL_JMODE[p.j||'norm']);
+  return { c:p.c.slice(), t:p.t, s:p.s, lo:p.lo, w:W.map(a=>a.slice()), tr:p.tr||0, trf:p.trf||8, tx:p.tx||0 }; }
+function hlLerp(a,b,k){ if(k<=0) return a; if(k>=1) return b; const L=(x,y)=>x+(y-x)*k;
+  return { c:a.c.map((v,i)=>L(v,b.c[i])), t:L(a.t,b.t), s:L(a.s,b.s), lo:L(a.lo,b.lo), w:a.w.map((r,i)=>r.map((v,j)=>L(v,b.w[i][j]))), tr:L(a.tr,b.tr), trf:b.trf||a.trf, tx:L(a.tx||0,b.tx||0) }; }
+const hlSmooth=(x)=>{ x=Math.max(0,Math.min(1,x)); return x*x*(3-2*x); };
+
+// ---- thumb axes (hand frame; thumb bones have identity rest) ----
+const _hlThumbAx={};
+function hlThumbAxes(side){ if(_hlThumbAx[side]) return _hlThumbAx[side];
+  const n=side==='L'?'LeftHandThumb2':'RightHandThumb2', b=boneByName[n];
+  const t=(b?b.position.clone():new THREE.Vector3(side==='L'?-1:1,4,1.8)).normalize();       // Thumb1 → Thumb2 = thumb direction
+  const uln=new THREE.Vector3(side==='L'?1:-1,0,0), vol=new THREE.Vector3(0,0,1);
+  const dOpp=uln.clone().multiplyScalar(0.90).add(vol.clone().multiplyScalar(0.40)).normalize();   // across the palm toward the pinky base (flat enough to lie over the curled fingers)
+  const dFlx=uln.clone().multiplyScalar(0.55).add(vol.clone().multiplyScalar(0.83)).normalize();
+  const opp=new THREE.Vector3().crossVectors(t,dOpp).normalize(), flx=new THREE.Vector3().crossVectors(t,dFlx).normalize();
+  return (_hlThumbAx[side]={opp,flx}); }
+const HL_AXX=new THREE.Vector3(1,0,0), HL_AXZ=new THREE.Vector3(0,0,1);
+// apply a resolved pose to one hand (fingers are at rest when called — the body build never touches them)
+function hlApplyPose(side, P, extraCurl){
+  const F=FINGERS[side]; if(!F || !boneByName[F.index[0]]) return;
+  const sd=side==='L'?1:-1, ex=extraCurl||0;
+  for(let fi=0;fi<4;fi++){ const bones=F[HL_FNAMES[fi]], c=Math.max(-0.15,Math.min(1.05,P.c[fi]+ex*(0.8+0.15*fi))), w=P.w[fi];
+    const spr=HL_SPREAD[fi]*(P.s-0.2)/0.8*sd;
+    if(spr) bendLocal(bones[0], HL_AXZ, spr);
+    for(let j=0;j<3;j++){ let d=c*w[j]*HL_FULL[j]; d=Math.max(HL_LIM[j][0],Math.min(HL_LIM[j][1],d)); if(d) bendLocal(bones[j], HL_AXX, d*HL_D2R); } }
+  const T=Math.max(0,Math.min(1,P.t+ex*0.5)), ax=hlThumbAxes(side), th=F.thumb;
+  const opp=T<0.3 ? (T-0.3)/0.3*0.35 : (T-0.3)/0.7*1.15;                 // CMC: abduct out (T<.3) … swing across the palm to the fingers (T=1)
+  // tx = thumb EXTENSION in the plane of the palm toward the radial side (a thumbs-up / hitch-hike thumb: 2026-09-23). +rot about
+  // the palm normal (+Z) swings +Y toward −X, the LEFT radial side; mirrored for the right hand.
+  if(P.tx) bendLocal(th[0], HL_AXZ, sd*P.tx);
+  bendLocal(th[0], ax.opp, opp); bendLocal(th[1], ax.flx, Math.max(0,T-0.2)*0.75); bendLocal(th[2], ax.flx, Math.max(0,T-0.1)*0.95);
+}
+
+// ---- kinematics of the (untouched) body motion: per hand world knuckle position, palm normal, speed, reach ----
+const HL_HZ=60, _hlKin=new Map();
+function hlKinOf(m, Pm){
+  const key=m.id+'|'+(Pm.amp||1)+'|'+(Pm.speed||1); if(_hlKin.has(key)) return _hlKin.get(key);
+  const D=m.dur, N=Math.max(8,Math.round(D*HL_HZ)), dt=D/N;
+  const H={L:{p:[],n:[],ext:[]},R:{p:[],n:[],ext:[]}}; const q=new THREE.Quaternion(), wp=new THREE.Vector3(), sp=new THREE.Vector3();
+  for(let i=0;i<=N;i++){ resetPose(); setRootY(0); animRoot.position.set(0,0,0); m.build(Math.min(i*dt,D),Pm); armClearance(); animRoot.updateMatrixWorld(true);
+    for(const side of ['L','R']){ const Ar=side==='L'?B_LARM:B_RARM, k=boneByName[side==='L'?'LeftHandMiddle1':'RightHandMiddle1']||boneByName[Ar.hand];
+      k.getWorldPosition(wp); boneByName[Ar.hand].getWorldQuaternion(q); boneByName[Ar.arm].getWorldPosition(sp);
+      wp.sub(animRoot.position); sp.sub(animRoot.position);   // root-relative: a travelling clip's translation (and its loop snap) is not hand motion
+      H[side].p.push(wp.clone()); H[side].n.push(new THREE.Vector3(0,0,1).applyQuaternion(q)); H[side].ext.push(wp.distanceTo(sp)); } }
+  resetPose();
+  let loop=(H.L.p[0].distanceTo(H.L.p[N])<0.04 && H.R.p[0].distanceTo(H.R.p[N])<0.04);    // clip returns to its start pose → periodic
+  // …unless it only gets back by SNAPPING in its last frame (throw / pitch reset at t=D): a seam step far bigger than any
+  // other frame-to-frame step means the clip is a one-shot — timing then ignores the seam.
+  if(loop && N>6) for(const side of ['L','R']){ const p=H[side].p; const seam=p[N-1].distanceTo(p[0]); let mx=0; for(let i=2;i<N-2;i++) mx=Math.max(mx,p[i].distanceTo(p[i-1]));
+    if(seam>2.5*Math.max(mx,0.004)) loop=false; }
+  const out={D,N,dt,loop,hands:{}};
+  for(const side of ['L','R']){ const h=H[side], v=[], a=[], spd=[];
+    const at=(i)=>{ if(loop){ i=((i%N)+N)%N; } else i=Math.max(0,Math.min(N,i)); return h.p[i]; };
+    for(let i=0;i<=N;i++){ const vi=at(i+1).clone().sub(at(i-1)).multiplyScalar(1/(2*dt)); v.push(vi); spd.push(vi.length());
+      a.push(at(i+1).clone().add(at(i-1)).sub(at(i).clone().multiplyScalar(2)).multiplyScalar(1/(dt*dt))); }
+    // speed peaks (strike / release / swing moments): local maxima above 55% of the max, ≥0.18 s apart
+    // de-spike: a single-frame pose jump in the body clip (a glitch, not a throw) is far above BOTH neighbours → capped
+    const raw=spd.slice(); for(let i=0;i<=N;i++){ const nb=Math.max(raw[Math.max(0,i-2)]||0, raw[Math.min(N,i+2)]||0, 0.5); if(raw[i]>2.5*nb) spd[i]=2.5*nb; }
+    let jump=0, stepMed=[]; for(let i=1;i<=N;i++){ const d=h.p[i].distanceTo(h.p[i-1]); stepMed.push(d); } stepMed.sort((x,y)=>x-y);
+    const p95=stepMed[Math.floor(stepMed.length*0.95)]||0; for(let i=2;i<N-1;i++){ const d=h.p[i].distanceTo(h.p[i-1]); if(d>0.03 && d>4*Math.max(p95,0.004)) jump=Math.max(jump,d); }
+    let vmax=0, imax=0; spd.forEach((s,i)=>{ if(i<2||i>N-2) return; if(s>vmax){vmax=s;imax=i;} });   // events never sit on the seam frames
+    const peaks=[]; for(let i=2;i<N-1;i++){ if(spd[i]>=0.55*vmax && spd[i]>=spd[i-1] && spd[i]>=spd[i+1]){ const t=i*dt; if(!peaks.length || t-peaks[peaks.length-1]>0.18) peaks.push(t); else if(spd[i]>spd[Math.round(peaks[peaks.length-1]/dt)]) peaks[peaks.length-1]=t; } }
+    let emax=0, iext=0; h.ext.forEach((e,i)=>{ if(e>emax){emax=e;iext=i;} });
+    let path=0; for(let i=1;i<=N;i++) path+=h.p[i].distanceTo(h.p[i-1]);
+    out.hands[side]={ glitch:+jump.toFixed(3), spd, acc:a, n:h.n, ext:h.ext, vmax, tv:imax*dt, tx:iext*dt, peaks, path, emin:Math.min(...h.ext), emax }; }
+  const pl=out.hands.L.path, pr=out.hands.R.path; out.active = (pl>pr*1.25)?'L':'R';
+  _hlKin.set(key,out); return out;
+}
+const hlSample=(arr,K,t)=>{ const f=Math.max(0,Math.min(K.N,t/K.dt)), i=Math.floor(f), j=Math.min(K.N,i+1), k=f-i; const A=arr[i], B=arr[j];
+  return (typeof A==='number') ? A+(B-A)*k : A.clone().lerp(B,k); };
+
+// ---- intent tracks (what the hand is DOING) ----
+// track := 'pose' | [[time,pose],…] | {auto:'strike'|'swing'|'throw'|'catch'|'contact'|'ext'|'beat'|'fall', …}
+// time  := u (0..1 of the clip) | 'v' | 'x' | 'p0','p1'… (speed peak / max reach / nth peak) with ±seconds, e.g. 'v-0.06'
+function hlTime(expr, H, D){ if(typeof expr==='number') return expr*D;
+  const m=/^(v|x|p(\d+))([+-][\d.]+)?$/.exec(expr); if(!m) throw new Error('hand time? '+expr);
+  const base = m[1]==='v' ? H.tv : m[1]==='x' ? H.tx : (H.peaks[+m[2]]!=null ? H.peaks[+m[2]] : H.tv); return base+(m[3]?parseFloat(m[3]):0); }
+function hlIntent(track, K, side, t){
+  const H=K.hands[side], D=K.D;
+  if(typeof track==='string') return hlPose(track);
+  if(Array.isArray(track)){ const keys=track.map(([tm,p])=>[hlTime(tm,H,D),hlPose(p)]).sort((a,b)=>a[0]-b[0]);
+    if(t<=keys[0][0]) return keys[0][1]; for(let i=0;i<keys.length-1;i++){ const [t0,p0]=keys[i],[t1,p1]=keys[i+1]; if(t<=t1) return hlLerp(p0,p1,hlSmooth((t-t0)/Math.max(1e-4,t1-t0))); }
+    return keys[keys.length-1][1]; }
+  const a=track.auto;
+  if(a==='strike'||a==='swing'){      // clench before each impact (strike 30-60 ms, swing 50-100 ms), hold ~50 ms, relax back
+    const g=hlPose(track.guard||track.grip), h=hlPose(track.hit||track.tight); const pre=a==='strike'?0.09:0.12, rel=a==='strike'?0.22:0.27; let w=0;   // ramp ≥2 frames at the 30 fps bake; fully tight 20 ms before impact
+    if(H.vmax<1.2) return g;                                    // this hand isn't the one striking (guard hand) → stays in its grip
+    const outward=(p)=>a==='swing' || hlSample(H.ext,K,Math.min(D,p+0.03))>=hlSample(H.ext,K,Math.max(0,p-0.03));   // a punch clenches going OUT, relaxes coming back
+    const hits=(H.peaks.length?H.peaks:[H.tv]).filter(p=>hlSample(H.spd,K,p)>=1.2 && outward(p));
+    for(const p of hits) for(const q of [p-D,p,p+D]){ const d=t-q; let k=0;
+      if(d>=-pre && d<-0.02) k=hlSmooth((d+pre)/(pre-0.02)); else if(d>=-0.02 && d<=0.06) k=1; else if(d>0.06 && d<rel) k=1-hlSmooth((d-0.06)/(rel-0.06)); w=Math.max(w,k); }
+    return hlLerp(g,h,w); }
+  if(a==='throw'){                    // grip → fingers extend to release at peak hand speed → relax → re-grip for the next loop
+    const g=hlPose(track.grip), r=hlPose(track.release), af=hlPose(track.after||'relax'), p=H.tv;
+    if(t<p-0.04) return g;
+    if(t<p+0.02) return hlLerp(g,r,hlSmooth((t-(p-0.04))/0.06));
+    if(t<p+0.25) return hlLerp(r,af,hlSmooth((t-(p+0.02))/0.23));
+    if(K.loop && t>D-0.30) return hlLerp(af,g,hlSmooth((t-(D-0.30))/0.25)); return af; }
+  if(a==='catch'){                    // spread & ready, close from ~45 ms before contact (max reach) to hold
+    const rd=hlPose(track.ready||'catchready'), hd=hlPose(track.hold||'catchhold'), c=H.tx;
+    if(t<c-0.045) return rd; if(t<c+0.10) return hlLerp(rd,hd,hlSmooth((t-(c-0.045))/0.145));
+    if(K.loop && t>D-0.35) return hlLerp(hd,rd,hlSmooth((t-(D-0.35))/0.3)); return hd; }
+  if(a==='contact'){                  // grip while the hand is still (holding / planted), open to pre-shape while it travels
+    const w=hlSample(K.cw[side],K,t); return hlLerp(hlPose(track.open),hlPose(track.close),w); }
+  if(a==='ext'){                      // pose follows how far the arm is extended (stiff-arm / push / reach)
+    const e=hlSample(H.ext,K,t), k=hlSmooth((e-H.emin)/Math.max(1e-3,H.emax-H.emin)); return hlLerp(hlPose(track.bent),hlPose(track.straight),k); }
+  if(a==='beat'){                     // cyclic alternation synced to the clip (beckon / pump)
+    const n=track.n||2, k=0.5-0.5*Math.cos(2*Math.PI*n*t/D+(track.ph||0)); return hlLerp(hlPose(track.a),hlPose(track.b),k); }
+  if(a==='fall'){                     // loss of tone: tense/brace → limp over 200-500 ms starting at u0
+    const u0=(track.at||0.2)*D, f=hlPose(track.from||'brace'); let k=hlSmooth((t-u0)/0.4);
+    if(K.loop) k*=1-hlSmooth((t-0.72*D)/(0.25*D));             // a looping clip gets back up → tone returns before the seam
+    return hlLerp(f,hlPose('limp'),k); }
+  throw new Error('hand auto? '+a);
+}
+
+// ---- passive dynamics: fingers = damped spring driven by the hand's acceleration along the palm normal ----
+// eq curl offset = −0.010 · a·n · looseness (accelerating toward the palm opens the fingers, decelerating curls them);
+// f = 6.5→17 Hz and ζ = 0.55→1.0 as looseness → 0 (relaxed fingers ring once and settle; gripping fingers are rigid).
+function hlPrecompute(m, spec, Pm){
+  const K=hlKinOf(m,Pm); const ck=m.id+'|'+JSON.stringify(spec)+'|'+(Pm.amp||1)+'|'+(Pm.speed||1);
+  if(K._pre && K._pre.key===ck) return K;
+  K.cw={L:[],R:[]};                   // contact weight: still → 1, travelling → 0, with ~80 ms neural lag
+  for(const side of ['L','R']){ const H=K.hands[side], vm=Math.max(0.35,H.vmax); let w=null;
+    for(let pass=0; pass<(K.loop?3:1); pass++) for(let i=0;i<=K.N;i++){ const raw=1-hlSmooth((H.spd[i]/vm-0.25)/0.45); w=(w==null)?raw:w+(raw-w)*Math.min(1,K.dt/0.08); if(pass===(K.loop?2:0)) K.cw[side][i]=w; } }
+  K.pas={L:[],R:[]};
+  for(const side of ['L','R']){ const tr=spec[side]; const H=K.hands[side]; let x=0, v=0;
+    const passes=K.loop?3:1;
+    for(let pass=0;pass<passes;pass++) for(let i=0;i<=K.N;i++){ const t=i*K.dt, P=tr?hlIntent(tr,K,side,t):hlPose('relax'), lo=Math.max(0,Math.min(1,P.lo*(spec.loose||1)));
+      const f=6.5+(1-lo)*10.5, z=0.55+(1-lo)*0.45, w0=2*Math.PI*f;
+      const an=H.acc[i].dot(H.n[i]); const eq=-0.12*Math.tanh(0.010*an/0.12)*lo;   // ~0.1 curl per 10 m/s² when relaxed, saturating at 0.12 (tissue stiffens)
+      for(let s=0;s<6;s++){ const h=K.dt/6; const acc=w0*w0*(eq-x)-2*z*w0*v; v+=acc*h; x+=v*h; }
+      if(pass===passes-1) K.pas[side][i]=x; } }
+  K._pre={key:ck}; return K;
+}
+function hlApply(m, spec, t, Pm){
+  const K=hlPrecompute(m,spec,Pm);
+  for(const side of ['L','R']){ const tr=spec[side]; if(tr===null) continue;       // null = this hand is posed by the motion itself
+    const P=hlIntent(tr||'relax',K,side,t), H=K.hands[side];
+    const n=hlSample(H.n,K,t), up=n.y;                                                    // gravity/forearm-rotation rule: palm up +.08, palm down −.05 (relaxed hands)
+    let extra = (up>0? 0.08*up : 0.05*up) * Math.min(1,P.lo*1.4);
+    extra += hlSample(K.pas[side],K,t);
+    if(P.tr) extra += P.tr*Math.sin(2*Math.PI*P.trf*t);
+    hlApplyPose(side,P,extra); }
+}
+
+// ---- per-motion intent (right = dominant; bow: left holds the bow). Anything not listed = relaxed cascade + physics.
+const R_=(r,l,o)=>Object.assign({R:r,L:l||'relax'},o||{}), B_=(p,o)=>Object.assign({R:p,L:p},o||{});
+const STRIKE=(g,h)=>({auto:'strike',guard:g||'guard',hit:h||'fist'}), SWING=(g,h)=>({auto:'swing',grip:g||'power',tight:h||'powertight'});
+const THROW=(g,r,a)=>({auto:'throw',grip:g,release:r||'release',after:a||'relax'}), CONTACT=(o,c)=>({auto:'contact',open:o,close:c});
+const HAND_SPECS={
+  // Walking — relaxed cascade, arm-swing inertia does the rest
+  stroll:B_('relax'), stride:B_('relax'), brisk:B_('brisk'), creep:B_('sneak'), backpedal:B_('relax'), trudge:B_('relax',{loose:1.1}), strut:B_('relax'),
+  limp:B_('relax'), shuffleL:B_('relax'), shuffleR:B_('relax'),
+  // Running — loose fist (potato-chip thumb); sprint = open blade
+  jog:B_('loosefist'), run:B_('loosefist'), sprint:B_('blade'), windsprint:B_('blade'), cooljog:B_('loosefist'), runback:B_('loosefist'), highknees:B_('loosefist'),
+  skip:B_('loosefist'), sprintstart:B_(CONTACT('splay','bridge')), carioca:B_('loosefist'),
+  // Jumping — open, alert hands; brace for landings
+  hop:B_('open'), bound:B_('open'), tuck:B_('open'), longjump:B_('open'), squatjump:B_('open'), jack:B_('open'), onefoot:B_('open'), splitleap:B_('open'), boxjump:B_('open'), spinjump:B_('open'),
+  // Climbing — pre-shape open while reaching, hook/power grip while holding
+  climb:B_(CONTACT('reach','hook')), climbdown:B_(CONTACT('reach','hook')), clamber:B_(CONTACT('reach','hook')), traverseL:B_(CONTACT('reach','hook')), traverseR:B_(CONTACT('reach','hook')),
+  scramble:B_(CONTACT('reach','hook')), ropeclimb:B_(CONTACT('reach','ropegrip')), shimmy:B_(CONTACT('reach','hook')), peek:B_('hook'), cling:B_('hook'),
+  // Boxing — guard fist, clench tight 30-60 ms before each punch lands
+  boxbounce:B_('guard'), jab:B_(STRIKE()), cross:B_(STRIKE()), uppercut:B_(STRIKE()), hookL:B_(STRIKE()), hookR:B_(STRIKE()), bodyshot:B_(STRIKE()),
+  slip:B_('guard'), block:B_('fist'), onetwo:B_(STRIKE()),
+  // Fencing — French foil grip (thumb+index manipulate), off hand relaxed/raised
+  engarde:R_('foilgrip','offhand'), advance:R_('foilgrip','offhand'), retreat:R_('foilgrip','offhand'), lunge:R_(SWING('foilgrip','foiltight'),'offhand'),
+  riposte:R_(SWING('foilgrip','foiltight'),'offhand'), beat:R_(SWING('foilgrip','foiltight'),'offhand'), fleche:R_(SWING('foilgrip','foiltight'),'offhand'),
+  salute:R_('foilgrip','relax'), highparry:R_(SWING('foilgrip','foiltight'),'offhand'), feint:R_('foilgrip','offhand'),
+  // Football
+  punt:B_('open'), placekick:B_('open'), throw:R_(THROW('football','release'),'open'), catch:B_({auto:'catch'}), juke:B_('loosefist'),
+  stiffarm:R_({auto:'ext',bent:'loosefist',straight:'push'},'loosefist'), header:B_('open'), throwin:B_(THROW('football','release','open')), tackle:B_(CONTACT('reach','hook')), tdcele:B_('cheeropen'),
+  // Track & field
+  blockstart:B_(CONTACT('splay','bridge')), hurdle:B_('blade'), ljtakeoff:B_('open'), hjarch:B_('open'), javelin:R_(THROW('jav','release'),'open'),
+  shotput:R_(THROW('shot','flick'),'open'), discus:R_(THROW('discus','release'),'open'), polevault:B_('power'), batonpass:R_('catchready','loosefist'), finishlean:B_('blade'),
+  // Dancing
+  sidestep:B_('relax',{loose:0.8}), raisethroof:B_('raisehands'), spin:B_('open'), fistpump:R_('fist','relax'), robot:B_('robot'), twist:B_('relax'),
+  shufflebop:B_('loosefist'), discopoint:R_('point','relax'), bodywave:B_('open'), clapsway:B_('clap'),
+  // Gestures
+  handstolap:B_('thighs'), idle:B_('relax'), scan:B_('relax'), wave:R_('wave','relax'), nod:B_('relax'), shake:B_('relax'), sit:B_('thighs'), crouch:B_('relax'),
+  stagger:B_('brace',{loose:1.5}), beckon:R_({auto:'beat',a:'open',b:'beckoncurl',n:2},'relax'), shrug:B_('shrug'),
+  // Household
+  sitchair:B_('thighs'), standchair:B_(CONTACT('relax','flathand')), sitbed:B_('thighs'), getupbed:B_(CONTACT('relax','flat')), dishes:R_('power','catchhold'),
+  opendoor:R_(CONTACT('reach','knob'),'relax'), closedoor:R_(CONTACT('reach','push'),'relax'), sweep:R_('power','guide'), pickup:B_(CONTACT('reach','catchhold')), drink:R_('cup','relax'),
+  // Combat
+  slash:R_(SWING(),'offhand'), chopdown:R_(SWING(),'offhand'), shieldblock:R_('power','power'), dodgeroll:B_('brace'), thrust:B_(SWING()),
+  bowshot:R_(THROW('drawhook','drawrelease','drawrelease'),'bowhand'), cast:R_(THROW('claw','blast','open'),'open'), flinch:B_('brace'), knockback:B_('brace'),
+  death:B_({auto:'fall',from:'brace',at:0.15}),
+  // Emotes
+  cheer:B_('cheeropen'), applaud:B_('clap'), cry:B_('cry'), laugh:B_('relax'), angry:B_('angry'), bow:B_('flathand'), facepalm:R_('facepalm','relax'),
+  ponder:R_('chin','tuck'), salute2:R_('salute','flathand'), point:R_('point','relax'),
+  // Work
+  shovel:R_(SWING('power'),'guide'), hammer:R_(SWING('power'),'catchhold'), chopwood:B_(SWING()), liftcrate:B_('crate'), carry:B_('crate'), pushheavy:B_('push'),
+  pullrope:B_(CONTACT('reach','power')), stairs:B_('relax'), rake:R_(SWING('power','power'),'guide'), catchbreath:B_('flathand'),
+  // Sports
+  dribble:R_('dribble','relax'), jumpshot:B_(THROW('football','release','release')), golf:B_('golf'), batswing:B_(SWING()), pitch:R_(THROW('ball','release'),'open'),
+  bowl:R_(THROW('bowlgrip','release'),'open'), tennisserve:R_(SWING(),THROW('ball','release','open')), forehand:R_(SWING(),'open'), roundhouse:B_('guard'),
+  karatechop:R_(STRIKE('guard','chop'),'guard'),
+  // Magic
+  mgbolt:R_(THROW('claw','blast','open'),'relax'), mgchannel:B_('channel'), mgsummon:B_('raisehands'), mgward:B_('push'), mgstaff:B_('power'), mgpotion:R_('cup','relax'),
+  mgincant:B_('channel'), mgblast:B_(THROW('claw','blast','open')), mglevitate:B_('levitate'), mghex:R_('claw','relax'),
+  // Reactions
+  rxgut:B_('clutch'), rxheadsnap:B_('brace',{loose:1.4}), rxstumble:B_('brace',{loose:1.3}), rxspin:B_('brace',{loose:1.3}), rxflat:B_({auto:'fall',from:'brace',at:0.25}),
+  rxgetup:B_(CONTACT('relax','flat')), rxdodge:B_('brace'), rxblock:B_('fist'), rxshot:B_({auto:'fall',from:'clutch',at:0.35}), rxdizzy:B_('relax',{loose:1.2}),
+  // Aim
+  aimbow:R_(THROW('drawhook','drawrelease','drawrelease'),'bowhand'), aimpistol:R_('trigger','support'), aimrifle:R_('trigger','cradle'), aimreload:R_('trigger',CONTACT('reach','pinch')),
+  aimthrow:R_(THROW('ball','release'),'open'), aimspear:B_('power'), aimcrossbow:R_('trigger','cradle'), aimholster:R_('trigger',CONTACT('relax','support')), aimsnipe:R_('trigger','cradle'), aimlowready:R_('trigger','cradle'),
+  // Pirate
+  pirflourish:R_(SWING(),'offhand'), pirparry:R_(SWING(),'offhand'), pirgrog:R_('cup','relax'), pirspyglass:B_('cup'), pirpegleg:B_('relax'), pirhaul:B_(CONTACT('reach','ropegrip')),
+  pirplank:B_('open'), pircannon:R_('power','flathand'), pirdig:R_(SWING('power'),'guide'), pirsalute:R_('power','relax'),
+  // Fitness — weight-bearing hands flat & spread
+  fitjack:B_('open'), fitsquat:B_('tuck'), fitlunge:B_('thighs'), fitwarrior:B_('salute'), fittree:B_('flathand'), fitstretch:B_('open'), fitsidestretch:B_('open'),
+  fitpushup:B_('flat'), floordown:B_(CONTACT('open','flat')), floorup:B_(CONTACT('open','flat')), fitplank:B_('flat'), fitburpee:B_(CONTACT('open','flat')),
+  // Stealth
+  sneakcreep:B_('sneak'), sneaktiptoe:B_('sneak'), sneakpeek:B_('flathand'), sneakfreeze:B_('sneak'), sneakwall:B_('flat'), sneakcrouch:B_('sneak'), sneakduck:B_('sneak'),
+  sneakpick:R_('pinch','pinch'), sneakstepover:B_('sneak'), sneaklisten:R_('cup','sneak'),
+  // Everyday
+  evphone:R_('phone','phone'), evwatch:B_('relax'), evcrossarms:B_('tuck'), evfoottap:B_('relax'), evyawn:R_('cry','relax'), evscratch:R_('scratch','relax'), evlean:B_('relax'),
+  evpockets:B_('pocket'), evsip:R_('cup','relax'), evglance:B_('relax'),
+  // Cheer
+  chfistpump:R_('fist','relax'), chjump:B_('cheeropen'), chapplaud:B_('clap'), chbow:B_('flathand'), chwave:R_('wave','relax'), chflex:B_('fist'),
+  chtrophy:B_('catchhold'), chhighfive:R_('highfive','relax'), chdab:B_('open'), chspin:B_('open'),
+  // Music
+  musairguitar:R_('pick','fret'), musdrums:B_('drumstick'), musconduct:R_('baton','open'), muspiano:B_('piano'), musheadbang:B_('loosefist'), mustambourine:R_('catchhold','open'),
+  musclap:B_('clap'), musdj:R_('flat','raisehands'), musmicsing:R_('mic','raisehands'), musviolin:R_('bowhold','fret'),
+  // Injured
+  injlimp:B_('relax'), injhunch:B_('clutch'), injcrawl:B_(CONTACT('reach','flat')), injdrag:B_(CONTACT('reach','claw')), injbreath:B_('flathand'), injwound:R_('clutch','relax'),
+  injlean:B_('flat'), injshiver:B_('shiver'), injstagger:B_('brace',{loose:1.3}), injkneel:B_('thighs'),
+  // Ground
+  gndsitcross:B_('thighs'), gndseiza:B_('thighs'), gndliedown:B_('limp'), gndlounge:B_('relax'), gndsquat:B_('tuck'), gndkneel1:B_('thighs'), gndmeditate:B_('mudra'),
+  gndsittostand:B_(CONTACT('relax','flat')), gndproneprop:B_('flat'), gndsitidle:B_('thighs'),
+  // Parkour
+  pkvault:B_(CONTACT('open','flat')), pkroll:B_('brace',{loose:1.2}), pkland:B_('brace'), pkcatleap:B_(CONTACT('reach','hook')), pkbalance:B_('open'), pkslide:B_('brace'),
+  pkcartwheel:B_(CONTACT('open','flat')), pkbackflip:B_('open'), pkkipup:B_(CONTACT('relax','flat')), pkwallrun:B_('brace'),
+  // Swordplay
+  swguard:R_('power','offhand'), swchop:R_(SWING(),'offhand'), swslashd:R_(SWING(),'offhand'), swslashh:R_(SWING(),'offhand'), swthrust:R_(SWING(),'offhand'),
+  swblockh:R_('power','offhand'), swblocks:R_('power','offhand'), swclash:R_(SWING(),'offhand'), swbash:R_(SWING(),'offhand'), swspin:R_(SWING(),'offhand'),
+  // Mounted / ape
+  ridesit:B_('reins'), ridepost:B_('reins'), ape_knuckle:B_('knuckle'), ape_chestbeat:B_('chestbeat'), ape_idle:B_('knuckle'),
+};
+// the 6 finger GESTURES pose their own gesture hand; the other hand relaxes with physics
+const HAND_SPECS_GESTURE={ thumbsup:{R:null,L:'relax'}, pointfinger:{R:null,L:'relax'}, wavehand:{R:null,L:'relax'}, clap:{R:null,L:null}, raisefist:{R:null,L:'relax'}, openpalm:{R:null,L:'relax'} };
+function withHands(m, spec){ spec=spec||{L:'relax',R:'relax'};
+  return Object.assign({}, m, { hands:spec, build:(t,Pm)=>{ hlPrecompute(m,spec,Pm); resetPose(); setRootY(0); animRoot.position.set(0,0,0); m.build(t,Pm); hlApply(m,spec,t,Pm); } }); }
+// ---- verification hook (dev): proves the body is untouched and reports what the fingers do ----
+window.__hl = {
+  missing(){ return BIPED_MOTIONS.filter(m=>!HAND_SPECS[m.id]).map(m=>m.id); },
+  diag(id, samples){ if(rigKey!=='bipedhand') setRig('bipedhand'); samples=samples||24;
+    const W=RIGS.bipedhand.motions.find(m=>m.id===id), O=BIPED_MOTIONS.find(m=>m.id===id)||FINGER_MOTIONS.find(m=>m.id===id); if(!W) return {id,err:'no motion'};
+    const Pm={speed:1,amp:1}, fing=new Set([].concat(...['L','R'].map(s=>Object.values(FINGERS[s]).flat())));
+    const curlOf=(n)=>{ const b=boneByName[n]; const q=b.quaternion; return 2*Math.atan2(q.x, q.w); };   // rotation about local X (flexion) of a phalanx
+    let bodyDiff=0, nan=0; const rng={L:[9,-9],R:[9,-9]}, thumb={L:[9,-9],R:[9,-9]};
+    for(let i=0;i<samples;i++){ const t=W.dur*i/samples;
+      resetPose(); setRootY(0); animRoot.position.set(0,0,0); O.build(t,Pm); const ref={}; for(const n of boneList) if(!fing.has(n)) ref[n]=boneByName[n].quaternion.clone();
+      const refRoot=animRoot.position.clone();
+      resetPose(); setRootY(0); animRoot.position.set(0,0,0); W.build(t,Pm);
+      for(const n in ref) bodyDiff=Math.max(bodyDiff, 1-Math.abs(ref[n].dot(boneByName[n].quaternion)));
+      bodyDiff=Math.max(bodyDiff, refRoot.distanceTo(animRoot.position));
+      for(const n of fing){ const q=boneByName[n].quaternion; if(![q.x,q.y,q.z,q.w].every(Number.isFinite)) nan++; }
+      for(const s of ['L','R']){ const F=FINGERS[s]; const c=(curlOf(F.middle[0])+curlOf(F.middle[1]))/((90+105)*HL_D2R);   // middle finger MCP+PIP as a 0..1 curl
+        rng[s][0]=Math.min(rng[s][0],c); rng[s][1]=Math.max(rng[s][1],c); } }
+    resetPose();
+    const K=hlKinOf(O,Pm); const r2=(a)=>a.map(v=>+v.toFixed(2));
+    return { id, spec:!!(HAND_SPECS[id]||HAND_SPECS_GESTURE[id]), bodyDiff:+bodyDiff.toExponential(1), nan, curlL:r2(rng.L), curlR:r2(rng.R), active:K.active, loop:K.loop,
+      peaksR:r2(K.hands.R.peaks), peaksL:r2(K.hands.L.peaks), tvR:+K.hands.R.tv.toFixed(3), glitch:Math.max(K.hands.L.glitch,K.hands.R.glitch), tvL:+K.hands.L.tv.toFixed(3), txR:+K.hands.R.tx.toFixed(3), vmaxR:+K.hands.R.vmax.toFixed(2), vmaxL:+K.hands.L.vmax.toFixed(2) }; },
+  all(){ return RIGS.bipedhand.motions.map(m=>this.diag(m.id,16)); },
+  // which body bones diverge between the biped and bipedhand bakes of one motion (worst frame per bone, degrees)
+  diverge(id){ setRig('biped'); const O=BIPED_MOTIONS.find(m=>m.id===id); const a=bakeClip(O,O.dur,{speed:1,amp:1});
+    setRig('bipedhand'); const b=bakeClip(O,O.dur,{speed:1,amp:1}); const bm={}; for(const t of b.tracks) bm[t.name]=t; const out=[];
+    for(const t of a.tracks){ const u=bm[t.name]; if(!u||t.type!=='quaternion') continue; let w=0,wi=0, first=-1; for(let i=0;i<t.values.length/4;i++){ let d=0; for(let k=0;k<4;k++) d+=t.values[i*4+k]*u.values[i*4+k]; const g=2*Math.acos(Math.min(1,Math.abs(d)))*57.3; if(g>0.01&&first<0) first=i; if(g>w){w=g;wi=i;} }
+      if(w>0.01) out.push(t.name.replace('.quaternion','')+' max '+w.toFixed(2)+'° @'+wi+' first@'+first); }
+    resetPose(); return out; },
+  // bake the SAME motion on the plain biped rig and on bipedhand (current code) and compare body tracks (deg / cm)
+  bodyCompare(id){ const cmp=(A,B)=>{ const bm={}; for(const t of B.tracks) bm[t.name]=t; let deg=0, cm=0, at='';
+      for(const t of A.tracks){ const u=bm[t.name]; if(!u) continue; if(t.type==='quaternion'){ for(let i=0;i<t.values.length/4;i++){ let d=0; for(let k=0;k<4;k++) d+=t.values[i*4+k]*u.values[i*4+k]; const g=2*Math.acos(Math.min(1,Math.abs(d)))*57.3; if(g>deg){deg=g;at=t.name+'@'+i;} } }
+        else for(let i=0;i<t.values.length;i++) cm=Math.max(cm,Math.abs(t.values[i]-u.values[i])); } return {deg:+deg.toFixed(3),cm:+cm.toFixed(3),at}; };
+    setRig('biped'); const O=BIPED_MOTIONS.find(m=>m.id===id); const a=bakeClip(O,O.dur,{speed:1,amp:1});
+    setRig('bipedhand'); const W=RIGS.bipedhand.motions.find(m=>m.id===id); const b=bakeClip(W,W.dur,{speed:1,amp:1}); const b0=bakeClip(O,O.dur,{speed:1,amp:1});
+    resetPose(); return { bipedVsHandLayer:cmp(a,b), bipedVsSameMotionOnHandRig:cmp(a,b0), handRigOriginalVsHandLayer:cmp(b0,b), bipedClip:a }; },
+  // loop-seam test: worst finger-bone rotation jump (degrees) between the clip's last and first frame, for looping clips
+  seams(){ if(rigKey!=='bipedhand') setRig('bipedhand'); const fing=[].concat(...['L','R'].map(s=>Object.values(FINGERS[s]).flat())); const out=[];
+    for(const W of RIGS.bipedhand.motions){ const O=BIPED_MOTIONS.find(m=>m.id===W.id)||FINGER_MOTIONS.find(m=>m.id===W.id); const K=hlKinOf(O,{speed:1,amp:1}); if(!K.loop) continue;
+      const grab=(t)=>{ resetPose(); setRootY(0); animRoot.position.set(0,0,0); W.build(t,{speed:1,amp:1}); return fing.map(n=>boneByName[n].quaternion.clone()); };
+      const a=grab(W.dur-1/30), b=grab(0), c=grab(1/30);        // step across the seam vs a normal step
+      let seam=0, norm=0; for(let i=0;i<a.length;i++){ seam=Math.max(seam, 2*Math.acos(Math.min(1,Math.abs(a[i].dot(b[i]))))); norm=Math.max(norm, 2*Math.acos(Math.min(1,Math.abs(b[i].dot(c[i]))))); }
+      out.push({id:W.id, seamDeg:+(seam*57.3).toFixed(1), stepDeg:+(norm*57.3).toFixed(1)}); }
+    resetPose(); return out.filter(o=>o.seamDeg>Math.max(6,3*o.stepDeg)); },
+  kin(id, side){ if(rigKey!=='bipedhand') setRig('bipedhand'); const O=BIPED_MOTIONS.find(m=>m.id===id)||FINGER_MOTIONS.find(m=>m.id===id); const K=hlKinOf(O,{speed:1,amp:1}); const H=K.hands[side];
+    return {loop:K.loop, N:K.N, dt:+K.dt.toFixed(4), seam:+H.ext[0].toFixed(3)+'/'+H.ext[K.N].toFixed(3), spd:H.spd.filter((_,i)=>i%3===0).map(v=>+v.toFixed(1))}; },
+  // clean finger-skeleton render: hand + 5 coloured finger chains (tubes), viewed from the thumb side ('side') or the palm ('palm')
+  lines(id, t, side, which){ if(rigKey!=='bipedhand') setRig('bipedhand'); const W=RIGS.bipedhand.motions.find(m=>m.id===id); if(!W) return 'no motion';
+    motion=null; resetPose(); setRootY(0); animRoot.position.set(0,0,0); W.build(t,{speed:1,amp:1}); animRoot.updateMatrixWorld(true);
+    const sc=new THREE.Scene(); sc.background=new THREE.Color(0x0e1116); sc.add(new THREE.HemisphereLight(0xffffff,0x303040,1.2)); const dl=new THREE.DirectionalLight(0xffffff,1.2); dl.position.set(1,2,3); sc.add(dl);
+    const hand=boneByName[side==='L'?'LeftHand':'RightHand'], F=FINGERS[side]; const P=(n)=>{ const v=new THREE.Vector3(); boneByName[n].getWorldPosition(v); return v; };
+    const hp0=new THREE.Vector3(); hand.getWorldPosition(hp0); const hq=new THREE.Quaternion(); hand.getWorldQuaternion(hq);
+    const tube=(a,b,r,col)=>{ const d=b.clone().sub(a), L=d.length(); if(L<1e-5) return; const g=new THREE.CylinderGeometry(r,r,L,10); const m=new THREE.Mesh(g,new THREE.MeshStandardMaterial({color:col,roughness:0.6}));
+      m.position.copy(a).add(b).multiplyScalar(0.5); m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), d.normalize()); sc.add(m); const s=new THREE.Mesh(new THREE.SphereGeometry(r*1.25,10,8), m.material); s.position.copy(b); sc.add(s); };
+    const cols={thumb:0xff5a5a,index:0xffd24a,middle:0x5ad06a,ring:0x4aa8ff,pinky:0xc07aff};
+    const forearm=P(side==='L'?B_LARM.fore:B_RARM.fore); tube(forearm.clone().lerp(hp0,0.6), hp0, 0.009, 0x9aa4b0);
+    for(const f of ['thumb','index','middle','ring','pinky']){ const b=F[f]; const j=b.map(P);
+      const lq=new THREE.Quaternion(); boneByName[b[2]].getWorldQuaternion(lq); const L1=j[2].distanceTo(j[1]); const tip=j[2].clone().add(new THREE.Vector3(0,1,0).applyQuaternion(lq).multiplyScalar(L1*0.8));   // distal phalanx along its OWN +Y (shows the DIP bend)
+      tube(hp0,j[0],0.005,0x9aa4b0); tube(j[0],j[1],0.0065,cols[f]); tube(j[1],j[2],0.006,cols[f]); tube(j[2],tip,0.0055,cols[f]); }
+    // palm-plane marker: a translucent disc on the palm side so the viewer can tell palm from back
+    const vol=new THREE.Vector3(0,0,1).applyQuaternion(hq), fing=new THREE.Vector3(0,1,0).applyQuaternion(hq), rad=new THREE.Vector3(side==='L'?-1:1,0,0).applyQuaternion(hq);
+    const c=hp0.clone().add(fing.clone().multiplyScalar(0.06)); const disc=new THREE.Mesh(new THREE.CircleGeometry(0.035,24), new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.18,side:THREE.DoubleSide}));
+    disc.position.copy(c.clone().add(vol.clone().multiplyScalar(0.012))); disc.lookAt(disc.position.clone().add(vol)); sc.add(disc);
+    const cm=new THREE.PerspectiveCamera(40,1,0.005,10); const dirC = which==='palm' ? vol : rad;
+    cm.position.copy(c.clone().add(dirC.clone().multiplyScalar(0.32))); cm.up.copy(which==='palm'? fing : vol); cm.lookAt(c);
+    const sz=new THREE.Vector2(); renderer.getSize(sz); const asp=cm.aspect=sz.x/sz.y; cm.updateProjectionMatrix();
+    renderer.render(sc,cm); const url=renderer.domElement.toDataURL('image/png'); resetPose(); return url; },   // grab in the same task, before the app loop redraws
+};
+// ===== /HAND LAYER =====
+
+// <</HAND-LAYER>>
+
+
+// ===== Finger gestures (bipedhand rig) — body posed with reachIK/handFrame, fingers with handPose =====
+const relaxHand=(Ar)=>{ animRoot.updateMatrixWorld(true); const sh=new THREE.Vector3(); boneByName[Ar.arm].getWorldPosition(sh); reachIK(Ar, sh.clone().add(V(Ar.s*0.11,-0.45,0.03)), V(Ar.s*0.5,-0.7,-0.3)); };
+const FINGER_MOTIONS=[
+  {id:'thumbsup', name:'Thumbs Up', cat:'Hand Gestures', type:'stay', dur:1.6, build:(t,P)=>{ bstand(); const A=P.amp, k=eio(clamp(t/0.5,0,1));
+    idleSway(t,P,1.6); animRoot.updateMatrixWorld(true);
+    const shR=new THREE.Vector3(); boneByName[B_RARM.arm].getWorldPosition(shR);
+    const bob=0.02*Math.sin(TAU*t/1.6*P.speed)*A;
+    // a real thumbs-up: elbow bent ~90° at the side, forearm level and forward, fist vertical, thumb up (palm toward the midline)
+    reachIK(B_RARM, shR.clone().add(V(B_RARM.s*0.02, -0.22+0.08*k+bob, 0.12+0.24*k)), V(B_RARM.s*0.5,-0.8,-0.2));
+    handFrameA(B_RARM, {thumb:V(0,1,0), palm:V(-B_RARM.s,0,0)});
+    handPose('R','thumbsup', k);
+    relaxHand(B_LARM); }},
+  {id:'pointfinger', name:'Pointing', cat:'Hand Gestures', type:'stay', dur:1.5, build:(t,P)=>{ bstand(); const A=P.amp, k=eio(clamp(t/0.45,0,1));
+    idleSway(t,P,1.5); animRoot.updateMatrixWorld(true);
+    const shR=new THREE.Vector3(); boneByName[B_RARM.arm].getWorldPosition(shR);
+    reachIK(B_RARM, shR.clone().add(V(B_RARM.s*0.05, 0.02+0.04*k, 0.20+0.35*k)), V(B_RARM.s*0.6,-0.4,-0.2));
+    handFrameA(B_RARM, {fingers:V(0,0,1), palm:V(0,-1,0)});  // index points forward (+Z), palm down
+    handPose('R','point', k);
+    relaxHand(B_LARM); }},
+  {id:'wavehand', name:'Wave (open hand)', cat:'Hand Gestures', type:'stay', dur:1.6, build:(t,P)=>{ bstand(); const A=P.amp;
+    const w=Math.sin(TAU*t/0.5*P.speed);
+    idleSway(t,P,1.6); animRoot.updateMatrixWorld(true);
+    const shR=new THREE.Vector3(); boneByName[B_RARM.arm].getWorldPosition(shR);
+    reachIK(B_RARM, shR.clone().add(V(B_RARM.s*0.04+0.15*w*A, 0.32*A+0.02, 0.15)), V(B_RARM.s*0.6,-0.4,-0.5));
+    handFrameA(B_RARM, {fingers:V(0,1,0), palm:V(0,0,1)});   // palm forward, fingers up
+    handPose('R','relax',0.15);
+    relaxHand(B_LARM); sw(B_HEAD,AX.z,0.04*A); }},
+  {id:'clap', name:'Clapping', cat:'Hand Gestures', type:'stay', dur:0.8, build:(t,P)=>{ bstand(); const A=P.amp;
+    const c=Math.abs(Math.sin(TAU*t/0.8*P.speed));           // 0 apart .. 1 together
+    idleSway(t,P,0.8); animRoot.updateMatrixWorld(true);
+    const chest=new THREE.Vector3(); boneByName['Spine02'].getWorldPosition(chest);
+    const center=chest.clone().add(V(0,0.10,0.30)); const gap=0.045+0.11*(1-c);
+    reachIK(B_RARM, center.clone().add(V(-gap,0,0)), V(-0.5,-0.3,-0.3));
+    reachIK(B_LARM, center.clone().add(V(+gap,0,0)), V(0.5,-0.3,-0.3));
+    handFrameA(B_RARM, {fingers:V(0,1,0), palm:V(1,0,0)});   // right palm toward +X (the left hand)
+    handFrameA(B_LARM, {fingers:V(0,1,0), palm:V(-1,0,0)});  // left palm toward -X
+    handPose('R','relax',0.2); handPose('L','relax',0.2); }},
+  {id:'raisefist', name:'Raised Fist', cat:'Hand Gestures', type:'stay', dur:1.0, build:(t,P)=>{ bstand(); const A=P.amp;
+    const p=Math.max(0,Math.sin(TAU*t/1.0*P.speed));
+    idleSway(t,P,1.0); animRoot.updateMatrixWorld(true);
+    const shR=new THREE.Vector3(); boneByName[B_RARM.arm].getWorldPosition(shR);
+    reachIK(B_RARM, shR.clone().add(V(B_RARM.s*0.10, 0.30+0.24*p, 0.08)), V(B_RARM.s*0.8,0,-0.5));   // arm driven UP overhead, fist on top (a salute / power fist), pumping
+    handFrameA(B_RARM, {fingers:V(0,1,0), palm:V(0,0,-1)});   // knuckles out, palm toward the face
+    handPose('R','fist',1);
+    relaxHand(B_LARM); }},
+  {id:'openpalm', name:'Open Palm (Halt)', cat:'Hand Gestures', type:'stay', dur:1.6, build:(t,P)=>{ bstand(); const A=P.amp, k=eio(clamp(t/0.5,0,1));
+    idleSway(t,P,1.6); animRoot.updateMatrixWorld(true);
+    const shR=new THREE.Vector3(); boneByName[B_RARM.arm].getWorldPosition(shR);
+    reachIK(B_RARM, shR.clone().add(V(B_RARM.s*0.05, 0.02+0.14*k, 0.15+0.25*k)), V(B_RARM.s*0.6,-0.6,-0.2));   // forearm raised so the wrist only extends ~45° for the STOP palm
+    handFrameA(B_RARM, {fingers:V(0,1,0), palm:V(0,0,1)});   // palm forward, fingers up = STOP
+    relaxHand(B_LARM); }},
+];
+const BIPEDHAND_MOTIONS = BIPED_MOTIONS.map(m=>withHands(m, HAND_SPECS[m.id])).concat(FINGER_MOTIONS.map(m=>withHands(m, HAND_SPECS_GESTURE[m.id])));   // body = untouched originals; fingers = hand layer
+
 const RIGS = {
   biped:       {tpl:BIPED_TEMPLATE_M,      label:'24-bone biped rig (standard humanoid — Hips / spine / arms / legs / head).', motions:BIPED_MOTIONS},
+  bipedhand:   {tpl:BIPED_HAND_TEMPLATE_M, label:'54-bone biped + fingers (Mixamo-ready) — biped body + 5 fingers per hand; adds thumbs-up / point / wave / clap / fist / open-palm gestures.', motions:BIPEDHAND_MOTIONS},
   quad:        {tpl:QUAD_TEMPLATE, orient:QUAD_ORIENT, ground:QUAD_PAWS, label:'27-bone quadruped rig (Hips / legs / spine / tail).', motions:QUAD_MOTIONS},
   birdFlight:  {tpl:BIRD_TEMPLATE, ground:BIRD_TOES,         label:'35-bone standard bird (UniRig), wings-spread in-flight pose.', motions:BIRD_FLIGHT_MOTIONS},
   birdPerched: {tpl:BIRD_PERCH_TEMPLATE, ground:BIRDP_TOES, label:'47-bone perched songbird (UniRig) — wings folded natively in the mesh; feet / neck / head / tail behaviours.', motions:BIRD_PERCHED2_MOTIONS},
@@ -6761,6 +7321,49 @@ function armClearance(){
 }
 // ===== Bake to an AnimationClip (library format) =====
 const BAKE_FPS=30;
+// ═════ BALLISTIC LAYER — gravity for every airborne phase (physics engine rule, 2026-09-23) ════════════════════════
+// Newton: with nothing touching the ground the only external force is gravity, so the body's CENTRE OF MASS moves on
+// a parabola with vertical acceleration −g, whatever the limbs do (a tuck pulls the knees up → the HIPS must drop
+// relative to the CoM, not the CoM rise). Applied at bake to biped clips: the CoM is the segment-mass-weighted centre
+// (Winter, Biomechanics & Motor Control of Human Movement, Table 4.1), flight = both soles clear of the floor AND no
+// hand/knee/elbow/hip/chest/head resting on it, and within each flight window the root is shifted vertically so the
+// CoM follows y(τ) = y_takeoff + v0·τ − g·τ²/2 through the take-off and landing CoM heights (v0 fixed by those and the
+// air time). Supports that are not the floor (climbing walls/ropes, horses, boxes being vaulted, lying/prone work) opt out.
+// Audit: tools/verify/ballistics.mjs.
+const BALLISTIC_ON = { on:true };
+const WINTER_SEGS=[[0.081,'neck','head_end',0.45],[0.497,'midHip','midShoulder',0.50],
+  [0.028,'LeftArm','LeftForeArm',0.436],[0.028,'RightArm','RightForeArm',0.436],[0.016,'LeftForeArm','LeftHand',0.430],[0.016,'RightForeArm','RightHand',0.430],
+  [0.006,'LeftHand','LeftHandTip',0.506],[0.006,'RightHand','RightHandTip',0.506],[0.100,'LeftUpLeg','LeftLeg',0.433],[0.100,'RightUpLeg','RightLeg',0.433],
+  [0.0465,'LeftLeg','LeftFoot',0.433],[0.0465,'RightLeg','RightFoot',0.433],[0.0145,'LeftFoot','LeftToeBase',0.50],[0.0145,'RightFoot','RightToeBase',0.50]];
+const BAL_BONES=['Hips','Spine02','neck','Head','head_end','LeftArm','RightArm','LeftForeArm','RightForeArm','LeftHand','RightHand','LeftUpLeg','RightUpLeg','LeftLeg','RightLeg','LeftFoot','RightFoot','LeftToeBase','RightToeBase'];
+const BAL_OPTOUT=/boxjump|hjarch|climb|clamber|scramble|peek|traverse|cling|rope|push|plank|burpee|floor|gnd|vault|wallrun|ride|stairs|kipup|cartwheel|dodgeroll|rxflat|bow|crawl|drag|lie|prone|swim/i;
+function ballisticPlan(m){
+  if(!BALLISTIC_ON.on || !BAL_BONES.every(n=>boneByName[n])) return null;
+  if(BAL_OPTOUT.test(m.id||'') || /Climbing|Mounted|Ground/.test(m.cat||'') || m.noBallistic) return null;
+  const S=[]; const v=new THREE.Vector3();
+  return {
+    sample(){ const P={}; for(const n of BAL_BONES){ boneByName[n].getWorldPosition(v); P[n]=v.clone(); } S.push(P); },
+    apply(root, times){
+      const lerp=(a,b,k)=>a.clone().lerp(b,k);
+      const J=(P,n)=> n==='midHip'?lerp(P.LeftUpLeg,P.RightUpLeg,0.5) : n==='midShoulder'?lerp(P.LeftArm,P.RightArm,0.5)
+        : n==='LeftHandTip'?P.LeftHand.clone().addScaledVector(P.LeftHand.clone().sub(P.LeftForeArm),0.35)
+        : n==='RightHandTip'?P.RightHand.clone().addScaledVector(P.RightHand.clone().sub(P.RightForeArm),0.35) : P[n];
+      const com=P=>{ let y=0,w=0; for(const [f,a,b,k] of WINTER_SEGS){ y+=f*lerp(J(P,a),J(P,b),k).y; w+=f; } return y/w; };
+      const sole=(P,s)=>Math.min(P[s+'ToeBase'].y, P[s+'Foot'].y-0.09);
+      let floor=1e9; for(const P of S) floor=Math.min(floor,sole(P,'Left'),sole(P,'Right'));
+      const clear=P=>Math.min(sole(P,'Left'),sole(P,'Right'))-floor;
+      const BODY=['LeftHand','RightHand','LeftForeArm','RightForeArm','LeftLeg','RightLeg','Hips','Spine02','Head'];
+      const air=S.map(P=>clear(P)>0.02 && BODY.every(b=>P[b].y>floor+0.14));
+      const C=S.map(com), out=[]; let s=-1; const n=S.length;
+      for(let i=0;i<=n;i++){ const a=i<n&&air[i]; if(a&&s<0) s=i;
+        if(!a&&s>=0){ const e=i-1; if(e-s>=2 && s>0 && e<n-1 && Math.max(...S.slice(s,i).map(clear))>=0.06){
+            const T=times[e]-times[s], y0=C[s], y1=C[e], v0=(y1-y0)/T+0.5*GRAV*T; let maxD=0;
+            // effective g BEFORE the correction (least squares) — kept for the report
+            for(let k=s;k<=e;k++){ const tau=times[k]-times[s]; const d=(y0+v0*tau-0.5*GRAV*tau*tau)-C[k]; root[k*3+1]+=d; maxD=Math.max(maxD,Math.abs(d)); }
+            out.push({from:s,to:e,T:+T.toFixed(3),apexRise:+((v0*v0/(2*GRAV))*100).toFixed(1),maxShiftCm:+(maxD*100).toFixed(1)}); }
+          s=-1; } }
+      return out; } };
+}
 function bakeClip(m, D, params){
   const n=Math.max(2,Math.round(D*BAKE_FPS)); const times=[]; for(let i=0;i<n;i++) times.push(i/BAKE_FPS);
   const q={}, sc={}; for(const bn of boneList){ q[bn]=[]; sc[bn]=[]; } const root=[]; const noseF=[];
@@ -6769,13 +7372,16 @@ function bakeClip(m, D, params){
   // the ground and a horse's long neck short of it.
   let noseRest=null; if(m.nose && boneByName['headend']) noseRest=1;   // the fraction comes from the builder's INTENT (QHD_FRAC), not the template's reach
   const lieF=[];
+  const BAL=ballisticPlan(m);
   for(let i=0;i<n;i++){ setRootY(0); animRoot.position.set(0,0,0); m.build(times[i], params); armClearance(); animRoot.updateMatrixWorld(false);
+    if(BAL){ animRoot.updateMatrixWorld(true); BAL.sample(); }
     if(noseRest) noseF.push(+QHD_FRAC.toFixed(4));
     if(m.lie) lieF.push(+QLIE_FRAC.toFixed(4));
     for(const bn of boneList){ const b=boneByName[bn]; q[bn].push(b.quaternion.x,b.quaternion.y,b.quaternion.z,b.quaternion.w); sc[bn].push(b.scale.x,b.scale.y,b.scale.z); }
     root.push(animRoot.position.x, animRoot.position.y, animRoot.position.z);
   }
   resetPose();
+  const physFlights = BAL ? BAL.apply(root, times) : null;       // gravity for the airborne windows (edits the root track)
   const tracks=[];
   for(const bn of boneList) tracks.push({ name:bn+'.quaternion', type:'quaternion', times:times.slice(), values:q[bn] });
   // ROOT TRANSLATION — required, not optional: a squat, a sit, a jump or a gait's weight shift IS the hips
@@ -6800,7 +7406,8 @@ function bakeClip(m, D, params){
   for(const bn of boneList){ if(sc[bn].some(v=>Math.abs(v-1)>1e-4)) tracks.push({ name:bn+'.scale', type:'vector', times:times.slice(), values:sc[bn] }); }
   const out={ name:'RigAnimator|'+m.name, duration:D, tracks, uuid:crypto.randomUUID(), blendMode:2500 };
   if(noseRest && noseF.length===n) out.nose={ times:times.slice(), frac:noseF };
-  if(m.lie && lieF.length===n) out.lie={ times:times.slice(), frac:lieF };   // lying intent: the Stitcher rests the belly/flank on the floor when this is 1
+  if(m.lie && lieF.length===n) out.lie={ times:times.slice(), frac:lieF };
+  if(physFlights && physFlights.length) out.physics={ ballistic:physFlights };   // what the gravity layer did (for audits)   // lying intent: the Stitcher rests the belly/flank on the floor when this is 1
   return out;
 }
 function skeletonEntry(){
@@ -6891,6 +7498,38 @@ window.__ra = {
     resetPose(); setRootY(0); animRoot.position.set(0,0,0); if(m) m.build(t,{speed:1,amp:1});
     const b=boneByName[bone]; const r=resetPose; const out=b?{x:+b.scale.x.toFixed(4),y:+b.scale.y.toFixed(4),z:+b.scale.z.toFixed(4)}:{err:'no bone'}; resetPose(); return {bone,t,scale:out}; },
   // list a baked clip's track names + types (confirms .scale tracks made it into the bake)
+  // finger-axis probe: bend one phalanx about a LOCAL axis, report where the next joint moves, in the HAND's local
+  // frame and in world, plus the hand's local axes in world (after bstand) and which way the body midline is.
+  handProbe(side, finger, axis, ang, jointIdx){ setRig('bipedhand'); jointIdx=jointIdx||0;
+    const F=FINGERS[side][finger], hand=boneByName[side==='L'?'LeftHand':'RightHand'];
+    const ax={x:new THREE.Vector3(1,0,0),y:new THREE.Vector3(0,1,0),z:new THREE.Vector3(0,0,1)}[axis];
+    const tip=()=>{ animRoot.updateMatrixWorld(true); const b=boneByName[F[Math.min(2,jointIdx+1)]], w=new THREE.Vector3(); b.getWorldPosition(w);
+      const hw=new THREE.Matrix4().copy(hand.matrixWorld).invert(); const l=w.clone().applyMatrix4(hw); return {w,l}; };
+    resetPose(); bstand(); const a0=tip();
+    bendLocal(F[jointIdx], ax, ang); const a1=tip();
+    const hq=new THREE.Quaternion(); hand.getWorldQuaternion(hq);
+    const axW=(v)=>v.clone().applyQuaternion(hq).toArray().map(x=>+x.toFixed(2));
+    const hp=new THREE.Vector3(); hand.getWorldPosition(hp); const hips=new THREE.Vector3(); boneByName['Hips'].getWorldPosition(hips);
+    const r=(v)=>v.toArray().map(x=>+x.toFixed(3));
+    const out={ localDelta:r(a1.l.clone().sub(a0.l)), worldDelta:r(a1.w.clone().sub(a0.w)), handX:axW(new THREE.Vector3(1,0,0)), handY:axW(new THREE.Vector3(0,1,0)), handZ:axW(new THREE.Vector3(0,0,1)),
+      toMidline:r(hips.clone().sub(hp).setY(0).normalize()) };
+    resetPose(); return out; },
+  // close-up viewer for headless verification: pose rig k at motion time t (paused), frame the camera on a bone
+  view(k, motionId, t, bone, dist, yaw, pitch){ if(rigKey!==k) setRig(k); const m=RIGS[k].motions.find(x=>x.id===motionId); if(!m) return 'no motion';
+    selectMotion(m); playing=false; tNow=t; setRootY(0); animRoot.position.set(0,0,0); m.build(t,{speed:1,amp:1}); animRoot.updateMatrixWorld(true);
+    $('#dur').value=m.dur.toFixed(1);
+    const w=new THREE.Vector3(); (boneByName[bone]||animRoot).getWorldPosition(w);
+    cam.target.copy(w); if(dist) cam.dist=dist; if(yaw!=null) cam.yaw=yaw; if(pitch!=null) cam.pitch=pitch; applyCam();
+    renderer.render(scene,camera); return [w.x,w.y,w.z].map(v=>+v.toFixed(3)); },
+  // static curl test (dev): right arm forward palm-down, all four fingers bent `amt` rad per joint about LOCAL `axis`
+  curlTest(axis, amt, camYaw, camPitch){ if(rigKey!=='bipedhand') setRig('bipedhand'); motion=null;
+    resetPose(); bstand(); animRoot.updateMatrixWorld(true);
+    const sh=new THREE.Vector3(); boneByName[B_RARM.arm].getWorldPosition(sh);
+    reachIK(B_RARM, sh.clone().add(V(-0.05,-0.05,0.5)), V(-0.5,-0.7,-0.3)); handFrame(B_RARM,{fingers:V(0,0,1), palm:V(0,-1,0)});
+    const ax={x:new THREE.Vector3(1,0,0),y:new THREE.Vector3(0,1,0),z:new THREE.Vector3(0,0,1)}[axis];
+    for(const f of ['index','middle','ring','pinky']) for(const b of FINGERS.R[f]) bendLocal(b, ax, amt);
+    animRoot.updateMatrixWorld(true); const w=new THREE.Vector3(); boneByName['RightHand'].getWorldPosition(w);
+    cam.target.copy(w); cam.dist=0.45; cam.yaw=camYaw; cam.pitch=camPitch; applyCam(); renderer.render(scene,camera); return 'ok'; },
   clipTracks(k, motionId){ setRig(k); const m=RIGS[k].motions.find(x=>x.id===motionId); if(!m) return null;
     const c=bakeClip(m,m.dur,{speed:1,amp:1}); resetPose();
     return c.tracks.map(tr=>({name:tr.name,type:tr.type,n:tr.values.length})); }

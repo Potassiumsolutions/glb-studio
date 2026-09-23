@@ -98,3 +98,13 @@ Verify: `bake.mjs --ids …` → `bodyclip.mjs <lib> ids` → `flipscan.mjs <bas
 - **`gaitNorm` foot lock:** the stance foot's contact point glides backward at a constant speed (blended by the stance
   weight). Without it the normative joint curves let the foot slow 3× through stance — a visible skate under the
   Stitcher's constant scroll. New gaits should use `gaitNorm`/`gaitIK`, never hand-swung legs with a bobbed root.
+
+## What's new (2026-09-23): physics engine + fingered rig
+- **🖐 Biped + Fingers rig** (54 bones, Mixamo-named): every biped motion gets physics-based finger animation (grips tighten
+  before impacts, fingers extend at release, passive inertia), plus 6 hand gestures (thumbs-up, point, wave, clap, raised fist,
+  open palm). Works on Mixamo / ActorCore characters in the Stitcher.
+- **Gravity:** every airborne phase keeps the body's centre of mass on a true 9.81 m/s² parabola. Jump height and air time are
+  tied by physics, push-off accelerates the body to take-off speed, and landings absorb the real impact speed.
+- **Wrists are joints with limits** (flexion/extension, deviation, forearm roll) and hands use an anatomical frame, so prop grips
+  and gestures face the right way on fingered characters.
+- **Floor work:** push-up / plank / burpee hands lie palm-flat on the floor with the arms under the shoulders.
