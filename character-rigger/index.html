@@ -63,13 +63,13 @@
 <body>
 <div id="app">
   <div class="side">
-    <h1>Character Rigger <span class="appver">v1.1.0</span></h1>
+    <h1>Character Rigger <span class="appver">v1.2.0</span></h1>
     <div class="tag">Rig your own textured characters onto a standard, retargetable skeleton for the GLB Stitcher.</div>
 
     <div class="card">
       <h2>1 · Character mesh</h2>
-      <div class="drop" id="meshDrop">Drop a textured <b>.glb / .gltf</b><br>or click to browse</div>
-      <input type="file" id="meshInput" accept=".glb,.gltf,model/gltf-binary" hidden>
+      <div class="drop" id="meshDrop">Drop a textured <b>.glb / .gltf / .fbx</b><br><span style="opacity:.7">(incl. Mixamo / ActorCore characters)</span><br>or click to browse</div>
+      <input type="file" id="meshInput" accept=".glb,.gltf,.fbx,model/gltf-binary" hidden>
       <div class="hint" id="meshInfo" style="margin-top:8px"></div>
     </div>
 
@@ -77,6 +77,7 @@
       <h2>Skeleton type</h2>
       <div class="seg" id="rigSeg">
         <button data-rig="biped" class="on">🧍 Biped</button>
+        <button data-rig="bipedhand">🖐 Biped + Fingers</button>
         <button data-rig="quad">🐕 Quad</button>
         <button data-rig="bird">🐦 Bird</button>
         <button data-rig="snake">🐍 Snake</button>
@@ -187,6 +188,7 @@
 <script type="module">
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 document.querySelectorAll('.cred-year').forEach(e=>e.textContent=String(new Date().getFullYear()));
 
@@ -200,6 +202,14 @@ const QUAD_TEMPLATE=[{"name":"Hips","parent":null,"t":[-0.00325,0.187442,-0.0877
 const BIPED_PRIMARY_CHILD={ Hips:'Spine02', Spine02:'Spine01', Spine01:'Spine', Spine:'neck', neck:'Head', Head:'head_end',
   LeftUpLeg:'LeftLeg', LeftLeg:'LeftFoot', LeftFoot:'LeftToeBase', RightUpLeg:'RightLeg', RightLeg:'RightFoot', RightFoot:'RightToeBase',
   LeftShoulder:'LeftArm', LeftArm:'LeftForeArm', LeftForeArm:'LeftHand', RightShoulder:'RightArm', RightArm:'RightForeArm', RightForeArm:'RightHand' };
+// Biped WITH fingers — the biped skeleton + 30 finger bones (5 per hand × 3 phalanges). Finger local offsets
+// were computed from Mixamo's own hand bind (rotated into this hand's frame) so Mixamo/ActorCore finger
+// motions retarget 1:1. Names match Mixamo (Left/RightHand{Thumb,Index,Middle,Ring,Pinky}1..3).
+const BIPED_HAND_FINGERS=[{"name":"LeftHandThumb1","parent":"LeftHand","t":[-2.163,4.492,1.793],"q":[0,0,0,1]},{"name":"LeftHandThumb2","parent":"LeftHandThumb1","t":[-1.33,4.181,1.808],"q":[0,0,0,1]},{"name":"LeftHandThumb3","parent":"LeftHandThumb2","t":[-1.228,3.861,1.669],"q":[0,0,0,1]},{"name":"LeftHandIndex1","parent":"LeftHand","t":[0.037,12.578,-0.537],"q":[0,0,0,1]},{"name":"LeftHandIndex2","parent":"LeftHandIndex1","t":[0.886,3.785,-0.189],"q":[0,0,0,1]},{"name":"LeftHandIndex3","parent":"LeftHandIndex2","t":[0.778,3.321,-0.166],"q":[0,0,0,1]},{"name":"LeftHandMiddle1","parent":"LeftHand","t":[2.909,12.425,-0.62],"q":[0,0,0,1]},{"name":"LeftHandMiddle2","parent":"LeftHandMiddle1","t":[0.823,3.515,-0.175],"q":[0,0,0,1]},{"name":"LeftHandMiddle3","parent":"LeftHandMiddle2","t":[0.788,3.365,-0.168],"q":[0,0,0,1]},{"name":"LeftHandRing1","parent":"LeftHand","t":[4.922,11.315,-0.464],"q":[0,0,0,1]},{"name":"LeftHandRing2","parent":"LeftHandRing1","t":[0.82,3.502,-0.175],"q":[0,0,0,1]},{"name":"LeftHandRing3","parent":"LeftHandRing2","t":[0.753,3.216,-0.16],"q":[0,0,0,1]},{"name":"LeftHandPinky1","parent":"LeftHand","t":[7.069,9.561,-0.015],"q":[0,0,0,1]},{"name":"LeftHandPinky2","parent":"LeftHandPinky1","t":[0.942,4.023,-0.201],"q":[0,0,0,1]},{"name":"LeftHandPinky3","parent":"LeftHandPinky2","t":[0.591,2.524,-0.126],"q":[0,0,0,1]},{"name":"RightHandThumb1","parent":"RightHand","t":[2.299,4.397,1.858],"q":[0,0,0,1]},{"name":"RightHandThumb2","parent":"RightHandThumb1","t":[1.455,4.115,1.861],"q":[0,0,0,1]},{"name":"RightHandThumb3","parent":"RightHandThumb2","t":[1.344,3.8,1.719],"q":[0,0,0,1]},{"name":"RightHandIndex1","parent":"RightHand","t":[0.401,12.576,-0.412],"q":[0,0,0,1]},{"name":"RightHandIndex2","parent":"RightHandIndex1","t":[-0.753,3.815,-0.159],"q":[0,0,0,1]},{"name":"RightHandIndex3","parent":"RightHandIndex2","t":[-0.661,3.348,-0.14],"q":[0,0,0,1]},{"name":"RightHandMiddle1","parent":"RightHand","t":[-2.473,12.523,-0.523],"q":[0,0,0,1]},{"name":"RightHandMiddle2","parent":"RightHandMiddle1","t":[-0.7,3.543,-0.148],"q":[0,0,0,1]},{"name":"RightHandMiddle3","parent":"RightHandMiddle2","t":[-0.67,3.391,-0.142],"q":[0,0,0,1]},{"name":"RightHandRing1","parent":"RightHand","t":[-4.525,11.482,-0.397],"q":[0,0,0,1]},{"name":"RightHandRing2","parent":"RightHandRing1","t":[-0.697,3.53,-0.147],"q":[0,0,0,1]},{"name":"RightHandRing3","parent":"RightHandRing2","t":[-0.64,3.242,-0.135],"q":[0,0,0,1]},{"name":"RightHandPinky1","parent":"RightHand","t":[-6.735,9.799,0.014],"q":[0,0,0,1]},{"name":"RightHandPinky2","parent":"RightHandPinky1","t":[-0.801,4.055,-0.169],"q":[0,0,0,1]},{"name":"RightHandPinky3","parent":"RightHandPinky2","t":[-0.502,2.544,-0.106],"q":[0,0,0,1]}];
+const BIPED_HAND_TEMPLATE=[...BIPED_TEMPLATE, ...BIPED_HAND_FINGERS];
+const BIPEDHAND_PRIMARY_CHILD={ ...BIPED_PRIMARY_CHILD, LeftHand:'LeftHandMiddle1', RightHand:'RightHandMiddle1',
+  LeftHandThumb1:'LeftHandThumb2', LeftHandThumb2:'LeftHandThumb3', LeftHandIndex1:'LeftHandIndex2', LeftHandIndex2:'LeftHandIndex3', LeftHandMiddle1:'LeftHandMiddle2', LeftHandMiddle2:'LeftHandMiddle3', LeftHandRing1:'LeftHandRing2', LeftHandRing2:'LeftHandRing3', LeftHandPinky1:'LeftHandPinky2', LeftHandPinky2:'LeftHandPinky3',
+  RightHandThumb1:'RightHandThumb2', RightHandThumb2:'RightHandThumb3', RightHandIndex1:'RightHandIndex2', RightHandIndex2:'RightHandIndex3', RightHandMiddle1:'RightHandMiddle2', RightHandMiddle2:'RightHandMiddle3', RightHandRing1:'RightHandRing2', RightHandRing2:'RightHandRing3', RightHandPinky1:'RightHandPinky2', RightHandPinky2:'RightHandPinky3' };
 const QUAD_PRIMARY_CHILD={ Hips:'chest', chest:'head', head:'headend', tail:'tailstart', tailstart:'tail1', tail1:'tail2', tail2:'tail3',
   backleg:'backleg0', backleg0:'backleg1', backleg1:'backleg2', R_backleg:'R_backleg0', R_backleg0:'R_backleg1', R_backleg1:'R_backleg2',
   frontleg:'frontleg0', frontleg0:'frontleg1', frontleg1:'frontleg2', R_frontleg:'R_frontleg0', R_frontleg0:'R_frontleg1', R_frontleg1:'R_frontleg2' };
@@ -279,6 +289,7 @@ const MANTA_PRIMARY_CHILD={"spine1":"head","ceph":"ceph1","R_ceph":"R_ceph1","fi
 const JELLYFISH_TEMPLATE=[{"name":"apex","parent":null,"t":[0,1.7,0],"q":[0,0,0,1]},{"name":"hub","parent":"apex","t":[0,-0.45,0],"q":[0,0,0,1]},{"name":"spoke0","parent":"hub","t":[0.45,-0.1,0],"q":[0,0,0,1]},{"name":"rim0","parent":"spoke0","t":[0.55,-0.23,0],"q":[0,0,0,1]},{"name":"ten0a","parent":"rim0","t":[-0.02,-0.42,0],"q":[0,0,0,1]},{"name":"ten0b","parent":"ten0a","t":[-0.08,-0.42,0],"q":[0,0,0,1]},{"name":"spoke1","parent":"hub","t":[0.3182,-0.1,0.3182],"q":[0,0,0,1]},{"name":"rim1","parent":"spoke1","t":[0.3889,-0.23,0.3889],"q":[0,0,0,1]},{"name":"ten1a","parent":"rim1","t":[-0.0141,-0.42,-0.0141],"q":[0,0,0,1]},{"name":"ten1b","parent":"ten1a","t":[-0.0566,-0.42,-0.0566],"q":[0,0,0,1]},{"name":"spoke2","parent":"hub","t":[0,-0.1,0.45],"q":[0,0,0,1]},{"name":"rim2","parent":"spoke2","t":[0,-0.23,0.55],"q":[0,0,0,1]},{"name":"ten2a","parent":"rim2","t":[0,-0.42,-0.02],"q":[0,0,0,1]},{"name":"ten2b","parent":"ten2a","t":[0,-0.42,-0.08],"q":[0,0,0,1]},{"name":"spoke3","parent":"hub","t":[-0.3182,-0.1,0.3182],"q":[0,0,0,1]},{"name":"rim3","parent":"spoke3","t":[-0.3889,-0.23,0.3889],"q":[0,0,0,1]},{"name":"ten3a","parent":"rim3","t":[0.0141,-0.42,-0.0141],"q":[0,0,0,1]},{"name":"ten3b","parent":"ten3a","t":[0.0566,-0.42,-0.0566],"q":[0,0,0,1]},{"name":"spoke4","parent":"hub","t":[-0.45,-0.1,0],"q":[0,0,0,1]},{"name":"rim4","parent":"spoke4","t":[-0.55,-0.23,0],"q":[0,0,0,1]},{"name":"ten4a","parent":"rim4","t":[0.02,-0.42,0],"q":[0,0,0,1]},{"name":"ten4b","parent":"ten4a","t":[0.08,-0.42,0],"q":[0,0,0,1]},{"name":"spoke5","parent":"hub","t":[-0.3182,-0.1,-0.3182],"q":[0,0,0,1]},{"name":"rim5","parent":"spoke5","t":[-0.3889,-0.23,-0.3889],"q":[0,0,0,1]},{"name":"ten5a","parent":"rim5","t":[0.0141,-0.42,0.0141],"q":[0,0,0,1]},{"name":"ten5b","parent":"ten5a","t":[0.0566,-0.42,0.0566],"q":[0,0,0,1]},{"name":"spoke6","parent":"hub","t":[0,-0.1,-0.45],"q":[0,0,0,1]},{"name":"rim6","parent":"spoke6","t":[0,-0.23,-0.55],"q":[0,0,0,1]},{"name":"ten6a","parent":"rim6","t":[0,-0.42,0.02],"q":[0,0,0,1]},{"name":"ten6b","parent":"ten6a","t":[0,-0.42,0.08],"q":[0,0,0,1]},{"name":"spoke7","parent":"hub","t":[0.3182,-0.1,-0.3182],"q":[0,0,0,1]},{"name":"rim7","parent":"spoke7","t":[0.3889,-0.23,-0.3889],"q":[0,0,0,1]},{"name":"ten7a","parent":"rim7","t":[-0.0141,-0.42,0.0141],"q":[0,0,0,1]},{"name":"ten7b","parent":"ten7a","t":[-0.0566,-0.42,0.0566],"q":[0,0,0,1]}];
 const JELLYFISH_PRIMARY_CHILD={"spoke0":"rim0","rim0":"ten0a","ten0a":"ten0b","spoke1":"rim1","rim1":"ten1a","ten1a":"ten1b","spoke2":"rim2","rim2":"ten2a","ten2a":"ten2b","spoke3":"rim3","rim3":"ten3a","ten3a":"ten3b","spoke4":"rim4","rim4":"ten4a","ten4a":"ten4b","spoke5":"rim5","rim5":"ten5a","ten5a":"ten5b","spoke6":"rim6","rim6":"ten6a","ten6a":"ten6b","spoke7":"rim7","rim7":"ten7a","ten7a":"ten7b"};
 const RIGS={ biped:{tpl:BIPED_TEMPLATE, pc:BIPED_PRIMARY_CHILD, label:'biped', bones:24},
+             bipedhand:{tpl:BIPED_HAND_TEMPLATE, pc:BIPEDHAND_PRIMARY_CHILD, label:'biped + fingers (Mixamo-ready)', bones:54},
              quad :{tpl:QUAD_TEMPLATE,  pc:QUAD_PRIMARY_CHILD,  label:'quadruped', bones:28},
              bird :{tpl:BIRD_TEMPLATE,  pc:BIRD_PRIMARY_CHILD,  label:'bird', bones:35},
              eleph:{tpl:ELEPHANT_TEMPLATE, pc:ELEPHANT_PRIMARY_CHILD, label:'elephant', bones:38},
@@ -391,13 +402,30 @@ $('#symMode').addEventListener('click', e=>{ const b=e.target.closest('button');
 
 // ---------- mesh loading ----------
 const loader=new GLTFLoader();
+const fbxLoader=new FBXLoader();
 function loadMeshFromFile(file){
+  if(/\.fbx$/i.test(file.name)){   // Mixamo / ActorCore character FBX → re-rig its mesh onto our skeleton
+    file.arrayBuffer().then(buf=>{ let obj; try{ obj=fbxLoader.parse(buf,''); }catch(e){ console.error(e); setStatus('Could not read that FBX.'); return; } _handleMeshScene({scene:obj}, file); });
+    return;
+  }
   const url=URL.createObjectURL(file);
-  loader.load(url, gltf=>{
-    URL.revokeObjectURL(url);
+  loader.load(url, gltf=>{ URL.revokeObjectURL(url); _handleMeshScene(gltf, file); }, undefined, err=>{ console.error(err); setStatus('Could not load that file.'); });
+}
+function _handleMeshScene(gltf, file){
     // find the first mesh with geometry (prefer a non-skinned plain mesh)
     let src=null; gltf.scene.traverse(o=>{ if(!src && o.isMesh && o.geometry) src=o; });
     if(!src){ setStatus('No mesh found in that file.'); return; }
+    // AUTO-DETECT fingers: if the incoming model already has finger bones, switch to the fingered biped rig so the
+    // fingers get skinned (and Mixamo/ActorCore finger motions animate). Only overrides the plain biped default.
+    let autoFinger=false;
+    { const inBones=[]; gltf.scene.traverse(o=>{ if(o.isBone) inBones.push(o.name||''); });
+      const hasFingers = inBones.some(n=>/(Hand(Thumb|Index|Middle|Ring|Pinky))|Finger|_(Thumb|Index|Mid|Ring|Pinky)\d/i.test(n));
+      if(hasFingers && (rigType==='biped'||rigType==='bipedhand')){
+        setRig('bipedhand'); autoFinger=true;
+        $('#rigSeg')?.querySelectorAll('button').forEach(x=>x.classList.toggle('on', x.dataset.rig===rigType));
+        const hn=$('#skelHeading'); if(hn) hn.textContent = RIGS[rigType].label;
+      }
+    }
     if(meshObj){ scene.remove(meshObj); }
     // bake world transform into geometry, then normalize to ~2u tall with feet on the ground
     src.updateWorldMatrix(true,true);
@@ -414,12 +442,11 @@ function loadMeshFromFile(file){
     meshMat.side=THREE.DoubleSide;
     meshObj=new THREE.Mesh(geo, meshMat); scene.add(meshObj);
     const nb=geo.boundingBox; modelHeight=(nb.max.y-nb.min.y)||2; modelCenterY=(nb.max.y+nb.min.y)/2;
-    $('#meshInfo').innerHTML=`Loaded <b>${file.name}</b><br>${geo.attributes.position.count.toLocaleString()} verts · normalized to ${modelHeight.toFixed(2)}u tall`;
+    $('#meshInfo').innerHTML=`Loaded <b>${file.name}</b><br>${geo.attributes.position.count.toLocaleString()} verts · normalized to ${modelHeight.toFixed(2)}u tall`+(autoFinger?`<br>🖐 <b>finger bones detected</b> — switched to the fingered biped rig`:'');
     autoFit();
     applyView('front');
     $('#exportBtn').disabled=false;
     setStatus('Mesh loaded. Pick a view and drag the joints onto the character.');
-  }, undefined, err=>{ console.error(err); setStatus('Could not load that file.'); });
 }
 const meshDrop=$('#meshDrop'), meshInput=$('#meshInput');
 meshDrop.onclick=()=>meshInput.click();
@@ -469,12 +496,13 @@ function autoFit(){
   // so its length runs ALONG the animal (the dog quad template comes in yawed 90° vs a Meshy horse/lion).
   // frog/rabbit are authored to Meshy's own frog/rabbit export orientation (+Z head), so they must NOT be
   // auto-yawed — every Meshy frog/rabbit comes out the same way, so the fixed template aligns them with no manual turn.
+  const isBipedType = (rigType==='biped' || rigType==='bipedhand');   // fingered biped fits exactly like the biped
   const noAutoYaw = (rigType==='frog' || rigType==='rabbit');
-  if(rigType!=='biped' && !noAutoYaw && (mSize.x>mSize.z) !== (sSize.x>sSize.z)){
+  if(!isBipedType && !noAutoYaw && (mSize.x>mSize.z) !== (sSize.x>sSize.z)){
     raw=raw.map(p=>new THREE.Vector3(p.z, p.y, -p.x));           // −90° yaw about vertical (flipped default so the head lands at the mesh's head end for the new biped-oriented exports; Turn slider still corrects any residual)
     sMin.set(1e9,1e9,1e9); sMax.set(-1e9,-1e9,-1e9); raw.forEach((p,i)=>{ if(!hasWings || isCore(i)){ sMin.min(p); sMax.max(p); } }); sSize=sMax.clone().sub(sMin);
   }
-  if(rigType==='biped'){
+  if(isBipedType){
     // biped: uniform scale by HEIGHT (arm pose makes width unreliable), feet on the ground, centred on the root joint
     const s=(mSize.y*0.98)/((sSize.y)||1);
     jointPos=raw.map(p=>new THREE.Vector3((p.x-sMin.x-sSize.x/2)*s, (p.y-sMin.y)*s+mMin.y, (p.z-sMin.z-sSize.z/2)*s));
@@ -613,6 +641,7 @@ $('#rigSeg').addEventListener('click', e=>{
   $('#skelHeading').textContent = (rigType==='bird')
     ? `Skeleton = standard bird · UniRig (${r.bones} bones)` : `Skeleton = standard ${r.label} (${r.bones} bones)`;
   $('#skelNote').textContent = (rigType==='biped') ? 'Biped rigs can use the 579-motion library. '
+    : (rigType==='bipedhand') ? 'Biped + fingers: uses the biped motion library AND animates fingers from Mixamo/ActorCore imports. '
     : (rigType==='bird') ? 'Matches the standard UniRig bird (Bone_000–034) — bird animations retarget onto it. '
     : 'Quadruped rigs play their own animation clips (the library is biped-only). ';
   autoFit();   // re-fit the newly chosen skeleton (works with or without a mesh loaded)
@@ -774,6 +803,7 @@ function computeSkin(){
     if(/^(Hips|Spine|Spine0[12]|chest|neck|Head|head|saddle|spine0[1-4])$/.test(n)) return 0.11*H;
     if(/(UpLeg|Arm$|Shoulder|^frontleg$|^R_frontleg$|^backleg$|^R_backleg$|neck0[1-4])/.test(n)) return 0.06*H;
     if(/(^Left|^Right)(Leg|ForeArm)$|leg[01]$/.test(n)) return 0.045*H;
+    if(/Hand(Thumb|Index|Middle|Ring|Pinky)\d/.test(n)) return 0.012*H;   // finger phalanges: thin, so they don't grab neighbours/palm
     if(/(Hand|Foot|ToeBase|leg2$|head_end|headfront|headend|earend|ear)/.test(n)) return 0.03*H;
     return 0.035*H; });
   // SURFACE DISTANCE: straight-line distance cannot tell a fingertip resting against a thigh from the thigh's own skin

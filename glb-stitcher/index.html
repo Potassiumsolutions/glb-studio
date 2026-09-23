@@ -315,8 +315,8 @@
   <aside class="sidebar">
     <div class="card">
       <h2>1 · Animation clips (GLB)</h2>
-      <div class="drop" id="glbDrop">Drop numbered <b>.glb</b> files here<br>or click to browse</div>
-      <input type="file" id="glbInput" accept=".glb,model/gltf-binary" multiple hidden>
+      <div class="drop" id="glbDrop">Drop <b>.glb</b> or <b>.fbx</b> files here<br><span class="hint" style="margin:0">Meshy/our GLBs · Mixamo &amp; ActorCore character FBX (fingers included)</span><br>or click to browse</div>
+      <input type="file" id="glbInput" accept=".glb,.fbx,model/gltf-binary" multiple hidden>
       <ul class="list" id="glbList"></ul>
       <div class="hint">Ordered by the number in each name (clip_01, clip_02 …). Click a clip to view it · ▲▼ reorders · 🎥 gives that clip its own camera. The viewer shows one clip at a time — press <b>Preview playback</b> or Render to see them stitched together.</div>
     </div>
@@ -740,6 +740,20 @@
         <label class="ck" style="margin-top:4px;margin-left:18px"><input type="checkbox" id="expAnim"> …with animation <span class="hint" style="text-transform:none;letter-spacing:0">(active character's timeline)</span></label>
         <label class="ck" style="margin-top:4px"><input type="checkbox" id="expEnv"> Environment <span class="hint" style="text-transform:none;letter-spacing:0">(floor / walls / terrain)</span></label>
       </div>
+<div class="build-helpers" style="margin-top:12px;padding:8px 10px">
+        <div class="hint" style="margin:0 0 6px;text-transform:none;letter-spacing:0"><b>🎮 Game &amp; VTT exports</b> — for 2D games &amp; virtual tabletops (Foundry / Roll20 / Owlbear) and store / Patreon listings.</div>
+        <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap">
+          <label class="hint" style="margin:0">Angles <select id="spAngles"><option>1</option><option>4</option><option selected>8</option><option>16</option></select></label>
+          <label class="hint" style="margin:0">Frames <select id="spFrames"><option>4</option><option selected>8</option><option>12</option><option>16</option></select></label>
+          <label class="hint" style="margin:0">Cell <select id="spCell"><option>128</option><option selected>256</option><option>384</option></select></label>
+        </div>
+        <button class="btn ghost" id="exportSprites" style="width:100%">▦ Sprite sheet — multi-angle PNG + JSON atlas</button>
+        <button class="btn ghost" id="exportGif" style="width:100%;margin-top:6px">🎞 GIF loop — this scene</button>
+        <button class="btn ghost" id="exportToken" style="width:100%;margin-top:6px">🎫 VTT token — transparent looping GIF (square)</button>
+        <button class="btn ghost" id="exportTurntable" style="width:100%;margin-top:6px">🔄 360° turntable — spinning GIF</button>
+        <div class="hint" id="gvStatus" style="margin-top:5px"></div>
+      </div>
+
       <a class="dl" id="dl"></a>
     </div>
     <div class="foot">Runs entirely in your browser · nothing uploaded</div>
@@ -955,11 +969,12 @@
 <script type="module">
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 
 const $ = s => document.querySelector(s);
-const APP_NAME='GLB Stitcher', APP_VERSION='1.9.9', APP_BUILD='2026-09-21';   // version shown in About + footer
+const APP_NAME='GLB Stitcher', APP_VERSION='1.10.0', APP_BUILD='2026-09-21';   // version shown in About + footer
 // Bump APP_BUILD whenever the app or the bundled motion library changes. It is printed to the console and
 // shown in the footer so "am I running the current version?" can be answered by looking, not by guessing —
 // a stale browser tab kept an old build alive twice while the files on disk were already up to date.
@@ -1280,7 +1295,32 @@ function drawBrandCard(textAlpha){
 }
 
 const loader = new GLTFLoader();
+const fbxLoader = new FBXLoader();
 const clock = new THREE.Clock();
+// ---- Mixamo / ActorCore import: FBX load + bone-name canonicalisation → our joint names ----
+// So a Mixamo rigged CHARACTER (mesh + skeleton + fingers) loads directly and our motion library
+// (incl. the finger gestures) retargets onto it by name. Same map the Motion Library tool uses.
+const _CANON_SPECIAL={ Spine1:'Spine01', Spine2:'Spine02', Spine3:'Spine02', Neck:'neck', Neck1:'neck', HeadTop_End:'head_end' };
+const _CANON_CC={ Hip:'Hips',Pelvis:'Hips',Waist:'Spine',NeckTwist01:'neck',NeckTwist02:'neck',Head:'Head',
+  L_Clavicle:'LeftShoulder',L_Upperarm:'LeftArm',L_Forearm:'LeftForeArm',L_Hand:'LeftHand',
+  R_Clavicle:'RightShoulder',R_Upperarm:'RightArm',R_Forearm:'RightForeArm',R_Hand:'RightHand',
+  L_Thigh:'LeftUpLeg',L_Calf:'LeftLeg',L_Foot:'LeftFoot',L_ToeBase:'LeftToeBase',
+  R_Thigh:'RightUpLeg',R_Calf:'RightLeg',R_Foot:'RightFoot',R_ToeBase:'RightToeBase',
+  L_Thumb1:'LeftHandThumb1',L_Thumb2:'LeftHandThumb2',L_Thumb3:'LeftHandThumb3',L_Index1:'LeftHandIndex1',L_Index2:'LeftHandIndex2',L_Index3:'LeftHandIndex3',L_Mid1:'LeftHandMiddle1',L_Mid2:'LeftHandMiddle2',L_Mid3:'LeftHandMiddle3',L_Ring1:'LeftHandRing1',L_Ring2:'LeftHandRing2',L_Ring3:'LeftHandRing3',L_Pinky1:'LeftHandPinky1',L_Pinky2:'LeftHandPinky2',L_Pinky3:'LeftHandPinky3',
+  R_Thumb1:'RightHandThumb1',R_Thumb2:'RightHandThumb2',R_Thumb3:'RightHandThumb3',R_Index1:'RightHandIndex1',R_Index2:'RightHandIndex2',R_Index3:'RightHandIndex3',R_Mid1:'RightHandMiddle1',R_Mid2:'RightHandMiddle2',R_Mid3:'RightHandMiddle3',R_Ring1:'RightHandRing1',R_Ring2:'RightHandRing2',R_Ring3:'RightHandRing3',R_Pinky1:'RightHandPinky1',R_Pinky2:'RightHandPinky2',R_Pinky3:'RightHandPinky3' };
+function canonBone(name){ if(!name) return name; let n=name.replace(/^mixamorig:?/i,'').replace(/^CC_Base_/i,''); return _CANON_CC[n]||_CANON_SPECIAL[n]||n; }
+function isImportedRig(root){ let hit=false; root.traverse(o=>{ if(o.isBone && /^(mixamorig|CC_Base_)/i.test(o.name)) hit=true; }); return hit; }
+function canonicalizeRig(root, clips){ if(!isImportedRig(root)) return false; const map={};
+  root.traverse(o=>{ if(o.isBone){ const c=canonBone(o.name); map[o.name]=c; o.name=c; } });
+  for(const clip of (clips||[])) for(const t of clip.tracks){ const dot=t.name.indexOf('.'); if(dot<0) continue;
+    const node=t.name.slice(0,dot), prop=t.name.slice(dot); if(map[node]) t.name=map[node]+prop; }
+  return true; }
+// load a character file → {scene, animations}; .fbx via FBXLoader (+ canonicalise), .glb via GLTFLoader
+async function loadCharFile(f){
+  if(/\.fbx$/i.test(f.name)){ const buf=await f.arrayBuffer(); const obj=fbxLoader.parse(buf,''); const g={scene:obj, animations:obj.animations||[]}; canonicalizeRig(g.scene, g.animations); return g; }
+  const url=URL.createObjectURL(f); try{ const g=await loader.loadAsync(url); canonicalizeRig(g.scene, g.animations||[]); return g; } finally{ URL.revokeObjectURL(url); }
+}
+
 
 // ---------- State ----------
 let clips = [];               // {id,name,order,gltf,root,mixer,action,duration,speed,cam:{custom,yaw,camY,pad,exp}}
@@ -3474,15 +3514,14 @@ $('#audioClear').addEventListener('click', ()=>{ audioBuffer=null; audioName='';
 // ---------- GLB loading ----------
 function numFromName(name){ const m=name.match(/(\d+)/g); return m?parseInt(m[m.length-1],10):999999; }
 async function addGLBs(files, charName){
-  const glbs=files.filter(f=>/\.glb$/i.test(f.name));
+  const glbs=files.filter(f=>/\.(glb|fbx)$/i.test(f.name));   // .glb (Meshy/ours) + .fbx (Mixamo/ActorCore characters)
   // Name a freshly-created character after its file when a single model is loaded (a sample, or one dropped
   // rig) — clearer than "Character 1". A batch of numbered clips (the multi-file workflow) keeps "Character N".
-  const autoName = charName || (glbs.length===1 ? glbs[0].name.replace(/\.glb$/i,'').trim() : null);
+  const autoName = charName || (glbs.length===1 ? glbs[0].name.replace(/\.(glb|fbx)$/i,'').trim() : null);
   for(const f of glbs){
     setStatus('Loading '+f.name+' …');
     try{
-      const url=URL.createObjectURL(f);
-      const gltf=await loader.loadAsync(url); URL.revokeObjectURL(url);
+      const gltf=await loadCharFile(f);
       const root=gltf.scene;
       // frustumCulled=false: a SkinnedMesh's bind-pose bounding sphere doesn't follow the
       // animation/travel, so some GLB exports get wrongly culled and vanish while the ground
@@ -6311,7 +6350,20 @@ function mlRootSig(root){ if(!root) return null; if(root.__mlSig===undefined){ t
 // (retarget is by bone NAME). Without this, a cached 36-bone pegasus (Studio-Library IndexedDB survives refreshes)
 // shows ZERO of its own 39-bone motions.
 function sigCore(sig){ return sig ? sig.split('|').filter(b=>!/^(neck0[123]|wingbase)$/.test(b)).join('|') : sig; }   // wingbase (shared wing-shoulder joint) added later — optional too, same reasoning as the neck
-function sigCompat(a,b){ return a===b || (!!a && !!b && sigCore(a)===sigCore(b)); }
+function sigCompat(a,b){
+  if(a===b) return true;
+  if(!a || !b) return false;
+  if(sigCore(a)===sigCore(b)) return true;
+  // BONE-SUBSET match: a motion plays on a character when (nearly) all the motion's bones exist on the
+  // character by name — retarget is name-based, so extra character bones are harmless. This is what lets an
+  // imported Mixamo character (superset: body + fingers + eyes) use our biped (24) AND finger-gesture (54)
+  // motions, while still separating species (a quad's frontleg/backleg bones aren't on a biped → no match).
+  const A=new Set(a.split('|')), Barr=b.split('|');
+  const small = Barr.length<=A.size ? Barr : [...A];
+  const big   = Barr.length<=A.size ? A   : new Set(Barr);
+  let hit=0; for(const bone of small) if(big.has(bone)) hit++;
+  return hit >= Math.ceil(small.length*0.88);
+}
 function mlActiveRoot(){ const ch=(typeof activeChar==='function')?activeChar():null;
   if(ch){ const src=charClips(ch).find(c=>c.hips&&c.root); if(src) return {root:src.root, name:ch.name}; }
   return libRig?{root:libRig.root, name:libRig.label}:null; }
@@ -6483,6 +6535,84 @@ function saveCurrentPNG(){
   }, 'image/png');
 }
 $('#savePng')?.addEventListener('click', saveCurrentPNG);
+
+// ---------- Game & VTT exports: sprite sheet, GIF loop, VTT token, 360° turntable ----------
+async function _gifenc(){ if(!window.__gifenc) window.__gifenc=await import('https://cdn.jsdelivr.net/npm/gifenc@1.0.3/+esm'); return window.__gifenc; }
+const _gv=(t)=>{ const e=$('#gvStatus'); if(e) e.textContent=t; };
+function _activeClip(){ const i=(typeof selIndex==='number')?selIndex:0; return (clips.length && clips[i]) ? clips[i] : (clips[0]||null); }
+function _pushSize(w,h){ const oW=outW,oH=outH,ar=camera.aspect; outW=w;outH=h; renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix();
+  return ()=>{ outW=oW;outH=oH; renderer.setSize(oW,oH,false); camera.aspect=ar; camera.updateProjectionMatrix(); renderFrame(); }; }
+function _poseClip(c,t){ if(c&&c.action&&c.mixer){ c.action.paused=false; c.action.reset(); c.action.play(); c.mixer.setTime(Math.max(0,Math.min((c.duration||0.001),t))); } if(c&&c.root) c.root.updateMatrixWorld(true); }
+function _gifFrame(g, enc, ctx, w, h, fps, trans){ const {data}=ctx.getImageData(0,0,w,h); const fmt=trans?'rgba4444':'rgb565';
+  const pal=g.quantize(data,256,{format:fmt, oneBitAlpha:trans}); const idx=g.applyPalette(data,pal,fmt);
+  enc.writeFrame(idx,w,h,{palette:pal, delay:Math.round(1000/fps), transparent:trans, dispose:trans?2:0}); }
+function _dl(blob,name){ const a=$('#dl'); a.href=URL.createObjectURL(blob); a.download=name; a.click(); }
+
+async function exportSpriteSheet(){
+  const c=_activeClip(); if(!c){ _gv('Load a character first.'); return; }
+  const N=+$('#spAngles').value||8, F=+$('#spFrames').value||8, cell=+$('#spCell').value||256;
+  const tb=$('#transBg'), wasT=tb.checked; tb.checked=true;             // isolate the character on alpha
+  const wasP=previewing; previewing=true;                              // hide the location ring / gizmo / forward arrow
+  const restore=_pushSize(cell,cell);
+  const atlas=document.createElement('canvas'); atlas.width=F*cell; atlas.height=N*cell; const ax=atlas.getContext('2d');
+  const dur=c.duration||1;
+  try{
+    for(let a=0;a<N;a++){ for(let f=0;f<F;f++){ orbitCamera(a/N*Math.PI*2); _poseClip(c,(f/F)*dur); renderFrame(); ax.drawImage(renderer.domElement, f*cell, a*cell, cell, cell); }
+      _gv(`Sprite sheet… angle ${a+1}/${N}`); await new Promise(r=>setTimeout(r)); }
+  } finally { tb.checked=wasT; previewing=wasP; restore(); orbitCamera(0); }
+  const png=await new Promise(res=>atlas.toBlob(res,'image/png'));
+  const base=(c.name||'sprite').replace(/\.(glb|fbx)$/i,'').replace(/\s+/g,'_');
+  const meta={ image:base+'_sheet.png', frameWidth:cell, frameHeight:cell, columns:F, rows:N, framesPerAngle:F, angleCount:N,
+    layout:'row = view angle (top row 0°, +'+(360/N)+'° per row); column = animation frame', clip:c.name, fps:Math.max(1,Math.round(F/dur)) };
+  _dl(png, base+'_sheet.png');
+  setTimeout(()=>_dl(new Blob([JSON.stringify(meta,null,2)],{type:'application/json'}), base+'_sheet.json'), 500);
+  _gv(`✓ Sprite sheet ${F*cell}×${N*cell}px — ${N} angles × ${F} frames + JSON atlas.`);
+}
+
+async function exportToken(){
+  const c=_activeClip(); if(!c){ _gv('Load a character first.'); return; }
+  const g=await _gifenc(); const enc=g.GIFEncoder();
+  const cell=256, dur=c.duration||1, F=Math.max(8, Math.round(dur*Math.min(20,parseInt($('#fps').value)||20))), fps=Math.max(1,Math.round(F/dur));
+  const tb=$('#transBg'), wasT=tb.checked; tb.checked=true;             // token = transparent, looping, square
+  const wasP=previewing; previewing=true;                              // hide overlays
+  const restore=_pushSize(cell,cell);
+  const tmp=document.createElement('canvas'); tmp.width=cell;tmp.height=cell; const tx=tmp.getContext('2d',{willReadFrequently:true});
+  try{ for(let f=0; f<F; f++){ _poseClip(c,(f/F)*dur); renderFrame(); tx.clearRect(0,0,cell,cell); tx.drawImage(renderer.domElement,0,0,cell,cell);
+      _gifFrame(g,enc,tx,cell,cell,fps,true); if(f%6===0){ _gv(`VTT token… ${f}/${F}`); await new Promise(r=>setTimeout(r)); } }
+  } finally { tb.checked=wasT; previewing=wasP; restore(); }
+  enc.finish(); const blob=new Blob([enc.bytes()],{type:'image/gif'}); _dl(blob,'vtt-token.gif');
+  _gv(`✓ VTT token — transparent ${cell}px looping GIF, ${F} frames (${(blob.size/1024).toFixed(0)} KB).`);
+}
+
+async function exportTurntable(){
+  const g=await _gifenc(); const enc=g.GIFEncoder();
+  const N=48, cell=384, trans=transparentBg();
+  const wasP=previewing; previewing=true;                              // hide overlays
+  const restore=_pushSize(cell,cell);
+  const tmp=document.createElement('canvas'); tmp.width=cell;tmp.height=cell; const tx=tmp.getContext('2d',{willReadFrequently:true});
+  try{ for(let i=0;i<N;i++){ orbitCamera(i/N*Math.PI*2); renderFrame(); tx.clearRect(0,0,cell,cell); tx.drawImage(renderer.domElement,0,0,cell,cell);
+      _gifFrame(g,enc,tx,cell,cell,30,trans); if(i%8===0){ _gv(`Turntable… ${i}/${N}`); await new Promise(r=>setTimeout(r)); } }
+  } finally { previewing=wasP; restore(); orbitCamera(0); }
+  enc.finish(); const blob=new Blob([enc.bytes()],{type:'image/gif'}); _dl(blob,'turntable.gif');
+  _gv(`✓ 360° turntable GIF — ${cell}px, ${N} frames (${(blob.size/1024).toFixed(0)} KB).`);
+}
+
+async function exportSceneGif(){
+  if(!clips.length){ _gv('Load a character / clips first.'); return; }
+  const g=await _gifenc(); const enc=g.GIFEncoder();
+  applySize(); const fps=parseInt($('#fps').value)||30, loops=parseInt($('#loops').value)||1, hold=parseFloat($('#hold').value)||0, trans=transparentBg();
+  const scale=Math.min(1, 480/Math.max(outW,outH)); const gw=Math.max(2,Math.round(outW*scale)), gh=Math.max(2,Math.round(outH*scale));
+  const tmp=document.createElement('canvas'); tmp.width=gw;tmp.height=gh; const tx=tmp.getContext('2d',{willReadFrequently:true});
+  const wasPrev=previewing; previewing=true;                            // preview guards (no gizmo); rendering=false → runShow adds NO brand cards
+  try{ await runShow(fps,loops,hold,false,trans, async(i)=>{ tx.clearRect(0,0,gw,gh); tx.drawImage(renderer.domElement,0,0,gw,gh); _gifFrame(g,enc,tx,gw,gh,fps,trans); if(i%10===0) _gv(`GIF… frame ${i}`); }, ()=>false); }
+  finally { previewing=wasPrev; }
+  enc.finish(); const blob=new Blob([enc.bytes()],{type:'image/gif'}); _dl(blob,'scene.gif');
+  _gv(`✓ GIF loop — ${gw}×${gh} (${(blob.size/1024).toFixed(0)} KB).`);
+}
+$('#exportSprites')?.addEventListener('click', ()=>{ exportSpriteSheet().catch(e=>{ console.error(e); _gv('Sprite sheet failed: '+e.message); }); });
+$('#exportToken')?.addEventListener('click', ()=>{ exportToken().catch(e=>{ console.error(e); _gv('Token failed: '+e.message); }); });
+$('#exportTurntable')?.addEventListener('click', ()=>{ exportTurntable().catch(e=>{ console.error(e); _gv('Turntable failed: '+e.message); }); });
+$('#exportGif')?.addEventListener('click', ()=>{ exportSceneGif().catch(e=>{ console.error(e); _gv('GIF failed: '+e.message); }); });
 
 wireDrop($('#mlRigDrop'), $('#mlRigInput'), async files=>{
   const f=files.find(x=>/\.glb$/i.test(x.name)); if(!f) return;
