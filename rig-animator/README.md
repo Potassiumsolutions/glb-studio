@@ -100,9 +100,10 @@ Verify: `bake.mjs --ids …` → `bodyclip.mjs <lib> ids` → `flipscan.mjs <bas
   Stitcher's constant scroll. New gaits should use `gaitNorm`/`gaitIK`, never hand-swung legs with a bobbed root.
 
 ## What's new (2026-09-23): physics engine + fingered rig
-- **🖐 Biped + Fingers rig** (54 bones, Mixamo-named): every biped motion gets physics-based finger animation (grips tighten
+- **🖐 Biped + Fingers rig** (54 bones, standard finger naming): every biped motion gets physics-based finger animation (grips tighten
   before impacts, fingers extend at release, passive inertia), plus 6 hand gestures (thumbs-up, point, wave, clap, raised fist,
-  open palm). Works on Mixamo / ActorCore characters in the Stitcher.
+  open palm). Works on fingered characters in the Stitcher, including models generated on mixamo.com.
+  *Meshy and Mixamo are trademarks of their respective owners (Mixamo: Adobe Inc.). GLB Studio is an independent tool and is not affiliated with, sponsored or endorsed by them.*
 - **Gravity:** every airborne phase keeps the body's centre of mass on a true 9.81 m/s² parabola. Jump height and air time are
   tied by physics, push-off accelerates the body to take-off speed, and landings absorb the real impact speed.
 - **Wrists are joints with limits** (flexion/extension, deviation, forearm roll) and hands use an anatomical frame, so prop grips

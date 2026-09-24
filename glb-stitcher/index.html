@@ -315,7 +315,7 @@
   <aside class="sidebar">
     <div class="card">
       <h2>1 · Animation clips (GLB)</h2>
-      <div class="drop" id="glbDrop">Drop <b>.glb</b> or <b>.fbx</b> files here<br><span class="hint" style="margin:0">Meshy/our GLBs · Mixamo &amp; ActorCore character FBX (fingers included)</span><br>or click to browse</div>
+      <div class="drop" id="glbDrop">Drop <b>.glb</b> or <b>.fbx</b> files here<br><span class="hint" style="margin:0">rigged GLB or character FBX — works with models generated on meshy.ai and mixamo.com (fingers included)</span><br>or click to browse</div>
       <input type="file" id="glbInput" accept=".glb,.fbx,model/gltf-binary" multiple hidden>
       <ul class="list" id="glbList"></ul>
       <div class="hint">Ordered by the number in each name (clip_01, clip_02 …). Click a clip to view it · ▲▼ reorders · 🎥 gives that clip its own camera. The viewer shows one clip at a time — press <b>Preview playback</b> or Render to see them stitched together.</div>
@@ -924,6 +924,7 @@
       <li>Drag the character on the ground to place it; middle-drag / Alt-drag to orbit.</li>
       <li><b>☰ Menu → Save</b> keeps all settings + per-clip options in a <code>.json</code> project.</li>
     </ul>
+    <p class="hint" style="margin:0 0 12px;font-size:11.5px">Works with models generated on meshy.ai and mixamo.com. Meshy and Mixamo are trademarks of their respective owners (Mixamo: Adobe Inc.). GLB Studio is an independent tool and is not affiliated with, sponsored or endorsed by them.</p>
     <div class="about-credits">
       <div class="about-cred-row">
         <svg class="ksol-logo" viewBox="0 0 240 280" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Potassium Solutions logo">
@@ -974,7 +975,7 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 
 const $ = s => document.querySelector(s);
-const APP_NAME='GLB Stitcher', APP_VERSION='1.10.1', APP_BUILD='2026-09-23';   // version shown in About + footer
+const APP_NAME='GLB Stitcher', APP_VERSION='1.10.2', APP_BUILD='2026-09-23';   // version shown in About + footer
 // Bump APP_BUILD whenever the app or the bundled motion library changes. It is printed to the console and
 // shown in the footer so "am I running the current version?" can be answered by looking, not by guessing —
 // a stale browser tab kept an old build alive twice while the files on disk were already up to date.

@@ -3263,6 +3263,30 @@ function gaitIK(t,P,dur,o){
 // impact (landing absorption 100-250 ms: Devita & Skelly 1992; Zhang 2000); if the height can't fit, the
 // height is lowered to what the available air time allows. Without o.T the old arc is used (other rigs).
 const GRAV=9.81;
+// ANIMAL HOPS (2026-09-23): a hop's body must actually LEAVE the ground on a gravity parabola. Small-animal clips are timed
+// for the REAL animal (a 0.5 s rabbit hop is a real rabbit's rhythm), but their templates are built bigger, so the arc is
+// computed at the animal's real size and converted to template units (Froude / dynamic similarity: time ∝ √size).
+//   y(τ) = g·τ·(T−τ)/2 over the airborne window [u0,u1] of the cycle, T = (u1−u0)·dur.
+const ANIMAL_REAL_H={ frog:{tpl:0.34, real:0.08}, rabbit:{tpl:0.98, real:0.35} };
+function hopArc(u, u0, u1, dur, kind){ if(u<=u0 || u>=u1) return 0; const T=(u1-u0)*dur, tau=(u-u0)*dur, a=ANIMAL_REAL_H[kind];
+  return 0.5*GRAV*tau*(T-tau)*(a ? a.tpl/a.real : 1); }
+// CONTACT + GRAVITY for hopping animals: outside the airborne window the body sits so its lowest foot is ON the floor
+// (contact solves height — the legs' extension then lifts the body instead of the feet); inside it the body flies a true
+// parabola from the take-off height to the landing height (v0 = Δy/T + g·T/2). Cached per motion (a pose-only pass).
+const HOP_POSE_ONLY={on:false}, _hopTab={}, _hopV=new THREE.Vector3();
+function hopLowFoot(){ animRoot.updateMatrixWorld(true); let m=1e9; for(const n of boneList) if(/leg2$|frontleg1$/.test(n)) m=Math.min(m, boneByName[n].getWorldPosition(_hopV).y-animRoot.position.y); return m; }
+function hopSolve(key, u, u0, u1, dur, kind, poseAt){
+  if(HOP_POSE_ONLY.on) return;
+  if(!_hopTab[key]){ HOP_POSE_ONLY.on=true; const saveZ=animRoot.position.z;
+    resetPose(); animRoot.updateMatrixWorld(true); const floor=hopLowFoot(); const tab=[];
+    for(let k=0;k<=60;k++){ animRoot.position.set(0,0,0); poseAt(k/60); tab.push(floor-hopLowFoot()); }
+    _hopTab[key]=tab; animRoot.position.set(0,0,saveZ*0); poseAt(u); HOP_POSE_ONLY.on=false; }
+  const tab=_hopTab[key], st=x=>{ const f=Math.max(0,Math.min(60,x*60)), i=Math.floor(f), a=f-i; return tab[i]+(tab[Math.min(60,i+1)]-tab[i])*a; };
+  let y=st(u);
+  if(u>u0 && u<u1){ const a=ANIMAL_REAL_H[kind], g=GRAV*(a?a.tpl/a.real:1), T=(u1-u0)*dur, tau=(u-u0)*dur, y0=st(u0), y1=st(u1), v0=(y1-y0)/T+0.5*g*T;
+    y=Math.max(y, y0+v0*tau-0.5*g*tau*tau); }
+  animRoot.position.y += y;
+}
 function jumpFlight(h, L){ return Math.sqrt(2*Math.max(0,h)/GRAV)+Math.sqrt(2*Math.max(0,h-L)/GRAV); }
 function jumpProfile(u, o){
   o=o||{};
@@ -6394,6 +6418,7 @@ const FROG_MOTIONS=[
     sw('spine', AX.x, (-pu*0.30 + pd*0.28)*A);
     sw('chest', AX.x, (-pu*0.15 + pd*0.14)*A);
     sw('head',  AX.x, (pu*0.20 - pd*0.30)*A);
+    hopSolve('frog_hop', u, 0.40, 0.70, 0.62, 'frog', uu=>RIGS.frog.motions.find(x=>x.id==='hop').build(uu*0.62,P));   // on the floor ↔ airborne (extension → fore-limb landing)
   }},
   // SWIM — synchronized hind breaststroke (frog kick): recover with knees splayed → power kick straightens the
   // 4-segment hind legs (same extension signs as the hop) → glide. Forelegs streamlined back.
@@ -6450,6 +6475,7 @@ const RABBIT_MOTIONS=[
     sw('chest', AX.x, (crouch*0.10 + lean*0.05)*A);
     sw('Hips',  AX.x, lean*0.12*A);                              // gentle transient lean (stays upright)
     sw('head',  AX.x, (-crouch*0.10 - lean*0.10)*A);
+    hopSolve('rabbit_hop', u, 0.44, 0.74, 0.50, 'rabbit', uu=>RIGS.rabbit.motions.find(x=>x.id==='hop').build(uu*0.50,P));
   }},
   // BOUND — a faster half-bound (run): stronger galloping spine flex/extend + bigger ear bounce, and it travels.
   {id:'bound', name:'Bound (run)', cat:'Locomotion', type:'move', dur:0.42, build:(t,P)=>{
@@ -6468,6 +6494,7 @@ const RABBIT_MOTIONS=[
     sw('spine', AX.x, (gather*0.32 - ext*0.22)*A);               // strong gallop arch/extend
     sw('chest', AX.x, (gather*0.14)*A);
     sw('head',  AX.x, (-gather*0.12)*A);
+    { const z=animRoot.position.z; hopSolve('rabbit_bound', u, 0.46, 0.72, 0.42, 'rabbit', uu=>RIGS.rabbit.motions.find(x=>x.id==='bound').build(uu*0.42,P)); animRoot.position.z=z; }
     animRoot.position.z += 1.1*A*(t/0.42);
   }},
   {id:'situp', name:'Sit up (alert)', cat:'Action', type:'action', dur:2.4, build:(t,P)=>{
@@ -6727,8 +6754,10 @@ const MANTA_MOTIONS = [
     const u=t/3.6, cyc=(t/3.6)*P.speed;
     const windup = u<0.2 ? Math.sin(u/0.2*Math.PI) : 0;                    // 2 hard beats to build speed before launch
     mantaFlap(cyc,P,{amp:0.45+0.6*windup, waves:0.5, pitch:0.2});
-    const air = clamp((u-0.18)/0.74, 0, 1);                               // launch ~0.18 → re-entry ~0.92
-    animRoot.position.y += 3.4*P.amp*4*air*(1-air);                        // ballistic parabola: leaps clear, falls back
+    // PHYSICAL breach (2026-09-23): mantas leap ~2 m clear of the water; gravity then fixes the air time at
+    // 2·√(2h/g) = 1.28 s (the old 2.66 s hang implied an 8.7 m leap). Launch ~0.18, splash ~0.53, then it glides on.
+    const H_BREACH=2.0, T_AIR=2*Math.sqrt(2*H_BREACH/GRAV), air = clamp((t-0.18*3.6)/T_AIR, 0, 1);
+    animRoot.position.y += P.amp*0.5*GRAV*(air*T_AIR)*(T_AIR-air*T_AIR);   // y = g·τ·(T−τ)/2 — true free fall
     animRoot.position.z += 1.2*u;                                         // forward momentum through the leap (toward the face)
     sw('Hips', AX.x, -TAU*smooth(air));                                     // one full nose-UP back-somersault in the air (level at launch & splash)
     const spread=(1-windup)*0.14; sw('fin',AX.z,spread); sw('R_fin',AX.z,-spread);   // wings spread & held for the airborne glide
@@ -7237,7 +7266,7 @@ const BIPEDHAND_MOTIONS = BIPED_MOTIONS.map(m=>withHands(m, HAND_SPECS[m.id])).c
 
 const RIGS = {
   biped:       {tpl:BIPED_TEMPLATE_M,      label:'24-bone biped rig (standard humanoid — Hips / spine / arms / legs / head).', motions:BIPED_MOTIONS},
-  bipedhand:   {tpl:BIPED_HAND_TEMPLATE_M, label:'54-bone biped + fingers (Mixamo-ready) — biped body + 5 fingers per hand; adds thumbs-up / point / wave / clap / fist / open-palm gestures.', motions:BIPEDHAND_MOTIONS},
+  bipedhand:   {tpl:BIPED_HAND_TEMPLATE_M, label:'54-bone biped + fingers (standard finger naming) — biped body + 5 fingers per hand; adds thumbs-up / point / wave / clap / fist / open-palm gestures.', motions:BIPEDHAND_MOTIONS},
   quad:        {tpl:QUAD_TEMPLATE, orient:QUAD_ORIENT, ground:QUAD_PAWS, label:'27-bone quadruped rig (Hips / legs / spine / tail).', motions:QUAD_MOTIONS},
   birdFlight:  {tpl:BIRD_TEMPLATE, ground:BIRD_TOES,         label:'35-bone standard bird (UniRig), wings-spread in-flight pose.', motions:BIRD_FLIGHT_MOTIONS},
   birdPerched: {tpl:BIRD_PERCH_TEMPLATE, ground:BIRDP_TOES, label:'47-bone perched songbird (UniRig) — wings folded natively in the mesh; feet / neck / head / tail behaviours.', motions:BIRD_PERCHED2_MOTIONS},
@@ -7330,6 +7359,91 @@ const BAKE_FPS=30;
 // CoM follows y(τ) = y_takeoff + v0·τ − g·τ²/2 through the take-off and landing CoM heights (v0 fixed by those and the
 // air time). Supports that are not the floor (climbing walls/ropes, horses, boxes being vaulted, lying/prone work) opt out.
 // Audit: tools/verify/ballistics.mjs.
+// ═════ FOOT-LOCK LAYER — static friction for planted feet (physics engine rule, 2026-09-23) ═══════════════════════════
+// A foot in contact with the floor does not slide: static friction (μs ≈ 0.6-0.8 shoe/floor) holds it far beyond the
+// shear a standing body produces. Authored 'stay' motions let planted feet drift 3-9 cm per frame while the body shifted
+// (lunges, fencing, throws, strikes, reactions). At bake, each foot's BALL (toe joint) is pinned in x,z for as long as it is
+// on the floor; the leg is re-solved by IK in its own knee plane and the foot keeps its authored attitude, so heel raises and
+// pivots on the ball still happen. When the pose wants the foot somewhere new (> 10 cm away) the foot STEPS there — lifted
+// ~4 cm over 150 ms — as a person would, and before the loop seam it steps home so the clip still loops.
+// Opt-out: travelling gaits (their planted foot legitimately glides back in place), rolls/slides/cartwheels, ground work.
+const FL_NOBAL=/^rx|tackle|blockstart|dodge|knock|stumble|fall|death|flinch|shove|trip|faint|push|plank|floor/i;   // floor work: the weight is on the HANDS   // dynamic/falling or hand-supported: exempt from static balance
+const FOOTLOCK_ON={ on:true }, FL_STEP=0.10, FL_LIFT=0.04, FL_TSTEP=0.15, FL_CONTACT=0.015;
+const FL_OPTOUT=/roll|slide|dodge|cartwheel|wallrun|backflip|kipup|getup|rxflat|lie|kneel|sit|meditate|lounge|prone|crawl|drag|climb|clamber|scramble|traverse|rope|ride|burpee|splits|handstand|vault|stairs|boxjump|pegleg|spin|discus|pirouette|twirl|turn|hammer/i;   // spins/pivots: the foot turns on its ball — pinning it crosses the legs
+function footLockPlan(m, D, params, times){
+  if(!FOOTLOCK_ON.on || m.type!=='stay' || FL_OPTOUT.test(m.id||'') || /Climbing|Mounted|Ground/.test(m.cat||'')) return null;
+  if(![B_LLEG,B_RLEG].every(L=>boneByName[L.up]&&boneByName[L.foot]&&boneByName[L.toe])) return null;
+  resetPose(); bstand(); animRoot.updateMatrixWorld(true);
+  const toeRest=boneByName[B_LLEG.toe].getWorldPosition(new THREE.Vector3()).y;
+  const n=times.length, legs=[B_LLEG,B_RLEG].map(L=>({L, ball:[], ank:[], tgt:new Array(n).fill(null), T:null, step:null}));
+  const canCom=BAL_BONES.every(b=>boneByName[b]); const com=[], hipsXZ=[]; const _v=new THREE.Vector3();
+  for(let i=0;i<n;i++){ setRootY(0); animRoot.position.set(0,0,0); m.build(times[i], params); armClearance(); animRoot.updateMatrixWorld(true);
+    for(const g of legs){ g.ball.push(boneByName[g.L.toe].getWorldPosition(new THREE.Vector3())); g.ank.push(boneByName[g.L.foot].getWorldPosition(new THREE.Vector3())); }
+    if(canCom){ const P={}; for(const b of BAL_BONES){ boneByName[b].getWorldPosition(_v); P[b]=_v.clone(); } hipsXZ.push({x:P.Hips.x,z:P.Hips.z});
+      const lerp=(a,b,k)=>a.clone().lerp(b,k), J=nm=> nm==='midHip'?lerp(P.LeftUpLeg,P.RightUpLeg,0.5) : nm==='midShoulder'?lerp(P.LeftArm,P.RightArm,0.5)
+        : nm==='LeftHandTip'?P.LeftHand.clone().addScaledVector(P.LeftHand.clone().sub(P.LeftForeArm),0.35) : nm==='RightHandTip'?P.RightHand.clone().addScaledVector(P.RightHand.clone().sub(P.RightForeArm),0.35) : P[nm];
+      let x=0,z=0,w=0; for(const [f,a,b,k] of WINTER_SEGS){ const p=lerp(J(a),J(b),k); x+=f*p.x; z+=f*p.z; w+=f; } com.push({x:x/w,z:z/w}); } }
+  resetPose();
+  const dt=(times[1]-times[0])||1/30, K=Math.max(2,Math.round(FL_TSTEP/dt)); let any=false;
+  const on=legs.map(g=>g.ball.map((b,i)=>b.y<=toeRest+FL_CONTACT || g.ank[i].y<=GROUND_ANKLE+FL_CONTACT));
+  // distance of point p outside the support polygon (2-4 points, xz)
+  const segD=(p,a,b)=>{ const dx=b.x-a.x, dz=b.z-a.z, L=dx*dx+dz*dz||1e-9; const t=Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.z-a.z)*dz)/L)); return Math.hypot(p.x-a.x-t*dx, p.z-a.z-t*dz); };
+  const outside=(p,pts)=>{ if(pts.length<3){ return pts.length===2?segD(p,pts[0],pts[1]):Math.hypot(p.x-pts[0].x,p.z-pts[0].z); }
+    const c={x:0,z:0}; pts.forEach(q=>{c.x+=q.x/pts.length;c.z+=q.z/pts.length;}); const hs=pts.slice().sort((a,b)=>Math.atan2(a.z-c.z,a.x-c.x)-Math.atan2(b.z-c.z,b.x-c.x));
+    let inside=true, best=1e9; for(let k=0;k<hs.length;k++){ const a=hs[k], b=hs[(k+1)%hs.length]; if((b.x-a.x)*(p.z-a.z)-(b.z-a.z)*(p.x-a.x)<0) inside=false; best=Math.min(best,segD(p,a,b)); } return inside?0:best; };
+  const startStep=(g,i)=>{ const j=Math.min(n-1,i+K); g.step={i0:i, from:g.T.clone(), to:g.ball[j].clone()}; };
+  for(let i=0;i<n;i++){
+    for(const [li,g] of legs.entries()){
+      if(!on[li][i]){ g.T=null; g.step=null; continue; }
+      const b=g.ball[i]; if(!g.T) g.T=b.clone();
+      if(g.step){ const s=(i-g.step.i0)/K; if(s>=1){ g.T=g.step.to.clone(); g.step=null; }
+        else { const p=g.step.from.clone().lerp(g.step.to,s*s*(3-2*s)); g.tgt[i]={x:p.x,z:p.z,lift:FL_LIFT*Math.sin(Math.PI*s)}; continue; } }
+      if(Math.hypot(b.x-g.T.x,b.z-g.T.z)>FL_STEP && i+K<n){ startStep(g,i); }
+      g.tgt[i]={x:g.T.x,z:g.T.z,lift:0};
+    }
+    // BALANCE-DRIVEN STEP: with the feet held, the centre of mass may leave the base of support where the authored feet had
+    // followed the body. A person steps then: move the foot that is furthest from where the pose put it.
+    if(canCom){ const planted=legs.filter((g,li)=>on[li][i] && !g.step && g.tgt[i]);
+      if(planted.length){ const pts=[]; for(const g of planted){ const t=g.tgt[i], ax=g.ank[i].x-g.ball[i].x, az=g.ank[i].z-g.ball[i].z; pts.push({x:t.x,z:t.z},{x:t.x+ax,z:t.z+az}); }
+        const margin=planted.length===2?0.06:0.08;
+        if(outside(com[i],pts)>margin){ let best=null,bd=0.02; for(const g of planted){ const d=Math.hypot(g.ball[i].x-g.T.x,g.ball[i].z-g.T.z); if(d>bd && i+K<n){ bd=d; best=g; } } if(best) startStep(best,i); } } }
+  }
+  for(const g of legs){
+    const e=n-1; if(g.tgt[e] && Math.hypot(g.tgt[e].x-g.ball[e].x,g.tgt[e].z-g.ball[e].z)>0.01){
+      const i0=Math.max(0,e-K), from={x:g.tgt[i0]?g.tgt[i0].x:g.ball[i0].x, z:g.tgt[i0]?g.tgt[i0].z:g.ball[i0].z};
+      for(let i=i0;i<=e;i++){ const s=(i-i0)/Math.max(1,e-i0), w=s*s*(3-2*s); g.tgt[i]={x:from.x+(g.ball[e].x-from.x)*w, z:from.z+(g.ball[e].z-from.z)*w, lift:FL_LIFT*Math.sin(Math.PI*s)*(Math.hypot(g.ball[e].x-from.x,g.ball[e].z-from.z)>0.03?1:0)}; } }
+    for(let i=0;i<n;i++){ const t=g.tgt[i]; if(t && (Math.hypot(t.x-g.ball[i].x,t.z-g.ball[i].z)>0.002 || t.lift>0)) any=true; }
+  }
+  // STATIC BALANCE (2026-09-23): in slow frames (hips < 0.3 m/s) the centre of mass must sit over the base of support — a body
+  // whose CoM is outside it is falling. Where the authored pose leans out, shift the pelvis (the whole body above the planted
+  // feet, which stay held by IK) just enough to bring the CoM back to within 5 cm of the support polygon; smoothed over ±3 frames.
+  const shift=new Array(n).fill(null).map(()=>({x:0,z:0}));
+  if(canCom && !FL_NOBAL.test(m.id||'')){
+    // only genuinely HELD poses (hips < 0.3 m/s for >= 0.3 s): a wind-up's momentary stillness at its extreme is dynamic, not static
+    const spd=hipsXZ.map((q,i)=> i>0 ? Math.hypot(q.x-hipsXZ[i-1].x, q.z-hipsXZ[i-1].z)/dt : 0), W=Math.max(3,Math.round(0.15/dt));
+    const held=spd.map((_,i)=>{ for(let j=Math.max(0,i-W);j<=Math.min(n-1,i+W);j++) if(spd[j]>0.3) return false; return true; });
+    for(let i=0;i<n;i++){ if(!held[i]) continue;
+      const pts=[]; legs.forEach((g,li)=>{ const t=g.tgt[i]; if(!on[li][i]||!t||t.lift>0) return; const ax=g.ank[i].x-g.ball[i].x, az=g.ank[i].z-g.ball[i].z; pts.push({x:t.x,z:t.z},{x:t.x+ax,z:t.z+az}); });
+      if(!pts.length) continue; const d=outside(com[i],pts); if(d<=0.05) continue;
+      // nearest support point
+      let best=null,bd=1e9; const segs=[]; for(let a=0;a<pts.length;a++) for(let b=a+1;b<pts.length;b++) segs.push([pts[a],pts[b]]); if(pts.length===1) segs.push([pts[0],pts[0]]);
+      for(const [a,b] of segs){ const dx=b.x-a.x, dz=b.z-a.z, L=dx*dx+dz*dz||1e-9; const t=Math.max(0,Math.min(1,((com[i].x-a.x)*dx+(com[i].z-a.z)*dz)/L)); const q={x:a.x+t*dx,z:a.z+t*dz}; const e=Math.hypot(com[i].x-q.x,com[i].z-q.z); if(e<bd){bd=e;best=q;} }
+      const k=Math.min(d-0.05,0.08)/Math.max(d,1e-6); shift[i]={x:(best.x-com[i].x)*k, z:(best.z-com[i].z)*k}; }   // at most 8 cm
+    const sm=shift.map((_,i)=>{ let x=0,z=0,w=0; for(let j=-3;j<=3;j++){ const q=shift[Math.max(0,Math.min(n-1,i+j))], ww=4-Math.abs(j); x+=q.x*ww; z+=q.z*ww; w+=ww; } return {x:x/w,z:z/w}; });
+    for(let i=0;i<n;i++){ shift[i]=sm[i]; if(Math.hypot(sm[i].x,sm[i].z)>0.002) any=true; } }
+  if(!any) return null;
+  const _q=new THREE.Quaternion(), _h=new THREE.Vector3(), _k=new THREE.Vector3(), _b=new THREE.Vector3(), _a=new THREE.Vector3();
+  let moved=0;
+  return { apply(i){ if(shift[i].x||shift[i].z){ animRoot.position.x+=shift[i].x; animRoot.position.z+=shift[i].z; } animRoot.updateMatrixWorld(true);
+      for(const g of legs){ const t=g.tgt[i]; if(!t) continue; const L=g.L;
+        boneByName[L.toe].getWorldPosition(_b); const dx=t.x-_b.x, dz=t.z-_b.z; if(Math.hypot(dx,dz)<0.002 && !t.lift) continue;
+        boneByName[L.foot].getWorldQuaternion(_q); boneByName[L.foot].getWorldPosition(_a);
+        boneByName[L.up].getWorldPosition(_h); boneByName[L.knee].getWorldPosition(_k);
+        legIK(L, _a.clone().add(new THREE.Vector3(dx,t.lift,dz)), _k.clone().sub(_h));
+        animRoot.updateMatrixWorld(true); const fb=boneByName[L.foot]; fb.quaternion.copy(fb.parent.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(_q)); fb.updateMatrixWorld(true);
+        moved++; } },
+    get moved(){ return moved; } };
+}
 const BALLISTIC_ON = { on:true };
 const WINTER_SEGS=[[0.081,'neck','head_end',0.45],[0.497,'midHip','midShoulder',0.50],
   [0.028,'LeftArm','LeftForeArm',0.436],[0.028,'RightArm','RightForeArm',0.436],[0.016,'LeftForeArm','LeftHand',0.430],[0.016,'RightForeArm','RightHand',0.430],
@@ -7372,8 +7486,10 @@ function bakeClip(m, D, params){
   // the ground and a horse's long neck short of it.
   let noseRest=null; if(m.nose && boneByName['headend']) noseRest=1;   // the fraction comes from the builder's INTENT (QHD_FRAC), not the template's reach
   const lieF=[];
+  const FL=footLockPlan(m, D, params, times);
   const BAL=ballisticPlan(m);
   for(let i=0;i<n;i++){ setRootY(0); animRoot.position.set(0,0,0); m.build(times[i], params); armClearance(); animRoot.updateMatrixWorld(false);
+    if(FL) FL.apply(i);
     if(BAL){ animRoot.updateMatrixWorld(true); BAL.sample(); }
     if(noseRest) noseF.push(+QHD_FRAC.toFixed(4));
     if(m.lie) lieF.push(+QLIE_FRAC.toFixed(4));
@@ -7407,7 +7523,8 @@ function bakeClip(m, D, params){
   const out={ name:'RigAnimator|'+m.name, duration:D, tracks, uuid:crypto.randomUUID(), blendMode:2500 };
   if(noseRest && noseF.length===n) out.nose={ times:times.slice(), frac:noseF };
   if(m.lie && lieF.length===n) out.lie={ times:times.slice(), frac:lieF };
-  if(physFlights && physFlights.length) out.physics={ ballistic:physFlights };   // what the gravity layer did (for audits)   // lying intent: the Stitcher rests the belly/flank on the floor when this is 1
+  if(physFlights && physFlights.length) out.physics={ ballistic:physFlights };
+  if(FL && FL.moved) (out.physics=out.physics||{}).footLock=FL.moved;               // frames where a planted foot was held / stepped   // what the gravity layer did (for audits)   // lying intent: the Stitcher rests the belly/flank on the floor when this is 1
   return out;
 }
 function skeletonEntry(){

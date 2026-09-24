@@ -68,7 +68,7 @@
 
     <div class="card">
       <h2>1 · Character mesh</h2>
-      <div class="drop" id="meshDrop">Drop a textured <b>.glb / .gltf / .fbx</b><br><span style="opacity:.7">(incl. Mixamo / ActorCore characters)</span><br>or click to browse</div>
+      <div class="drop" id="meshDrop">Drop a textured <b>.glb / .gltf / .fbx</b><br><span style="opacity:.7">(works with models generated on meshy.ai and mixamo.com)</span><br>or click to browse</div>
       <input type="file" id="meshInput" accept=".glb,.gltf,.fbx,model/gltf-binary" hidden>
       <div class="hint" id="meshInfo" style="margin-top:8px"></div>
     </div>
@@ -289,7 +289,7 @@ const MANTA_PRIMARY_CHILD={"spine1":"head","ceph":"ceph1","R_ceph":"R_ceph1","fi
 const JELLYFISH_TEMPLATE=[{"name":"apex","parent":null,"t":[0,1.7,0],"q":[0,0,0,1]},{"name":"hub","parent":"apex","t":[0,-0.45,0],"q":[0,0,0,1]},{"name":"spoke0","parent":"hub","t":[0.45,-0.1,0],"q":[0,0,0,1]},{"name":"rim0","parent":"spoke0","t":[0.55,-0.23,0],"q":[0,0,0,1]},{"name":"ten0a","parent":"rim0","t":[-0.02,-0.42,0],"q":[0,0,0,1]},{"name":"ten0b","parent":"ten0a","t":[-0.08,-0.42,0],"q":[0,0,0,1]},{"name":"spoke1","parent":"hub","t":[0.3182,-0.1,0.3182],"q":[0,0,0,1]},{"name":"rim1","parent":"spoke1","t":[0.3889,-0.23,0.3889],"q":[0,0,0,1]},{"name":"ten1a","parent":"rim1","t":[-0.0141,-0.42,-0.0141],"q":[0,0,0,1]},{"name":"ten1b","parent":"ten1a","t":[-0.0566,-0.42,-0.0566],"q":[0,0,0,1]},{"name":"spoke2","parent":"hub","t":[0,-0.1,0.45],"q":[0,0,0,1]},{"name":"rim2","parent":"spoke2","t":[0,-0.23,0.55],"q":[0,0,0,1]},{"name":"ten2a","parent":"rim2","t":[0,-0.42,-0.02],"q":[0,0,0,1]},{"name":"ten2b","parent":"ten2a","t":[0,-0.42,-0.08],"q":[0,0,0,1]},{"name":"spoke3","parent":"hub","t":[-0.3182,-0.1,0.3182],"q":[0,0,0,1]},{"name":"rim3","parent":"spoke3","t":[-0.3889,-0.23,0.3889],"q":[0,0,0,1]},{"name":"ten3a","parent":"rim3","t":[0.0141,-0.42,-0.0141],"q":[0,0,0,1]},{"name":"ten3b","parent":"ten3a","t":[0.0566,-0.42,-0.0566],"q":[0,0,0,1]},{"name":"spoke4","parent":"hub","t":[-0.45,-0.1,0],"q":[0,0,0,1]},{"name":"rim4","parent":"spoke4","t":[-0.55,-0.23,0],"q":[0,0,0,1]},{"name":"ten4a","parent":"rim4","t":[0.02,-0.42,0],"q":[0,0,0,1]},{"name":"ten4b","parent":"ten4a","t":[0.08,-0.42,0],"q":[0,0,0,1]},{"name":"spoke5","parent":"hub","t":[-0.3182,-0.1,-0.3182],"q":[0,0,0,1]},{"name":"rim5","parent":"spoke5","t":[-0.3889,-0.23,-0.3889],"q":[0,0,0,1]},{"name":"ten5a","parent":"rim5","t":[0.0141,-0.42,0.0141],"q":[0,0,0,1]},{"name":"ten5b","parent":"ten5a","t":[0.0566,-0.42,0.0566],"q":[0,0,0,1]},{"name":"spoke6","parent":"hub","t":[0,-0.1,-0.45],"q":[0,0,0,1]},{"name":"rim6","parent":"spoke6","t":[0,-0.23,-0.55],"q":[0,0,0,1]},{"name":"ten6a","parent":"rim6","t":[0,-0.42,0.02],"q":[0,0,0,1]},{"name":"ten6b","parent":"ten6a","t":[0,-0.42,0.08],"q":[0,0,0,1]},{"name":"spoke7","parent":"hub","t":[0.3182,-0.1,-0.3182],"q":[0,0,0,1]},{"name":"rim7","parent":"spoke7","t":[0.3889,-0.23,-0.3889],"q":[0,0,0,1]},{"name":"ten7a","parent":"rim7","t":[-0.0141,-0.42,0.0141],"q":[0,0,0,1]},{"name":"ten7b","parent":"ten7a","t":[-0.0566,-0.42,0.0566],"q":[0,0,0,1]}];
 const JELLYFISH_PRIMARY_CHILD={"spoke0":"rim0","rim0":"ten0a","ten0a":"ten0b","spoke1":"rim1","rim1":"ten1a","ten1a":"ten1b","spoke2":"rim2","rim2":"ten2a","ten2a":"ten2b","spoke3":"rim3","rim3":"ten3a","ten3a":"ten3b","spoke4":"rim4","rim4":"ten4a","ten4a":"ten4b","spoke5":"rim5","rim5":"ten5a","ten5a":"ten5b","spoke6":"rim6","rim6":"ten6a","ten6a":"ten6b","spoke7":"rim7","rim7":"ten7a","ten7a":"ten7b"};
 const RIGS={ biped:{tpl:BIPED_TEMPLATE, pc:BIPED_PRIMARY_CHILD, label:'biped', bones:24},
-             bipedhand:{tpl:BIPED_HAND_TEMPLATE, pc:BIPEDHAND_PRIMARY_CHILD, label:'biped + fingers (Mixamo-ready)', bones:54},
+             bipedhand:{tpl:BIPED_HAND_TEMPLATE, pc:BIPEDHAND_PRIMARY_CHILD, label:'biped + fingers (standard finger naming)', bones:54},
              quad :{tpl:QUAD_TEMPLATE,  pc:QUAD_PRIMARY_CHILD,  label:'quadruped', bones:28},
              bird :{tpl:BIRD_TEMPLATE,  pc:BIRD_PRIMARY_CHILD,  label:'bird', bones:35},
              eleph:{tpl:ELEPHANT_TEMPLATE, pc:ELEPHANT_PRIMARY_CHILD, label:'elephant', bones:38},
@@ -641,7 +641,7 @@ $('#rigSeg').addEventListener('click', e=>{
   $('#skelHeading').textContent = (rigType==='bird')
     ? `Skeleton = standard bird · UniRig (${r.bones} bones)` : `Skeleton = standard ${r.label} (${r.bones} bones)`;
   $('#skelNote').textContent = (rigType==='biped') ? 'Biped rigs can use the 579-motion library. '
-    : (rigType==='bipedhand') ? 'Biped + fingers: uses the biped motion library AND animates fingers from Mixamo/ActorCore imports. '
+    : (rigType==='bipedhand') ? 'Biped + fingers: uses the biped motion library AND animates fingers on imported fingered characters. '
     : (rigType==='bird') ? 'Matches the standard UniRig bird (Bone_000–034) — bird animations retarget onto it. '
     : 'Quadruped rigs play their own animation clips (the library is biped-only). ';
   autoFit();   // re-fit the newly chosen skeleton (works with or without a mesh loaded)

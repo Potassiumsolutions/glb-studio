@@ -102,6 +102,10 @@ Made by **KSOL Designs** — **Paul A.T. Ramey**, CAD Artist / Designer / Maker.
 
 If this is useful to you, a Patreon follow or a ⭐ on the repo is appreciated.
 
+## Trademarks
+
+GLB Studio works with models generated on meshy.ai and mixamo.com. Meshy and Mixamo are trademarks of their respective owners (Mixamo: Adobe Inc.). GLB Studio is an independent tool and is not affiliated with, sponsored or endorsed by them.
+
 ## License
 
 [MIT](LICENSE) © 2026 Paul A.T. Ramey / **KSOL Designs**. Free to use, modify, and share.
