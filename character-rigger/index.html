@@ -63,7 +63,7 @@
 <body>
 <div id="app">
   <div class="side">
-    <h1>Character Rigger <span class="appver">v1.2.0</span></h1>
+    <h1>Character Rigger <span class="appver">v1.3.0</span></h1>
     <div class="tag">Rig your own textured characters onto a standard, retargetable skeleton for the GLB Stitcher.</div>
 
     <div class="card">
@@ -156,7 +156,7 @@
         </g>
       </svg>
       <div>
-        <div><b>Character Rigger</b> v1.1.0 · part of GLB Studio</div>
+        <div><b>Character Rigger</b> v1.3.0 · part of GLB Studio</div>
         <div class="appfoot-sub">© <span class="cred-year">2026</span> Paul A.T. Ramey · <b>KSOL Designs</b> · <a href="https://www.ksoldesigns.com" target="_blank" rel="noopener">ksoldesigns.com</a></div>
       </div>
     </div>
@@ -444,6 +444,15 @@ function _handleMeshScene(gltf, file){
     const nb=geo.boundingBox; modelHeight=(nb.max.y-nb.min.y)||2; modelCenterY=(nb.max.y+nb.min.y)/2;
     $('#meshInfo').innerHTML=`Loaded <b>${file.name}</b><br>${geo.attributes.position.count.toLocaleString()} verts · normalized to ${modelHeight.toFixed(2)}u tall`+(autoFinger?`<br>🖐 <b>finger bones detected</b> — switched to the fingered biped rig`:'');
     autoFit();
+    // RE-OPEN A RIGGED GLB: if the file already has every bone of the current rig, put the joints back where they were
+    // (same normalisation as the mesh) so a saved rig can be tweaked instead of starting over from the auto-fit.
+    let reopened=false;
+    { const byName={}; gltf.scene.updateMatrixWorld(true); gltf.scene.traverse(o=>{ if(o.isBone && !byName[o.name]) byName[o.name]=o; });
+      if(BONE_NAMES.length && BONE_NAMES.every(n=>byName[n])){
+        const off=new THREE.Vector3(-ctr.x,-bb.min.y,-ctr.z), w=new THREE.Vector3();
+        BONE_NAMES.forEach((n,i)=>{ byName[n].getWorldPosition(w); jointPos[i].copy(w).add(off).multiplyScalar(s); });
+        fitBase=jointPos.map(p=>p.clone()); resetSkXf(); refreshSkeleton(); reopened=true; } }
+    if(reopened) $('#meshInfo').innerHTML+='<br>🦴 <b>existing rig restored</b> — drag joints to adjust, then Export again';
     applyView('front');
     $('#exportBtn').disabled=false;
     setStatus('Mesh loaded. Pick a view and drag the joints onto the character.');
@@ -966,6 +975,10 @@ $('#bindPreview').onclick=()=>{
 };
 
 // ---------- export ----------
+// Armature wrapper for export. Fingered biped rigs are fitted to T-pose meshes (Mixamo-style rest), so they carry a
+// `ksolRestPose:'tpose'` flag (glTF extras) that tells the GLB Stitcher to use its world-aligned retarget for them.
+function exportHolder(skinned){ const h=new THREE.Group(); h.name='Armature'; h.add(skinned);
+  if(rigType==='bipedhand') h.userData.ksolRestPose='tpose'; return h; }
 $('#exportBtn').onclick=async ()=>{
   if(!meshGeo){ setStatus('Load a mesh first.'); return; }
   const nm=(($('#meshInfo').textContent.match(/Loaded (.+?)\n/)||[])[1]||'character').replace(/\.[^.]+$/,'')+'_rigged';
@@ -980,7 +993,7 @@ $('#exportBtn').onclick=async ()=>{
   await new Promise(r=>setTimeout(r,25));                                    // let the status paint before the synchronous skin build
   try{
     const {skinned}=buildSkinnedMesh();
-    const holder=new THREE.Group(); holder.name='Armature'; holder.add(skinned);
+    const holder=exportHolder(skinned);
     const result=await new Promise((res,rej)=> new GLTFExporter().parse(holder, res, rej, {binary:true, onlyVisible:false, animations:[]}));
     const blob=new Blob([result], {type:'model/gltf-binary'});
     const mb=(blob.size/1048576).toFixed(1);

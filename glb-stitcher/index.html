@@ -975,7 +975,7 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 
 const $ = s => document.querySelector(s);
-const APP_NAME='GLB Stitcher', APP_VERSION='1.10.3', APP_BUILD='2026-09-23';   // version shown in About + footer
+const APP_NAME='GLB Stitcher', APP_VERSION='1.10.4', APP_BUILD='2026-09-23';   // version shown in About + footer
 // Bump APP_BUILD whenever the app or the bundled motion library changes. It is printed to the console and
 // shown in the footer so "am I running the current version?" can be answered by looking, not by guessing —
 // a stale browser tab kept an old build alive twice while the files on disk were already up to date.
@@ -1310,7 +1310,9 @@ const _CANON_CC={ Hip:'Hips',Pelvis:'Hips',Waist:'Spine',NeckTwist01:'neck',Neck
   L_Thumb1:'LeftHandThumb1',L_Thumb2:'LeftHandThumb2',L_Thumb3:'LeftHandThumb3',L_Index1:'LeftHandIndex1',L_Index2:'LeftHandIndex2',L_Index3:'LeftHandIndex3',L_Mid1:'LeftHandMiddle1',L_Mid2:'LeftHandMiddle2',L_Mid3:'LeftHandMiddle3',L_Ring1:'LeftHandRing1',L_Ring2:'LeftHandRing2',L_Ring3:'LeftHandRing3',L_Pinky1:'LeftHandPinky1',L_Pinky2:'LeftHandPinky2',L_Pinky3:'LeftHandPinky3',
   R_Thumb1:'RightHandThumb1',R_Thumb2:'RightHandThumb2',R_Thumb3:'RightHandThumb3',R_Index1:'RightHandIndex1',R_Index2:'RightHandIndex2',R_Index3:'RightHandIndex3',R_Mid1:'RightHandMiddle1',R_Mid2:'RightHandMiddle2',R_Mid3:'RightHandMiddle3',R_Ring1:'RightHandRing1',R_Ring2:'RightHandRing2',R_Ring3:'RightHandRing3',R_Pinky1:'RightHandPinky1',R_Pinky2:'RightHandPinky2',R_Pinky3:'RightHandPinky3' };
 function canonBone(name){ if(!name) return name; let n=name.replace(/^mixamorig\d*:?/i,'').replace(/^CC_Base_/i,''); return _CANON_CC[n]||_CANON_SPECIAL[n]||n; }
-function isImportedRig(root){ let hit=false; root.traverse(o=>{ if(o.isBone && /^(mixamorig|CC_Base_)/i.test(o.name)) hit=true; }); return hit; }
+// Imported = Mixamo / ActorCore naming, OR a rig our Character Rigger fitted to a T-pose mesh (glTF extras ksolRestPose:'tpose').
+// Both rest in a T-pose, so both need the world-aligned retarget.
+function isImportedRig(root){ let hit=false; root.traverse(o=>{ if((o.isBone && /^(mixamorig|CC_Base_)/i.test(o.name)) || (o.userData && o.userData.ksolRestPose==='tpose')) hit=true; }); return hit; }
 function canonicalizeRig(root, clips){ if(!isImportedRig(root)) return false; const map={}; root.userData.importedRig=true;
   root.traverse(o=>{ if(o.isBone){ const c=canonBone(o.name); map[o.name]=c; o.name=c; } });
   for(const clip of (clips||[])) for(const t of clip.tracks){ const dot=t.name.indexOf('.'); if(dot<0) continue;
@@ -5833,15 +5835,16 @@ function worldAlignedQuats(clip, src, rig, rootScale){
   // TARGET SOLE FROM THE REAL MESH: a Mixamo forefoot skins below its ball joint when the heel is up and the toes stay flat
   // (the blend between Foot and ToeBase), so joint points under-read the contact by up to 5 cm. Skin a subsample of each
   // foot's vertices on the CPU with the solved bone transforms and use their lowest point (vs the rest pose's lowest).
+  const _gc=(a,v,k)=>k===0?a.getX(v):k===1?a.getY(v):k===2?a.getZ(v):a.getW(v);   // works on interleaved attributes too (GLB-loaded skins)
   const meshFoot={};
   { let sm=null; rig.root.traverse(o=>{ if(o.isSkinnedMesh && o.skeleton && (!sm || o.geometry.attributes.position.count>sm.geometry.attributes.position.count)) sm=o; });
     if(sm){ const bn=sm.skeleton.bones.map(b=>b.name), pa=sm.geometry.attributes.position, si=sm.geometry.attributes.skinIndex, sw=sm.geometry.attributes.skinWeight;
       for(const L of LEGS){ const want=[bn.indexOf(L[2]), bn.indexOf(L[3])]; if(want[0]<0) continue; const cand=[];
-        for(let v=0; v<pa.count; v++){ let w=0; for(let k=0;k<4;k++) if(want.includes(si.getComponent(v,k))) w+=sw.getComponent(v,k);
+        for(let v=0; v<pa.count; v++){ let w=0; for(let k=0;k<4;k++) if(want.includes(_gc(si,v,k))) w+=_gc(sw,v,k);
           if(w>0.3) cand.push({v, y:new V().fromBufferAttribute(pa,v).applyMatrix4(sm.bindMatrix).y}); }
         cand.sort((a,b)=>a.y-b.y); const pick=cand.slice(0, 600);
         meshFoot[L[2]]=pick.map(({v})=>{ const p=new V().fromBufferAttribute(pa,v).applyMatrix4(sm.bindMatrix); const inf=[];
-          for(let k=0;k<4;k++){ const w=sw.getComponent(v,k); if(w<1e-4) continue; const b=bn[si.getComponent(v,k)]; if(!tR[b]) continue; inf.push([b,w,sm.skeleton.boneInverses[si.getComponent(v,k)]]); }
+          for(let k=0;k<4;k++){ const w=_gc(sw,v,k); if(w<1e-4) continue; const b=bn[_gc(si,v,k)]; if(!tR[b]) continue; inf.push([b,w,sm.skeleton.boneInverses[_gc(si,v,k)]]); }
           return {p, inf}; }); } } }
   const _m4=new THREE.Matrix4(), _one=new V(1,1,1), _vv=new V();
   const meshMinY=(foot,P_,W_)=>{ const L=meshFoot[foot]; if(!L||!L.length) return null; let lo=1e9; const cache={};
@@ -6335,7 +6338,7 @@ function bakeFloorContact(clip, root, spec, srcClip){
       // (a T-pose hand lies palm-down, so its wrist-to-palm-skin depth is exactly the lift a flat planted hand needs)
       let sm=null; root.traverse(o=>{ if(o.isSkinnedMesh && o.skeleton && (!sm || o.geometry.attributes.position.count>sm.geometry.attributes.position.count)) sm=o; });
       if(sm){ sm.skeleton.update(); const names=sm.skeleton.bones.map(b=>b.name), si=sm.geometry.attributes.skinIndex, sw=sm.geometry.attributes.skinWeight, p=new THREE.Vector3();
-        const lowOf=(re)=>{ const ids=new Set(names.map((n,i)=>re.test(n)?i:-1).filter(i=>i>=0)); let lo=Infinity; for(let v=0; v<si.count; v++){ let w=0; for(let k=0;k<4;k++) if(ids.has(si.getComponent(v,k))) w+=sw.getComponent(v,k); if(w>0.5){ sm.getVertexPosition(v,p); p.applyMatrix4(sm.matrixWorld); if(p.y<lo) lo=p.y; } } return lo; };
+        const lowOf=(re)=>{ const ids=new Set(names.map((n,i)=>re.test(n)?i:-1).filter(i=>i>=0)); let lo=Infinity; for(let v=0; v<si.count; v++){ let w=0; for(let k=0;k<4;k++) if(ids.has(_gc(si,v,k))) w+=_gc(sw,v,k); if(w>0.5){ sm.getVertexPosition(v,p); p.applyMatrix4(sm.matrixWorld); if(p.y<lo) lo=p.y; } } return lo; };
         const hb=B('LeftHand'), hl=lowOf(/^LeftHand/), fl=lowOf(/^Left(Foot|ToeBase)/);
         // fingered (Mixamo-type) rigs rest palm-DOWN; a Meshy hand bone is rolled 90° so its rest hand is edge-on → keep the estimate
         if(hb && isFinite(hl) && B('LeftHandIndex1')){ const d=hb.getWorldPosition(_gcV1).y-hl; if(d>0 && d<3*Math.max(spec._toeLift,1e-3)) spec._handLift=d; }
@@ -6896,6 +6899,8 @@ async function renderStudioLibrary(){
 let SAMPLE_DIR='../samples/';   // repo build serves samples one level up (glb-studio/samples); a ./samples/ next to this file also works for a standalone/dev copy
 const SAMPLE_CHARS=[
   {name:'Human',            file:'Human (biped).glb',    skeleton:'biped',      icon:'🧍'},
+  {name:'Man — animated hands',   file:'Man (animated hands).glb',   skeleton:'biped + fingers', icon:'🖐'},
+  {name:'Woman — animated hands', file:'Woman (animated hands).glb', skeleton:'biped + fingers', icon:'🖐'},
   {name:'Dog',              file:'Dog (quadruped).glb',  skeleton:'quadruped',  icon:'🐾'},
   {name:'Bird — perched',   file:'Bird - perched.glb',   skeleton:'bird',       icon:'🐦'},
   {name:'Bird — in flight', file:'Bird - in flight.glb', skeleton:'bird',       icon:'🐦'},
