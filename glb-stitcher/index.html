@@ -975,7 +975,7 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 
 const $ = s => document.querySelector(s);
-const APP_NAME='GLB Stitcher', APP_VERSION='1.10.5', APP_BUILD='2026-09-23';   // version shown in About + footer
+const APP_NAME='GLB Stitcher', APP_VERSION='1.10.6', APP_BUILD='2026-09-23';   // version shown in About + footer
 // Bump APP_BUILD whenever the app or the bundled motion library changes. It is printed to the console and
 // shown in the footer so "am I running the current version?" can be answered by looking, not by guessing —
 // a stale browser tab kept an old build alive twice while the files on disk were already up to date.
@@ -4019,6 +4019,12 @@ function flipReskinRoot(root){
     const geo=mesh.geometry, pos=geo.attributes.position, nrm=geo.attributes.normal, tan=geo.attributes.tangent;
     const si=geo.attributes.skinIndex, sw=geo.attributes.skinWeight; if(!si||!sw) continue;
     const n=pos.count;
+    // UNDO: the flip replaces the skin weights with a proximity guess, so un-flipping by flipping again could never restore
+    // the original rig. Keep the untouched arrays on the first flip; the second click puts them back exactly.
+    const keep=["position","normal","tangent","skinIndex","skinWeight"];
+    if(mesh.userData._flipOrig){ const o=mesh.userData._flipOrig; for(const k of keep){ const at=geo.attributes[k]; if(at&&o[k]){ at.array.set(o[k]); at.needsUpdate=true; } }
+      delete mesh.userData._flipOrig; mesh.skeleton.pose(); did++; continue; }
+    { const o={}; for(const k of keep){ const at=geo.attributes[k]; if(at) o[k]=at.array.slice(); } mesh.userData._flipOrig=o; }
     for(let i=0;i<n;i++){ pos.setX(i,-pos.getX(i)); pos.setZ(i,-pos.getZ(i));
       if(nrm){ nrm.setX(i,-nrm.getX(i)); nrm.setZ(i,-nrm.getZ(i)); }
       if(tan){ tan.setX(i,-tan.getX(i)); tan.setZ(i,-tan.getZ(i)); } }
@@ -5852,6 +5858,30 @@ function worldAlignedQuats(clip, src, rig, rootScale){
         _vv.copy(p).applyMatrix4(inv).applyMatrix4(M); y+=w*_vv.y; ws+=w; } if(ws>0) lo=Math.min(lo,y/ws); }
     return lo; };
   const MESH_REST={}; for(const L of LEGS){ const r=meshMinY(L[2],T.P,T.W); if(r!=null) MESH_REST[L[2]]=r; }
+  // ARM CLEARANCE (our Rigger's T/A-pose rigs): angles copied from the template put a hanging arm INSIDE a body whose hips
+  // are wider (or shoulders narrower) than the template's — the arm rested inside the hips after a push-up. Measure this
+  // character's own torso/hip silhouette once (bind pose, in a body frame on the Hips), then each frame swing an arm
+  // outward about the body's forward axis, just enough that elbow/forearm/wrist clear it.
+  let CLR=null;
+  if(rig.ksol && tR.Hips && tR.LeftUpLeg && tR.RightUpLeg && tR.Spine02){
+    let sm=null; rig.root.traverse(o=>{ if(o.isSkinnedMesh && o.skeleton && (!sm || o.geometry.attributes.position.count>sm.geometry.attributes.position.count)) sm=o; });
+    const up=T.P.Spine02.clone().sub(T.P.Hips).normalize(), lat0=T.P.LeftUpLeg.clone().sub(T.P.RightUpLeg);
+    const lat=lat0.clone().addScaledVector(up,-lat0.dot(up)).normalize(), fwd=new V().crossVectors(lat,up).normalize();
+    const Bq=new Q().setFromRotationMatrix(new THREE.Matrix4().makeBasis(lat, up, fwd));   // body frame (world, rest)
+    const bodyInHips=T.W.Hips.clone().invert().multiply(Bq);                               // carried by the Hips bone
+    const height=Math.max(...tNames.map(n=>T.P[n].y))-Math.min(...tNames.map(n=>T.P[n].y));
+    if(sm && height>1e-6 && fwd.z>0.5){                           // basis lat×up=fwd must face +Z (our rigs do)
+      const bn=sm.skeleton.bones.map(b=>b.name), pa=sm.geometry.attributes.position, si=sm.geometry.attributes.skinIndex, sw=sm.geometry.attributes.skinWeight;
+      const TORSO=/^(Hips|Spine|Spine01|Spine02|LeftUpLeg|RightUpLeg)$/;
+      const toBody=new Q().copy(Bq).invert(), o0=T.P.Hips.clone(), NB=48, lo=-0.45*height, hi=0.25*height;
+      const bins=[...Array(NB)].map(()=>({L:0,R:0,z0:1e9,z1:-1e9}));
+      for(let v=0; v<pa.count; v+=2){ let bw=0, bb=-1; for(let k=0;k<4;k++){ const w=_gc(sw,v,k); if(w>bw){ bw=w; bb=_gc(si,v,k); } }
+        if(bb<0 || !TORSO.test(bn[bb]||'')) continue;
+        const q=new V().fromBufferAttribute(pa,v).applyMatrix4(sm.bindMatrix).sub(o0).applyQuaternion(toBody);
+        const i=Math.floor((q.y-lo)/(hi-lo)*NB); if(i<0||i>=NB) continue; const B=bins[i];
+        if(q.x>0) B.L=Math.max(B.L,q.x); else B.R=Math.max(B.R,-q.x); B.z0=Math.min(B.z0,q.z); B.z1=Math.max(B.z1,q.z); }
+      CLR={ bodyInHips, bins, lo, hi, NB, r:0.022*height, marg:0.01*height }; }
+  }
   times.forEach((time,fi)=>{
     for(const n of sNames){ const p=sParent[n]; const pq=p?Ws[p]:sPW;
       const lq= qt[n] ? tmp.fromArray(qt[n].evaluate(time)).normalize() : tmp.fromArray(sR[n].q);
@@ -5859,6 +5889,24 @@ function worldAlignedQuats(clip, src, rig, rootScale){
       if(rootPos){ const lp = pt[n] ? new V().fromArray(pt[n].evaluate(time)) : new V().fromArray(sR[n].p); Ps[n]=(p?Ps[p]:new V()).clone().add(lp.applyQuaternion(pq)); } }
     for(const n of tNames){ const p=tParent[n]; const pq=p?Wt[p]:tPW;
       Wt[n]= inSrc(n) ? Ws[n].clone().multiply(SWi[n]).multiply(A[n]).multiply(T.W[n]) : pq.clone().multiply(new Q().fromArray(tR[n].q)); }
+    if(CLR){                                                        // ARM CLEARANCE (see setup above)
+      const Pw={}; for(const n of tNames){ const p=tParent[n]; Pw[n]= p ? Pw[p].clone().add(new V().fromArray(tR[n].p).applyQuaternion(Wt[p])) : T.P[n].clone(); }
+      const Bw=Wt.Hips.clone().multiply(CLR.bodyInHips), Bi=Bw.clone().invert(), fw=new V(0,0,1).applyQuaternion(Bw), org=Pw.Hips;
+      for(const [L,s] of [['Left',1],['Right',-1]]){
+        const S0=Pw[L+'Arm']; if(!S0 || !Pw[L+'ForeArm'] || !Pw[L+'Hand']) continue;
+        const pts=[Pw[L+'ForeArm'], Pw[L+'ForeArm'].clone().lerp(Pw[L+'Hand'],0.5), Pw[L+'Hand']];
+        let need=0;
+        for(const p of pts){ const q=p.clone().sub(org).applyQuaternion(Bi);
+          const i=Math.floor((q.y-CLR.lo)/(CLR.hi-CLR.lo)*CLR.NB); if(i<0||i>=CLR.NB) continue; const B=CLR.bins[i];
+          const half=s>0?B.L:B.R; if(!(half>0)) continue;
+          if(q.z<B.z0-CLR.r || q.z>B.z1+CLR.r) continue;           // in front of / behind the body → no side contact
+          if(q.x*s < -0.25*half) continue;                          // crossed well past the midline (hand in front/behind) → leave it
+          const d=half+CLR.r+CLR.marg-q.x*s; if(d<=0) continue;
+          const arm=p.distanceTo(S0); if(arm<1e-6) continue;
+          need=Math.max(need, Math.asin(Math.min(1, d/arm))); }
+        if(need>1e-4){ const R=new Q().setFromAxisAngle(fw, s*Math.min(need, 0.9));
+          for(const n of tNames) if(n===L+'Arm' || n===L+'ForeArm' || n.startsWith(L+'Hand')) Wt[n]=R.clone().multiply(Wt[n]); }
+      } }
     if(rootPos){
       const sv=new V().fromArray(pt[rootName].evaluate(time));
       const hp=tp0.clone().add(sv.clone().sub(sp0).multiplyScalar(rootScale));   // standard proportional root travel
