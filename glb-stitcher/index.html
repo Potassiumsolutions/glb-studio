@@ -975,7 +975,7 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 
 const $ = s => document.querySelector(s);
-const APP_NAME='GLB Stitcher', APP_VERSION='1.10.2', APP_BUILD='2026-09-23';   // version shown in About + footer
+const APP_NAME='GLB Stitcher', APP_VERSION='1.10.3', APP_BUILD='2026-09-23';   // version shown in About + footer
 // Bump APP_BUILD whenever the app or the bundled motion library changes. It is printed to the console and
 // shown in the footer so "am I running the current version?" can be answered by looking, not by guessing —
 // a stale browser tab kept an old build alive twice while the files on disk were already up to date.
@@ -7026,7 +7026,7 @@ function renderPacksUI(){
         +'<button type="button" class="btn sm ghost" data-rm="'+p.id+'" title="Remove this pack" style="width:auto;flex:none;padding:2px 8px;font-size:12px">✕</button></div>';
     }
     h+='</div>';
-  } else { h+='<div class="hint" style="margin-top:6px">No packs installed. Get expansion packs from Patreon, then import them here to unlock more motions, props &amp; scenes.</div>'; }
+  } else { h+='<div class="hint" style="margin-top:6px">No packs installed. Get expansion packs from <a href="https://www.patreon.com/c/KsolDesigns/shop" target="_blank" rel="noopener">Patreon</a>, then import them here to unlock more motions, props &amp; scenes.</div>'; }
   h+='</div>';
   box.innerHTML=h;
   const drop=$('#packDrop'), inp=$('#packInput');
