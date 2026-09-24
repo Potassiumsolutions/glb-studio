@@ -219,6 +219,8 @@
   document.getElementById('aboutX').addEventListener('click', ()=>about.classList.remove('open'));
   about.addEventListener('click', e=>{ if(e.target===about) about.classList.remove('open'); });
 
+  // Esc pressed while focus is in the Studio shell (not inside the tool) → pass it to the open tool so it can cancel its active tool
+  window.addEventListener('keydown', e=>{ if(e.key==='Escape'){ try{ frame.contentWindow.postMessage({ksolKey:'Escape'}, '*'); }catch(_){} } });
   // ---- Upgrades: import an expansion .studiokey → unlock content in the 🎲 Tabletop tab ----
   // Keys write ids into localStorage['studio.tabletop.exp']; the Tabletop iframe (same origin) reads them.
   const EXPANSIONS = {
