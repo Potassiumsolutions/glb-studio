@@ -810,12 +810,156 @@ function _modernBase(f){ f=String(f||''); let m;
   if((m=/^skyscraper(\d)$/.exec(f))) return {f:'skyscraper', n:+m[1]};
   if((m=/^stadium(\d)x(\d)$/.exec(f))) return {f:'stadium', w:+m[1], h:+m[2]};
   if(f==='stadiumh') return {f:'stadium', w:2, h:2, hex:true};
+  if((m=/^(airport|military|spacehub)(\d)x(\d)$/.exec(f))) return {f:m[1], w:+m[2], h:+m[3]};
+  if((m=/^(airport|military|spacehub)h$/.exec(f))) return {f:m[1], w:2, h:2, hex:true};
+  if((m=/^port(\d)x(\d)d(\d)$/.exec(f))) return {f:'port', w:+m[1], h:+m[2], dir:+m[3]};
+  if((m=/^porthd(\d)$/.exec(f))) return {f:'port', w:2, h:2, dir:+m[1], hex:true};
   return {f}; }
-const MODERN_FEATS=new Set(['skyscraper','skyyard','stadium','stadyard','towers','apartments','shops','homes','church','school','station','railside','lot','park','sportsfield','streetside','plaza','farmstead','turbines','watertower','elevator']);
+/* ===== BIG SITES (Modern Pack): airport · military base · space hub · sea port — each over a W×H block (hex: 7 hexes) ===== */
+const _siteExt=(gk,w,h)=> gk==='hex' ? [2.3,2.3] : [w*0.94, h*0.94];
+// a plane lying flat on the ground (local: long axis = x)
+function _flatPlane(len, wid, col, y){ const m=new THREE.Mesh(new THREE.PlaneGeometry(len,wid), col.isMaterial?col:_mCol(col,{roughness:0.95})); m.rotation.x=-Math.PI/2; m.position.y=TOP+(y||0.026); m.receiveShadow=true; return m; }
+function _airliner(r){ const g=new THREE.Group(), white=_mCol(0xf2f4f6,{roughness:0.4}), tail=_mCol([0x1f4e8c,0xb8322b,0x2f7a4a,0xe0a020][(r()*4)|0]);
+  const f=new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.02,0.24,10),white); f.rotation.z=Math.PI/2; f.position.y=TOP+0.035; f.castShadow=true; g.add(f);
+  const nose=new THREE.Mesh(new THREE.SphereGeometry(0.02,10,8),white); nose.position.set(0.12,TOP+0.035,0); g.add(nose);
+  const wing=_boxB(0.05,0.004,0.26,white); wing.position.set(0.01,TOP+0.03,0); g.add(wing);
+  const fin=_boxB(0.04,0.05,0.004,tail); fin.position.set(-0.1,TOP+0.065,0); g.add(fin);
+  const stab=_boxB(0.03,0.003,0.09,white); stab.position.set(-0.105,TOP+0.042,0); g.add(stab);
+  for(const s of [-1,1]){ const e=new THREE.Mesh(new THREE.CylinderGeometry(0.008,0.008,0.03,8),_mCol(0x9aa0a6)); e.rotation.z=Math.PI/2; e.position.set(0.02,TOP+0.022,s*0.06); g.add(e); }
+  return g; }
+function _hangar(len, wid, col){ const g=new THREE.Group(); const m=new THREE.Mesh(new THREE.CylinderGeometry(wid/2,wid/2,len,16,1,false,0,Math.PI),_mCol(col,{roughness:0.6,metalness:0.3}));
+  m.rotation.z=Math.PI/2; m.rotation.y=Math.PI/2; m.position.y=TOP; m.castShadow=true; g.add(m); return g; }
+function _airport(gk,w,h,r){ const g=new THREE.Group(), [ex,ez]=_siteExt(gk,w,h), L=Math.max(ex,ez), S=Math.min(ex,ez), inner=new THREE.Group(); if(ez>ex) inner.rotation.y=Math.PI/2; g.add(inner);
+  const rw=_mMat('runway',()=>new THREE.MeshStandardMaterial({roughness:0.9,map:_mTex('runway',256,32,(x,W,H)=>{ x.fillStyle='#35373b'; x.fillRect(0,0,W,H);
+    x.fillStyle='#f2f2ee'; for(let i=0;i<W;i+=18) x.fillRect(i+30,H/2-1,10,2); for(const x0 of [4,W-16]) for(let j=0;j<6;j++) x.fillRect(x0,4+j*4.2,12,2.4);
+    x.fillRect(0,1,W,1); x.fillRect(0,H-2,W,1); })}));
+  const run=_flatPlane(L*0.97, S*0.24, rw, 0.028); run.position.z=S*0.2; inner.add(run);
+  const tx=_flatPlane(L*0.8, S*0.07, 0x55585c, 0.027); tx.position.z=S*0.02; inner.add(tx);
+  const ty=_flatPlane(L*0.8, 0.006, 0xe8c230, 0.029); ty.position.z=S*0.02; inner.add(ty);
+  const glass=_mMat('termglass',()=>new THREE.MeshStandardMaterial({color:0x6f93b5,roughness:0.2,metalness:0.5}));
+  const term=_boxB(L*0.42,0.07,S*0.14,[glass,glass,_mCol(0xd9dde2),_mCol(0xd9dde2),glass,glass]); term.position.set(-L*0.05,TOP+0.035,-S*0.3); inner.add(term);
+  const roof=_boxB(L*0.44,0.012,S*0.17,_mCol(0xe9ecee)); roof.position.set(-L*0.05,TOP+0.076,-S*0.3); inner.add(roof);
+  const tw=new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.026,0.42,10),_mCol(0xd9dde2)); tw.position.set(L*0.3,TOP+0.21,-S*0.3); inner.add(tw);
+  const cab=new THREE.Mesh(new THREE.CylinderGeometry(0.045,0.035,0.05,10),glass); cab.position.set(L*0.3,TOP+0.44,-S*0.3); inner.add(cab);
+  const cr=new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,0.01,10),_mCol(0x55585c)); cr.position.set(L*0.3,TOP+0.47,-S*0.3); inner.add(cr);
+  for(let i=0;i<2;i++){ const hg=_hangar(0.28,0.2,0xb7bcc2); hg.position.set(-L*0.36+i*0.26,0,-S*0.28); inner.add(hg); }
+  for(let i=0;i<3;i++){ const p=_airliner(r); p.position.set(-L*0.2+i*0.3,0,-S*0.13); p.rotation.y=-Math.PI/2; inner.add(p); }        // at the gates
+  const tk=_airliner(r); tk.position.set(-L*0.3,0,S*0.2); inner.add(tk);                                                          // lined up for take-off
+  return g; }
+function _tank(r){ const g=new THREE.Group(), olive=_mCol([0x55603a,0x6b6b47,0x5a5a3c][(r()*3)|0],{roughness:0.8});
+  const hull=_boxB(0.06,0.022,0.1,olive); hull.position.y=TOP+0.016; g.add(hull);
+  const tr=_boxB(0.066,0.012,0.104,_mCol(0x2a2a26)); tr.position.y=TOP+0.006; g.add(tr);
+  const tur=_boxB(0.04,0.016,0.045,olive); tur.position.set(0,TOP+0.035,-0.005); g.add(tur);
+  const gun=new THREE.Mesh(new THREE.CylinderGeometry(0.004,0.004,0.07,6),olive); gun.rotation.x=Math.PI/2; gun.position.set(0,TOP+0.036,0.045); g.add(gun); return g; }
+function _heli(r){ const g=new THREE.Group(), c=_mCol(0x4f5a3a,{roughness:0.6});
+  const body=new THREE.Mesh(new THREE.SphereGeometry(0.03,10,8),c); body.scale.set(1,0.8,1.6); body.position.y=TOP+0.035; g.add(body);
+  const boom=_boxB(0.012,0.012,0.1,c); boom.position.set(0,TOP+0.04,-0.08); g.add(boom);
+  for(const a of [0,Math.PI/2]){ const b=_boxB(0.006,0.003,0.2,_mCol(0x222222)); b.position.y=TOP+0.07; b.rotation.y=a+0.4; g.add(b); } return g; }
+function _military(gk,w,h,r){ const g=new THREE.Group(), [ex,ez]=_siteExt(gk,w,h), hx=ex/2*0.95, hz=ez/2*0.95, fence=_mCol(0x9aa0a6,{metalness:0.4});
+  for(const [x0,z0,x1,z1] of [[-hx,-hz,hx,-hz],[hx,-hz,hx,hz],[hx,hz,-hx,hz],[-hx,hz,-hx,-hz]]){ const len=Math.hypot(x1-x0,z1-z0), f=_boxB(len,0.035,0.004,fence);
+    f.position.set((x0+x1)/2,TOP+0.018,(z0+z1)/2); f.rotation.y=-Math.atan2(z1-z0,x1-x0); f.material.transparent=true; f.material.opacity=0.6; g.add(f); }
+  for(const [sx,sz] of [[-1,-1],[1,-1],[1,1],[-1,1]]){ const x=sx*hx, z=sz*hz;                                                    // watchtowers
+    for(const [a,b] of [[-1,-1],[1,-1],[1,1],[-1,1]]){ const l=_boxB(0.004,0.16,0.004,_mCol(0x5a4a3a)); l.position.set(x+a*0.015,TOP+0.08,z+b*0.015); g.add(l); }
+    const cab=_boxB(0.05,0.03,0.05,_mCol(0x6b6b47)); cab.position.set(x,TOP+0.175,z); g.add(cab); const rf=_boxB(0.06,0.006,0.06,_mCol(0x3a3a34)); rf.position.set(x,TOP+0.195,z); g.add(rf); }
+  const tan=_mCol(0xb3a585,{roughness:0.9}), olive=_mCol(0x707552,{roughness:0.9}), roofM=_mCol(0x55603a,{roughness:0.8});
+  const pg=_flatPlane(ex*0.3, ez*0.28, 0x9a9488, 0.027); pg.rotation.z=0; pg.position.set(ex*0.02,0,-ez*0.08); g.add(pg);          // parade ground
+  const nB=Math.max(4,Math.round(ez/0.4));
+  for(let i=0;i<nB;i++){ const z=-hz*0.85+i*(hz*1.7/nB)+0.05;                                                                   // barracks rows
+    const bb=_boxB(ex*0.26,0.055,0.085,i%2?tan:olive); bb.position.set(-ex*0.3,TOP+0.028,z); g.add(bb);
+    const rf=new THREE.Mesh(new THREE.CylinderGeometry(0.047,0.047,ex*0.26,4,1),roofM); rf.rotation.z=Math.PI/2; rf.rotation.x=Math.PI/4; rf.scale.set(1,1,0.55); rf.position.set(-ex*0.3,TOP+0.06,z); g.add(rf); }
+  const hq=_building(0.16,0.26,0.1,2,13,6,r,false); hq.position.set(ex*0.02,0,-hz*0.7); hq.rotation.y=Math.PI/2; g.add(hq);
+  const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.004,0.004,0.3,5),_mCol(0xd8dadc)); pole.position.set(ex*0.02,TOP+0.15,-ez*0.08); g.add(pole);
+  const fl=new THREE.Mesh(new THREE.PlaneGeometry(0.07,0.04),_mCol(0x2f4f9a,{side:THREE.DoubleSide})); fl.position.set(ex*0.02+0.035,TOP+0.28,-ez*0.08); g.add(fl);
+  for(let i=0;i<2;i++){ const hg=_hangar(0.4,0.3,i?0x55603a:0x6b6b47); hg.position.set(ex*0.3,0,hz*0.25+i*0.36*(hz>0.9?1:0.8)-0.1); g.add(hg); }
+  const pad=new THREE.Mesh(new THREE.CircleGeometry(0.13,24),_mCol(0x55585c)); pad.rotation.x=-Math.PI/2; pad.position.set(ex*0.3,TOP+0.027,-hz*0.55); g.add(pad);
+  for(const [a2,b2,c,d] of [[-0.035,0,0.012,0.09],[0.035,0,0.012,0.09],[0,0,0.07,0.012]]){ const hb=_boxB(c,0.002,d,_mCol(0xf2f2ee)); hb.position.set(ex*0.3+a2,TOP+0.029,-hz*0.55+b2); g.add(hb); }
+  const he=_heli(r); he.position.set(ex*0.3,0,-hz*0.55); g.add(he);
+  const mp=_flatPlane(ex*0.34, ez*0.26, 0x6e6a60, 0.027); mp.position.set(ex*0.02,0,hz*0.55); g.add(mp);                          // motor pool
+  for(let row=0;row<3;row++) for(let i=0;i<Math.max(3,Math.round(ex*0.34/0.1));i++){ const x=-ex*0.13+i*0.1, z=hz*0.4+row*0.14;
+    if(row<2){ const t=_tank(r); t.position.set(x,0,z); g.add(t); }
+    else { const tr=new THREE.Group(), c=_mCol(0x5a5a3c); const cab=_boxB(0.05,0.035,0.035,c); cab.position.set(0,TOP+0.024,0.045); tr.add(cab);
+      const bed=_boxB(0.055,0.045,0.08,_mCol(0x6b6b47)); bed.position.set(0,TOP+0.03,-0.02); tr.add(bed); tr.position.set(x,0,z); g.add(tr); } }
+  const mast=new THREE.Mesh(new THREE.CylinderGeometry(0.004,0.009,0.55,5),_mCol(0xb8322b)); mast.position.set(-ex*0.05,TOP+0.275,-hz*0.85); g.add(mast);
+  for(let i=0;i<3;i++){ const tent=new THREE.Mesh(new THREE.ConeGeometry(0.05,0.05,4),_mCol(0x7a7a55)); tent.rotation.y=Math.PI/4; tent.position.set(-ex*0.05+i*0.12,TOP+0.025,hz*0.05); g.add(tent); }
+  return g; }
+function _rocket(sc){ const g=new THREE.Group(), white=_mCol(0xf4f5f6,{roughness:0.35}), black=_mCol(0x1c1c1f), gold=_mCol(0xc8a24a,{metalness:0.5,roughness:0.4});
+  const H1=1.5*sc, H2=0.55*sc, R=0.075*sc;
+  const core=new THREE.Mesh(new THREE.CylinderGeometry(R,R,H1,20),white); core.position.y=TOP+0.06+H1/2; core.castShadow=true; g.add(core);
+  for(const f of [0.25,0.72,0.98]){ const b=new THREE.Mesh(new THREE.CylinderGeometry(R*1.01,R*1.01,0.035*sc,20),black); b.position.y=TOP+0.06+H1*f; g.add(b); }
+  const up=new THREE.Mesh(new THREE.CylinderGeometry(R*0.85,R,H2,20),white); up.position.y=TOP+0.06+H1+H2/2; g.add(up);
+  const fair=new THREE.Mesh(new THREE.ConeGeometry(R*0.85,0.32*sc,20),white); fair.position.y=TOP+0.06+H1+H2+0.16*sc; g.add(fair);
+  for(const s of [-1,1]){ const bx=s*R*1.75, bh=H1*0.62, b=new THREE.Mesh(new THREE.CylinderGeometry(R*0.55,R*0.55,bh,14),white); b.position.set(bx,TOP+0.06+bh/2,0); b.castShadow=true; g.add(b);
+    const nc=new THREE.Mesh(new THREE.ConeGeometry(R*0.55,0.14*sc,14),white); nc.position.set(bx,TOP+0.06+bh+0.07*sc,0); g.add(nc);
+    const nz=new THREE.Mesh(new THREE.CylinderGeometry(R*0.35,R*0.5,0.05*sc,12),_mCol(0x3a3a3c)); nz.position.set(bx,TOP+0.035,0); g.add(nz); }
+  for(let i=0;i<4;i++){ const fin=_boxB(0.006*sc,0.12*sc,0.07*sc,black); const a=i*Math.PI/2+Math.PI/4; fin.position.set(Math.cos(a)*R*1.05,TOP+0.12*sc,Math.sin(a)*R*1.05); fin.rotation.y=-a; g.add(fin); }
+  const band=new THREE.Mesh(new THREE.CylinderGeometry(R*1.01,R*1.01,0.1*sc,20),gold); band.position.y=TOP+0.06+H1+0.05*sc; g.add(band);
+  g.userData.top=0.06+H1+H2+0.32*sc; return g; }
+function _serviceTower(hgt, sc){ const g=new THREE.Group(), red=_mCol(0xb8322b,{roughness:0.7}), w=0.1*sc;
+  for(const [a,b] of [[-1,-1],[1,-1],[1,1],[-1,1]]){ const p=_boxB(0.008*sc,hgt,0.008*sc,red); p.position.set(a*w/2,TOP+hgt/2,b*w/2); g.add(p); }
+  for(let y=0.1*sc;y<hgt;y+=0.12*sc){ for(const [x,z,lx,lz] of [[0,-w/2,w,0.006*sc],[0,w/2,w,0.006*sc],[-w/2,0,0.006*sc,w],[w/2,0,0.006*sc,w]]){ const b=_boxB(lx,0.006*sc,lz,red); b.position.set(x,TOP+y,z); g.add(b); } }
+  for(const f of [0.45,0.8]){ const arm=_boxB(0.12*sc,0.01*sc,0.02*sc,_mCol(0x55585c)); arm.position.set(w/2+0.06*sc,TOP+hgt*f,0); g.add(arm); }
+  return g; }
+function _spaceHub(gk,w,h,r){ const g=new THREE.Group(), [ex,ez]=_siteExt(gk,w,h), L=Math.max(ex,ez), S=Math.min(ex,ez), inner=new THREE.Group(); if(ez>ex) inner.rotation.y=Math.PI/2; g.add(inner);
+  const sc=Math.max(1, S/2.2)*1.15;
+  const padX=L*0.28, pad=_boxB(0.7*sc,0.04,0.7*sc,_mCol(0xc9c6bd)); pad.position.set(padX,TOP+0.02,0); inner.add(pad);
+  const trench=_boxB(0.5*sc,0.005,0.12*sc,_mCol(0x2a2a2c)); trench.position.set(padX,TOP+0.042,0); inner.add(trench);
+  const rk=_rocket(sc); rk.position.set(padX,0,0); inner.add(rk);
+  const st=_serviceTower(rk.userData.top*0.92, sc); st.position.set(padX-0.2*sc,0,0); inner.add(st);
+  const vab=_boxB(0.5*sc,0.95*sc,0.42*sc,_mCol(0xdfe1e3,{roughness:0.8})); vab.position.set(-L*0.3,TOP+0.475*sc,-S*0.12); inner.add(vab);
+  const door=_boxB(0.502*sc,0.8*sc,0.1*sc,_mCol(0x9ea3a8)); door.position.set(-L*0.3,TOP+0.4*sc,-S*0.12); inner.add(door);
+  const stripe=_boxB(0.12*sc,0.18*sc,0.425*sc,_mCol(0x2f4f9a)); stripe.position.set(-L*0.3+0.1*sc,TOP+0.75*sc,-S*0.12); inner.add(stripe);
+  const crawl=_flatPlane(L*0.56, 0.12*sc, 0xb5b1a8, 0.027); crawl.position.set(-L*0.02,0,0); inner.add(crawl);
+  const cc=_boxB(0.36*sc,0.08,0.2*sc,_mCol(0xe9ecee)); cc.position.set(-L*0.28,TOP+0.04,S*0.3); inner.add(cc);
+  const mast=new THREE.Mesh(new THREE.CylinderGeometry(0.008,0.008,0.14,6),_mCol(0x9aa0a6)); mast.position.set(-L*0.2,TOP+0.15,S*0.3); inner.add(mast);
+  const dish=new THREE.Mesh(new THREE.SphereGeometry(0.08*sc,16,8,0,Math.PI*2,0,Math.PI/3),_mCol(0xf2f4f5,{side:THREE.DoubleSide})); dish.rotation.x=Math.PI*0.75; dish.position.set(-L*0.2,TOP+0.24,S*0.3); inner.add(dish);
+  for(let i=0;i<2;i++){ const t=new THREE.Mesh(new THREE.SphereGeometry(0.07*sc,16,12),_mCol(0xf2f4f5,{roughness:0.3,metalness:0.2})); t.position.set(padX+(i?0.3:-0.3)*sc,TOP+0.1*sc,S*0.33); t.castShadow=true; inner.add(t); }
+  return g; }
+function _container(col){ return _boxB(0.1,0.034,0.04,_mCol(col,{roughness:0.7})); }
+function _seaPort(gk,w,h,dir,r){ const g=new THREE.Group(), [ex,ez]=_siteExt(gk,w,h), gr=TE.gridFor(gk), [mx,mz]=gr.edgeMid(dir), ml=Math.hypot(mx,mz);
+  const ux=mx/ml, uz=mz/ml, inner=new THREE.Group(); inner.rotation.y=Math.atan2(ux,uz); g.add(inner);                    // local +z = toward the water
+  const along = Math.abs(ux)>Math.abs(uz) ? ez : ex, deep = Math.abs(ux)>Math.abs(uz) ? ex : ez, edge=deep/2;
+  const quay=_boxB(along*0.98,0.03,0.05,_mCol(0x8e8a82)); quay.position.set(0,TOP+0.015,edge-0.02); inner.add(quay);
+  const cols=[0xb8322b,0x2f6f9a,0x3d8a4a,0xd08a2a,0x6b4a8a,0xc9ced4,0x8a3a2e];
+  const nC=Math.max(2,Math.round(along/0.9));
+  for(let i=0;i<nC;i++){ const x=(i-(nC-1)/2)*along/nC, cc=_mCol(i%2?0x2f6f9a:0xd04a2a,{roughness:0.6});                  // gantry cranes
+    for(const [a,b] of [[-0.06,edge-0.12],[0.06,edge-0.12],[-0.06,edge-0.02],[0.06,edge-0.02]]){ const l=_boxB(0.012,0.36,0.012,cc); l.position.set(x+a,TOP+0.18,b); inner.add(l); }
+    const boom=_boxB(0.03,0.025,0.62,cc); boom.position.set(x,TOP+0.37,edge+0.12); inner.add(boom);
+    const cab=_boxB(0.05,0.04,0.05,_mCol(0xe9ecee)); cab.position.set(x,TOP+0.34,edge-0.05); inner.add(cab); }
+  // container yard: bays of 3 rows × n stacks, a lane between bays, stacks 1–3 high (a bay keeps a similar height)
+  const yardFront=edge-0.28, yardBack=-edge+0.38, perRow=Math.max(2,Math.floor(along*0.86/0.108));
+  for(let z=yardFront, bay=0; z>yardBack; bay++){ const bh=1+((r()*3)|0);
+    for(let rr=0; rr<3 && z>yardBack; rr++, z-=0.048){ for(let i=0;i<perRow;i++){ if(r()<0.12) continue; const n=Math.max(1,Math.min(3,bh+((r()*3)|0)-1));
+        for(let s2=0;s2<n;s2++){ const c=_container(cols[(r()*cols.length)|0]); c.position.set((i-(perRow-1)/2)*0.108,TOP+0.017+s2*0.035,z); inner.add(c); } } }
+    z-=0.09; }                                                                                                                    // lane between bays
+  const wh=_boxB(along*0.5,0.09,0.16,_mCol(0xb7b3aa)); wh.position.set(-along*0.2,TOP+0.045,-edge+0.12); inner.add(wh);
+  const whr=_boxB(along*0.52,0.012,0.18,_mCol(0x55585c)); whr.position.set(-along*0.2,TOP+0.096,-edge+0.12); inner.add(whr);
+  // a container ship moored alongside
+  const sl=Math.min(along*0.9, 2.2), ship=new THREE.Group(); ship.position.set(0,0,edge+0.24); inner.add(ship);
+  const hull=_boxB(sl,0.07,0.26,_mCol(0x2a2a30,{roughness:0.6})); hull.position.y=TOP+0.02; ship.add(hull);
+  const red=_boxB(sl*1.001,0.02,0.261,_mCol(0x8a2a22)); red.position.y=TOP-0.005; ship.add(red);
+  const bow=new THREE.Mesh(new THREE.CylinderGeometry(0.13,0.13,0.07,3,1),_mCol(0x2a2a30)); bow.rotation.y=Math.PI/2; bow.scale.set(1,1,0.6); bow.position.set(sl/2,TOP+0.02,0); ship.add(bow);
+  for(let i=0;i<Math.floor(sl*0.75/0.105);i++) for(let j=0;j<2;j++){ const n=1+((r()*3)|0); for(let s=0;s<n;s++){ const c=_container(cols[(r()*cols.length)|0]); c.position.set(-sl*0.28+i*0.105,TOP+0.072+s*0.035,(j-0.5)*0.09); ship.add(c); } }
+  const br=_boxB(0.12,0.16,0.22,_mCol(0xf2f4f6)); br.position.set(-sl*0.42,TOP+0.135,0); ship.add(br);
+  const fun=_boxB(0.05,0.08,0.06,_mCol(0xb8322b)); fun.position.set(-sl*0.46,TOP+0.25,0); ship.add(fun);
+  return g; }
+// 2D (flat) versions of the big sites
+function _siteFlat(kind, gk, w, h, dir){ const g=new THREE.Group(), [ex,ez]=_siteExt(gk,w,h);
+  const dec=(ww,hh,c,x,z,y,rot)=>{ const d=flatDecal(ww,hh,c,0.98); d.position.set(x||0,TOP+(y||0.05),z||0); d.rotation.y=rot||0; g.add(d); return d; };
+  const L=Math.max(ex,ez), S=Math.min(ex,ez), rot=ez>ex?Math.PI/2:0, rx=(x,z)=>ez>ex?[-z,x]:[x,z];
+  if(kind==='airport'){ const [a,b]=rx(0,S*0.2); dec(ez>ex?S*0.24:L*0.97, ez>ex?L*0.97:S*0.24, 0x35373b, a, b); const [c,d]=rx(-L*0.05,-S*0.3); dec(ez>ex?S*0.14:L*0.42, ez>ex?L*0.42:S*0.14, 0x6f93b5, c, d, 0.052); }
+  else if(kind==='military'){ dec(ex*0.95,ez*0.95,0x6b6b47,0,0,0.049).material.opacity=0.35; for(let i=0;i<4;i++) dec(ex*0.3,0.09,0x6b6b47,-ex*0.22,-ez*0.33+i*0.16,0.052); }
+  else if(kind==='spacehub'){ const [a,b]=rx(L*0.28,0); dec(0.6,0.6,0xc9c6bd,a,b); const m=new THREE.Mesh(new THREE.CircleGeometry(0.1,16),new THREE.MeshBasicMaterial({color:0xf4f5f6,depthWrite:false})); m.rotation.x=-Math.PI/2; m.position.set(a,TOP+0.055,b); m.renderOrder=3; g.add(m); const [c,d]=rx(-L*0.3,-S*0.12); dec(0.45,0.4,0xdfe1e3,c,d,0.052); }
+  else if(kind==='port'){ const gr=TE.gridFor(gk), [mx,mz]=gr.edgeMid(dir), ml=Math.hypot(mx,mz), ux=mx/ml, uz=mz/ml, along=Math.abs(ux)>Math.abs(uz)?ez:ex, deep=Math.abs(ux)>Math.abs(uz)?ex:ez;
+    const d=dec(along*0.9,0.26,0x2a2a30,ux*(deep/2+0.24),uz*(deep/2+0.24),0.052,Math.atan2(ux,uz)+Math.PI/2); d.rotation.y=Math.atan2(-ux,-uz);                       // ship lies along the quay
+    for(let i=0;i<8;i++) dec(0.1,0.04,[0xb8322b,0x2f6f9a,0x3d8a4a,0xd08a2a][i%4],(i%4-1.5)*0.18-ux*0.2,(Math.floor(i/4)-0.5)*0.14-uz*0.2,0.053); }
+  return g; }
+const MODERN_FEATS=new Set(['airport','military','spacehub','port','siteyard','skyscraper','skyyard','stadium','stadyard','towers','apartments','shops','homes','church','school','station','railside','lot','park','sportsfield','streetside','plaza','farmstead','turbines','watertower','elevator']);
 // the modern scatter (3D); returns true when it handled the feature
 function modernScatter(group, def, gridKind, f, pts, r, mass, pathDirs, railDirs, roomy, faceDir, info){
   info=info||{};
-  if(f==='skyyard'||f==='stadyard') return true;                                         // ground under a landmark — the anchor tile draws it
+  if(f==='skyyard'||f==='stadyard'||f==='siteyard') return true;                        // ground under a landmark — the anchor tile draws it
+  if(f==='airport'||f==='military'||f==='spacehub'||f==='port'){ const W=info.w||2, H=info.h||2, sub=new THREE.Group(); if(gridKind==='square') sub.position.set((W-1)/2,0,(H-1)/2);
+    sub.add(f==='airport'?_airport(gridKind,W,H,r): f==='military'?_military(gridKind,W,H,r): f==='spacehub'?_spaceHub(gridKind,W,H,r): _seaPort(gridKind,W,H,info.dir||0,r)); group.add(sub); return true; }
   if(f==='skyscraper'){ const N=info.n||2, off=gridKind==='square'?(N-1)/2:0, sub=new THREE.Group(); sub.position.set(off,0,off); sub.add(_supertall(gridKind,N,r)); group.add(sub); return true; }
   if(f==='stadium'){ const W=info.w||2, H=info.h||2, sub=new THREE.Group(); if(gridKind==='square') sub.position.set((W-1)/2,0,(H-1)/2); sub.add(_stadium(gridKind,W,H,r)); group.add(sub); return true; }
   const spaced=(n,gap,ok)=>{ const got=[]; for(const p of pts){ if(got.length>=n) break; if((!ok||ok(p[0],p[1])) && got.every(q=>Math.hypot(q[0]-p[0],q[1]-p[1])>=gap)) got.push(p); } return got; };
@@ -854,7 +998,8 @@ function modernScatter(group, def, gridKind, f, pts, r, mass, pathDirs, railDirs
 // the 2D (flat map) version: simple top-down shapes
 function modernFlat(group, f, pts, r, mass, info, gridKind, railDirs){
   info=info||{};
-  if(f==='skyyard'||f==='stadyard') return true;
+  if(f==='skyyard'||f==='stadyard'||f==='siteyard') return true;
+  if(f==='airport'||f==='military'||f==='spacehub'||f==='port'){ const W=info.w||2, H=info.h||2, sub=_siteFlat(f,gridKind,W,H,info.dir||0); if(gridKind==='square') sub.position.set((W-1)/2,0,(H-1)/2); group.add(sub); return true; }
   if(f==='skyscraper'){ const N=info.n||2, off=gridKind==='square'?(N-1)/2:0, k=gridKind==='hex'?0.62*(2*N-1)*0.72:N*0.92, sub=new THREE.Group(); sub.position.set(off,0,off); group.add(sub);
     for(const [w,c,y] of [[0.62*k,0xb5b3ad,0.05],[0.44*k,0x3f566b,0.051],[0.35*k,0x4b6a86,0.052],[0.26*k,0x8fb4d6,0.053]]){ const d=flatDecal(w,w,c,0.99); d.position.y=TOP+y; sub.add(d); } return true; }
   if(f==='stadium'){ const W=info.w||2, H=info.h||2, sub=_stadiumFlat(gridKind,W,H); if(gridKind==='square') sub.position.set((W-1)/2,0,(H-1)/2); group.add(sub); return true; }

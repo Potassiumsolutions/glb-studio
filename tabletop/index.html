@@ -421,6 +421,13 @@
           <select id="bSkySize"><option value="2">2×2</option><option value="3">3×3</option><option value="4">4×4</option></select></label>
         <label class="row" style="gap:5px;align-items:center" title="Stadium footprint: 4–16 squares (hex: 7 hexes). City + Suburbs maps."><span class="mini">🏟 Stadium</span>
           <select id="bStadium"><option value="auto">Auto (4–16)</option><option value="2x2">2×2</option><option value="2x3">2×3</option><option value="3x3">3×3</option><option value="3x4">3×4</option><option value="4x4">4×4</option><option value="none">None</option></select></label>
+        <div class="row wrap" style="gap:10px;width:100%;align-items:center" title="Big sites, 4–16 squares each (hex: 7 hexes), placed out on the edge of town when there's room">
+          <span class="mini">Big sites:</span>
+          <label class="row" style="gap:4px;cursor:pointer"><input type="checkbox" id="bLmAirport" checked><span class="mini">✈ Airport</span></label>
+          <label class="row" style="gap:4px;cursor:pointer"><input type="checkbox" id="bLmMilitary" checked><span class="mini">🎖 Military base</span></label>
+          <label class="row" style="gap:4px;cursor:pointer"><input type="checkbox" id="bLmSpace" checked><span class="mini">🚀 Space hub</span></label>
+          <label class="row" style="gap:4px;cursor:pointer"><input type="checkbox" id="bLmPort" checked><span class="mini">⚓ Sea port <span style="opacity:.6">(needs open water)</span></span></label>
+        </div>
       </div>
       <div class="row wrap" id="bMoatRow" style="align-items:center;display:none">
         <label class="row" style="gap:5px;cursor:pointer"><input type="checkbox" id="bMoat"> <span class="mini">🏰 Moat + drawbridge <span style="opacity:.6">(rings the castle with water + a drawbridge)</span></span></label>
@@ -1054,7 +1061,7 @@ import * as Tuck from './tuckbox-designer.js';
 
 const BGC = window.BGC, GAMES = window.BGC_GAMES;
 const TE = window.TileEngine, TLIB = window.TileLibrary;
-const APP_VERSION = 'v0.92';
+const APP_VERSION = 'v0.93';
 const CREDITS = `<b>Ksol Designs</b> — Paul A.T. Ramey<br>www.ksoldesigns.com<br>Built with GLB Studio · Tabletop<br><span class="ver">${APP_VERSION}</span>`;
 // ---- Board credit: a small "KSOL Designs" mark on the board for the FREE build. Owning ANY content pack
 // (TTier expansion) unlocks removing it (⚙ Settings toggle, or click the credit). ----
@@ -4072,7 +4079,9 @@ function bGenerateMap(){ bPushUndo();
   if(String(bld.theme).indexOf('modern:')===0){                          // 🏙 MODERN PACK — city / suburbs / rural
     const theme=bld.theme.slice(7);
     const r=TE.generateModernMap(bld.grid, bld.board, bFillCells(), bDefs(), {seed:bld.seed, theme, stream:bld.genStream,
-      skySize:parseInt(document.getElementById('bSkySize')?.value)||2, stadium:document.getElementById('bStadium')?.value||'auto'});
+      skySize:parseInt(document.getElementById('bSkySize')?.value)||2, stadium:document.getElementById('bStadium')?.value||'auto',
+      landmarks:{ airport:!!document.getElementById('bLmAirport')?.checked, military:!!document.getElementById('bLmMilitary')?.checked,
+                  space:!!document.getElementById('bLmSpace')?.checked, port:!!document.getElementById('bLmPort')?.checked }});
     bld.modern=r.modern; bld.structPlans=[]; _settlePlan=null;
     bld.draw=Array.isArray(r.draw)?r.draw:[]; bld.pen=[]; bld.props=[]; bld.selStroke=null; bld.selProp=null;
     if(TGC_HEXMAT[bld.tgc]) bTrimToHexMatShape(); bRender(); bFit();

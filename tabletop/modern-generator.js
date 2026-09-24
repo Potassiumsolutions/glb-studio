@@ -68,7 +68,8 @@
     // centre the grid on the middle of the board so downtown sits on a crossroads
     const mid = cells.slice().sort((a, b) => { const A = g.world(a), Bw = g.world(b); return Math.hypot(A.x - cx, A.z - cz) - Math.hypot(Bw.x - cx, Bw.z - cz); })[0];
     const ctx = { theme, seed, cx, cz, span, offA: mod(mid.q, S), offB: mod(mid.r, S), railRow: null, first: true,
-      skySize: clamp((opts.skySize | 0) || 2, 2, 4), stadium: opts.stadium || 'auto' };
+      skySize: clamp((opts.skySize | 0) || 2, 2, 4), stadium: opts.stadium || 'auto',
+      landmarks: Object.assign({ airport: true, military: true, space: true, port: true }, opts.landmarks || {}) };
     const o = modernOverlay(gridKind, board, defs, cells, ctx);
     return { placed: board.size, draw: rivers.concat(o.draw), modern: o.ctx, towns: o.towns };
   }
@@ -168,12 +169,13 @@
       else for (let dq = 0; dq < w; dq++) for (let dr = 0; dr < h; dr++) out.push(keyOf({ q: c.q + dq, r: c.r + dr }));
       return out; };
     const centreOf = (cells) => { let x = 0, z = 0; cells.forEach(k => { const w = pos(k); x += w.x; z += w.z; }); return { x: x / cells.length, z: z / cells.length }; };
-    const claim = (cells, anchor, mainF, yardF) => { for (const k of cells) { for (let d = 0; d < N; d++) if (edges[k][d] === P.ROAD) setE(k, d, P.NONE);
-        street.delete(k); paved.delete(k); reserved.add(k); biome[k] = B.URBAN; feature[k] = yardF; }
+    const claim = (cells, anchor, mainF, yardF, bm) => { for (const k of cells) { for (let d = 0; d < N; d++) if (edges[k][d] === P.ROAD) setE(k, d, P.NONE);
+        street.delete(k); paved.delete(k); reserved.add(k); biome[k] = bm || B.URBAN; feature[k] = yardF; }
       feature[anchor] = mainF; };
     // best anchor for a w×h block inside a distance band (dn of the block centre), fewest streets swallowed
-    const findBlock = (w, h, lo, hi, streetPenalty) => { let best = null, bs = Infinity;
-      for (const a of keysW) { const cells = blockOf(a, w, h); if (!cells.every(okCell)) continue;
+    const gapOK = (cells) => { const set = new Set(cells); for (const k of cells) for (let d = 0; d < N; d++) { const n = nb(k, d); if (!set.has(n) && reserved.has(n) && feature[n] !== 'lot') return false; } return true; };
+    const findBlock = (w, h, lo, hi, streetPenalty, gap) => { let best = null, bs = Infinity;
+      for (const a of keysW) { const cells = blockOf(a, w, h); if (!cells.every(okCell) || (gap && !gapOK(cells))) continue;
         const c = centreOf(cells), d = Math.hypot(c.x - ctx.cx, c.z - ctx.cz) / (ctx.span || 1); if (d < lo || d > hi) continue;
         let st = 0; for (const k of cells) if (street.has(k)) st++;
         const sc = st * streetPenalty + Math.abs(d - (lo + hi) / 2) * 2 + rng() * 0.3; if (sc < bs) { bs = sc; best = { a, cells }; } }
@@ -192,6 +194,31 @@
       const b = findBlock(sw, sh, theme === 'city' ? 0.35 : 0.2, theme === 'city' ? 0.85 : 0.75, 0.2) || findBlock(sw, sh, 0.15, 1.2, 0.2);
       if (b) { claim(b.cells, b.a, hex ? 'stadiumh' : 'stadium' + sw + 'x' + sh, 'stadyard');
         for (const k of b.cells) for (let d = 0; d < N; d++) { const n = nb(k, d); if (okCell(n) && !street.has(n) && rng() < 0.55) { reserved.add(n); biome[n] = B.LOT; feature[n] = 'lot'; } } }   // the car park round it
+    }
+    /* ---- 2c. BIG SITES (new maps; each 4–16 squares like the stadium, hex = 7) — out on the edge of town, never touching
+         another landmark:  ✈ AIRPORT (a long block: the runway runs along it) · 🎖 MILITARY BASE · 🚀 SPACE HUB with a giant
+         rocket (the remotest spot) · ⚓ SEA PORT (must have open water along one whole side — the ship docks there). ---- */
+    if (ctx.first) {
+      const LM = ctx.landmarks || {};
+      const sizes = (list) => hex ? [[2, 2]] : list.slice().sort(() => rng() - 0.5);
+      const place = (list, lo, hi, featOf, bm) => { for (const [w, h] of sizes(list)) for (const [ww, hh] of (w === h ? [[w, h]] : [[w, h], [h, w]])) {
+          const b = findBlock(ww, hh, lo, hi, 0.4, true) || findBlock(ww, hh, Math.max(0, lo - 0.3), hi + 0.6, 0.4, true);
+          if (b) { claim(b.cells, b.a, featOf(ww, hh), 'siteyard', bm); return true; } } return false; };
+      const sz = (pre) => (w, h) => hex ? pre + 'h' : pre + w + 'x' + h;
+      if (LM.airport) place([[4, 2], [4, 3]], 0.65, 1.3, sz('airport'), B.LOT);
+      if (LM.space) place([[3, 3], [3, 4], [4, 4]], 0.7, 1.4, sz('spacehub'), B.URBAN);
+      if (LM.military) place([[3, 3], [3, 4], [4, 4]], 0.6, 1.3, sz('military'), B.DIRT);
+      if (LM.port) {                                                            // a quay along open water
+        let best = null, bs = Infinity;
+        for (const [w, h] of sizes([[3, 2], [4, 2], [3, 3], [4, 3]])) for (const [ww, hh] of (w === h ? [[w, h]] : [[w, h], [h, w]])) for (const a of keysW) {
+          const cells = blockOf(a, ww, hh); if (!cells.every(okCell) || !gapOK(cells)) continue;
+          const set = new Set(cells); let bestD = -1, bestF = 0;
+          for (let d = 0; d < N; d++) { let n0 = 0, wet = 0; for (const k of cells) { const n = nb(k, d); if (set.has(n)) continue; n0++; if (load(n) && biome[n] === B.WATER && !reserved.has(n)) wet++; }
+            const f = n0 ? wet / n0 : 0; if (f > bestF) { bestF = f; bestD = d; } }
+          if (bestF < (hex ? 0.6 : 0.99)) continue;
+          const sc = cells.length * -0.05 + rng() * 0.5; if (sc < bs) { bs = sc; best = { a, cells, d: bestD, w: ww, h: hh }; } }
+        if (best) claim(best.cells, best.a, (hex ? 'porth' : 'port' + best.w + 'x' + best.h) + 'd' + best.d, 'siteyard', B.URBAN);
+      }
     }
 
     /* ---- 3. BLOCKS — zone every developable cell ---- */
@@ -231,14 +258,14 @@
       /* RURAL: fields patchwork · farmsteads by the roads · a crossroads town · wind farm */
       let townAt = null;
       if (ctx.first) {
-        const xs = keysW.filter(k => street.has(k) && paved.has(k) && devable(k) && !hasRiver(k)).sort((a, b) => dn(a) - dn(b));
+        const xs = keysW.filter(k => street.has(k) && paved.has(k) && devable(k) && !hasRiver(k) && !reserved.has(k)).sort((a, b) => dn(a) - dn(b));
         townAt = xs[0] || null; if (townAt) { const w = pos(townAt); ctx.town = [w.x, w.z]; towns.push(townAt); }
       }
       const town = ctx.town;
       const inTown = (k, r0) => { if (!town) return false; const w = pos(k); return Math.hypot(w.x - town[0], w.z - town[1]) <= r0; };
       let tower = !ctx.first, elevator = !ctx.first;
       for (const k of keysW) {
-        if (isWater(k) || isHigh(k) || biome[k] === B.ROCKS) continue;
+        if (isWater(k) || isHigh(k) || biome[k] === B.ROCKS || reserved.has(k)) continue;
         const h = hash(ctx.seed, cellOf(k).q, cellOf(k).r), onSt = street.has(k);
         if (rail.has(k)) { if (!elevator && inTown(k, 4.5)) { setB(k, B.URBAN, 'elevator'); elevator = true; } else if (!onSt && biome[k] !== B.FOREST) setB(k, B.PLAINS, 'railside'); continue; }
         if (inTown(k, 1.6)) { setB(k, B.URBAN, onSt ? 'streetside' : 'shops'); continue; }
