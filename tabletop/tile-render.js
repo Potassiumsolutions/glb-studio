@@ -472,18 +472,83 @@ function tree(x,z,s){ const g=new THREE.Group();
   const tr=new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.03,0.1), trunkMat); tr.position.y=TOP+0.05; g.add(tr);
   const cn=new THREE.Mesh(new THREE.ConeGeometry(0.09*s,0.24*s,7), treeMat); cn.position.y=TOP+0.22*s; g.add(cn);
   cn.castShadow=true; g.position.set(x,0,z); return g; }
-function house(x,z,rot,tall,r){ r=r||Math.random; const g=new THREE.Group();   // castle 'buildings' (tall=true) are bigger + VARIED: footprint, wall height, roof height/shape/colour all jitter per building
-  const big=!!tall;
-  const bw=(big?0.21:0.14)*(0.8+r()*0.6);                                       // footprint width
-  const bd=bw*(0.72+r()*0.6);                                                   // depth ≠ width → non-square footprints (halls vs towers)
-  const bh=(big?0.26:0.15)*(0.68+r()*1.05);                                     // wall height jitters a lot → mixed roof heights
-  const wallCols = big?[0xb9b2a6,0xc9bfa8,0xa89a86,0xbfae90,0xcdbd9b]:[0xcaa877,0xc7a06a,0xd8bd93];
-  const b=new THREE.Mesh(new THREE.BoxGeometry(bw,bh,bd), mat(wallCols[(r()*wallCols.length)|0],{roughness:0.85})); b.position.y=TOP+bh/2; b.castShadow=true; g.add(b);
-  const roofCols=[0x8a3b2f,0x7a3b30,0x6e4b32,0x8f5a34,0x5f4a34];
-  const rh=(0.07+r()*0.14)*(big?1.5:1.0);                                        // roof height varies
-  const sides=(r()<0.72)?4:3;                                                    // hip (4-sided) vs peaked (3-sided) → mixed roof shapes
-  const roof=new THREE.Mesh(new THREE.ConeGeometry(Math.max(bw,bd)*0.82, rh*2, sides), mat(roofCols[(r()*roofCols.length)|0]));
-  roof.position.y=TOP+bh+rh; roof.rotation.y=Math.PI/4; roof.castShadow=true; g.add(roof);
+/* ---- HOUSES (v0.91 — Paul: "we can do a better job on the houses") ----
+   A real little building instead of a box + cone: walls painted with a canvas texture (lime-wash / timber-framed
+   plaster / fieldstone, with a door and shuttered windows on the front and windows round the sides), a proper
+   GABLED roof (thatch, clay tile or slate — its gable ends are wall-coloured), eaves overhang and a stone
+   chimney. Cottages sometimes get a lean-to wing; town houses are two storeys with rows of windows. Textures +
+   materials are cached, so a whole village costs only a few draw calls per house. */
+const _hsCache={};
+function _hsCanvas(w,h,draw){ const cv=document.createElement('canvas'); cv.width=w; cv.height=h; draw(cv.getContext('2d'),w,h);
+  const t=new THREE.CanvasTexture(cv); if('SRGBColorSpace' in THREE) t.colorSpace=THREE.SRGBColorSpace; t.anisotropy=4; return t; }
+const WALL_STYLES=[                                             // base, beam colour (null = no timber), stone?
+  {base:'#e9dfc6', beam:'#4a3424'}, {base:'#e3d2ae', beam:'#553a26'}, {base:'#efe6d2', beam:null},
+  {base:'#d8c49a', beam:null}, {base:'#b3a38c', beam:null, stone:true}, {base:'#c9b48e', beam:'#3f2c1f'} ];
+function _houseWallTex(si, face, storeys){ const key='w'+si+face+storeys; if(_hsCache[key]) return _hsCache[key];
+  const st=WALL_STYLES[si];
+  return (_hsCache[key]=_hsCanvas(128, 64*storeys, (x,W,H)=>{
+    x.fillStyle=st.base; x.fillRect(0,0,W,H);
+    if(st.stone){ for(let y=0;y<H;y+=9) for(let i=-(y/9%2)*7;i<W;i+=15){ x.fillStyle=['#a79781','#9b8b76','#b8a88f','#8f806c'][((i*7+y*3)>>>0)%4]; x.fillRect(i+1,y+1,13,7); } }
+    else { x.globalAlpha=0.08; for(let i=0;i<260;i++){ x.fillStyle=i%2?'#000':'#fff'; x.fillRect((i*53)%W,(i*29)%H,3,2); } x.globalAlpha=1; }
+    const floorH=H/storeys;
+    if(st.beam){ x.fillStyle=st.beam; x.fillRect(0,0,W,5); x.fillRect(0,H-6,W,6); x.fillRect(0,0,5,H); x.fillRect(W-5,0,5,H);
+      for(let f=1;f<storeys;f++) x.fillRect(0,f*floorH-3,W,6);
+      x.lineWidth=4; x.strokeStyle=st.beam; for(let f=0;f<storeys;f++){ const y0=f*floorH; x.beginPath(); x.moveTo(8,y0+floorH-6); x.lineTo(30,y0+6); x.moveTo(W-8,y0+floorH-6); x.lineTo(W-30,y0+6); x.stroke(); } }
+    const win=(cx,cy)=>{ x.fillStyle='#3b2a1e'; x.fillRect(cx-11,cy-10,22,20); x.fillStyle='#26303d'; x.fillRect(cx-8,cy-8,16,16);
+      x.fillStyle='#e7c77a'; x.globalAlpha=0.35; x.fillRect(cx-8,cy-8,16,7); x.globalAlpha=1;
+      x.fillStyle='#3b2a1e'; x.fillRect(cx-1,cy-8,2,16); x.fillRect(cx-8,cy-1,16,2);
+      x.fillStyle='#6b3f2a'; x.fillRect(cx-17,cy-10,6,20); x.fillRect(cx+11,cy-10,6,20); };   // shutters
+    for(let f=0;f<storeys;f++){ const cy=H-(f+0.52)*floorH;
+      if(face==='front'){ if(f===0){ x.fillStyle='#5a3a24'; x.fillRect(W/2-11,H-40,22,40); x.beginPath(); x.arc(W/2,H-40,11,Math.PI,0); x.fill();
+          x.fillStyle='#3a2616'; x.fillRect(W/2-1,H-44,2,44); x.fillStyle='#c9a15a'; x.fillRect(W/2+6,H-20,3,3); win(28,cy); win(W-28,cy); }
+        else { win(28,cy); win(W/2,cy); win(W-28,cy); } }
+      else if(face==='side'){ win(40,cy); win(W-40,cy); }
+      else win(W/2,cy); }
+  })); }
+const ROOF_STYLES=[{kind:'thatch',c:'#c7a35c',d:'#8f7038'},{kind:'thatch',c:'#b8944f',d:'#7d6232'},{kind:'tile',c:'#a34a33',d:'#6e2c1e'},
+                   {kind:'tile',c:'#8d4a2f',d:'#5c2b1b'},{kind:'slate',c:'#56606f',d:'#343a45'},{kind:'tile',c:'#b0613e',d:'#77371f'}];
+function _roofTex(ri){ const key='r'+ri; if(_hsCache[key]) return _hsCache[key];
+  const st=ROOF_STYLES[ri];
+  const t=_hsCanvas(64,64,(x,W,H)=>{ x.fillStyle=st.c; x.fillRect(0,0,W,H);
+    if(st.kind==='thatch'){ x.strokeStyle=st.d; x.globalAlpha=0.55; x.lineWidth=1; for(let i=0;i<180;i++){ const px=(i*37)%W, py=(i*23)%H; x.beginPath(); x.moveTo(px,py); x.lineTo(px+1,py+7); x.stroke(); } x.globalAlpha=1; }
+    else { x.fillStyle=st.d; for(let y=0;y<H;y+=8){ x.fillRect(0,y,W,1.6); for(let i=(y/8%2)*5;i<W;i+=10) x.fillRect(i,y,1.2,8); } } });
+  t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(9,9); return (_hsCache[key]=t); }
+function _hsMat(key, make){ return _hsCache['m'+key] || (_hsCache['m'+key]=make()); }
+function _gableGeo(W, L, rh){ const key='g'+W.toFixed(3)+L.toFixed(3)+rh.toFixed(3); if(_hsCache[key]) return _hsCache[key];
+  const sh=new THREE.Shape(); sh.moveTo(-W/2,0); sh.lineTo(W/2,0); sh.lineTo(0,rh); sh.closePath();
+  const g=new THREE.ExtrudeGeometry(sh,{depth:L, bevelEnabled:false}); g.translate(0,0,-L/2); return (_hsCache[key]=g); }
+// one building: body (length L along z, width W along x, front door on +x), gabled roof, chimney
+function _building(W, L, H, storeys, si, ri, r, chimney){ const g=new THREE.Group();
+  const plain=_hsMat('wp'+si, ()=>new THREE.MeshStandardMaterial({color:new THREE.Color(WALL_STYLES[si].base), roughness:0.9}));
+  const mats=[ _hsMat('wf'+si+storeys, ()=>new THREE.MeshStandardMaterial({map:_houseWallTex(si,'front',storeys), roughness:0.9})),
+               _hsMat('ws'+si+storeys, ()=>new THREE.MeshStandardMaterial({map:_houseWallTex(si,'side',storeys), roughness:0.9})),
+               plain, plain,
+               _hsMat('we'+si+storeys, ()=>new THREE.MeshStandardMaterial({map:_houseWallTex(si,'end',storeys), roughness:0.9})),
+               _hsMat('we'+si+storeys, ()=>new THREE.MeshStandardMaterial({map:_houseWallTex(si,'end',storeys), roughness:0.9})) ];
+  const body=new THREE.Mesh(new THREE.BoxGeometry(W,H,L), mats); body.position.y=TOP+H/2; body.castShadow=true; body.receiveShadow=true; g.add(body);
+  const ov=0.018, rh=(W+ov*2)*(0.42+r()*0.22)*(ROOF_STYLES[ri].kind==='thatch'?1.15:1);
+  const roofMats=[ _hsMat('gp'+si, ()=>new THREE.MeshStandardMaterial({color:new THREE.Color(WALL_STYLES[si].base).multiplyScalar(0.92), roughness:0.9})),
+                   _hsMat('rf'+ri, ()=>new THREE.MeshStandardMaterial({map:_roofTex(ri), roughness:0.95})) ];
+  const roof=new THREE.Mesh(_gableGeo(W+ov*2, L+ov*2, rh), roofMats); roof.position.y=TOP+H-0.002; roof.castShadow=true; g.add(roof);
+  if(chimney){ const ch=new THREE.Mesh(new THREE.BoxGeometry(0.026,rh*0.9,0.026), _hsMat('chim', ()=>mat(0x7d7064,{roughness:1})));
+    ch.position.set(W*0.18, TOP+H+rh*0.62, (r()<0.5?-1:1)*L*0.3); ch.castShadow=true; g.add(ch); }
+  return g; }
+function house(x,z,rot,tall,r){ r=r||Math.random; const g=new THREE.Group();
+  if(tall){                                                    // town house / castle hall: two storeys, often stone, tile or slate roof
+    const W=0.13+r()*0.05, L=0.17+r()*0.1, H=0.2+r()*0.07, st=(r()<0.35?4:(r()*6)|0), ri=2+((r()*4)|0);
+    g.add(_building(W, L, H, 2, st, ri, r, r()<0.8));
+    if(r()<0.35){ const L2=L*0.5, w2=_building(W*0.9, L2, H*0.62, 1, st, ri, r, false); w2.position.set(0, 0, L/2+L2/2-0.004); g.add(w2); }   // lower wing continuing the ridge line
+  } else {                                                     // cottage: one storey, thatch or tile, sometimes an L-shaped lean-to wing
+    const W=0.1+r()*0.035, L=0.14+r()*0.07, H=0.075+r()*0.025, st=(r()*6)|0, ri=(r()<0.55?((r()*2)|0):2+((r()*4)|0));
+    g.add(_building(W, L, H, 1, st, ri, r, true));
+    if(r()<0.4){ const L2=L*0.45, w2=_building(W*0.84, L2, H*0.78, 1, st, ri, r, false); w2.position.set(0, 0, L/2+L2/2-0.004); g.add(w2); }   // a lower byre / lean-to on the gable end
+  }
+  g.position.set(x,0,z); g.rotation.y=rot; return g; }
+// a little garden plot / woodpile beside a cottage (flat, cheap)
+function _garden(x,z,rot,r){ const g=new THREE.Group();
+  const p=new THREE.Mesh(new THREE.BoxGeometry(0.09,0.012,0.12), mat([0x6b4f2e,0x5d7a34,0x7a8a3a][(r()*3)|0],{roughness:1})); p.position.set(0,TOP+0.006,0); g.add(p);
+  const rail=mat(0x8a6a44,{roughness:1});
+  for(const [sx,sz,lx,lz] of [[0,-0.062,0.1,0.008],[0,0.062,0.1,0.008],[-0.05,0,0.008,0.13],[0.05,0,0.008,0.13]]){ const f=new THREE.Mesh(new THREE.BoxGeometry(lx,0.022,lz), rail); f.position.set(sx,TOP+0.018,sz); g.add(f); }
   g.position.set(x,0,z); g.rotation.y=rot; return g; }
 // a mountain peak with SHAPE variety — random face count, height/radius/footprint independent of size, so a
 // range reads as varied crags rather than a grid of identical hex-cones. `s` sets overall size; `r` an rng.
@@ -528,12 +593,17 @@ export function tileFlat(){ return _flat; }
 function flatDecal(w,h,color,op){ const geo=new THREE.PlaneGeometry(w,h); geo.rotateX(-Math.PI/2);
   const m=new THREE.Mesh(geo, new THREE.MeshBasicMaterial({color, transparent:true, opacity:op==null?0.96:op, depthWrite:false}));
   m.renderOrder=3; return m; }
-function flatRoof(x,z,big,r){ const g=new THREE.Group();                        // bigger + VARIED: size, footprint aspect, rotation & roof colour jitter per building
-  const base=big?0.215:0.14, w=base*(0.8+r()*0.55), h=w*(0.66+r()*0.62), rot=r()*3.14;
-  const sh=flatDecal(w*1.18,h*1.18,0x000000,0.28); sh.position.set(x+0.012,TOP+0.045,z+0.014); sh.rotation.y=rot; g.add(sh);   // soft shadow
-  const roofCols = big?[0xb9b2a6,0xc9bfa8,0xa89a86,0xbfae90]:[0xc59a5f,0xb98a52,0xd8bd93];
-  const roof=flatDecal(w,h, roofCols[(r()*roofCols.length)|0], 0.98); roof.position.set(x,TOP+0.05,z); roof.rotation.y=rot; g.add(roof);
-  const ridge=flatDecal(w,h*0.17,[0x7a3b30,0x6e4b32,0x8a3b2f][(r()*3)|0],0.9); ridge.position.set(x,TOP+0.052,z); ridge.rotation.y=rot; g.add(ridge); return g; }   // roof ridge line
+function flatRoof(x,z,big,r){ const g=new THREE.Group();                        // top-down GABLED roof: sunlit + shaded halves, ridge, chimney
+  const base=big?0.24:0.18, w=base*(0.85+r()*0.35), h=w*(0.72+r()*0.25), rot=r()*3.14;
+  const sets = big ? [[0xa34a33,0x7a3322],[0x56606f,0x3a414d],[0x8d4a2f,0x62301c]] : [[0xd0ab62,0xa3833f],[0xc39a55,0x93713a],[0xa34a33,0x7a3322],[0xb0613e,0x80401f]];
+  const [lt,dk]=sets[(r()*sets.length)|0];
+  const sh=flatDecal(w*1.15,h*1.2,0x000000,0.3); sh.position.set(x+0.014,TOP+0.045,z+0.016); sh.rotation.y=rot; g.add(sh);   // soft shadow
+  const px=Math.sin(rot)*h/4, pz=Math.cos(rot)*h/4;                              // the decal's local +z (across the ridge) after turning by rot
+  const a=flatDecal(w,h/2,lt,0.99); a.position.set(x-px,TOP+0.05,z-pz); a.rotation.y=rot; g.add(a);
+  const b=flatDecal(w,h/2,dk,0.99); b.position.set(x+px,TOP+0.05,z+pz); b.rotation.y=rot; g.add(b);
+  const ridge=flatDecal(w*1.02,h*0.07,0x3a2a1c,0.85); ridge.position.set(x,TOP+0.052,z); ridge.rotation.y=rot; g.add(ridge);
+  const ch=flatDecal(0.024,0.024,0x6f6358,0.98); ch.position.set(x+Math.cos(rot)*w*0.28-px*0.5,TOP+0.054,z-Math.sin(rot)*w*0.28-pz*0.5); g.add(ch);
+  return g; }
 
 // scatter a feature over the tile, keeping clear of any path strips. `mass` (0..1) = mountain-massif depth:
 // core cells build a tall central peak + satellites, fringe cells a single small foothill.
@@ -592,20 +662,45 @@ function drawbridge(group, g, dir, gridKind){
 }
 /* KEEP: a tall square donjon with corner turrets and a central great tower, roofed + flagged — the castle's
    landmark, clearly taller than the curtain walls and halls around it. */
-function keepTower(group, gridKind){
-  const k = gridKind==='hex' ? 0.62 : 1, w=0.36*k, h=0.62*k, st=_stone();
+// N = keep size (1 = the original 1-tile keep; 2..4 = a 2×2 … 4×4-square keep block, hex: 7/19/37 hexes). The
+// footprint scales with the block; height grows more gently so a big keep reads as MASSIVE, not a needle.
+// Bigger keeps also gain mid-wall towers (N≥2) and an inner ring of turrets round the great tower (N≥3).
+function keepTower(group, gridKind, N){
+  N = N||1; const base = gridKind==='hex' ? 0.62 : 1;
+  const k = N===1 ? base : (gridKind==='hex' ? 0.62*(2*N-1)*0.72 : N*0.92);           // footprint scale
+  const kh = N===1 ? base : base*(1+(k/base-1)*0.45);                                 // height scale
+  const w=0.36*k, h=0.62*kh, st=_stone();
   const body=new THREE.Mesh(new THREE.BoxGeometry(w,h,w), st); body.position.y=TOP+h/2; body.castShadow=true; group.add(_overTiles(body));
-  const n=4; for(let side=0;side<4;side++) for(let i=0;i<n;i++){ const s=(i/(n-1)-0.5)*w*0.8, m=new THREE.Mesh(new THREE.BoxGeometry(0.045*k,0.055*k,0.045*k), _stoneLt());
-    const [x,z] = side===0?[s,-w/2]:side===1?[w/2,s]:side===2?[s,w/2]:[-w/2,s]; m.position.set(x, TOP+h+0.028*k, z); group.add(_overTiles(m)); }
-  for(const [sx,sz] of [[-1,-1],[1,-1],[1,1],[-1,1]]) _tower(group, sx*w/2, sz*w/2, 0.055*k, h*1.2, k, 0.15*k);
-  const gh=0.5*k; _tower(group, 0, 0, 0.11*k, h+gh, k, 0.28*k);                                        // central great tower
-  const topY=TOP+h+gh+0.3*k;
-  const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.006,0.006,0.16*k,5), _iron()); pole.position.set(0, topY+0.08*k, 0); group.add(_overTiles(pole));
-  const flag=new THREE.Mesh(new THREE.PlaneGeometry(0.1*k,0.06*k), mat(0xb3262e,{side:THREE.DoubleSide,roughness:0.9})); flag.position.set(0.05*k, topY+0.13*k, 0); group.add(_overTiles(flag));
-  // window slits
-  const slit=mat(0x1c1c22); for(let side=0;side<4;side++) for(const fy of [0.35,0.65]){ const sl=new THREE.Mesh(new THREE.BoxGeometry(0.018*k,0.06*k,0.004), slit);
-    const a=side*Math.PI/2; sl.position.set(Math.sin(a)*(w/2+0.002), TOP+h*fy, Math.cos(a)*(w/2+0.002)); sl.rotation.y=a; group.add(_overTiles(sl)); }
+  const n=4+(N-1)*3; for(let side=0;side<4;side++) for(let i=0;i<n;i++){ const s=(i/(n-1)-0.5)*w*0.86, m=new THREE.Mesh(new THREE.BoxGeometry(0.045*kh,0.055*kh,0.045*kh), _stoneLt());
+    const [x,z] = side===0?[s,-w/2]:side===1?[w/2,s]:side===2?[s,w/2]:[-w/2,s]; m.position.set(x, TOP+h+0.028*kh, z); group.add(_overTiles(m)); }
+  for(const [sx,sz] of [[-1,-1],[1,-1],[1,1],[-1,1]]) _tower(group, sx*w/2, sz*w/2, 0.055*k, h*1.2, kh, 0.15*kh);
+  if(N>=2) for(const [sx,sz] of [[0,-1],[1,0],[0,1],[-1,0]]) _tower(group, sx*w/2, sz*w/2, 0.045*k, h*1.1, kh, 0.12*kh);   // mid-wall towers
+  if(N>=3) for(const [sx,sz] of [[-1,-1],[1,-1],[1,1],[-1,1]]) _tower(group, sx*w*0.22, sz*w*0.22, 0.05*k, h+0.25*kh, kh, 0.16*kh);   // inner turrets
+  const gh=0.5*kh; _tower(group, 0, 0, 0.11*k, h+gh, kh, 0.28*kh);                                   // central great tower
+  const topY=TOP+h+gh+0.3*kh;
+  const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.006*kh,0.006*kh,0.16*kh,5), _iron()); pole.position.set(0, topY+0.08*kh, 0); group.add(_overTiles(pole));
+  const flag=new THREE.Mesh(new THREE.PlaneGeometry(0.1*kh,0.06*kh), mat(0xb3262e,{side:THREE.DoubleSide,roughness:0.9})); flag.position.set(0.05*kh, topY+0.13*kh, 0); group.add(_overTiles(flag));
+  // window slits (more rows / columns on a bigger keep)
+  const slit=mat(0x1c1c22), cols=N===1?1:N+1; for(let side=0;side<4;side++) for(const fy of [0.35,0.65]) for(let c=0;c<cols;c++){ const sl=new THREE.Mesh(new THREE.BoxGeometry(0.018*kh,0.06*kh,0.004), slit);
+    const a=side*Math.PI/2, off=cols===1?0:(c/(cols-1)-0.5)*w*0.6, nx=Math.sin(a), nz=Math.cos(a);
+    sl.position.set(nx*(w/2+0.002)+nz*off, TOP+h*fy, nz*(w/2+0.002)-nx*off); sl.rotation.y=a; group.add(_overTiles(sl)); }
 }
+// the low curtain wall around a BIG keep's block (gates mid-side), in the block's own frame
+function _keepBlockWall(group, gridKind, N){
+  if(gridKind==='hex'){ const rr=(N-0.5)*0.75, n=10*N; for(let i=0;i<n;i++){ const a=(i+0.5)/n*Math.PI*2, ex=Math.sin(a)*rr, ez=Math.cos(a)*rr, L=2*Math.PI*rr/n*1.04;
+      if(i%Math.round(n/4)===0) archGate(group, ex, ez, L*1.6, 0.22); else wallSeg(group, ex, ez, L, 0.22); } return; }
+  const half=N/2*0.93;
+  for(const [sx,sz] of [[-1,-1],[1,-1],[1,1],[-1,1]]) _tower(group, sx*half, sz*half, 0.085, 0.3, 1, null);   // corner towers close the wall's corners
+  for(let side=0;side<4;side++) for(let i=0;i<N;i++){ const t=-N/2+0.5+i;
+    const [ex,ez] = side===0?[t,-half]:side===1?[half,t]:side===2?[t,half]:[-half,t];
+    const nx = side===1?1:side===3?-1:0, nz = side===2?1:side===0?-1:0;             // wallSeg orients from the outward normal
+    const sub=new THREE.Group(); sub.position.set(ex-nx*0.5, 0, ez-nz*0.5); group.add(sub);
+    if(i===Math.floor(N/2)) archGate(sub, nx*0.5, nz*0.5, 1, 0.22); else wallSeg(sub, nx*0.5, nz*0.5, 1, 0.22); }
+}
+// a raised plateau's cliff: a slab of height h under a tile lifted by h (snowfields up in the mountains)
+export function liftSkirt(gridKind, h){
+  const g=TE.gridFor(gridKind), m=new THREE.Mesh(slabGeo(g.corners(), h), mat(0x9aa3ad,{roughness:0.95}));
+  m.position.y=-h; m.receiveShadow=true; m.castShadow=true; return m; }
 
 function scatter(group, def, gridKind, seed, mass, variant){
   const r = rng32(seed*2654435761>>>0);
@@ -626,10 +721,15 @@ function scatter(group, def, gridKind, seed, mass, variant){
   if(_scale==='battle' && f!=='water' && f!=='bridge' && f!=='shore' && !/^drawbridge/.test(f||'')) return;
   // 2D BOARD MODE: flat top-down decals instead of raised geometry (textured biomes already read from above).
   if(_flat){
-    if(f==='houses'||f==='buildings'){ take(f==='buildings'?5:4).forEach(([x,z])=> group.add(flatRoof(x,z,f==='buildings',r))); return; }
-    if(f==='keep'){ const k=flatDecal(0.34,0.34,0x8a8a92,0.98); k.position.y=TOP+0.05; group.add(k);
-      for(const [sx,sz] of [[-1,-1],[1,-1],[1,1],[-1,1]]){ const t=flatDecal(0.1,0.1,0x6f676d,0.98); t.position.set(sx*0.15,TOP+0.052,sz*0.15); group.add(t);}
-      const gt=flatDecal(0.16,0.16,0x44495e,0.98); gt.position.y=TOP+0.054; group.add(gt); return; }
+    if(f==='houses'||f==='buildings'){ const got=[]; for(const p of pts){ if(got.length>=(f==='buildings'?4:3)) break; if(got.every(q=>Math.hypot(q[0]-p[0],q[1]-p[1])>=0.24)) got.push(p); }
+      got.forEach(([x,z])=> group.add(flatRoof(x,z,f==='buildings',r))); return; }
+    { const km=/^keep(\d)?$/.exec(f||''); if(km){ const N=+(km[1]||1), off=(gridKind==='square'&&N>1)?(N-1)/2:0;
+      const s = N===1 ? 1 : (gridKind==='hex' ? (2*N-1)*0.72 : N*0.92);
+      const sub=new THREE.Group(); sub.position.set(off,0,off); group.add(sub);
+      const k=flatDecal(0.34*s,0.34*s,0x8a8a92,0.98); k.position.y=TOP+0.05; sub.add(k);
+      for(const [sx,sz] of [[-1,-1],[1,-1],[1,1],[-1,1]]){ const t=flatDecal(0.1*s,0.1*s,0x6f676d,0.98); t.position.set(sx*0.15*s,TOP+0.052,sz*0.15*s); sub.add(t);}
+      const gt=flatDecal(0.16*s,0.16*s,0x44495e,0.98); gt.position.y=TOP+0.054; sub.add(gt); return; } }
+    if(f==='keepyard') return;
     { const cp=/^(gate|drawbridge)(\d)$/.exec(f||''); if(cp){ const [ex,ez]=g.edgeMid(+cp[2]), a=Math.atan2(ex,ez);
       if(cp[1]==='drawbridge'){ const d=flatDecal(0.34,Math.hypot(ex,ez)*2,0x7a5230,0.98); d.rotation.y=a; d.position.y=TOP+0.05; group.add(d); }
       else { const L=edgeLenOf(gridKind), tx=Math.sin(a+Math.PI/2), tz=Math.cos(a+Math.PI/2); for(const s of [-1,1]){ const t=flatDecal(0.2,0.2,0x6f676d,0.98); t.position.set(ex+tx*s*L*0.34, TOP+0.052, ez+tz*s*L*0.34); group.add(t); } }
@@ -648,10 +748,19 @@ function scatter(group, def, gridKind, seed, mass, variant){
     const big = 0.6 + M*1.9, n = 1 + Math.round(M*3);
     group.add(peak((r()*2-1)*0.14, (r()*2-1)*0.14, big, r, snowPeaks));                 // central summit near tile centre
     for(let i=1;i<n;i++){ const [x,z]=pts[i]||[(r()*2-1)*rad,(r()*2-1)*rad]; group.add(peak(x,z, big*(0.38+r()*0.42), r, snowPeaks)); } }  // lower shoulders
-  else if(f==='houses') take(4).forEach(([x,z])=> group.add(house(x,z,r()*6.28,false,r)));
-  else if(f==='buildings') take(5).forEach(([x,z])=> group.add(house(x,z,r()*6.28,true,r)));
-  else if(f==='farm' && pts[0]) group.add(house(pts[0][0],pts[0][1],r()*6.28,false,r));
-  else if(f==='keep'){ // castle: tall keep (donjon + turrets + great tower) + ring wall around the perimeter (gap at the road/gate edge)
+  else if(f==='houses'||f==='buildings'){ // cottages / town houses spaced apart, each turned to face the lane through the middle of the plot
+    const big=f==='buildings', want=big?4:3+((r()*2)|0), gap=big?0.27:0.23, got=[];
+    const roomy=(x,z)=>{ if(hasPath && Math.hypot(x,z)<0.24) return false; for(const [ex,ez] of pathDirs){ const t=Math.max(0,Math.min(1,(x*ex+z*ez)/(ex*ex+ez*ez))); if(Math.hypot(x-ex*t,z-ez*t)<0.23) return false; } return true; };
+    for(const p of pts){ if(got.length>=want) break; if(roomy(p[0],p[1]) && got.every(q=>Math.hypot(q[0]-p[0],q[1]-p[1])>=gap)) got.push(p); }
+    got.forEach(([x,z])=>{ const face=Math.atan2(z, -x)+(r()-0.5)*0.5; group.add(house(x,z,face,big,r)); });   // local +x (the door) → toward the tile centre
+    if(!big && got.length && r()<0.7){ const free=pts.filter(p=>got.every(q=>Math.hypot(q[0]-p[0],q[1]-p[1])>=0.15)); if(free[0]) group.add(_garden(free[0][0],free[0][1],r()*3.14,r)); } }
+  else if(f==='farm' && pts[0]){ group.add(house(pts[0][0],pts[0][1],Math.atan2(pts[0][1],-pts[0][0]),false,r));
+    const p2=pts.find(p=>Math.hypot(p[0]-pts[0][0],p[1]-pts[0][1])>0.2); if(p2) group.add(_garden(p2[0],p2[1],r()*3.14,r)); }
+  else if(f==='keepyard'){ /* ground under a big keep — the anchor tile draws the whole keep */ }
+  else if(/^keep\d?$/.test(f||'')){ // castle: tall keep (donjon + turrets + great tower) + ring wall around the perimeter (gap at the road/gate edge)
+    const N=+((/^keep(\d)$/.exec(f)||[])[1]||1);
+    if(N>1){ const off=gridKind==='square'?(N-1)/2:0, sub=new THREE.Group(); sub.position.set(off,0,off); group.add(sub);
+      keepTower(sub, gridKind, N); _keepBlockWall(sub, gridKind, N); return; }
     keepTower(group, gridKind);
     for(let dir=0; dir<g.N; dir++){ const [ex,ez]=g.edgeMid(dir); const p=def.edges[dir].path;
       if(p===P.ROAD||p===P.TRAIL) archGate(group, ex*0.86, ez*0.86, edgeLenOf(gridKind), 0.24);     // arched gateway where the road enters
@@ -733,7 +842,7 @@ export function buildTileMesh(def, gridKind, seed, variant, mass, customTex){
   // tile shows the SAME texture with a centred peak, so a mountain region reads as peaks in a straight grid.
   if (!customTex){
     if (!tex) scatter(grp, def, gridKind, seed||1, mass, variant);
-    else if (def.feature==='houses' || def.feature==='buildings' || def.feature==='keep' || def.feature==='peaks' || /^(gate|drawbridge)\d$/.test(def.feature||'')) scatter(grp, def, gridKind, seed||1, mass, variant);
+    else if (def.feature==='houses' || def.feature==='buildings' || def.feature==='farm' || /^keep\d?$/.test(def.feature||'') || def.feature==='peaks' || /^(gate|drawbridge)\d$/.test(def.feature||'')) scatter(grp, def, gridKind, seed||1, mass, variant);
   }
   return grp;
 }
@@ -759,9 +868,12 @@ const DRAW_SPEC = {
 // The drawn points are the clicked connector dots; instead of hard straight segments between
 // them we run a smooth spline THROUGH them (rounded corners), so a hand-drawn road bends like the
 // per-tile roads do. Collinear runs stay straight; a turn at a corner becomes a gentle curve.
-export function pathRibbonAlong(points, type){
+// widthClass (rivers): 1 = STREAM (narrow), 2 = RIVER (2× a stream), 3 = BIG RIVER (3×). Undefined keeps the classic width.
+const RIVER_W = { world:{1:0.12, 2:0.25, 3:0.37}, battle:{1:0.48, 2:0.96, 3:1.44} };
+export function pathRibbonAlong(points, type, widthClass){
   const s = DRAW_SPEC[type] && DRAW_SPEC[type]();
   if (!s || !points || points.length < 2) return null;
+  if (type==='river' && widthClass && RIVER_W[_scale][widthClass]) s.w = RIVER_W[_scale][widthClass];
   const hw = s.w/2;
   const vpts = points.map(p=>new THREE.Vector3(p.x, s.y, p.z));
   // centripetal Catmull-Rom passes through every drawn dot without overshooting on sharp turns

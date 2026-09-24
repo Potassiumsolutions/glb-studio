@@ -113,9 +113,10 @@
      path edge → a centre→centre segment; a spill off the board → a centre→edge-midpoint segment; chainSegments
      joins them into runs (breaking at junctions, which then overlap + get a merge plate like drawn Y's). The
      tile edges STAY set (gameplay/boardToGraph) — only the RENDER moves to strokes. */
-  function tracePathStrokes(cellKeys, cellOf, posOf, edgesOf, g) {
+  function tracePathStrokes(cellKeys, cellOf, posOf, edgesOf, g, types) {
     const N = g.N, cset = new Set(cellKeys), out = [];
     for (const [pathVal, typeName] of [[P.RIVER, 'river'], [P.TRAIL, 'trail'], [P.ROAD, 'road']]) {
+      if (types && types.indexOf(pathVal) < 0) continue;
       const segs = [];
       for (const k of cellKeys) { const e = edgesOf(k); if (!e) continue; const c = cellOf(k), pk = posOf(k);
         for (let d = 0; d < N; d++) { if (e[d] !== pathVal) continue; const nk = keyOf(g.step(c, d));
@@ -124,6 +125,72 @@
       for (const run of chainSegments(segs)) if (run.length >= 2) out.push({ type: typeName, pts: run });
     }
     return out;
+  }
+
+  /* world-rectangle block of cells (~w×h) centred on `anchor` — the SAME maths as the host's bSettleRegionCells,
+     so a castle planned here lines up with one planned there. Cells may lie OFF the board (a castle can hang
+     over the edge and be completed when the map is Extended). */
+  function regionCells(gridKind, anchor, w, h) {
+    const g = gridFor(gridKind), aw = g.world(anchor);
+    const halfW = (gridKind === 'hex' ? w * 0.75 : w) / 2, halfH = (gridKind === 'hex' ? h * 0.8660254 : h) / 2, m = 0.35, out = [];
+    for (let dq = -w - 3; dq <= w + 3; dq++) for (let dr = -h - 3; dr <= h + 3; dr++) {
+      const c = { q: anchor.q + dq, r: anchor.r + dr }, wc = g.world(c);
+      if (Math.abs(wc.x - aw.x) <= halfW + m && Math.abs(wc.z - aw.z) <= halfH + m) out.push(c); }
+    return out;
+  }
+
+  /* NATURAL MINIMUM SIZES for terrain features (Paul): a mountain range is never a lone square — at least 5
+     cells counting its snow cap — and a lake is at least 16 cells. Small ones GROW to the minimum when there is
+     room (and they are already a real start: ≥3 mountains / ≥4 water), otherwise they revert: a stray peak
+     becomes rocky foothills, a stray pond becomes plains. Cells already on the board (ctx.fixed) count toward a
+     feature's size but are never changed — so an Extend that continues an existing range/lake is fine.
+     ctx = { keys, get(k), set(k,bm), nbrs(k)→keys, fixed(k)→biome|null, locked(k)→bool, rng, lakes:bool } */
+  function enforceTerrainSizes(ctx) {
+    const ed = new Set(ctx.keys), locked = ctx.locked || (() => false);
+    const bAt = (k) => ed.has(k) ? ctx.get(k) : ctx.fixed(k);
+    const isM = (b) => b === B.MOUNTAINS || b === B.SNOW, isW = (b) => b === B.WATER;
+    function comps(pred) {
+      const seen = new Set(), out = [];
+      for (const k of ctx.keys) {
+        if (seen.has(k) || locked(k) || !pred(bAt(k))) continue;
+        const edit = [], q = [k]; let size = 0; seen.add(k);
+        while (q.length) { const c = q.pop(); size++; if (ed.has(c) && !locked(c)) edit.push(c);
+          for (const n of ctx.nbrs(c)) { if (seen.has(n)) continue; const b = bAt(n); if (b == null || !pred(b)) continue; seen.add(n); q.push(n); } }
+        out.push({ edit, size });
+      }
+      return out;
+    }
+    function tryGrow(comp, target, canTake, bm) {
+      const set = new Set(comp.edit), added = []; let size = comp.size, guard = 0;
+      while (size < target && guard++ < 4000) {
+        const cand = [];
+        for (const c of set) for (const n of ctx.nbrs(c)) if (ed.has(n) && !set.has(n) && !locked(n) && canTake(n)) cand.push(n);
+        if (!cand.length) break;
+        const n = cand[(ctx.rng() * cand.length) | 0]; set.add(n); added.push([n, ctx.get(n)]); ctx.set(n, bm); size++;
+      }
+      if (size >= target) return true;
+      for (let i = added.length - 1; i >= 0; i--) ctx.set(added[i][0], added[i][1]);   // couldn't reach the minimum → undo the growth
+      return false;
+    }
+    const touches = (k, pred) => ctx.nbrs(k).some(n => pred(bAt(n)));
+    const OPEN = (b) => b === B.PLAINS || b === B.FOREST || b === B.ROCKS || b === B.SAND;
+    // mountains ≥ 5
+    for (const c of comps(isM)) {
+      if (c.size >= 5) continue;
+      const ok = c.size >= 3 && tryGrow(c, 5, (n) => OPEN(bAt(n)) && !touches(n, isW), B.MOUNTAINS);
+      if (!ok) for (const k of c.edit) {                        // a lone peak melts into whatever land surrounds it (not a rash of rock patches)
+        const cnt = {}; for (const n of ctx.nbrs(k)) { const b = bAt(n); if (b === B.PLAINS || b === B.FOREST || b === B.ROCKS || b === B.SAND || b === B.GREEN || b === B.DIRT) cnt[b] = (cnt[b] || 0) + 1; }
+        let bm = B.PLAINS, bc = 0; for (const b in cnt) if (cnt[b] > bc) { bc = cnt[b]; bm = b; }
+        if (bm === B.ROCKS && touches(k, isW)) bm = B.PLAINS;
+        ctx.set(k, bm); }
+    }
+    // lakes 16+
+    for (const c of comps(isW)) {
+      if (c.size >= 16) continue;
+      const ok = ctx.lakes !== false && c.size >= 4 && tryGrow(c, 16,
+        (n) => { const b = bAt(n); return (OPEN(b) && b !== B.ROCKS || b === B.CROPS || b === B.ORCHARD || b === B.PIVOT) && !touches(n, (bb) => isM(bb) || bb === B.ROCKS); }, B.WATER);
+      if (!ok) for (const k of c.edit) ctx.set(k, B.PLAINS);
+    }
   }
 
   /* ================= the generator ================= */
@@ -147,6 +214,8 @@
     let cx = 0, cz = 0; keys.forEach(k => { cx += pos[k].x; cz += pos[k].z; }); cx /= keys.length; cz /= keys.length;
     let span = 0; keys.forEach(k => { const dx = pos[k].x - cx, dz = pos[k].z - cz; span = Math.max(span, Math.hypot(dx, dz)); });
     span = span || 1;
+    const NC = keys.length;
+    const lakesOk = NC >= 40, mtnOk = NC >= 20;              // a 16-cell lake / 5-cell range can't fit on a tiny mat
 
     // --- per-cell state we build up, then realise ---
     const biome = {}, edges = {}, feature = {};
@@ -159,6 +228,7 @@
     }
     // the dir from cell a to adjacent cell b (or -1)
     function dirTo(a, b) { for (let d = 0; d < N; d++) if (keyOf(g.step(cellOf[a], d)) === b) return d; return -1; }
+    const edgePt = (k, dir) => { const e = g.edgeMid(dir); return [pos[k].x + e[0], pos[k].z + e[1]]; };
 
     /* ---- 1. biome blobs (region-grow so they're coherent; theme skews the mix) ---- */
     const taken = new Set();
@@ -179,6 +249,8 @@
       return out;
     }
     const areaOf = (frac, min) => Math.max(min, Math.round(keys.length * frac));
+    const lakeArea = (frac) => lakesOk ? clamp(Math.round(NC * frac), 16, 400) : 0;       // lakes are 16–400 cells
+    const mtnArea = (frac) => mtnOk ? areaOf(frac, 5) : 0;                                 // a range is ≥5 cells
     const nearWater = (k) => nbrs(k).some(n => waterSet.has(n.k)) || waterSet.has(k);
 
     // water: a blob hugging one board edge/corner
@@ -193,14 +265,14 @@
       keys.forEach(k => { biome[k] = base; });                              // whole section skews to the theme
       // water
       const wSeed = corners[ri(Math.max(1, Math.min(4, corners.length)))];
-      water = TH.water > 0 ? grow(wSeed, areaOf(TH.water, 3), null) : [];
+      water = TH.water > 0 ? grow(wSeed, lakeArea(TH.water), null) : [];
       waterSet = new Set(water); water.forEach(k => { biome[k] = B.WATER; feature[k] = 'water'; taken.add(k); });
       // mountains  (whole map is highland when the theme's base is mountains)
       if (base === B.MOUNTAINS) { mtn = keys.filter(k => !waterSet.has(k)); }
       else if (TH.mtn > 0) {
         const nw = keys.filter(k => !waterSet.has(k));
         const ms = nw.slice().sort((a, b) => nearBlob(b, water) - nearBlob(a, water))[ri(Math.max(1, Math.min(4, nw.length)))];
-        mtn = grow(ms, areaOf(TH.mtn, 3), k => waterSet.has(k)); mtn.forEach(k => biome[k] = B.MOUNTAINS);
+        mtn = ms ? grow(ms, mtnArea(TH.mtn), k => waterSet.has(k)) : []; mtn.forEach(k => biome[k] = B.MOUNTAINS);
       } else mtn = [];
       mtnSet = new Set(mtn); mtn.forEach(k => taken.add(k));
       // forest  (base already forest when the theme is Forest → collect those cells)
@@ -230,17 +302,17 @@
     } else {
       // water: a blob hugging one board edge/corner
       const waterSeed = corners[ri(Math.max(1, Math.min(4, corners.length)))];
-      water = grow(waterSeed, areaOf(0.14, 3), null);
+      water = grow(waterSeed, lakeArea(0.14), null);
       waterSet = new Set(water); water.forEach(k => { biome[k] = B.WATER; feature[k] = 'water'; taken.add(k); });
       // mountains: a blob well away from the water
       const notWater = keys.filter(k => !waterSet.has(k));
       const mtnSeed = notWater.slice().sort((a, b) => nearBlob(b, water) - nearBlob(a, water))[ri(Math.max(1, Math.min(4, notWater.length)))];
-      mtn = grow(mtnSeed, areaOf(0.13, 3), k => waterSet.has(k));
+      mtn = mtnSeed ? grow(mtnSeed, mtnArea(0.13), k => waterSet.has(k)) : [];
       mtnSet = new Set(mtn); mtn.forEach(k => { biome[k] = B.MOUNTAINS; taken.add(k); });
       // forest: a blob away from water (may touch mountains — natural)
       const forestPool = keys.filter(k => !waterSet.has(k) && !mtnSet.has(k));
       const forSeed = forestPool.slice().sort((a, b) => (nearBlob(b, water) + nearBlob(b, mtn) * 0.3) - (nearBlob(a, water) + nearBlob(a, mtn) * 0.3))[0];
-      forest = grow(forSeed, areaOf(0.17, 3), k => waterSet.has(k) || mtnSet.has(k));
+      forest = forSeed ? grow(forSeed, areaOf(0.17, 3), k => waterSet.has(k) || mtnSet.has(k)) : [];
       forestSet = new Set(forest); forest.forEach(k => { biome[k] = B.FOREST; taken.add(k); });
       // snow: a small cap on the mountain fringe farthest from centre (never touching water)
       if (mtn.length >= 5) {
@@ -252,10 +324,75 @@
       for (let i = 0; i < Math.min(3, foothills.length); i++) { if (rng() < 0.6) biome[foothills[i]] = B.ROCKS; }
     }
 
-    /* ---- 2. rivers (1–2), edge → edge, flowing down-slope & meandering ---- */
-    // elevation: high in the mountains, low toward the water — rivers flow high→low
-    const elev = {}; keys.forEach(k => { elev[k] = (mtn.length ? 1 / (1 + Math.sqrt(nearBlob(k, mtn))) : 0) - (water.length ? 0.8 / (1 + Math.sqrt(nearBlob(k, water))) : 0); });
-    const riverSet = new Set();
+    /* ---- 1b. natural MINIMUM SIZES (mountain ranges ≥5 cells, lakes 16–400) — then re-read the blobs ---- */
+    enforceTerrainSizes({ keys, get: (k) => biome[k], fixed: () => null, rng, lakes: lakesOk,
+      nbrs: (k) => nbrs(k).map(n => n.k),
+      set: (k, bm) => { biome[k] = bm; feature[k] = bm === B.WATER ? 'water' : undefined; } });
+    const reread = () => {
+      water = keys.filter(k => biome[k] === B.WATER); waterSet = new Set(water);
+      mtn = keys.filter(k => biome[k] === B.MOUNTAINS || biome[k] === B.SNOW); mtnSet = new Set(mtn);
+      forest = keys.filter(k => biome[k] === B.FOREST); forestSet = new Set(forest); };
+    reread();
+
+    /* ---- 2. CASTLE (boards of 256+ cells) — a REAL walled castle of 64+ cells (keep, curtain wall, gatehouses,
+       optional moat + drawbridges) with a 2-ring OUTSKIRTS of hamlets, farmsteads & fields outside the moat, built
+       by generateSettlement over a region that MAY run off the board edge. On-board cells are stamped + LOCKED;
+       every region tile (on- or off-board) comes back in `structure` so the host can COMPLETE the castle first
+       when the map is Extended, before the new land is generated. ---- */
+    const locked = new Set(), castleExits = [], castleFeeds = [];
+    let structure = null, castleAnchor = null;
+    const wantCastle = opts.castle !== false && NC >= 256 && (mtn.length > 0 || rng() < 0.4);
+    if (wantCastle) {
+      const cw = 8 + ri(3), ch = 8 + ri(3), OUT = 2, RW = cw + 2 * OUT, RH = ch + 2 * OUT;
+      const cand = keys.filter(k => !waterSet.has(k) && !mtnSet.has(k));
+      const stride = Math.max(1, Math.floor(cand.length / 400));
+      let best = null, bestS = -Infinity, bestBad = 0, bestOn = 0;
+      for (let i = 0; i < cand.length; i += stride) {
+        const a = cand[i], reg = regionCells(gridKind, cellOf[a], RW, RH);
+        let bad = 0, off = 0, on = 0;
+        for (const c of reg) { const k = keyOf(c); if (!cset.has(k)) { off++; continue; } on++; if (waterSet.has(k) || mtnSet.has(k)) bad++; }
+        const dm = mtn.length ? Math.sqrt(nearBlob(a, mtn)) : 0;                   // castles guard the hills
+        const s = -(4 * bad + 0.3 * off + 0.35 * dm) + rng() * 3;
+        if (s > bestS) { bestS = s; best = a; bestBad = bad; bestOn = on; }
+      }
+      if (best && bestBad <= bestOn * 0.2) {
+        castleAnchor = best;
+        const reg = regionCells(gridKind, cellOf[best], RW, RH);
+        // the moat's feed stream heads toward the nearest lake, else downhill (away from the mountains)
+        let fx = 0, fz = 1;
+        if (water.length) { const wk = water.slice().sort((a, b) => d2(a, best) - d2(b, best))[0]; fx = pos[wk].x - pos[best].x; fz = pos[wk].z - pos[best].z; }
+        else if (mtn.length) { let mx = 0, mz = 0; mtn.forEach(k => { mx += pos[k].x; mz += pos[k].z; }); fx = pos[best].x - mx / mtn.length; fz = pos[best].z - mz / mtn.length; }
+        const tmp = new Map();
+        const rs = generateSettlement(gridKind, tmp, reg, defs, { seed: (((opts.seed || 1) * 7919) + 3) >>> 0, settlementType: 'castle', moat: !!opts.moat,
+          outskirts: OUT, keepSize: opts.keepSize, feedDir: (opts.moat && opts.stream !== false) ? [fx, fz] : null });
+        const regKeys = reg.map(keyOf), regSet = new Set(regKeys), tiles = [];
+        for (const k of regKeys) { const t = tmp.get(k); if (!t) continue; tiles.push([k, { defId: t.defId, rot: 0 }]);
+          if (!cset.has(k)) continue;
+          const d = defs[t.defId]; biome[k] = d.biome; edges[k] = d.edges.map(e => e.path); feature[k] = d.feature; locked.add(k); }
+        // wherever a castle road / the moat stream leaves the region ONTO the board, continue it out here
+        for (const k of regKeys) { if (!cset.has(k)) continue; const c = cellOf[k];
+          for (let d = 0; d < N; d++) { const p = edges[k][d]; if (p !== P.ROAD && p !== P.RIVER) continue;
+            const nk = keyOf(g.step(c, d)); if (regSet.has(nk) || !cset.has(nk)) continue;
+            edges[nk][g.opposite(d)] = p;
+            if (p === P.ROAD) castleExits.push(nk); else castleFeeds.push({ k: nk, dir: g.opposite(d) }); } }
+        structure = { keys: regKeys, tiles, draw: Array.isArray(rs.draw) ? rs.draw : [], w: cw, h: ch, anchor: cellOf[best] };
+        reread(); water = water.filter(k => !locked.has(k)); waterSet = new Set(water);
+        mtn = mtn.filter(k => !locked.has(k)); mtnSet = new Set(mtn); forest = forest.filter(k => !locked.has(k)); forestSet = new Set(forest);
+        // the castle may have cut a range/lake below its minimum → tidy the leftovers
+        enforceTerrainSizes({ keys: keys.filter(k => !locked.has(k)), get: (k) => biome[k], fixed: (k) => locked.has(k) ? null : null, rng, lakes: lakesOk,
+          nbrs: (k) => nbrs(k).map(n => n.k).filter(n => !locked.has(n)),
+          set: (k, bm) => { biome[k] = bm; feature[k] = bm === B.WATER ? 'water' : undefined; } });
+        reread(); water = water.filter(k => !locked.has(k)); waterSet = new Set(water);
+        mtn = mtn.filter(k => !locked.has(k)); mtnSet = new Set(mtn); forest = forest.filter(k => !locked.has(k)); forestSet = new Set(forest);
+      }
+    }
+
+    /* ---- 3. WATERWAYS — a physically plausible DRAINAGE NETWORK. Streams RISE in the mountains (springs on the
+       range's flank) or DRAIN out of an inland lake, run DOWNHILL (elevation = high at the peaks, low toward the
+       lakes/sea), and when one meets another they JOIN at a confluence (tributaries fork upstream, a river never
+       splits downstream). A reach's width comes from how many sources feed it: 1 = stream, 2 = river (2× wide),
+       3+ = big river (3×). Every channel ends in a lake/sea, in another channel, or off the board edge. ---- */
+    const riverSet = new Set(), riverStrokes = [];
     const themeRivers = TH ? TH.rivers : (keys.length > 46 ? 2 : 1);
     const nRivers = opts.rivers != null ? opts.rivers
       : opts.stream === false ? 0
@@ -272,102 +409,154 @@
       if (dist[dst] == null) return null;
       const path = [dst]; let k = dst; while (k !== src) { k = prev[k]; path.push(k); } return path.reverse();
     }
-    for (let r = 0; r < nRivers; r++) {
-      // source: a border cell nearest the mountains; target: a far border cell nearest the water
-      const src = border.slice().filter(k => !waterSet.has(k)).sort((a, b) => (mtn.length ? nearBlob(a, mtn) - nearBlob(b, mtn) : 0))[ri(3) % Math.max(1, border.length)];
-      let tgtPool = border.filter(k => k !== src && !waterSet.has(k) && d2(k, src) > (span * 0.9) * (span * 0.9));
-      if (!tgtPool.length) tgtPool = border.filter(k => k !== src && !waterSet.has(k));
-      const tgt = tgtPool.sort((a, b) => (water.length ? nearBlob(a, water) - nearBlob(b, water) : d2(b, src) - d2(a, src)))[0];
-      if (!src || !tgt) continue;
-      // cost: flow downhill (+elev), meander (+jitter), avoid other rivers & water bodies
-      const path = dijkstra(src, tgt, (nk) => waterSet.has(nk) ? Infinity : riverSet.has(nk) ? Infinity : 1 + Math.max(0, elev[nk]) * 3 + rng() * 1.1);
-      if (!path || path.length < 2) continue;
-      for (const k of path) { riverSet.add(k); biome[k] = B.PLAINS; feature[k] = feature[k] === 'water' ? feature[k] : undefined; }
-      for (let i = 0; i < path.length - 1; i++) setEdge(path[i], dirTo(path[i], path[i + 1]), P.RIVER);
-      // each end flows INTO an adjacent lake if there is one (no dangling stream beside the water);
-      // otherwise it spills off the board edge so it clearly flows through, not dead-ends.
-      [path[0], path[path.length - 1]].forEach(end => {
-        const waterNb = nbrs(end).find(n => waterSet.has(n.k));
-        if (waterNb) setEdge(end, waterNb.dir, P.RIVER);
-        else { const od = offDirs(end); if (od.length) setEdge(end, od[ri(od.length)], P.RIVER); }
-      });
+    if (nRivers > 0 || castleFeeds.length) {
+      const bfsDist = (src) => { const d = {}, q = []; for (const k of src) { d[k] = 0; q.push(k); } let h = 0;
+        while (h < q.length) { const k = q[h++]; for (const { k: nk } of nbrs(k)) if (d[nk] === undefined) { d[nk] = d[k] + 1; q.push(nk); } } return d; };
+      const dM = mtn.length ? bfsDist(mtn) : null, dW = water.length ? bfsDist(water) : null;
+      const ta = rng() * Math.PI * 2, tx = Math.cos(ta), tz = Math.sin(ta);           // no mountains → the land tilts one way
+      const elev = {};
+      keys.forEach(k => { elev[k] = (dM ? -(dM[k] ?? 60) : ((pos[k].x - cx) * tx + (pos[k].z - cz) * tz) * 1.2)
+        + (dW ? Math.min(dW[k] ?? 60, 14) * 0.45 : 0) + _jit[k] * 0.9; });
+      let eLo = Infinity, eHi = -Infinity; keys.forEach(k => { eLo = Math.min(eLo, elev[k]); eHi = Math.max(eHi, elev[k]); });
+      const eN = (k) => (elev[k] - eLo) / ((eHi - eLo) || 1);
+      const blocked = (k) => locked.has(k) || mtnSet.has(k) || (biome[k] === B.WATER && !waterSet.has(k));
+      const sources = [];
+      // (a) mountain SPRINGS on the range's flank — a few, moderately spread so their streams can meet downhill
+      if (nRivers > 0 && mtn.length) {
+        const pool = keys.filter(k => !blocked(k) && !waterSet.has(k) && nbrs(k).some(n => mtnSet.has(n.k)));
+        const nS = Math.min(pool.length, nRivers + 1 + (NC > 500 ? 1 : 0)), picked = [];
+        pool.sort((a, b) => elev[b] - elev[a]);
+        if (pool.length) picked.push(pool[ri(Math.max(1, Math.ceil(pool.length / 3)))]);
+        while (picked.length < nS) { let bk = null, bs = -1;
+          for (const k of pool) { if (picked.includes(k)) continue; const md = Math.min(...picked.map(p => d2(p, k))); if (md < 4) continue;
+            const s = Math.min(md, 36) + rng() * 6; if (s > bs) { bs = s; bk = k; } }
+          if (!bk) break; picked.push(bk); }
+        for (const s of picked) { const mn = nbrs(s).find(n => mtnSet.has(n.k)); sources.push({ k: s, flow: 1, from: edgePt(s, mn.dir), link: mn.dir }); }
+      }
+      // (b) LAKE OUTLETS — an inland lake (not touching the board edge) spills a river from its low side
+      if (nRivers > 0 && water.length) {
+        const seen = new Set();
+        for (const w0 of water) { if (seen.has(w0)) continue; const lk = [], q = [w0]; seen.add(w0);
+          while (q.length) { const k = q.pop(); lk.push(k); for (const { k: nk } of nbrs(k)) if (waterSet.has(nk) && !seen.has(nk)) { seen.add(nk); q.push(nk); } }
+          if (lk.some(isBorder) || sources.filter(s => s.lake).length >= 2) continue;
+          const lset = new Set(lk);
+          const shore = keys.filter(k => !lset.has(k) && !blocked(k) && !waterSet.has(k) && nbrs(k).some(n => lset.has(n.k))).sort((a, b) => elev[a] - elev[b])[0];
+          if (!shore) continue; const ln = nbrs(shore).find(n => lset.has(n.k));
+          sources.push({ k: shore, flow: 2, from: edgePt(shore, ln.dir), link: ln.dir, lake: lset }); }
+      }
+      // (c) the castle moat's stream, where it leaves the castle grounds onto the board
+      for (const f of castleFeeds) sources.push({ k: f.k, flow: 1, from: edgePt(f.k, f.dir), link: f.dir, feed: true });
+      // (d) no mountains and no lakes: the stream enters from off the map on the high side (its source lies beyond the board)
+      if (nRivers > 0 && !sources.some(s => !s.feed)) {
+        const hi = border.filter(k => !blocked(k) && !waterSet.has(k)).sort((a, b) => elev[b] - elev[a])[0];
+        if (hi) { const od = offDirs(hi); sources.push({ k: hi, flow: 1, from: edgePt(hi, od[0]), link: od[0], offSrc: true }); }
+      }
+      const down = {}, endOf = {}, flow = {}, srcCells = new Map();
+      const route = (s) => {
+        const dist = { [s.k]: 0 }, prev = {}, pq = [[0, s.k, null]];
+        let hit = null;
+        while (pq.length) {
+          pq.sort((a, b) => a[0] - b[0]); const [d, k, fin] = pq.shift();
+          if (fin) { hit = fin; break; }
+          if (d > (dist[k] ?? Infinity)) continue;
+          if (k !== s.k && riverSet.has(k)) { hit = { type: 'join', k }; break; }
+          const od = offDirs(k);
+          if (od.length && !(s.offSrc && k === s.k)) pq.push([d + 2 + 14 * eN(k), k, { type: 'off', k, dir: od[(_jit[k] * od.length) | 0] }]);   // leaving the map is cheap only from low ground
+          for (const { k: nk, dir } of nbrs(k)) {
+            if (waterSet.has(nk)) { if (!(s.lake && s.lake.has(nk))) pq.push([d + 1, k, { type: 'lake', k, dir }]); continue; }
+            if (blocked(nk)) continue;
+            const c = 1 + 6 * Math.max(0, elev[nk] - elev[k]) + rng() * 0.9;      // water runs downhill; the jitter makes it meander
+            const nd = d + c; if (nd < (dist[nk] ?? Infinity)) { dist[nk] = nd; prev[nk] = k; pq.push([nd, nk, null]); }
+          }
+        }
+        if (!hit) return null;
+        const path = [hit.k]; let q = hit.k; while (q !== s.k) { q = prev[q]; path.push(q); }
+        return { path: path.reverse(), hit };
+      };
+      const order = sources.slice().sort((a, b) => (a.feed ? 1 : 0) - (b.feed ? 1 : 0) || elev[b.k] - elev[a.k]);
+      for (const s of order) {
+        if (riverSet.has(s.k) || blocked(s.k)) continue;
+        const res = route(s); if (!res) continue;
+        const { path, hit } = res, land = hit.type === 'join' ? path.slice(0, -1) : path;
+        if (!land.length) continue;
+        for (const k of land) { riverSet.add(k); if (biome[k] !== B.SAND) biome[k] = B.PLAINS; if (feature[k] !== 'water') feature[k] = undefined; flow[k] = (flow[k] || 0) + s.flow; }
+        for (let i = 0; i < land.length - 1; i++) { down[land[i]] = land[i + 1]; setEdge(land[i], dirTo(land[i], land[i + 1]), P.RIVER); }
+        const last = land[land.length - 1];
+        if (hit.type === 'join') { down[last] = hit.k; setEdge(last, dirTo(last, hit.k), P.RIVER);
+          let q = hit.k, gd = 0; while (q && gd++ < 5000) { flow[q] = (flow[q] || 0) + s.flow; q = down[q]; } }   // the extra water swells everything downstream
+        else { endOf[last] = edgePt(last, hit.dir); setEdge(last, hit.dir, P.RIVER); }
+        setEdge(land[0], s.link, P.RIVER);                                          // emerges from the mountain / leaves the lake / enters from off-map
+        srcCells.set(land[0], { from: s.from, flow: s.flow });
+      }
+      // REACHES: split the network at sources + confluences; each reach = one swept stroke with its own width
+      const ups = {}; for (const k in down) ups[down[k]] = (ups[down[k]] || 0) + 1;
+      const isConf = (k) => (ups[k] || 0) + (srcCells.has(k) ? 1 : 0) >= 2;
+      const wOf = (f) => f >= 3 ? 3 : f >= 2 ? 2 : 1;
+      const P2 = (k) => [pos[k].x, pos[k].z];
+      const walk = (k, pts, f) => { let gd = 0;
+        while (gd++ < 5000) { const nx = down[k];
+          if (nx === undefined) { if (endOf[k]) pts.push(endOf[k]); break; }
+          pts.push(P2(nx)); if (isConf(nx)) break; k = nx; }
+        if (pts.length >= 2) riverStrokes.push({ type: 'river', pts, w: wOf(f) }); };
+      for (const [k, s] of srcCells) { const pts = [s.from, P2(k)];
+        if (isConf(k)) { riverStrokes.push({ type: 'river', pts, w: wOf(s.flow) }); continue; }
+        walk(k, pts, flow[k] || s.flow); }
+      for (const k of riverSet) if (isConf(k)) walk(k, [P2(k)], flow[k] || 1);
     }
 
-    /* ---- 3. settlements on good ground, well spread ---- */
+    /* ---- 4. settlements on good ground, well spread: a walled TOWN (9–64 cells) + open VILLAGES (4–12 cells) ---- */
     const onShore = (k) => nbrs(k).some(n => waterSet.has(n.k));
-    const buildable = (k) => !waterSet.has(k) && !mtnSet.has(k) && !riverSet.has(k) && !onShore(k) && biome[k] !== B.SNOW && biome[k] !== B.ROCKS;
-    const cand = keys.filter(k => buildable(k) && !nbrs(k).some(n => mtnSet.has(n.k)));   // villages don't abut mountains (no natural pair)
-    const nSet = clamp(opts.settlements != null ? opts.settlements : Math.round(keys.length / 26), 2, 4);
+    const nearLocked = (k) => locked.has(k) || nbrs(k).some(n => locked.has(n.k));
+    const buildable = (k) => !waterSet.has(k) && !mtnSet.has(k) && !riverSet.has(k) && !onShore(k) && !locked.has(k)
+      && biome[k] !== B.SNOW && biome[k] !== B.ROCKS && biome[k] !== B.WATER;
+    const cand = keys.filter(k => buildable(k) && !nearLocked(k) && !nbrs(k).some(n => mtnSet.has(n.k)));   // villages don't abut mountains (no natural pair)
+    const nSet = Math.max(1, clamp(opts.settlements != null ? opts.settlements : Math.round(NC / 26), 2, 4) - (structure ? 1 : 0));
+    // SIZES (Paul): towns 9–64 cells, villages 4–12, castles 64+ (§2). Tiny mats (<50 cells) keep compact symbols.
+    const battle = !!opts.battle, roomy = NC >= 50;
+    const forceTown = Math.max(0, Math.round(opts.townSize || 0));
+    const townTarget = !roomy ? (NC >= 30 ? 3 : 2)
+      : forceTown > 0 ? clamp(forceTown, 9, 64)
+      : clamp(9 + ri(Math.max(1, Math.min(64, Math.round(NC * (battle ? 0.12 : 0.1))) - 8)), 9, 64);
+    const villageSize = () => roomy ? 4 + ri(9) : 1;
     const settlements = [];
     if (cand.length) {
-      settlements.push(cand.slice().sort((a, b) => (Math.hypot(pos[a].x - cx, pos[a].z - cz)) - (Math.hypot(pos[b].x - cx, pos[b].z - cz)))[0]); // one central
+      // the TOWN goes near the centre, but only where a compact, roughly round town of its size actually FITS (open,
+      // buildable ground all round) — otherwise it gets squeezed into a thin strip between a river and the castle.
+      const rad = Math.sqrt(townTarget / Math.PI) * 1.25 + 0.5, rad2 = rad * rad;
+      const fits = (k) => { let n = 0; for (const j of keys) if (d2(j, k) <= rad2 && buildable(j) && !nearLocked(j)) n++; return Math.min(1, n / (townTarget * 1.25)); };
+      const near = cand.slice().sort((a, b) => (Math.hypot(pos[a].x - cx, pos[a].z - cz)) - (Math.hypot(pos[b].x - cx, pos[b].z - cz))).slice(0, 80);
+      let tBest = near[0], tS = -Infinity;
+      for (const k of near) { const sc = fits(k) * 10 - Math.hypot(pos[k].x - cx, pos[k].z - cz) / span * 3; if (sc > tS) { tS = sc; tBest = k; } }
+      settlements.push(tBest); // one central
+      const spreadFrom = castleAnchor ? [castleAnchor] : [];
       while (settlements.length < nSet && settlements.length < cand.length) {
         let best = null, bestD = -1;
-        for (const k of cand) { if (settlements.includes(k)) continue; const md = Math.min(...settlements.map(s => d2(k, s))); if (md > bestD) { bestD = md; best = k; } }
+        for (const k of cand) { if (settlements.includes(k)) continue; const md = Math.min(...settlements.concat(spreadFrom).map(s => d2(k, s))); if (md > bestD) { bestD = md; best = k; } }
         if (best == null) break; settlements.push(best);
       }
     }
     const settleSet = new Set(settlements);
-    // SETTLEMENT SIZE: at 5-ft BATTLE scale a 1-cell "village" or 3-cell "town" is absurdly small, so grow each
-    // settlement into a blob sized as a FRACTION OF THE WHOLE BOARD (opts.battle). World scale keeps the compact
-    // region-symbol footprint. growBlob() BFS-grows a compact blob from a seed over buildable, unclaimed cells.
-    const battle = !!opts.battle, NC = keys.length;
-    // opts.townSize (cells) lets the caller size the central town explicitly — so a big board doesn't get a tiny
-    // town. 0/undefined = auto. When set, villages & the castle scale with it so the whole settlement reads right.
-    const forceTown = Math.max(0, Math.round(opts.townSize || 0));
-    const townTarget    = forceTown > 0 ? clamp(forceTown, 1, NC) : (battle ? clamp(Math.round(NC * 0.08), 6, 60) : (keys.length >= 64 ? 3 : 2));
-    const villageTarget = forceTown > 0 ? clamp(Math.round(forceTown * 0.45), 2, NC) : (battle ? clamp(Math.round(NC * 0.03), 3, 18) : 1);
-    const castleTarget  = forceTown > 0 ? clamp(Math.round(forceTown * 0.7), 3, NC)  : (battle ? clamp(Math.round(NC * 0.05), 4, 24) : 1);
-    const grownSettle   = battle || forceTown > 0;   // grow blobs (vs the compact 1-cell region symbol) whenever a size is forced OR at battle scale
     function growBlob(seed, target, claimed){ const blob = new Set([seed]); claimed.add(seed);
       while (blob.size < target){ const ring = [];
         for (const k of blob){ const c = cellOf[k];
-          for (let d = 0; d < N; d++){ const nk = keyOf(g.step(c, d)); if (blob.has(nk) || claimed.has(nk) || !cellOf[nk] || !buildable(nk)) continue; ring.push(nk); } }   // cellOf guard = stay on the board
+          for (let d = 0; d < N; d++){ const nk = keyOf(g.step(c, d)); if (blob.has(nk) || claimed.has(nk) || !cellOf[nk] || !buildable(nk) || nearLocked(nk) || nbrs(nk).some(m => mtnSet.has(m.k))) continue; ring.push(nk); } }   // cellOf guard = stay on the board
         if (!ring.length) break;
-        ring.sort((a, b) => d2(a, seed) - d2(b, seed));                       // compact, roughly round blob
+        ring.sort((a, b) => (d2(a, seed) + _jit[a] * 1.5) - (d2(b, seed) + _jit[b] * 1.5));   // compact, roughly round (a little ragged) blob
         for (const nk of ring){ if (blob.size >= target) break; if (blob.has(nk) || claimed.has(nk)) continue; blob.add(nk); claimed.add(nk); } }
       return blob; }
     const claimed = new Set(settlements);
-    // The castle is normally a NON-town settlement pulled out toward the mountains, with the TOWN in the centre.
-    // On SQUARE maps, ~40% of the time we SWAP those two: the keep takes the centre (the board's landmark) and the
-    // town shifts out toward the hills — same sizes, just swapped positions — so the castle isn't always off-centre.
-    const castleExists = settlements.length >= 3 && mtn.length;
-    const mtnNearest   = castleExists ? settlements.slice(1).sort((a, b) => nearBlob(a, mtn) - nearBlob(b, mtn))[0] : null;
-    const centerCastle = castleExists && gridKind === 'square' && rng() < 0.4;
-    const townSeed   = centerCastle ? mtnNearest     : settlements[0];
-    const castleSeed = centerCastle ? settlements[0] : mtnNearest;
-    // TOWN: the (usually central) settlement grows into a cluster that gets a ringed city WALL (built after roads, §4b)
+    // TOWN: the central settlement grows into a cluster that gets a ringed city WALL (built after roads, §5b)
     const townCells = new Set();
-    if (settlements.length && townSeed != null) {
-      if (grownSettle) growBlob(townSeed, townTarget, claimed).forEach(k => townCells.add(k));
-      else { townCells.add(townSeed);
-        nbrs(townSeed).map(n => n.k).filter(k => buildable(k) && !settleSet.has(k))
-          .sort((a, b) => Math.hypot(pos[a].x - cx, pos[a].z - cz) - Math.hypot(pos[b].x - cx, pos[b].z - cz))
-          .forEach(k => { if (townCells.size < townTarget) { townCells.add(k); claimed.add(k); } }); }
-    }
-    // optional castle: a keep + (in battle) a walled compound — near the mountains, or dead-centre when centerCastle
-    let castle = null; const castleCells = new Set();
-    if (castleExists) {
-      castle = castleSeed;
-      if (castle) { if (grownSettle) growBlob(castle, castleTarget, claimed).forEach(k => castleCells.add(k)); else castleCells.add(castle);
-        for (const k of castleCells) { biome[k] = B.CITY; feature[k] = 'buildings'; } feature[castle] = 'keep';
-        // ring the castle grounds with variety — orchards/gardens + a few trees — so its surroundings aren't plain
-        const cring = new Set(); for (const k of castleCells) for (const { k: nk } of nbrs(k)) if (!castleCells.has(nk) && !settleSet.has(nk)) cring.add(nk);
-        for (const nk of cring){ if (waterSet.has(nk) || mtnSet.has(nk)) continue; const rv = rng();
-          if (rv < 0.42){ biome[nk] = B.ORCHARD; feature[nk] = undefined; }
-          else if (rv < 0.6){ biome[nk] = B.FOREST; feature[nk] = 'trees'; } }
-      }
-    }
-    // VILLAGES: every remaining settlement grows a small blob of houses (ring wall added in §4b)
-    const villageBlobs = [];
-    for (const vk of settlements) { if (townCells.has(vk) || castleCells.has(vk)) continue;
-      const blob = grownSettle ? growBlob(vk, villageTarget, claimed) : new Set([vk]);
-      for (const k of blob) { biome[k] = B.VILLAGE; feature[k] = 'houses'; }
-      villageBlobs.push(blob); }
+    if (settlements.length) growBlob(settlements[0], townTarget, claimed).forEach(k => townCells.add(k));
+    // VILLAGES: every other settlement grows an open cluster of cottages
+    for (const vk of settlements.slice(1)) {
+      const blob = growBlob(vk, villageSize(), claimed);
+      if (roomy && blob.size < 4) { settlements.splice(settlements.indexOf(vk), 1); settleSet.delete(vk); continue; }   // too cramped for a real (4+ cottage) village → leave it as countryside
+      for (const k of blob) { biome[k] = B.VILLAGE; feature[k] = 'houses'; } }
 
-    /* ---- 4. sparse road network: a spanning tree over settlements + 1 edge exit ---- */
+    /* ---- 5. sparse road network: a spanning tree over settlements + castle gates + 1 edge exit ---- */
     const roadCost = (nk) => {
-      if (waterSet.has(nk) || mtnSet.has(nk)) return Infinity;      // roads route around mountains & water
+      if (waterSet.has(nk) || mtnSet.has(nk) || locked.has(nk) || biome[nk] === B.WATER) return Infinity;   // roads route around mountains, water & the castle grounds
       let c = 1;
       const bm = biome[nk];
       if (bm === B.FOREST) c = 2.6; else if (bm === B.ROCKS || bm === B.SNOW) c = 1.6; else if (bm === B.VILLAGE || bm === B.CITY) c = 0.6;
@@ -376,9 +565,10 @@
       return c;
     };
     // one road exit to a board edge (a border plains/forest cell away from the settlements)
-    const exitPool = border.filter(k => buildable(k) && !settleSet.has(k));
+    const exitPool = border.filter(k => buildable(k) && !settleSet.has(k) && !nearLocked(k));
     const exit = exitPool.length ? exitPool.sort((a, b) => (settlements.length ? nearBlob(b, settlements) - nearBlob(a, settlements) : 0))[0] : null;
-    const terminals = settlements.concat(exit ? [exit] : []);
+    const gates = castleExits.filter(k => roadCost(k) !== Infinity || edges[k].includes(P.ROAD));
+    const terminals = settlements.concat(exit ? [exit] : [], gates);
     const roadCells = new Set();
     function layRoad(pathKeys) {
       for (const k of pathKeys) roadCells.add(k);
@@ -402,46 +592,25 @@
       }
       // exit spills off the board
       if (exit && roadCells.has(exit)) { const od = offDirs(exit); if (od.length) setEdge(exit, od[ri(od.length)], P.ROAD); }
-      // GUARANTEE the castle has its OWN road out to the nearest board edge (never a dead-end; extends cleanly)
-      if (castle){
-        const cexit = border.filter(k => (buildable(k) || k===castle) && !castleCells.has(k)).sort((a, b) => d2(a, castle) - d2(b, castle))[0];
-        if (cexit){ const path = dijkstra(castle, cexit, roadCost); if (path){ layRoad(path); const od = offDirs(cexit); if (od.length) setEdge(cexit, od[ri(od.length)], P.ROAD); } }
-      }
     }
-    // a plains road leaf (a dead-end that isn't a village/castle/exit) becomes a farm
+    // a plains road leaf (a dead-end that isn't a village/castle gate/exit) becomes a farm
+    const gateSet = new Set(castleExits);
     roadCells.forEach(k => {
-      if (settleSet.has(k) || townCells.has(k) || k === exit) return;
+      if (settleSet.has(k) || townCells.has(k) || k === exit || gateSet.has(k)) return;
       const roadN = edges[k].filter(p => p === P.ROAD).length;
       if (roadN === 1 && biome[k] === B.PLAINS && !riverSet.has(k)) feature[k] = 'farm';
     });
 
-    /* ---- 4b. walled TOWN: ring the town cluster with a city wall, leaving a gate where a road enters ---- */
+    /* ---- 5b. walled TOWN: ring the town cluster with a city wall, leaving a gate where a road enters ---- */
     const walls = [];   // freeform draw strokes {type:'wall', pts:[[x,z]…]} in g.world frame
     if (townCells.size) {
       for (const k of townCells) { biome[k] = B.CITY; feature[k] = 'buildings'; }
-      const cornersW = (k) => g.corners().map(cn => [pos[k].x + cn[0], pos[k].z + cn[1]]);
-      const edgeCorners = (k, dir) => {                          // the two corner points bounding edge `dir`
-        const [ex, ez] = g.edgeMid(dir), mx = pos[k].x + ex, mz = pos[k].z + ez, C = cornersW(k);
-        let best = null, bd = Infinity;
-        for (let i = 0; i < C.length; i++) { const a = C[i], b = C[(i + 1) % C.length];
-          const d = ((a[0] + b[0]) / 2 - mx) ** 2 + ((a[1] + b[1]) / 2 - mz) ** 2; if (d < bd) { bd = d; best = [a, b]; } }
-        return best;
-      };
-      const segs = [];
-      for (const k of townCells) { const c = cellOf[k];
-        for (let d = 0; d < N; d++) { const nk = keyOf(g.step(c, d));
-          if (townCells.has(nk)) continue;                       // interior wall → skip
-          if (edges[k][d] === P.ROAD || edges[k][d] === P.RIVER) continue;   // a road/river crossing = the gate → leave a gap
-          segs.push(edgeCorners(k, d)); } }
-      for (const run of chainSegments(segs)) if (run.length >= 2) walls.push({ type: 'wall', pts: run });
+      ringWall(townCells, k => cellOf[k], k => pos[k], g, k => edges[k], N).forEach(w => walls.push(w));
     }
-    // villages get a ring wall too (with a gate gap where a road/river crosses)
-    for (const vk of settlements) { if (townCells.has(vk) || vk === castle) continue;
-      ringWall(new Set([vk]), k => cellOf[k], k => pos[k], g, k => edges[k], N).forEach(w => walls.push(w)); }
 
-    /* ---- 5. one or two trails off to a lone feature (forest / mountain pass) ---- */
+    /* ---- 6. one or two trails off to a lone feature (forest / mountain pass) ---- */
     const trailCost = (nk) => {
-      if (waterSet.has(nk)) return Infinity;
+      if (waterSet.has(nk) || locked.has(nk) || biome[nk] === B.WATER) return Infinity;
       let c = 1;
       const bm = biome[nk];
       if (bm === B.MOUNTAINS) c = 2.2; else if (bm === B.FOREST) c = 1.2; else if (bm === B.ROCKS || bm === B.SNOW) c = 1.4;
@@ -465,11 +634,10 @@
       trailsLaid++;
     }
 
-    /* ---- 5a. retract any TRAIL that dead-ends on bare open ground — a footpath must reach somewhere:
+    /* ---- 6a. retract any TRAIL that dead-ends on bare open ground — a footpath must reach somewhere:
        a destination (forest / mountain / rocks / snow / water / settlement), a road it joins, or off the
        map (a trailhead). A tip left in an empty plains/sand field reads as a "path to nowhere", so we trim
-       it back cell-by-cell until it meets a justified cell. Trails to forests/mountains are the intended
-       look and are never touched (they are justified by their destination biome). ---- */
+       it back cell-by-cell until it meets a justified cell. ---- */
     {
       const trailJustified = (k) => {
         const bm = biome[k];
@@ -481,7 +649,7 @@
       };
       let changed = true, guard = 0;
       while (changed && guard++ < 400) { changed = false;
-        for (const k of keys) {
+        for (const k of keys) { if (locked.has(k)) continue;
           let one = -1, cnt = 0;
           for (let d=0; d<N; d++) if (edges[k][d]===P.TRAIL){ cnt++; one=d; }
           if (cnt===1 && !trailJustified(k)) { setEdge(k, one, P.NONE); changed = true; }   // trim the pointless tip
@@ -489,13 +657,13 @@
       }
     }
 
-    /* ---- 5b. farmland: patches of crop rows / orchards / centre-pivot circles on open plains ("farms
+    /* ---- 6b. farmland: patches of crop rows / orchards / centre-pivot circles on open plains ("farms
        from the air") near settlements & irrigation water. Painted top-down tiles, mixed per-cell for a patchwork. */
     const farmVar = {};                                   // per-cell field variant (crops 0–2, orchard 0–1, pivot 0–1)
     if (opts.farms !== false) {
       const anchor = settlements.concat([...townCells]);
-      const canFarm = (k) => biome[k] === B.PLAINS && !riverSet.has(k) && !settleSet.has(k) && !townCells.has(k)
-        && feature[k] === undefined && k !== exit;
+      const canFarm = (k) => biome[k] === B.PLAINS && !riverSet.has(k) && !settleSet.has(k) && !townCells.has(k) && !locked.has(k)
+        && feature[k] === undefined && k !== exit && !gateSet.has(k);
       let seeds = keys.filter(canFarm);
       if (anchor.length) { const near = seeds.filter(k => nearBlob(k, anchor) <= 9); if (near.length) seeds = near; }   // prefer within ~3 tiles of a settlement
       const nClusters = seeds.length ? 1 + ri(3) : 0;    // 1–3 farm districts
@@ -503,8 +671,8 @@
         const start = seeds[ri(seeds.length)];
         const size = 3 + ri(5), grown = [start], gset = new Set(grown);   // 3–7 fields per district
         while (grown.length < size) {
-          const cand = nbrs(grown[ri(grown.length)]).map(n => n.k).filter(k => canFarm(k) && !gset.has(k));
-          if (!cand.length) break; const nk = cand[ri(cand.length)]; gset.add(nk); grown.push(nk);
+          const cand2 = nbrs(grown[ri(grown.length)]).map(n => n.k).filter(k => canFarm(k) && !gset.has(k));
+          if (!cand2.length) break; const nk = cand2[ri(cand2.length)]; gset.add(nk); grown.push(nk);
         }
         for (const k of grown) {
           const nearW = water.length ? nearBlob(k, water) : 999, roll = rng();
@@ -516,7 +684,7 @@
       }
     }
 
-    /* ---- 5c. mountain-massif depth (0 = fringe/foothill, 1 = range core) so peaks grow toward the heart of
+    /* ---- 6c. mountain-massif depth (0 = fringe/foothill, 1 = range core) so peaks grow toward the heart of
        the range and taper to foothills at its edge — no more a uniform grid of identical spikes. ---- */
     const mtnMass = {};
     { const dist = {}, front = [];
@@ -527,54 +695,14 @@
       keys.forEach(k => { if (biome[k] === B.MOUNTAINS) mtnMass[k] = Math.min(1, (dist[k] || 1) / maxd); });
     }
 
-    /* ---- 5d. MOAT + drawbridge around the castle (toggle) — ring the castle grounds with water; where the
-       castle's road crosses the ring the road rides over the water = a drawbridge (renderer bridges it). ---- */
-    if (opts.moat && castle && castleCells.size){
-      const moatRing = new Set();
-      for (const k of castleCells) for (const { k: nk } of nbrs(k)) if (!castleCells.has(nk) && !settleSet.has(nk) && !townCells.has(nk)) moatRing.add(nk);
-      for (const nk of moatRing){ if (mtnSet.has(nk)) continue;                         // don't drown a mountain
-        biome[nk] = B.WATER;
-        if (edges[nk] && edges[nk].includes(P.ROAD)){                                   // road-over-water cell = DRAWBRIDGE (deck hinged at the castle side)
-          const inn = nbrs(nk).find(n => castleCells.has(n.k) && edges[nk][n.dir] === P.ROAD);
-          feature[nk] = inn ? 'drawbridge' + inn.dir : 'drawbridge' + edges[nk].indexOf(P.ROAD);
-        } else feature[nk] = 'water'; }
-      // FEED THE MOAT: unless a river already touches it, carve a stream from the moat out to the nearest
-      // existing river / lake / board edge, so the moat reads as fed & drained — not an isolated magic ring.
-      const moatW = [...moatRing].filter(k => biome[k] === B.WATER);
-      const touchesRiver = moatW.some(k => (edges[k] || []).includes(P.RIVER) || nbrs(k).some(n => riverSet.has(n.k)));
-      if (moatW.length && !touchesRiver){
-        const blocked = (k) => castleCells.has(k) || settleSet.has(k) || townCells.has(k);
-        const isTarget = (k) => !moatRing.has(k) && ((riverSet.has(k)) || (waterSet.has(k)) || isBorder(k));
-        const dist = {}, prev = {}, pq = [];
-        for (const k of moatW){ dist[k] = 0; pq.push([0, k]); }
-        let hit = null;
-        while (pq.length){
-          pq.sort((a, b) => a[0] - b[0]); const [d, k] = pq.shift();
-          if (d > (dist[k] ?? Infinity)) continue;
-          if (isTarget(k)){ hit = k; break; }
-          for (const { k: nk } of nbrs(k)){ if (blocked(nk)) continue;
-            const c = mtnSet.has(nk) ? 6 : (waterSet.has(nk) ? 0.4 : 1 + rng() * 0.7);
-            const nd = d + c; if (nd < (dist[nk] ?? Infinity)){ dist[nk] = nd; prev[nk] = k; pq.push([nd, nk]); } }
-        }
-        if (hit){
-          const path = [hit]; let k = hit; while (prev[k] != null){ k = prev[k]; path.push(k); }   // hit(target) … → moat cell
-          for (const c of path){ if (moatRing.has(c) || waterSet.has(c)) continue;                    // don't overwrite water/moat
-            riverSet.add(c); biome[c] = B.PLAINS; if (feature[c] !== 'water') feature[c] = undefined; }
-          for (let i = 0; i < path.length - 1; i++) setEdge(path[i], dirTo(path[i], path[i + 1]), P.RIVER);
-          if (isBorder(hit) && !waterSet.has(hit) && !riverSet.has(hit)) { riverSet.add(hit); }        // border land end becomes a river cell
-          if (isBorder(hit)){ const od = offDirs(hit); if (od.length) setEdge(hit, od[ri(od.length)], P.RIVER); }   // spill off-board so it flows through
-        }
-      }
-    }
-
-    /* ---- 6. realise every cell as a connector-exact tile ---- */
+    /* ---- 7. realise every cell as a connector-exact tile ---- */
     const defaultFeature = (bm) => ({ plains: 'tufts', forest: 'trees', mountains: 'peaks', village: 'houses', city: 'buildings', water: 'water' })[bm];
     board.clear();
     let placed = 0;
     for (const k of keys) {
       const sig = edges[k], bm = biome[k];
       let feat = feature[k] !== undefined ? feature[k] : defaultFeature(bm);
-      if (sig.includes(P.ROAD) && sig.includes(P.RIVER)) feat = 'bridge';     // a road bridging the river
+      if (!locked.has(k) && sig.includes(P.ROAD) && sig.includes(P.RIVER)) feat = 'bridge';     // a road bridging the river
       const id = registerGen(defs, gridKind, bm, sig, feat);
       const rec = { defId: id, rot: 0 };
       if (mtnMass[k] !== undefined) rec.mass = mtnMass[k];
@@ -582,9 +710,103 @@
       board.set(k, rec);
       placed++;
     }
-    // render roads/rivers/trails as CONTINUOUS swept strokes (not per-tile ribbons) — smooth, no truncation.
-    const pathStrokes = tracePathStrokes(keys, k => cellOf[k], k => pos[k], k => edges[k], g);
-    return { placed, draw: walls.concat(pathStrokes), settlements: settlements.length, town: townCells.size, rivers: nRivers, roads: roadCells.size, water: water.length, mountains: mtn.length, forest: forest.length };
+    // roads/trails as CONTINUOUS swept strokes (the castle grounds draw their own — `structure.draw`, which the
+    // host clips to whatever part of the castle is on the board); rivers come from the drainage network above.
+    const pathStrokes = tracePathStrokes(keys.filter(k => !locked.has(k)), k => cellOf[k], k => pos[k], k => edges[k], g, [P.TRAIL, P.ROAD]);
+    return { placed, draw: walls.concat(riverStrokes, pathStrokes), structure,
+      settlements: settlements.length + (structure ? 1 : 0), town: townCells.size, castle: structure ? structure.w * structure.h : 0,
+      rivers: riverStrokes.length, roads: roadCells.size, water: water.length, mountains: mtn.length, forest: forest.length };
+  }
+
+  /* ================= CASTLE + OUTSKIRTS =================================================================
+     A castle rarely stands alone: outside the moat/curtain wall lie the hamlets, farmsteads and fields that feed
+     it. `opts.outskirts` = R rings around the region's edge are kept OUT of the castle proper; the castle is
+     built on the core (so the moat/wall sit R rings in), then every castle road is carried straight out through
+     the outskirts to the region edge, a small village (4–6 cottages) grows beside each road, a few lone
+     farmsteads + fields/orchards/copses dot the rest, and (with a moat + opts.feedDir) the moat's feed stream
+     runs out toward the nearest lake / downhill. Same tile/stroke output as generateSettlement. ---- */
+  function _castleWithOutskirts(gridKind, board, cells, defs, opts) {
+    const R = Math.max(1, opts.outskirts | 0);
+    const g = gridFor(gridKind), N = g.N;
+    const rng = TE.mulberry32((((opts.seed || 1) * 9973) + 17) >>> 0), ri = (n) => Math.floor(rng() * n);
+    const keys = cells.map(keyOf), cset = new Set(keys), cellOf = {}, pos = {};
+    cells.forEach(c => { const k = keyOf(c); cellOf[k] = c; pos[k] = g.world(c); });
+    const nbrs = (k) => { const c = cellOf[k], out = []; for (let d = 0; d < N; d++) { const nk = keyOf(g.step(c, d)); if (cset.has(nk)) out.push({ k: nk, dir: d }); } return out; };
+    // ring depth from the region's edge (0 = outermost ring)
+    const depth = {}, q = [];
+    for (const k of keys) { const c = cellOf[k]; for (let d = 0; d < N; d++) if (!cset.has(keyOf(g.step(c, d)))) { depth[k] = 0; q.push(k); break; } }
+    for (let h = 0; h < q.length; h++) { const k = q[h]; for (const { k: nk } of nbrs(k)) if (depth[nk] === undefined) { depth[nk] = depth[k] + 1; q.push(nk); } }
+    const core = cells.filter(c => (depth[keyOf(c)] ?? 99) >= R);
+    if (core.length < 16) return generateSettlement(gridKind, board, cells, defs, Object.assign({}, opts, { outskirts: 0 }));
+    const tmp = new Map();
+    const rc = generateSettlement(gridKind, tmp, core, defs, Object.assign({}, opts, { outskirts: 0 }));
+    const coreSet = new Set(core.map(keyOf));
+    const biome = {}, edges = {}, feature = {};
+    for (const k of coreSet) { const d = defs[tmp.get(k).defId]; biome[k] = d.biome; edges[k] = d.edges.map(e => e.path); feature[k] = d.feature; }
+    const outer = keys.filter(k => !coreSet.has(k));
+    for (const k of outer) { biome[k] = B.PLAINS; edges[k] = new Array(N).fill(P.NONE); feature[k] = undefined; }
+    function setEdge(k, dir, path) { edges[k][dir] = path; const nk = keyOf(g.step(cellOf[k], dir)); if (cset.has(nk)) edges[nk][g.opposite(dir)] = path; }
+    let cx = 0, cz = 0; keys.forEach(k => { cx += pos[k].x; cz += pos[k].z; }); cx /= keys.length; cz /= keys.length;
+
+    // straight run from a core-edge cell out through the outskirts in direction d, off the region edge
+    const road = new Set(), stream = new Set(), spokes = [];
+    function runOut(k0, d, path) {
+      const run = []; let cur = keyOf(g.step(cellOf[k0], d)); if (!cset.has(cur) || coreSet.has(cur)) return run;
+      edges[cur][g.opposite(d)] = path; let guard = 0;
+      while (guard++ < 200) { run.push(cur); (path === P.ROAD ? road : stream).add(cur);
+        const nx = keyOf(g.step(cellOf[cur], d));
+        if (!cset.has(nx)) { edges[cur][d] = path; break; }                       // leaves the region → carried on beyond
+        if (coreSet.has(nx)) break;
+        setEdge(cur, d, path); cur = nx; }
+      return run; }
+    // 1. carry every castle road (drawbridge spoke) out to the region edge
+    for (const k of coreSet) { for (let d = 0; d < N; d++) { if (edges[k][d] !== P.ROAD) continue;
+      const nk = keyOf(g.step(cellOf[k], d)); if (coreSet.has(nk) || !cset.has(nk)) continue;
+      spokes.push(runOut(k, d, P.ROAD)); } }
+    // 2. the moat's FEED STREAM toward opts.feedDir (a lake / downhill) — from a plain moat cell, never a drawbridge
+    if (opts.moat && Array.isArray(opts.feedDir)) {
+      const [fx, fz] = opts.feedDir, fl = Math.hypot(fx, fz) || 1;
+      let best = null, bs = -Infinity;
+      for (const k of coreSet) { if (biome[k] !== B.WATER || edges[k].includes(P.ROAD)) continue;
+        for (let d = 0; d < N; d++) { const nk = keyOf(g.step(cellOf[k], d)); if (coreSet.has(nk) || !cset.has(nk) || road.has(nk)) continue;
+          const em = g.edgeMid(d), s = ((pos[k].x - cx) * fx + (pos[k].z - cz) * fz) / fl + 2 * (em[0] * fx + em[1] * fz) / fl;
+          if (s > bs) { bs = s; best = [k, d]; } } }
+      if (best) { edges[best[0]][best[1]] = P.RIVER; runOut(best[0], best[1], P.RIVER); }
+    }
+    // 3. HAMLETS — a small village (4–6 cottages) beside each road, alternating sides; plus a few lone farmsteads
+    const free = (k) => cset.has(k) && !coreSet.has(k) && !road.has(k) && !stream.has(k) && biome[k] === B.PLAINS && feature[k] === undefined;
+    const hamlet = [];
+    spokes.forEach((run, si) => {
+      if (!run.length) return;
+      const at = run[Math.min(run.length - 1, ri(Math.max(1, run.length)))];
+      const side = nbrs(at).map(n => n.k).filter(free);
+      if (!side.length) return;
+      const seed = side[(si + ri(2)) % side.length], blob = [seed], bset = new Set(blob), want = 4 + ri(3);
+      while (blob.length < want) { const nx = [];
+        for (const k of blob) for (const { k: nk } of nbrs(k)) if (free(nk) && !bset.has(nk)) nx.push(nk);
+        if (!nx.length) break; const pick = nx[ri(nx.length)]; bset.add(pick); blob.push(pick); }
+      for (const k of blob) { biome[k] = B.VILLAGE; feature[k] = 'houses'; hamlet.push(k); } });
+    const lone = outer.filter(free); const nFarm = Math.min(lone.length, 2 + ri(3));
+    for (let i = 0; i < nFarm; i++) { const k = lone[ri(lone.length)]; if (!free(k)) continue;
+      biome[k] = B.VILLAGE; feature[k] = 'houses'; hamlet.push(k);
+      const fld = nbrs(k).map(n => n.k).filter(free); if (fld.length) { const f = fld[ri(fld.length)]; biome[f] = B.CROPS; feature[f] = 'field'; } }
+    // 4. countryside: kitchen fields + orchards near the cottages, the odd copse, meadow elsewhere (coherent noise)
+    const nearH = (k) => hamlet.some(h => (pos[h].x - pos[k].x) ** 2 + (pos[h].z - pos[k].z) ** 2 <= 2.3 * 2.3);
+    for (const k of outer) { if (!free(k)) continue;
+      const w = pos[k], n = (Math.sin(w.x * 0.61 + (opts.seed || 1)) + Math.cos(w.z * 0.53) + Math.sin((w.x + w.z) * 0.33)) / 3, v = (n + 1) / 2 + (rng() - 0.5) * 0.2;
+      if (nearH(k) && v > 0.45) { biome[k] = v > 0.7 ? B.ORCHARD : B.CROPS; feature[k] = 'field'; }
+      else if (v < 0.22) { biome[k] = B.FOREST; feature[k] = 'trees'; } }
+    // realise
+    const defFeat = (bm) => ({ plains: 'tufts', forest: 'trees', mountains: 'peaks', village: 'houses', city: 'buildings', water: 'water' })[bm];
+    board.clear(); let placed = 0;
+    for (const k of keys) { const sig = edges[k], bm = biome[k];
+      let feat = feature[k] !== undefined ? feature[k] : defFeat(bm);
+      if (!coreSet.has(k) && sig.includes(P.ROAD) && sig.includes(P.RIVER)) feat = 'bridge';
+      board.set(k, { defId: registerGen(defs, gridKind, bm, sig, feat), rot: 0 }); placed++; }
+    const walls = (rc.draw || []).filter(s => s.type === 'wall');
+    const strokes = tracePathStrokes(keys, k => cellOf[k], k => pos[k], k => edges[k], g).map(s => s.type === 'river' ? Object.assign(s, { w: 1 }) : s);   // the moat's feed is a narrow stream
+    return { placed, draw: walls.concat(strokes), settlementType: 'castle', keepSize: rc.keepSize,
+             buildings: keys.filter(k => biome[k] === B.CITY || biome[k] === B.VILLAGE).length };
   }
 
   /* ================= whole-map / zoom-in SETTLEMENT generator =========================================
@@ -597,6 +819,7 @@
      (square + hex) via the same edge/wall/stroke machinery as generateMap. ---- */
   function generateSettlement(gridKind, board, cells, defs, opts){
     opts = opts || {};
+    if ((opts.outskirts | 0) > 0 && opts.settlementType === 'castle') return _castleWithOutskirts(gridKind, board, cells, defs, opts);
     const g = gridFor(gridKind), N = g.N;
     const rng = TE.mulberry32((opts.seed || 1) >>> 0);
     const ri = (n) => Math.floor(rng() * n);
@@ -619,13 +842,29 @@
     function dirTo(a, b){ for (let d = 0; d < N; d++) if (keyOf(g.step(cellOf[a], d)) === b) return d; return -1; }
     function dj(src, dst){ const dist = { [src]: 0 }, prev = {}, pq = [[0, src]];
       while (pq.length){ pq.sort((a, b) => a[0] - b[0]); const [d, k] = pq.shift(); if (k === dst) break; if (d > (dist[k] ?? 1e9)) continue;
-        for (const { k: nk } of nbrs(k)){ const c = (edges[nk].includes(P.ROAD) ? 0.4 : 1) + (nk !== dst && isBorder(nk) ? 6 : 0);   // avenues avoid the boundary ring so they cross it only at their gate, not run along the moat
+        for (const { k: nk } of nbrs(k)){ if (keepN > 1 && keepBlock.has(nk)) continue;             // roads stop AT a big keep, never run over it
+          const c = (edges[nk].includes(P.ROAD) ? 0.4 : 1) + (nk !== dst && isBorder(nk) ? 6 : 0);   // avenues avoid the boundary ring so they cross it only at their gate, not run along the moat
           const nd = d + c; if (nd < (dist[nk] ?? 1e9)){ dist[nk] = nd; prev[nk] = k; pq.push([nd, nk]); } } }
       if (dist[dst] == null) return null; const path = [dst]; let k = dst; while (k !== src){ k = prev[k]; path.push(k); } return path.reverse(); }
 
     if (!keys.length) { board.clear(); return { placed: 0, draw: [], settlementType: type }; }
     const centerK = keys.slice().sort((a, b) => dCentre(a) - dCentre(b))[0];
     const border = keys.filter(isBorder);
+    // KEEP SIZE (castle): 1×1 … 4×4 squares on a square grid (hex: 1 / 7 / 19 / 37 hexes) — the whole block is the
+    // keep's footprint. The anchor carries 'keep<N>' (square: its top-left cell, hex: the centre) and the rest
+    // 'keepyard' (ground only), so the renderer draws ONE big keep over the block. Shrinks to fit if the castle is small.
+    const keepBlock = new Set([centerK]); let keepAnchor = centerK, keepN = 1;
+    if (type === 'castle'){
+      const inner = (k) => cset.has(k) && !isBorder(k) && nbrs(k).every(n => !isBorder(n.k));   // leave room for the curtain wall
+      const c0 = cellOf[centerK];
+      for (let want = clamp((opts.keepSize | 0) || 1, 1, 4); want > 1; want--){
+        const blk = [];
+        if (gridKind === 'hex'){ const R0 = want - 1;
+          for (let dq = -R0; dq <= R0; dq++) for (let dr = -R0; dr <= R0; dr++){ if ((Math.abs(dq) + Math.abs(dr) + Math.abs(dq + dr)) / 2 > R0) continue; blk.push(keyOf({ q: c0.q + dq, r: c0.r + dr })); } }
+        else { const off = Math.floor((want - 1) / 2); for (let dq = 0; dq < want; dq++) for (let dr = 0; dr < want; dr++) blk.push(keyOf({ q: c0.q - off + dq, r: c0.r - off + dr })); }
+        if (blk.every(inner)){ blk.forEach(k => keepBlock.add(k)); keepN = want;
+          keepAnchor = gridKind === 'hex' ? centerK : keyOf({ q: c0.q - Math.floor((want - 1) / 2), r: c0.r - Math.floor((want - 1) / 2) }); break; } }
+    }
     const street = new Set();
     function layRoad(path){ if (!path) return; for (const k of path) street.add(k); for (let i = 0; i < path.length - 1; i++) setEdge(path[i], dirTo(path[i], path[i + 1]), P.ROAD); }
 
@@ -642,7 +881,11 @@
       const byAngle = border.slice().sort((a, b) => Math.atan2(pos[a].z - cz, pos[a].x - cx) - Math.atan2(pos[b].z - cz, pos[b].x - cx));
       const targets = new Set([gate]);
       for (let i = 0; i < nSpokes && byAngle.length; i++) targets.add(byAngle[Math.floor(i * byAngle.length / nSpokes)]);
-      for (const t of targets){ if (t !== centerK) layRoad(dj(centerK, t)); }
+      for (const t of targets){ if (keepBlock.has(t)) continue;
+        if (keepN > 1){ let src = null, bd = Infinity;                                   // start just outside the big keep, nearest the target
+          for (const b of keepBlock) for (const { k: o } of nbrs(b)) if (!keepBlock.has(o)){ const dd = d2(o, t); if (dd < bd){ bd = dd; src = o; } }
+          if (src) layRoad(src === t ? [t] : dj(src, t)); }
+        else if (t !== centerK) layRoad(dj(centerK, t)); }
     }
     // EVERY avenue that reaches the boundary continues OFF THE MAP (outward direction) so no road dead-ends at
     // the wall or in the moat — the settlement sits at a crossroads with real roads leaving the board edge.
@@ -657,10 +900,10 @@
 
     // centre: castle keep, or an open plaza for a town/village
     biome[centerK] = (type === 'castle') ? B.CITY : B.GREEN;
-    if (type === 'castle') feature[centerK] = 'keep';
+    if (type === 'castle'){ for (const k of keepBlock){ biome[k] = B.CITY; feature[k] = 'keepyard'; } feature[keepAnchor] = keepN > 1 ? 'keep' + keepN : 'keep'; }
 
     // building lots on every non-street, non-centre cell
-    for (const k of keys){ if (k === centerK) continue;
+    for (const k of keys){ if (k === centerK || keepBlock.has(k)) continue;
       if (street.has(k)){ biome[k] = B.GREEN; continue; }                                   // road runs over open ground
       if (type === 'village'){
         if (rng() < 0.55){ biome[k] = B.VILLAGE; feature[k] = 'houses'; } else biome[k] = B.GREEN;   // spread-out cottages + greens
@@ -707,7 +950,7 @@
       ringWall(wallSet, k => cellOf[k], k => pos[k], g, k => edges[k], N).forEach(w => walls.push(w));
       // GATEHOUSE where a road passes through the curtain wall ('gate<dir>' = the wall edge it sits on), and a
       // DRAWBRIDGE on the moat cell outside it ('drawbridge<dir>' = the edge it's hinged on, facing the gate).
-      for (const k of wallSet){ if (k === centerK) continue; const c = cellOf[k];
+      for (const k of wallSet){ if (k === centerK || keepBlock.has(k)) continue; const c = cellOf[k];
         for (let d = 0; d < N; d++){ if (edges[k][d] !== P.ROAD) continue; const nk = keyOf(g.step(c, d));
           if (wallSet.has(nk)) continue;
           feature[k] = 'gate' + d;
@@ -724,7 +967,7 @@
       board.set(k, { defId: id, rot: 0 }); placed++;
     }
     const pathStrokes = tracePathStrokes(keys, k => cellOf[k], k => pos[k], k => edges[k], g);
-    return { placed, draw: walls.concat(pathStrokes), settlementType: type,
+    return { placed, draw: walls.concat(pathStrokes), settlementType: type, keepSize: keepN,
              buildings: keys.filter(k => biome[k] === B.CITY || biome[k] === B.VILLAGE).length };
   }
 
@@ -844,11 +1087,12 @@
       if (T.rocks){ const pool=newKeys.filter(k=>decided[k]===T.dom).sort(()=>rng()-0.5); for(let i=0;i<Math.min(T.rocks,pool.length);i++) decided[pool[i]]=B.ROCKS; }
       if (T.snow){ const far=newKeys.filter(k=>depth[k]>=maxDepth && decided[k]===B.MOUNTAINS); for(const k of far.slice(0,Math.max(2,(far.length*0.6)|0))) decided[k]=B.SNOW; }
       if (T.lakes){ // scale the number of lakes with the extended AREA and vary their sizes (many small ponds + a few big lakes) instead of a fixed 3 dots
-        const nL = clamp(Math.round(newKeys.length/14 * (T.lakes/3)), 3, 40);
+        // lakes are 16–400 cells (Paul) — fewer, real lakes sized to the new land, biased toward the small end
+        const nL = clamp(Math.round(newKeys.length/60 * (T.lakes/3)), 1, 8), maxL = Math.min(400, Math.max(16, Math.round(newKeys.length*0.35)));
         for (let i=0;i<nL;i++){ const s=newKeys[(rng()*newKeys.length)|0]; if(decided[s]===B.WATER) continue;
-          const sz = 1 + ((rng()*rng()*8)|0);                                   // 1..8, biased small → varied sizes
+          const sz = Math.round(16 + rng()*rng()*(maxL-16));
           growNew(s, sz, k=>decided[k]===B.WATER).forEach(k=>{ decided[k]=B.WATER; featOf[k]='water'; }); } }
-      if (T.big){ growNew(centerCell, Math.max(4, Math.round(newKeys.length*0.5)), null).forEach(k=>{ decided[k]=B.WATER; featOf[k]='water'; }); }
+      if (T.big){ growNew(centerCell, Math.min(400, Math.max(16, Math.round(newKeys.length*0.5))), null).forEach(k=>{ decided[k]=B.WATER; featOf[k]='water'; }); }
     } else {
       // match/auto: continue the seam then drift by natural terrain order (original behaviour)
       for (const c of newCellsSorted){ const k=keyOf(c); const nb=[];
@@ -863,8 +1107,19 @@
 
     /* ---- 2. a lake FEATURE carves water before roads route (so roads avoid it) ---- */
     let anchor = newKeys.filter(k=>decided[k]!==B.WATER).sort((a,b)=> (depth[b]-depth[a]) || (d2N(a,centerCell)-d2N(b,centerCell)) )[0] || centerCell;
-    if (feature==='lake'){ growNew(anchor, Math.max(4, Math.round(newKeys.length*0.28)), null).forEach(k=>{ decided[k]=B.WATER; featOf[k]='water'; });
-      anchor = newKeys.filter(k=>decided[k]!==B.WATER).sort((a,b)=> (depth[b]-depth[a]) || (d2N(a,centerCell)-d2N(b,centerCell)) )[0] || anchor; }
+    if (feature==='lake'){ growNew(anchor, Math.min(400, Math.max(16, Math.round(newKeys.length*0.28))), null).forEach(k=>{ decided[k]=B.WATER; featOf[k]='water'; }); }
+
+    /* ---- 2b. natural MINIMUM SIZES: a mountain range ≥5 cells, a lake ≥16 — counting the part already on the
+       map, so continuing an existing range/lake across the seam is fine but no lone 1-square peaks or ponds ---- */
+    if (!(T && T.dom === B.WATER)){
+      const kc = (k)=>{ const [q,r]=k.split(',').map(Number); return {q,r}; };
+      enforceTerrainSizes({ keys:newKeys, rng, get:(k)=>decided[k],
+        set:(k,bm)=>{ decided[k]=bm; featOf[k]= bm===B.WATER ? 'water' : undefined; },
+        fixed:(k)=>{ const pl=board.get(k); return pl && defs[pl.defId] ? defs[pl.defId].biome : null; },
+        nbrs:(k)=>{ const c=cellOfNew[k]||kc(k), out=[]; for(let d=0;d<N;d++) out.push(keyOf(g.step(c,d))); return out; } });
+    }
+    if (decided[anchor]===B.WATER || decided[anchor]===B.MOUNTAINS)
+      anchor = newKeys.filter(k=>decided[k]!==B.WATER && decided[k]!==B.MOUNTAINS).sort((a,b)=> (depth[b]-depth[a]) || (d2N(a,centerCell)-d2N(b,centerCell)) )[0] || anchor;
 
     /* ---- 3. carry existing ROADS/RIVERS/TRAILS across the seam — a swept stroke that heads for the
        FAR outer edge — it continues roughly STRAIGHT in its incoming direction, THROUGH the new section, and
@@ -876,7 +1131,7 @@
       const rot=pl.rot||0, e=def.edges[((dd-rot)%N+N)%N]; return e?e.path:P.NONE; }
     const PNAME = { [P.ROAD]:'road', [P.TRAIL]:'trail', [P.RIVER]:'river' };
     function spillDir(pts, k, dir){ const wc=g.world(cellOfNew[k]), e2=g.edgeMid(dir); pts.push([wc.x+e2[0], wc.z+e2[1]]); }
-    function carryStroke(startK, path, fromDir){
+    function carryStroke(startK, path, fromDir, w){
       const sw = g.world(cellOfNew[startK]), em = g.edgeMid(fromDir);
       const pts = [[sw.x + em[0], sw.z + em[1]], [sw.x, sw.z]];         // seam edge midpoint → first cell centre
       let cur=startK, prevDir=fromDir; const seen=new Set([startK]);
@@ -906,13 +1161,16 @@
           for(const k of newKeys){ const o2=offDirsNew(k); if(!o2.length) continue; const wc=g.world(cellOfNew[k]);
             for(const d of o2){ const em=g.edgeMid(d), px=wc.x+em[0], pz=wc.z+em[1], dd=(px-last[0])**2+(pz-last[1])**2; if(dd<bd){ bd=dd; best=[px,pz]; } } }
           if(best) pts.push(best); } }
-      if(pts.length>=2) walls.push({ type: PNAME[path]||'road', pts });
+      if(pts.length>=2){ const st={ type: PNAME[path]||'road', pts }; if(w) st.w=w; walls.push(st); }
     }
+    const priorW = (x,z,type)=>{ for(const ps of (opts.priorStrokes||[])) if(ps.type===type && ps.w && ps.end && Math.hypot(ps.end[0]-x, ps.end[1]-z)<0.14) return ps.w; return undefined; };
+    const carriedAt = [];
     for (const c of newCellsSorted){ const ck=keyOf(c);
       for (let d=0; d<N; d++){ const nk=keyOf(g.step(c,d));
         if(isNew(nk) || !board.has(nk)) continue;
         const p=existingPath(nk, g.opposite(d));
-        if(p===P.ROAD || p===P.RIVER || p===P.TRAIL) carryStroke(ck, p, d);
+        if(p===P.ROAD || p===P.RIVER || p===P.TRAIL){ const wc=g.world(c), em=g.edgeMid(d), mx=wc.x+em[0], mz=wc.z+em[1];
+          carriedAt.push([mx,mz]); carryStroke(ck, p, d, priorW(mx,mz,PNAME[p])); }
       }
     }
     /* ---- 3b. continue any PRIOR drawn stroke (a road/river carried by an EARLIER extend) that ended at
@@ -924,8 +1182,9 @@
         for (let d=0; d<N; d++){ const nk=keyOf(g.step(c,d));
           if(isNew(nk) || !board.has(nk)) continue;                       // d points at an EXISTING (old) neighbour = the seam
           const em=g.edgeMid(d), ex=sw.x+em[0], ez=sw.z+em[1];            // this seam edge's midpoint
+          if(carriedAt.some(m=>Math.hypot(m[0]-ex, m[1]-ez)<0.14)) continue;  // already continued from the tile edge above (was carried TWICE → forked)
           for (let i=0;i<opts.priorStrokes.length;i++){ if(usedEnds.has(i)) continue; const ps=opts.priorStrokes[i], pt=_PT[ps.type]; if(!pt||!ps.end) continue;
-            if(Math.hypot(ps.end[0]-ex, ps.end[1]-ez) < 0.14){ usedEnds.add(i); carryStroke(ck, pt, d); break; }   // continue it into the new land
+            if(Math.hypot(ps.end[0]-ex, ps.end[1]-ez) < 0.14){ usedEnds.add(i); carryStroke(ck, pt, d, ps.w); break; }   // continue it into the new land
           }
         }
       }
@@ -940,7 +1199,7 @@
         if(best<0 || (od.length && depth[cur]>=maxDepth && rng()<0.6)){ if(od.length){ const wc=g.world(cellOfNew[cur]), em=g.edgeMid(od[0]); pts.push([wc.x+em[0], wc.z+em[1]]); } break; }
         const nk=keyOf(g.step(c,best)), w=g.world(cellOfNew[nk]); pts.push([w.x, w.z]); cur=nk; prevDir=g.opposite(best);
       }
-      if(pts.length>=2) walls.push({ type:'river', pts });
+      if(pts.length>=2) walls.push({ type:'river', pts, w:2 });   // a valley-bottom RIVER (2× a stream)
     }
 
     /* ---- 5. settlement / monument FEATURE ---- */
@@ -956,11 +1215,13 @@
     }
     if (feature==='henge' || feature==='pyramid'){ const p=posN(anchor);
       props.push({ kind:feature, x:p.x, z:p.z, scale: feature==='pyramid'?1.7:1.4, mode:'3d', rot:0 }); }
-    else if (feature==='village'){ decided[anchor]=B.VILLAGE; featOf[anchor]='houses'; routeRoadFrom(anchor);
-      ringWall(new Set([anchor]), (k)=>cellOfNew[k], (k)=>g.world(cellOfNew[k]), g, (k)=>edges[k], N).forEach(w=>walls.push(w)); }
+    else if (feature==='village'){ // an open village of 4–12 cottages (Paul's sizes), grown on dry, level ground
+      growNew(anchor, 4 + ((rng()*9)|0), k=>decided[k]===B.WATER||decided[k]===B.MOUNTAINS||decided[k]===B.SNOW).forEach(k=>{ decided[k]=B.VILLAGE; featOf[k]='houses'; });
+      routeRoadFrom(anchor); }
     else if (feature==='town' || feature==='castle'){
       const townCells=new Set([anchor]);
-      if (feature==='town'){ const c=cellOfNew[anchor]; for(let d=0;d<N;d++){ const nk=keyOf(g.step(c,d)); if(isNew(nk)&&decided[nk]!==B.WATER&&townCells.size<3) townCells.add(nk); } }
+      if (feature==='town'){ const want = clamp(9 + ((rng()*Math.max(1, Math.min(56, Math.round(newKeys.length*0.3))))|0), 9, 64);   // a walled town of 9–64 cells
+        growNew(anchor, want, k=>decided[k]===B.WATER||decided[k]===B.MOUNTAINS||decided[k]===B.SNOW).forEach(k=>townCells.add(k)); }
       for (const k of townCells){ decided[k]=B.CITY; featOf[k]= feature==='castle'?'keep':'buildings'; }
       routeRoadFrom(anchor);
       ringWall(townCells, (k)=>cellOfNew[k], (k)=>g.world(cellOfNew[k]), g, (k)=>edges[k], N).forEach(w=>walls.push(w));
@@ -982,6 +1243,8 @@
   TE.generateSettlement = generateSettlement;
   TE.generateBiomeFill = generateBiomeFill;
   TE.generateNextSection = generateNextSection;
+  TE.regionCells = regionCells;
+  TE.enforceTerrainSizes = enforceTerrainSizes;
   TE.registerGen = registerGen;
   TE.hydrateGenerated = hydrateGenerated;
   if (typeof module !== 'undefined' && module.exports) module.exports = TE;

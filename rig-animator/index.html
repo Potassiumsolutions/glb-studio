@@ -21,6 +21,12 @@
   .seg{display:flex;gap:4px;background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:3px}
   .seg button{flex:1;background:transparent;border:none;color:var(--muted);border-radius:6px;padding:7px 4px;font-size:12px;cursor:pointer;font-weight:500}
   .seg button.on{background:var(--accent);color:#00142e;font-weight:600}
+  /* Rig-type picker = same 3-column icon grid as the Character Rigger's "Skeleton type" */
+  #rigSeg{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;background:none;border:none;padding:0}
+  #rigSeg button{flex:none;min-width:0;white-space:normal;line-height:1.15;background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:8px 4px;font-size:12px}
+  #rigSeg button:hover{border-color:var(--accent)}
+  #rigSeg button.on{background:var(--accent);color:#00142e;border-color:var(--accent);font-weight:600}
+  #rigSeg button small{font-size:10px;opacity:.85;font-weight:500}
   .subseg{display:flex;gap:4px;margin-top:8px}
   .subseg button{flex:1;background:var(--panel2);border:1px solid var(--line);color:var(--muted);border-radius:7px;padding:6px 4px;font-size:11px;cursor:pointer}
   .subseg button.on{background:var(--accent2);color:#00231a;border-color:var(--accent2);font-weight:600}
@@ -61,7 +67,7 @@
 <main>
   <aside>
     <div>
-      <h1>🐾 Rig Animator <span class="appver">v1.19.33</span></h1>
+      <h1>🐾 Rig Animator <span class="appver">v1.19.34</span></h1>
       <div class="hint" style="margin-top:0">Procedurally generate original animations for your <b>biped</b>, <b>quadruped</b> and <b>bird</b> rigs — organized by category (boxing, fencing, football, dancing, running, walking, jumping, climbing…) — then export them into the GLB Stitcher motion library.</div>
     </div>
 
@@ -70,22 +76,22 @@
       <div class="seg" id="rigSeg">
         <button data-rig="biped" class="on">🧍 Biped</button>
         <button data-rig="bipedhand">🖐 Biped + Fingers</button>
-        <button data-rig="quad">🐕 Quadruped</button>
-        <button data-rig="birdFlight">🕊 Bird (flight)</button>
-        <button data-rig="birdPerched">🦶 Bird (perched)</button>
-        <button data-rig="elephant">🐘 Elephant</button>
+        <button data-rig="quad">🐕 Quad</button>
+        <button data-rig="birdFlight">🐦 Bird<br><small>🕊 In-flight</small></button>
+        <button data-rig="birdPerched">🐦 Bird<br><small>🦶 Perched</small></button>
+        <button data-rig="snake">🐍 Snake</button>
         <button data-rig="giraffe">🦒 Giraffe</button>
         <button data-rig="fish">🐟 Fish</button>
         <button data-rig="cetacean">🐬 Cetacean</button>
-        <button data-rig="snake">🐍 Snake</button>
         <button data-rig="dragon">🐉 Dragon</button>
         <button data-rig="pegasus">🦄 Pegasus</button>
+        <button data-rig="elephant">🐘 Elephant</button>
         <button data-rig="reptile">🦎 Reptile</button>
         <button data-rig="frog">🐸 Frog</button>
         <button data-rig="rabbit">🐰 Rabbit</button>
         <button data-rig="crab">🦀 Crab</button>
         <button data-rig="lobster">🦞 Lobster</button>
-        <button data-rig="manta">🥏 Manta ray</button>
+        <button data-rig="manta">🥏 Manta</button>
         <button data-rig="jellyfish">🎐 Jellyfish</button>
       </div>
       <div class="hint" id="rigNote">24-bone biped rig (standard humanoid — Hips / spine / arms / legs / head).</div>
@@ -129,7 +135,7 @@
         </g>
       </svg>
       <div>
-        <div><b>Rig Animator</b> v1.19.33 · part of GLB Studio</div>
+        <div><b>Rig Animator</b> v1.19.34 · part of GLB Studio</div>
         <div class="appfoot-sub">© <span class="cred-year">2026</span> Paul A.T. Ramey · <b>KSOL Designs</b> · <a href="https://www.ksoldesigns.com" target="_blank" rel="noopener">ksoldesigns.com</a></div>
       </div>
     </div>
