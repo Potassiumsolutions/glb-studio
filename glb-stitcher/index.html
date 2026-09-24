@@ -975,7 +975,7 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 
 const $ = s => document.querySelector(s);
-const APP_NAME='GLB Stitcher', APP_VERSION='1.10.4', APP_BUILD='2026-09-23';   // version shown in About + footer
+const APP_NAME='GLB Stitcher', APP_VERSION='1.10.5', APP_BUILD='2026-09-23';   // version shown in About + footer
 // Bump APP_BUILD whenever the app or the bundled motion library changes. It is printed to the console and
 // shown in the footer so "am I running the current version?" can be answered by looking, not by guessing —
 // a stale browser tab kept an old build alive twice while the files on disk were already up to date.
@@ -5735,7 +5735,7 @@ function mlSetRig(root, label){
       skins.forEach((o,si)=>{ o.skeleton.bones.forEach((b,i)=>{ b.position.copy(saved[si][i].p); b.quaternion.copy(saved[si][i].q); }); });
       root.updateMatrixWorld(true);
     } }
-  libRig={ root, rest, legLength:mlLegLength(root), sig:skelSig(root), label, rootWorldQ, rootBoneName, imported:!!(root.userData&&root.userData.importedRig) };
+  libRig={ root, rest, legLength:mlLegLength(root), sig:skelSig(root), label, rootWorldQ, rootBoneName, imported:!!(root.userData&&root.userData.importedRig), ksol:(()=>{ let k=false; root.traverse(o=>{ if(o.userData&&o.userData.ksolRestPose==='tpose') k=true; }); return k; })() };
   const match = mlLibSig && libRig.sig===mlLibSig;
   $('#mlRig').innerHTML=`Rig: <b>${label}</b> · ${mlBoneList(root).length} bones · ${match?'✓ matches library skeleton':'⚠ different rig — retargets by bone name'}`;
   renderMotionLib();   // re-filter the list to this rig's skeleton (biped / quad / bird)
@@ -6601,8 +6601,13 @@ function renderMotionLib(){
       else rl.textContent='Load a rigged character — the list then shows the motions that fit it. Click one to add it.'; } }
   const seq = mlSeqOn();
   // Base set: type + rig + name search. Category is applied after, so the chips can show live counts.
-  const base=libIndex.filter(m=> (ty==='all'||m.type===ty) && (!q||m.name.toLowerCase().includes(q))
+  let base=libIndex.filter(m=> (ty==='all'||m.type===ty) && (!q||m.name.toLowerCase().includes(q))
                                && (!rigSig || sigCompat(rigSig, m.sig)));   // neck bones optional — see sigCompat
+  // TWIN PICK: most biped motions ship twice — plain (ra_biped_*) and with animated fingers (ra_bipedhand_*). Show ONE
+  // of each pair: the finger version for a character that has finger bones, the plain one for everything else.
+  { const ids=new Set(libIndex.map(m=>m.id)), fingers=!!rigSig && ('|'+rigSig+'|').includes('|LeftHandIndex1|');
+    const twin=id=>/^ra_biped_/.test(id)?id.replace(/^ra_biped_/,'ra_bipedhand_'):/^ra_bipedhand_/.test(id)?id.replace(/^ra_bipedhand_/,'ra_biped_'):null;
+    base=base.filter(m=>{ const t=twin(m.id); if(!t||!ids.has(t)) return true; return /^ra_bipedhand_/.test(m.id)===fingers; }); }
   // ---- category chips (hidden while building a sequence — that list is a flat flow ranking) ----
   if(bar){
     if(seq){ bar.style.display='none'; bar.innerHTML=''; }
