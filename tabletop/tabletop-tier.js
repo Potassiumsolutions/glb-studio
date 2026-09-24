@@ -11,6 +11,8 @@
                      & textures, extra Extend terrains, farmland
      · battlemaps  → Battle Maps Pack: Battle (D&D 5-ft) scale + real-world base maps
      · race        → Race games (Royal Game of Ur, …)
+     · modern      → Modern Pack: City / Suburbs / Rural map themes, asphalt streets, railways,
+                     modern buildings (towers, homes, schools, farms, wind farms …)
 
    Unlock path: a `.studiokey` (format "ksol-studio-expansion", target "tabletop")
    imported in GLB Studio → ✨ Upgrades writes the id into
@@ -25,7 +27,7 @@
    ============================================================================ */
 (function (root) {
   'use strict';
-  const ALL = ['terrain', 'battlemaps', 'race'];
+  const ALL = ['terrain', 'battlemaps', 'race', 'modern'];
   const params = new URLSearchParams(location.search);
   let exp;
 
@@ -57,7 +59,7 @@
   root.TTier = {
     has, apply,
     list: () => [...exp],
-    LABELS: { terrain: 'Terrain Pack', battlemaps: 'Battle Maps Pack', race: 'Race Games' }
+    LABELS: { terrain: 'Terrain Pack', battlemaps: 'Battle Maps Pack', race: 'Race Games', modern: 'Modern Pack' }
   };
 
   if (document.readyState !== 'loading') apply();

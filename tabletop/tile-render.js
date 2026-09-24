@@ -90,6 +90,8 @@ const SEASON_ART = {
     {f:'pine_winter.jpg', z:0.5} ],                                   // pine · winter: snow on the boughs
   plains: [ {f:'grass_plains.jpg'}, {f:'grass_summer.jpg'}, {f:'grass_autumn.jpg'}, {f:'grass_winter.jpg'} ],   // spring wildflowers · lush summer · golden autumn · snow (all edits of ONE painting)
   green:  [ {f:'grass_plains.jpg'}, {f:'grass_summer.jpg'}, {f:'grass_autumn.jpg'}, {f:'grass_winter.jpg'} ],   // castle / town lawns follow the season too
+  suburb: [ {f:'grass_summer.jpg'}, {f:'grass_summer.jpg'}, {f:'grass_autumn.jpg'}, {f:'grass_winter.jpg'} ],   // MODERN: mown suburban lawns (no wildflowers)
+  park:   [ {f:'grass_plains.jpg'}, {f:'grass_summer.jpg'}, {f:'grass_autumn.jpg'}, {f:'grass_winter.jpg'} ],
   crops: [
     {f:'crop_spring.jpg'}, {f:'crop_spring.jpg'}, {f:'crop_spring.jpg', z:0.8},                    // spring: sprouting furrows
     {f:'crop_summer.jpg'}, {f:'crop_wheat.jpg'}, {f:'crop_summer.jpg', z:0.8},                     // summer: green rows + ripening wheat
@@ -137,6 +139,12 @@ function _finishTop(x,S,gridKind,feather,edgeColor){ if(edgeColor!=null) _edgeTi
 function _groundTex(draw, gridKind, feather, edgeColor){ const S=256, cv=document.createElement('canvas'); cv.width=cv.height=S; const x=cv.getContext('2d');
   draw(x,S); _finishTop(x,S,gridKind,feather,edgeColor); const t=new THREE.CanvasTexture(cv); if('SRGBColorSpace' in THREE) t.colorSpace=THREE.SRGBColorSpace; t.anisotropy=8; t.needsUpdate=true; return t; }
 const PROC_BIOME = {
+  urban: (gk,fe,ec)=>_groundTex((x,S)=>{ x.fillStyle='#a9abae'; x.fillRect(0,0,S,S);            // MODERN: city sidewalk / plaza pavers
+    const n=6, cw=S/n; for(let r=0;r<n;r++) for(let c=0;c<n;c++){ const v=160+Math.random()*26|0; x.fillStyle=`rgb(${v},${v+1},${v+4})`; x.fillRect(c*cw+1.5,r*cw+1.5,cw-3,cw-3); }
+    for(let i=0;i<30;i++){ x.fillStyle='rgba(60,60,60,.08)'; x.beginPath(); x.arc(Math.random()*S,Math.random()*S,4+Math.random()*14,0,6.28); x.fill(); } }, gk, fe, ec),
+  lot: (gk,fe,ec)=>_groundTex((x,S)=>{ x.fillStyle='#4a4c50'; x.fillRect(0,0,S,S);               // MODERN: asphalt parking lot (stall lines + cars are 3-D)
+    for(let i=0;i<1500;i++){ const v=60+Math.random()*40|0; x.fillStyle=`rgba(${v},${v},${v+4},.5)`; x.fillRect(Math.random()*S,Math.random()*S,1.5,1.5); }
+    x.strokeStyle='rgba(20,20,22,.5)'; x.lineWidth=1.2; for(let i=0;i<5;i++){ x.beginPath(); let px=Math.random()*S,py=Math.random()*S; x.moveTo(px,py); for(let j=0;j<5;j++){ px+=Math.random()*30-15; py+=Math.random()*30-15; x.lineTo(px,py); } x.stroke(); } }, gk, fe, ec),
   plaza: (gk,fe,ec)=>_groundTex((x,S)=>{ x.fillStyle='#8f8770'; x.fillRect(0,0,S,S);              // cobblestone plaza
     const cw=S/8; for(let r=0;r<9;r++){ const off=(r%2)*cw*0.5; for(let c=-1;c<9;c++){ const v=120+Math.random()*44|0;
       x.fillStyle=`rgb(${v},${v-6},${v-14})`; const rr=5,bx=c*cw+off+3,by=r*cw+3,bw=cw-6,bh=cw-6;
@@ -483,13 +491,19 @@ function _hsCanvas(w,h,draw){ const cv=document.createElement('canvas'); cv.widt
   const t=new THREE.CanvasTexture(cv); if('SRGBColorSpace' in THREE) t.colorSpace=THREE.SRGBColorSpace; t.anisotropy=4; return t; }
 const WALL_STYLES=[                                             // base, beam colour (null = no timber), stone?
   {base:'#e9dfc6', beam:'#4a3424'}, {base:'#e3d2ae', beam:'#553a26'}, {base:'#efe6d2', beam:null},
-  {base:'#d8c49a', beam:null}, {base:'#b3a38c', beam:null, stone:true}, {base:'#c9b48e', beam:'#3f2c1f'} ];
+  {base:'#d8c49a', beam:null}, {base:'#b3a38c', beam:null, stone:true}, {base:'#c9b48e', beam:'#3f2c1f'},
+  // MODERN PACK (6–12): clapboard siding in white / pastels, red barn, brick
+  {base:'#f1efe8', beam:null, siding:true, shut:'#2f3d2f'}, {base:'#c9d6dd', beam:null, siding:true, shut:'#27384a'}, {base:'#e6dcc2', beam:null, siding:true, shut:'#4a3a2a'},
+  {base:'#bfcfb7', beam:null, siding:true, shut:'#f1efe8'}, {base:'#d8c6a8', beam:null, siding:true, shut:'#6b2f2a'}, {base:'#e9ecee', beam:null, siding:true, shut:'#1f2a36'},
+  {base:'#a8322a', beam:null, siding:true, shut:'#f1efe8', barn:true}, {base:'#9c5a44', beam:null, stone:true} ];
 function _houseWallTex(si, face, storeys){ const key='w'+si+face+storeys; if(_hsCache[key]) return _hsCache[key];
   const st=WALL_STYLES[si];
   return (_hsCache[key]=_hsCanvas(128, 64*storeys, (x,W,H)=>{
     x.fillStyle=st.base; x.fillRect(0,0,W,H);
     if(st.stone){ for(let y=0;y<H;y+=9) for(let i=-(y/9%2)*7;i<W;i+=15){ x.fillStyle=['#a79781','#9b8b76','#b8a88f','#8f806c'][((i*7+y*3)>>>0)%4]; x.fillRect(i+1,y+1,13,7); } }
+    else if(st.siding){ x.fillStyle='rgba(0,0,0,.09)'; for(let y=5;y<H;y+=7) x.fillRect(0,y,W,1.5); x.fillStyle='rgba(255,255,255,.18)'; for(let y=6;y<H;y+=7) x.fillRect(0,y,W,1); }   // lap siding
     else { x.globalAlpha=0.08; for(let i=0;i<260;i++){ x.fillStyle=i%2?'#000':'#fff'; x.fillRect((i*53)%W,(i*29)%H,3,2); } x.globalAlpha=1; }
+    if(st.barn){ x.strokeStyle='#f1efe8'; x.lineWidth=4; x.strokeRect(2,2,W-4,H-4); if(face!=='side'){ x.beginPath(); x.moveTo(W/2-24,H-2); x.lineTo(W/2+24,H-46); x.moveTo(W/2+24,H-2); x.lineTo(W/2-24,H-46); x.stroke(); x.strokeRect(W/2-24,H-46,48,44); } return; }
     const floorH=H/storeys;
     if(st.beam){ x.fillStyle=st.beam; x.fillRect(0,0,W,5); x.fillRect(0,H-6,W,6); x.fillRect(0,0,5,H); x.fillRect(W-5,0,5,H);
       for(let f=1;f<storeys;f++) x.fillRect(0,f*floorH-3,W,6);
@@ -497,7 +511,7 @@ function _houseWallTex(si, face, storeys){ const key='w'+si+face+storeys; if(_hs
     const win=(cx,cy)=>{ x.fillStyle='#3b2a1e'; x.fillRect(cx-11,cy-10,22,20); x.fillStyle='#26303d'; x.fillRect(cx-8,cy-8,16,16);
       x.fillStyle='#e7c77a'; x.globalAlpha=0.35; x.fillRect(cx-8,cy-8,16,7); x.globalAlpha=1;
       x.fillStyle='#3b2a1e'; x.fillRect(cx-1,cy-8,2,16); x.fillRect(cx-8,cy-1,16,2);
-      x.fillStyle='#6b3f2a'; x.fillRect(cx-17,cy-10,6,20); x.fillRect(cx+11,cy-10,6,20); };   // shutters
+      x.fillStyle=st.shut||'#6b3f2a'; x.fillRect(cx-17,cy-10,6,20); x.fillRect(cx+11,cy-10,6,20); };   // shutters
     for(let f=0;f<storeys;f++){ const cy=H-(f+0.52)*floorH;
       if(face==='front'){ if(f===0){ x.fillStyle='#5a3a24'; x.fillRect(W/2-11,H-40,22,40); x.beginPath(); x.arc(W/2,H-40,11,Math.PI,0); x.fill();
           x.fillStyle='#3a2616'; x.fillRect(W/2-1,H-44,2,44); x.fillStyle='#c9a15a'; x.fillRect(W/2+6,H-20,3,3); win(28,cy); win(W-28,cy); }
@@ -506,7 +520,8 @@ function _houseWallTex(si, face, storeys){ const key='w'+si+face+storeys; if(_hs
       else win(W/2,cy); }
   })); }
 const ROOF_STYLES=[{kind:'thatch',c:'#c7a35c',d:'#8f7038'},{kind:'thatch',c:'#b8944f',d:'#7d6232'},{kind:'tile',c:'#a34a33',d:'#6e2c1e'},
-                   {kind:'tile',c:'#8d4a2f',d:'#5c2b1b'},{kind:'slate',c:'#56606f',d:'#343a45'},{kind:'tile',c:'#b0613e',d:'#77371f'}];
+                   {kind:'tile',c:'#8d4a2f',d:'#5c2b1b'},{kind:'slate',c:'#56606f',d:'#343a45'},{kind:'tile',c:'#b0613e',d:'#77371f'},
+                   {kind:'shingle',c:'#4a4d52',d:'#2f3135'},{kind:'shingle',c:'#6b5646',d:'#4a3a2e'},{kind:'shingle',c:'#5f6770',d:'#3d434a'}];   // MODERN: asphalt shingles
 function _roofTex(ri){ const key='r'+ri; if(_hsCache[key]) return _hsCache[key];
   const st=ROOF_STYLES[ri];
   const t=_hsCanvas(64,64,(x,W,H)=>{ x.fillStyle=st.c; x.fillRect(0,0,W,H);
@@ -550,6 +565,320 @@ function _garden(x,z,rot,r){ const g=new THREE.Group();
   const rail=mat(0x8a6a44,{roughness:1});
   for(const [sx,sz,lx,lz] of [[0,-0.062,0.1,0.008],[0,0.062,0.1,0.008],[-0.05,0,0.008,0.13],[0.05,0,0.008,0.13]]){ const f=new THREE.Mesh(new THREE.BoxGeometry(lx,0.022,lz), rail); f.position.set(sx,TOP+0.018,sz); g.add(f); }
   g.position.set(x,0,z); g.rotation.y=rot; return g; }
+/* ===================== MODERN PACK — buildings & street furniture =====================
+   Downtown towers (glass curtain walls, setbacks, rooftop plant), apartment blocks, main-street shops with awnings,
+   suburban homes (siding, shingle roof, garage + driveway, the odd pool), church with steeple, brick school with
+   flagpole, railway station, parking lots with cars, parks, sports fields, farmsteads (farmhouse, red barn, silo),
+   wind turbines, water tower, grain elevator. Facade textures + materials are cached like the cottages. */
+const _mc={};
+const _mTex=(key,w,h,draw)=>_mc[key]||(_mc[key]=_hsCanvas(w,h,draw));
+const _mMat=(key,make)=>_mc['m'+key]||(_mc['m'+key]=make());
+const _mCol=(hex,opts)=>_mMat('c'+hex+(opts?JSON.stringify(opts):''),()=>mat(hex,opts));
+// window-grid facade: cols × floors, glass or punched windows on a wall colour
+function _facade(kind, cols, floors, base, glass){ const key='f'+kind+cols+'x'+floors+base+glass;
+  return _mTex(key, cols*16, floors*16, (x,W,H)=>{ x.fillStyle=base; x.fillRect(0,0,W,H);
+    for(let f=0;f<floors;f++) for(let c=0;c<cols;c++){ const px=c*16, py=f*16;
+      if(kind==='glass'){ const lit=((c*7+f*13)%11)===0; x.fillStyle=lit?'#e8d79a':glass; x.fillRect(px+1,py+2,14,12);
+        x.fillStyle='rgba(255,255,255,.18)'; x.fillRect(px+1,py+2,6,12); }
+      else if(kind==='punched'){ x.fillStyle=((c*5+f*3)%9)===0?'#e6cf8a':glass; x.fillRect(px+4,py+4,8,9); x.fillStyle='rgba(255,255,255,.35)'; x.fillRect(px+4,py+12,8,1.5); }
+      else if(kind==='balcony'){ x.fillStyle=glass; x.fillRect(px+3,py+3,10,9); x.fillStyle='rgba(0,0,0,.28)'; x.fillRect(px+1,py+12,14,3); } }
+    if(kind==='glass'){ x.fillStyle='rgba(0,0,0,.25)'; for(let f=0;f<=floors;f++) x.fillRect(0,f*16-1,W,2); } }); }
+function _storefront(ci){ const awn=['#b8322b','#2f6f9a','#3d8a4a','#d08a2a','#6b4a8a'][ci%5];
+  return _mTex('sf'+ci,128,64,(x,W,H)=>{ x.fillStyle=['#d9cdb4','#b9776a','#c9c6bf','#e2d6bf','#9fb2b8'][ci%5]; x.fillRect(0,0,W,H);
+    x.fillStyle='#2c3a48'; x.fillRect(6,34,W-12,26);                                    // shop windows
+    x.fillStyle='rgba(255,255,255,.2)'; x.fillRect(6,34,30,26); x.fillStyle='#4a3424'; x.fillRect(W/2-8,36,16,26);   // door
+    for(let i=0;i<8;i++){ x.fillStyle=i%2?awn:'#f2efe6'; x.fillRect(i*W/8,24,W/8,9); }   // striped awning
+    x.fillStyle='#2b2b2b'; x.fillRect(20,8,W-40,12); x.fillStyle='#f3e3a0'; for(let i=0;i<6;i++) x.fillRect(28+i*12,12,7,4); }); }   // sign board
+function _boxB(w,h,d,mats){ const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mats); m.castShadow=true; m.receiveShadow=true; return m; }
+function _roofPlant(g,w,d,y,r){ const n=1+((r()*3)|0); for(let i=0;i<n;i++){ const b=_boxB(w*(0.18+r()*0.2),0.03+r()*0.03,d*(0.18+r()*0.2),_mCol(0x8f9296)); b.position.set((r()-0.5)*w*0.5,y+0.02,(r()-0.5)*d*0.5); g.add(b); } }
+function _skyscraper(x,z,h,r){ const g=new THREE.Group(); const w=0.17+r()*0.1, d=w*(0.75+r()*0.4);
+  const st=[['#46586a','#7fa3c4'],['#5c6770','#9fb6c6'],['#3a4f5f','#5f8fb8'],['#8a8f94','#3d5266'],['#6d5a4b','#8fb0c8']][(r()*5)|0];
+  const floors=Math.max(4,Math.round(h/0.045)), low=h*(h>0.7?0.62+r()*0.15:1);
+  const fm=(ww,ff)=>_mMat('tw'+st[0]+ww+'_'+ff,()=>new THREE.MeshStandardMaterial({map:_facade('glass',ww,ff,st[0],st[1]),roughness:0.35,metalness:0.35}));
+  const roofM=_mCol(0x55595e);
+  const f1=Math.max(2,Math.round(floors*low/h));
+  const b=_boxB(w,low,d,[fm(4,f1),fm(4,f1),roofM,roofM,fm(3,f1),fm(3,f1)]); b.position.y=TOP+low/2; g.add(b);
+  let top=TOP+low;
+  if(low<h){ const w2=w*0.72, d2=d*0.72, hh=h-low, f2=Math.max(2,floors-f1); const b2=_boxB(w2,hh,d2,[fm(3,f2),fm(3,f2),roofM,roofM,fm(2,f2),fm(2,f2)]); b2.position.y=top+hh/2; g.add(b2); top+=hh; }
+  _roofPlant(g,w*0.7,d*0.7,top,r);
+  if(h>1.0){ const a=new THREE.Mesh(new THREE.CylinderGeometry(0.004,0.006,0.22,5),_mCol(0xcfd3d6)); a.position.y=top+0.11; g.add(a); }
+  g.position.set(x,0,z); g.rotation.y=Math.floor(r()*4)*Math.PI/2+(r()-0.5)*0.1; return g; }
+function _apartments(x,z,r){ const g=new THREE.Group(); const w=0.26+r()*0.06, d=0.16+r()*0.04, floors=4+((r()*4)|0), h=floors*0.05;
+  const base=['#a4553f','#c8b18e','#b9b7b0','#8e6a55','#d6cbb4'][(r()*5)|0], glass='#3a4656', kind=r()<0.5?'balcony':'punched';
+  const fm=(c)=>_mMat('ap'+base+kind+c+floors,()=>new THREE.MeshStandardMaterial({map:_facade(kind,c,floors,base,glass),roughness:0.85}));
+  const roofM=_mCol(0x4c4f54);
+  const b=_boxB(w,h,d,[fm(3,),fm(3),roofM,roofM,fm(6),fm(6)]); b.position.y=TOP+h/2; g.add(b);
+  const par=_boxB(w+0.01,0.015,d+0.01,_mCol(0x6d6f73)); par.position.y=TOP+h+0.007; g.add(par);
+  _roofPlant(g,w*0.6,d*0.6,TOP+h,r);
+  g.position.set(x,0,z); g.rotation.y=Math.atan2(z,-x)+Math.PI/2+(r()-0.5)*0.3; return g; }
+function _shop(x,z,r){ const g=new THREE.Group(); const w=0.15+r()*0.05, d=0.12+r()*0.03, h=0.08+r()*0.07, ci=(r()*5)|0;
+  const front=_mMat('shopf'+ci,()=>new THREE.MeshStandardMaterial({map:_storefront(ci),roughness:0.8}));
+  const side=_mCol(['#d9cdb4','#b9776a','#c9c6bf','#e2d6bf','#9fb2b8'].map(c=>parseInt(c.slice(1),16))[ci],{roughness:0.9});
+  const b=_boxB(w,h,d,[front,side,_mCol(0x55585c),side,side,side]); b.position.y=TOP+h/2; g.add(b);
+  const ac=_boxB(0.03,0.02,0.03,_mCol(0x9a9da1)); ac.position.set(-w*0.2,TOP+h+0.01,0); g.add(ac);
+  g.position.set(x,0,z); g.rotation.y=Math.atan2(z,-x)+(r()-0.5)*0.3; return g; }            // storefront (+x) faces the street through the middle
+function roundTree(x,z,s,r){ const g=new THREE.Group(); s=s||1;
+  const tr=new THREE.Mesh(new THREE.CylinderGeometry(0.01*s,0.014*s,0.07*s,5), trunkMat); tr.position.y=TOP+0.035*s; g.add(tr);
+  const col=[0x3f7a34,0x4f8a3c,0x2f6a2c,0x5d8f3a][(r()*4)|0];
+  const c=new THREE.Mesh(new THREE.IcosahedronGeometry(0.055*s,1), _mCol(col,{roughness:1,flatShading:true})); c.position.y=TOP+0.1*s; c.scale.y=0.9; c.castShadow=true; g.add(c);
+  g.position.set(x,0,z); return g; }
+function _homeModern(x,z,r,rot){ const g=new THREE.Group();
+  const W=0.1+r()*0.03, L=0.15+r()*0.05, H=0.07+r()*0.02, st=6+((r()*6)|0), ri=6+((r()*3)|0), two=r()<0.35;
+  const hb=_building(W,L,two?H*1.7:H,two?2:1,st,ri,r,r()<0.5); g.add(hb);
+  const gw=0.085, gl=0.075, gh=0.055, gar=_boxB(gw,gh,gl,_mCol(parseInt(WALL_STYLES[st].base.slice(1),16),{roughness:0.9})); gar.position.set(0,TOP+gh/2,L/2+gl/2-0.005); g.add(gar);
+  const gd=_boxB(0.004,gh*0.7,gl*0.8,_mCol(0xe8e8e2)); gd.position.set(gw/2+0.002,TOP+gh*0.35,L/2+gl/2-0.005); g.add(gd);           // garage door
+  const gr=_boxB(gw+0.012,0.01,gl+0.01,_mCol(0x4a4c52)); gr.position.set(0,TOP+gh+0.005,L/2+gl/2-0.005); g.add(gr);
+  const dw=new THREE.Mesh(new THREE.BoxGeometry(0.12,0.004,0.06), _mCol(0x9a9a98)); dw.position.set(gw/2+0.06,TOP+0.002,L/2+gl/2-0.005); g.add(dw);   // driveway
+  if(r()<0.25){ const pool=new THREE.Mesh(new THREE.BoxGeometry(0.05,0.006,0.08), _mCol(0x3fb0d8,{roughness:0.2,metalness:0.2})); pool.position.set(-W/2-0.05,TOP+0.003,0); g.add(pool); }
+  g.position.set(x,0,z); g.rotation.y=(rot!=null?rot:Math.atan2(z,-x))+(r()-0.5)*0.12; return g; }
+function _church(r){ const g=new THREE.Group(); const b=_building(0.13,0.24,0.1,1,6,8,r,false); g.add(b);
+  const t=_boxB(0.06,0.2,0.06,_mCol(0xf1efe8)); t.position.set(0,TOP+0.1,0.14); g.add(t);
+  const sp=new THREE.Mesh(new THREE.ConeGeometry(0.045,0.16,4), _mCol(0x3c424c)); sp.position.set(0,TOP+0.28,0.14); sp.rotation.y=Math.PI/4; sp.castShadow=true; g.add(sp);
+  const cr=_boxB(0.004,0.04,0.004,_mCol(0xd8c070)); cr.position.set(0,TOP+0.38,0.14); g.add(cr); const cr2=_boxB(0.02,0.004,0.004,_mCol(0xd8c070)); cr2.position.set(0,TOP+0.37,0.14); g.add(cr2);
+  for(const [px,pz] of [[-0.2,-0.15],[0.18,-0.2],[-0.18,0.25]]) g.add(roundTree(px,pz,0.9,r));
+  g.rotation.y=(r()-0.5)*0.4; return g; }
+function _school(r){ const g=new THREE.Group(); const brick='#a4553f', fm=(c)=>_mMat('sch'+c,()=>new THREE.MeshStandardMaterial({map:_facade('punched',c,2,brick,'#3a4656'),roughness:0.85}));
+  const roofM=_mCol(0x55585c);
+  const a=_boxB(0.5,0.11,0.16,[fm(3),fm(3),roofM,roofM,fm(10),fm(10)]); a.position.set(0,TOP+0.055,-0.1); g.add(a);
+  const b=_boxB(0.16,0.11,0.26,[fm(5),fm(5),roofM,roofM,fm(3),fm(3)]); b.position.set(-0.17,TOP+0.055,0.1); g.add(b);
+  const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.004,0.004,0.24,5),_mCol(0xd8dadc)); pole.position.set(0.12,TOP+0.12,0.08); g.add(pole);
+  const fl=new THREE.Mesh(new THREE.PlaneGeometry(0.05,0.03),_mCol(0x2f4f9a,{side:THREE.DoubleSide})); fl.position.set(0.145,TOP+0.22,0.08); g.add(fl);
+  const bus=_boxB(0.1,0.035,0.028,_mCol(0xf2b600)); bus.position.set(0.12,TOP+0.018,0.22); g.add(bus);
+  g.rotation.y=Math.floor(r()*4)*Math.PI/2; return g; }
+function _parkedCars(g,r,rows){ const cols=[0xc0392b,0x2c3e50,0xecf0f1,0x7f8c8d,0x2980b9,0x27ae60,0xf1c40f,0x111111];
+  const line=_mCol(0xf2f2f2);
+  for(const zr of rows){ for(let i=0;i<7;i++){ const x=-0.33+i*0.11;
+      const l=_boxB(0.005,0.002,0.1,line); l.position.set(x-0.055,TOP+0.004,zr); g.add(l);
+      if(r()<0.68){ const c=new THREE.Group(), col=_mCol(cols[(r()*cols.length)|0],{roughness:0.4,metalness:0.3});
+        const body=_boxB(0.05,0.018,0.085,col); body.position.y=TOP+0.012; c.add(body);
+        const cab=_boxB(0.044,0.016,0.045,_mCol(0x2a3440,{roughness:0.2,metalness:0.4})); cab.position.set(0,TOP+0.028,0.004); c.add(cab);
+        c.position.set(x,0,zr); c.rotation.y=(r()-0.5)*0.12; g.add(c); } } } }
+function _lot(r){ const g=new THREE.Group(); _parkedCars(g,r,[-0.2,0.2]);
+  for(const [px,pz] of [[-0.38,0],[0.38,0]]){ const p=new THREE.Mesh(new THREE.CylinderGeometry(0.004,0.004,0.16,5),_mCol(0x7c8084)); p.position.set(px,TOP+0.08,pz); g.add(p); }
+  g.rotation.y=Math.floor(r()*2)*Math.PI/2; return g; }
+function _park(r, n){ const g=new THREE.Group(); const path=new THREE.Mesh(new THREE.RingGeometry(0.2,0.24,24), _mCol(0xc9b98f,{roughness:1})); path.rotation.x=-Math.PI/2; path.position.y=TOP+0.004; g.add(path);
+  if(r()<0.4){ const pond=new THREE.Mesh(new THREE.CircleGeometry(0.12,20), _mCol(0x4f9fcf,{roughness:0.15,metalness:0.2})); pond.rotation.x=-Math.PI/2; pond.position.y=TOP+0.005; g.add(pond); }
+  else { const f=new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.06,0.03,14), _mCol(0xb9b5ab)); f.position.y=TOP+0.015; g.add(f); }
+  for(let i=0;i<(n||6);i++){ const a=i/(n||6)*Math.PI*2+r()*0.5, rr=0.3+r()*0.1; g.add(roundTree(Math.cos(a)*rr,Math.sin(a)*rr,0.9+r()*0.5,r)); }
+  return g; }
+function _sportsField(r){ const g=new THREE.Group();
+  const fld=new THREE.Mesh(new THREE.PlaneGeometry(0.62,0.4), new THREE.MeshStandardMaterial({map:_mTex('pitch',128,84,(x,W,H)=>{ for(let i=0;i<8;i++){ x.fillStyle=i%2?'#4f8f3a':'#5a9c42'; x.fillRect(i*W/8,0,W/8,H); }
+    x.strokeStyle='#f4f4f0'; x.lineWidth=2; x.strokeRect(4,4,W-8,H-8); x.beginPath(); x.moveTo(W/2,4); x.lineTo(W/2,H-4); x.stroke(); x.beginPath(); x.arc(W/2,H/2,12,0,6.28); x.stroke();
+    x.strokeRect(4,H/2-16,16,32); x.strokeRect(W-20,H/2-16,16,32); }),roughness:1}));
+  fld.rotation.x=-Math.PI/2; fld.position.y=TOP+0.005; g.add(fld);
+  const bl=_boxB(0.3,0.04,0.05,_mCol(0x9aa0a6)); bl.position.set(0,TOP+0.02,-0.26); g.add(bl);
+  g.rotation.y=Math.floor(r()*2)*Math.PI/2; return g; }
+function _station(dirs, r){ const g=new THREE.Group(); const [ex,ez]=dirs[0]||[0.5,0], a=Math.atan2(ex,ez);
+  const inner=new THREE.Group(); inner.rotation.y=a; g.add(inner);                          // local z = along the track
+  const plat=_boxB(0.12,0.03,0.8,_mCol(0xb7b3aa)); plat.position.set(0.14,TOP+0.015,0); inner.add(plat);
+  const can=_boxB(0.13,0.01,0.6,_mCol(0x7a2f2a)); can.position.set(0.14,TOP+0.12,0); inner.add(can);
+  for(const pz of [-0.25,0,0.25]){ const p=_boxB(0.008,0.09,0.008,_mCol(0x3a3a3a)); p.position.set(0.14,TOP+0.075,pz); inner.add(p); }
+  const bld=_building(0.14,0.3,0.1,1,13,8,r,true); bld.position.set(0.3,0,0); inner.add(bld);   // brick depot
+  for(let i=0;i<3;i++){ const c=_trainCar('commuter',r); c.position.z=(i-1)*(CAR_L*1.08+CAR_GAP); inner.add(c); }   // commuter train at the platform
+  return g; }
+function _farmstead(r){ const g=new THREE.Group();
+  const house=_building(0.1,0.15,0.08,2,6,6,r,true); house.position.set(-0.17,0,-0.12); house.rotation.y=Math.PI/2; g.add(house);
+  const barn=_building(0.17,0.24,0.12,1,12,8,r,false); barn.position.set(0.12,0,0.06); g.add(barn);
+  const silo=new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.04,0.26,14),_mCol(0x9ea7ad,{metalness:0.3,roughness:0.5})); silo.position.set(0.28,TOP+0.13,-0.14); silo.castShadow=true; g.add(silo);
+  const dome=new THREE.Mesh(new THREE.SphereGeometry(0.04,14,8,0,Math.PI*2,0,Math.PI/2),_mCol(0xc9ced2,{metalness:0.4,roughness:0.4})); dome.position.set(0.28,TOP+0.26,-0.14); g.add(dome);
+  g.add(roundTree(-0.3,0.22,1.1,r)); g.add(roundTree(-0.05,0.3,0.9,r));
+  g.rotation.y=Math.floor(r()*4)*Math.PI/2; return g; }
+function _turbine(x,z,r,yaw){ const g=new THREE.Group(); const H=0.95, white=_mCol(0xf2f4f5,{roughness:0.5});
+  const t=new THREE.Mesh(new THREE.CylinderGeometry(0.009,0.018,H,8),white); t.position.y=TOP+H/2; t.castShadow=true; g.add(t);
+  const hub=new THREE.Group(); hub.position.y=TOP+H; hub.rotation.y=yaw; g.add(hub);
+  const nac=_boxB(0.03,0.028,0.07,white); nac.position.z=-0.015; hub.add(nac);
+  const rot=new THREE.Group(); rot.position.z=0.024; rot.rotation.z=r()*Math.PI*2; hub.add(rot);
+  for(let i=0;i<3;i++){ const bl=_boxB(0.018,0.3,0.006,white); bl.position.y=0.15; const arm=new THREE.Group(); arm.rotation.z=i*Math.PI*2/3; arm.add(bl); rot.add(arm); }
+  g.position.set(x,0,z); return g; }
+function _waterTower(r){ const g=new THREE.Group(); const legM=_mCol(0x8f9aa3,{metalness:0.4});
+  for(const [sx,sz] of [[-1,-1],[1,-1],[1,1],[-1,1]]){ const l=new THREE.Mesh(new THREE.CylinderGeometry(0.006,0.006,0.4,5),legM); l.position.set(sx*0.06,TOP+0.2,sz*0.06); g.add(l); }
+  const tank=new THREE.Mesh(new THREE.CylinderGeometry(0.11,0.1,0.12,20),_mCol(0xdfe7ec,{metalness:0.3,roughness:0.4})); tank.position.y=TOP+0.46; tank.castShadow=true; g.add(tank);
+  const roof=new THREE.Mesh(new THREE.ConeGeometry(0.115,0.06,20),_mCol(0xc9d2d8,{metalness:0.3})); roof.position.y=TOP+0.55; g.add(roof);
+  const band=new THREE.Mesh(new THREE.CylinderGeometry(0.112,0.112,0.02,20),_mCol(0x2f5f9a)); band.position.y=TOP+0.46; g.add(band);
+  g.add(roundTree(-0.3,0.2,1,r)); g.add(roundTree(0.28,-0.25,1,r)); return g; }
+function _elevator(r, dirs){ const g=new THREE.Group(); const conc=_mCol(0xcac6bd,{roughness:0.9});
+  const [ex,ez]=(dirs&&dirs[0])||[0,0.5], inner=new THREE.Group(); inner.rotation.y=Math.atan2(ex,ez); g.add(inner);   // local z = along the track
+  for(let i=0;i<4;i++){ const c=new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,0.42,16),conc); c.position.set(0.24,TOP+0.21,-0.15+i*0.1); c.castShadow=true; inner.add(c); }
+  const head=_boxB(0.1,0.12,0.12,conc); head.position.set(0.24,TOP+0.48,0.02); inner.add(head);
+  const spout=new THREE.Mesh(new THREE.CylinderGeometry(0.006,0.006,0.3,5),_mCol(0x7c8084)); spout.position.set(0.12,TOP+0.33,0.02); spout.rotation.z=0.9; inner.add(spout);
+  const shed=_boxB(0.12,0.07,0.18,_mCol(0x8a3a2e)); shed.position.set(-0.26,TOP+0.035,0.1); inner.add(shed);
+  for(let i=0;i<3;i++){ const h=_trainCar('hopper',r); h.position.z=(i-1)*(CAR_L+CAR_GAP); inner.add(h); }       // grain hoppers being loaded
+  return g; }
+function _streetside(group, r){ for(const [sx,sz] of [[-1,-1],[1,-1],[1,1],[-1,1]]){ if(r()<0.75) group.add(roundTree(sx*0.34,sz*0.34,0.8+r()*0.3,r));
+    else { const p=new THREE.Mesh(new THREE.CylinderGeometry(0.004,0.004,0.12,5),_mCol(0x3c3f44)); p.position.set(sx*0.3,TOP+0.06,sz*0.3); group.add(p); } } }
+function _plaza(r){ const g=new THREE.Group(); const f=new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.11,0.035,20),_mCol(0xb5b1a8)); f.position.y=TOP+0.018; g.add(f);
+  const w=new THREE.Mesh(new THREE.CircleGeometry(0.085,20),_mCol(0x5fb0dc,{roughness:0.1,metalness:0.3})); w.rotation.x=-Math.PI/2; w.position.y=TOP+0.037; g.add(w);
+  const s=new THREE.Mesh(new THREE.CylinderGeometry(0.01,0.02,0.07,8),_mCol(0xb5b1a8)); s.position.y=TOP+0.07; g.add(s);
+  for(const [sx,sz] of [[-1,-1],[1,-1],[1,1],[-1,1]]) g.add(roundTree(sx*0.3,sz*0.3,0.8,r)); return g; }
+/* ---- RAILWAY ROLLING STOCK (Modern Pack) — cars are built along local +z (the track), sitting on the rails ---- */
+const CAR_L=0.2, CAR_GAP=0.018, RAIL_Y=0.04;
+function _bogies(g,len){ const m=_mCol(0x222326,{roughness:0.8}); for(const s of [-1,1]){ const b=_boxB(0.05,0.018,0.055,m); b.position.set(0,TOP+RAIL_Y+0.009,s*len*0.32); g.add(b); } }
+function _trainCar(kind, r){ const g=new THREE.Group(), y0=TOP+RAIL_Y+0.018;
+  if(kind==='loco'){ const liv=[[0xf2b600,0x1d1d1f],[0x1f4e8c,0xd9dde2],[0xb8322b,0x2a2a2a],[0x2f6b3a,0xf2b600]][(r()*4)|0];
+    const body=_boxB(0.066,0.062,CAR_L*0.96,_mCol(liv[0],{roughness:0.5})); body.position.set(0,y0+0.031,0); g.add(body);
+    const stripe=_boxB(0.068,0.012,CAR_L*0.96,_mCol(liv[1])); stripe.position.set(0,y0+0.022,0); g.add(stripe);
+    const cab=_boxB(0.068,0.024,0.05,_mCol(liv[0],{roughness:0.5})); cab.position.set(0,y0+0.074,CAR_L*0.3); g.add(cab);
+    const win=_boxB(0.07,0.012,0.03,_mCol(0x1c2733,{roughness:0.2,metalness:0.4})); win.position.set(0,y0+0.078,CAR_L*0.31); g.add(win);
+    const roof=_boxB(0.05,0.01,CAR_L*0.5,_mCol(0x55585c)); roof.position.set(0,y0+0.067,-CAR_L*0.12); g.add(roof); }
+  else if(kind==='tanker'){ const t=new THREE.Mesh(new THREE.CylinderGeometry(0.032,0.032,CAR_L*0.92,14),_mCol([0x1d1d1f,0xdfe3e6,0x3b5a7a][(r()*3)|0],{roughness:0.4,metalness:0.3}));
+    t.rotation.x=Math.PI/2; t.position.set(0,y0+0.036,0); t.castShadow=true; g.add(t);
+    const dome=_boxB(0.02,0.012,0.02,_mCol(0x55585c)); dome.position.set(0,y0+0.072,0); g.add(dome);
+    const deck=_boxB(0.06,0.006,CAR_L*0.96,_mCol(0x2a2a2c)); deck.position.set(0,y0+0.003,0); g.add(deck); }
+  else if(kind==='hopper'){ const c=_mCol([0x8f9398,0xb9a37a,0x6d7b8a][(r()*3)|0],{roughness:0.6});
+    const b=_boxB(0.066,0.05,CAR_L*0.94,c); b.position.set(0,y0+0.035,0); g.add(b);
+    const top=_boxB(0.056,0.004,CAR_L*0.84,_mCol(0xc9b27a)); top.position.set(0,y0+0.061,0); g.add(top);                   // a load of grain
+    for(const s of [-1,1]){ const h=new THREE.Mesh(new THREE.ConeGeometry(0.03,0.03,4),c); h.rotation.x=Math.PI; h.rotation.y=Math.PI/4; h.position.set(0,y0+0.004,s*CAR_L*0.22); g.add(h); } }
+  else if(kind==='commuter'){ const body=_boxB(0.068,0.07,CAR_L*1.08,_mCol(0xc9ced4,{roughness:0.35,metalness:0.45})); body.position.set(0,y0+0.035,0); g.add(body);
+    const band=_boxB(0.07,0.016,CAR_L*1.02,_mCol(0x1c2733,{roughness:0.2,metalness:0.4})); band.position.set(0,y0+0.048,0); g.add(band);
+    const st=_boxB(0.07,0.007,CAR_L*1.08,_mCol(0xb8322b)); st.position.set(0,y0+0.02,0); g.add(st); }
+  else { const col=[0x8a3a2e,0x6b4a2e,0x2f5f7a,0x7a6a3a,0x4a5a3a][(r()*5)|0];                                        // boxcar
+    const b=_boxB(0.066,0.068,CAR_L*0.96,_mCol(col,{roughness:0.8})); b.position.set(0,y0+0.034,0); g.add(b);
+    const door=_boxB(0.068,0.05,0.05,_mCol(new THREE.Color(col).multiplyScalar(0.75).getHex())); door.position.set(0,y0+0.032,0); g.add(door);
+    const roof=_boxB(0.07,0.005,CAR_L*0.98,_mCol(0x55585c)); roof.position.set(0,y0+0.07,0); g.add(roof); }
+  _bogies(g, CAR_L); return g; }
+// flat 2D car: a coloured bar
+function _trainCarFlat(kind, r){ const cols={loco:0xf2b600,tanker:0x1d1d1f,hopper:0x8f9398,commuter:0xc9ced4,boxcar:0x8a3a2e};
+  const d=flatDecal(0.07, CAR_L*0.96, cols[kind]||0x8a3a2e, 0.98); d.position.y=TOP+0.056; const g=new THREE.Group(); g.add(d); return g; }
+// a train of `kinds` laid along world points [{x,z}] (scene frame) — follows the curve of the track. `avoid` = points to keep away from.
+export function trainAlong(points, seed, avoid, kinds){
+  if(!points || points.length<2) return null;
+  const curve=new THREE.CatmullRomCurve3(points.map(p=>new THREE.Vector3(p.x,0,p.z)), false, 'centripetal', 0.5), L=curve.getLength();
+  const r=rng32(((seed||1)*2654435761)>>>0), sc=_scale==='battle'?5.5:1, step=(CAR_L+CAR_GAP)*sc;
+  if(!kinds){ kinds=['loco']; const n=Math.max(3,Math.min(9,Math.floor(L*0.45/step))); if(r()<0.35) kinds.push('loco');
+    for(let i=kinds.length;i<n;i++) kinds.push(['boxcar','tanker','hopper','boxcar','hopper'][(r()*5)|0]); }
+  const span=kinds.length*step; if(span>L*0.92) return null;
+  let bestS=(L-span)/2, bestD=-1;                                                                              // where the whole train is farthest from `avoid`
+  for(let i=0;i<=10;i++){ const s0=(L-span)*(0.08+0.84*i/10), mid=curve.getPointAt(Math.min(1,(s0+span/2)/L));
+    let d=Infinity; for(const a of (avoid||[])) d=Math.min(d, Math.hypot(mid.x-a.x, mid.z-a.z)); if(!avoid||!avoid.length) d=1-Math.abs(i-5)/5+r()*0.2; if(d>bestD){ bestD=d; bestS=s0; } }
+  const grp=new THREE.Group(); grp.name='train';
+  kinds.forEach((k,i)=>{ const u=Math.min(1,Math.max(0,(bestS+step*(i+0.5))/L)), p=curve.getPointAt(u), t=curve.getTangentAt(u);
+    const car=_flat?_trainCarFlat(k,r):_trainCar(k,r); car.scale.setScalar(sc); if(sc!==1) car.position.y=-TOP*(sc-1);
+    const hold=new THREE.Group(); hold.add(car); hold.position.set(p.x,0,p.z); hold.rotation.y=Math.atan2(t.x,t.z)+(i===0?Math.PI:0)*0; grp.add(hold); });
+  return grp; }
+// a short string of cars sitting on a tile's own track (station commuter train, hoppers at the grain elevator)
+function _tileTrain(dirs, kinds, r, flat){ const g=new THREE.Group(); const [ex,ez]=dirs[0]||[0,0.5], inner=new THREE.Group(); inner.rotation.y=Math.atan2(ex,ez); g.add(inner);
+  const step=CAR_L+CAR_GAP, n=kinds.length; kinds.forEach((k,i)=>{ const c=flat?_trainCarFlat(k,r):_trainCar(k,r); c.position.z=(i-(n-1)/2)*step; inner.add(c); }); return g; }
+
+/* ---- LANDMARK SKYSCRAPER — an N×N-square block (2×2 … 4×4; hex 7/19/37), like the keep: podium, a glass shaft with
+   setbacks, a lit crown and a spire; the block round it is a paved plaza with trees ---- */
+function _supertall(gridKind, N, r){ const g=new THREE.Group();
+  const k = gridKind==='hex' ? 0.62*(2*N-1)*0.72 : N*0.92, H=1.5+N*0.75;
+  const st=[['#3f566b','#8fb4d6'],['#4b5963','#a9c3d3'],['#2f4658','#6f9fc9']][(r()*3)|0];
+  const fm=(c,f)=>_mMat('st'+st[0]+c+'_'+f,()=>new THREE.MeshStandardMaterial({map:_facade('glass',c,f,st[0],st[1]),roughness:0.25,metalness:0.45}));
+  const roofM=_mCol(0x55595e);
+  const pod=_boxB(0.62*k,0.08,0.62*k,_mCol(0xb5b3ad)); pod.position.y=TOP+0.04; g.add(pod);                         // podium / lobby
+  const tiers=[[0.44,0.55],[0.35,0.25],[0.26,0.12]]; let y=TOP+0.08, total=0;                                    // [width fraction, height fraction]
+  tiers.forEach(([wf,hf],i)=>{ const w=wf*k, h=H*hf, fl=Math.max(3,Math.round(h/0.045)), cols=Math.max(3,Math.round(w/0.04));
+    const b=_boxB(w,h,w,[fm(cols,fl),fm(cols,fl),roofM,roofM,fm(cols,fl),fm(cols,fl)]); b.position.y=y+h/2; g.add(b);
+    const band=_boxB(w*1.02,0.012,w*1.02,_mCol(0xd8dde2,{metalness:0.5,roughness:0.3})); band.position.y=y+h; g.add(band); y+=h; total+=h; });
+  const crown=new THREE.Mesh(new THREE.ConeGeometry(0.26*k*0.55,0.3+N*0.05,4),_mCol(0xcfd8e0,{metalness:0.6,roughness:0.25})); crown.rotation.y=Math.PI/4; crown.position.y=y+0.15+N*0.025; g.add(crown);
+  const spire=new THREE.Mesh(new THREE.CylinderGeometry(0.004,0.012,0.45+N*0.1,6),_mCol(0xe6e9ec,{metalness:0.6})); spire.position.y=y+0.3+N*0.05+0.22+N*0.05; g.add(spire);
+  const lamp=new THREE.Mesh(new THREE.SphereGeometry(0.018,8,6),new THREE.MeshBasicMaterial({color:0xff4a3a})); lamp.position.y=spire.position.y+0.24+N*0.05; g.add(lamp);
+  // plaza: trees + benches round the edge of the block
+  const half=gridKind==='hex' ? (N-0.5)*0.75 : N/2-0.18, nT=6*N;
+  for(let i=0;i<nT;i++){ const a=i/nT*Math.PI*2, rr=half*(gridKind==='hex'?0.9:1)/Math.max(Math.abs(Math.cos(a)),Math.abs(Math.sin(a)))*(gridKind==='hex'?Math.max(Math.abs(Math.cos(a)),Math.abs(Math.sin(a))):1);
+    g.add(roundTree(Math.cos(a)*rr,Math.sin(a)*rr,0.9,r)); }
+  return g; }
+/* ---- STADIUM — an oval bowl over W×H squares (4–16 cells; hex = 7): pitch + running track, three tiers of seats,
+   an outer concourse wall, floodlight towers and a scoreboard ---- */
+function _stadium(gridKind, W, H, r){ const g=new THREE.Group();
+  const a=(gridKind==='hex'?1.05:W*0.47), b=(gridKind==='hex'?0.95:H*0.47);                                    // outer radii (x, z)
+  const ell=(ra,rb,n)=>{ const s=new THREE.Shape(); for(let i=0;i<=n;i++){ const t=i/n*Math.PI*2; const x=Math.cos(t)*ra, y=Math.sin(t)*rb; i?s.lineTo(x,y):s.moveTo(x,y); } return s; };
+  const ring=(ro,ri,h,col,y)=>{ const s=ell(a*ro,b*ro,48), hole=new THREE.Path(); for(let i=0;i<=48;i++){ const t=-i/48*Math.PI*2; const x=Math.cos(t)*a*ri, yy=Math.sin(t)*b*ri; i?hole.lineTo(x,yy):hole.moveTo(x,yy); } s.holes.push(hole);
+    const geo=new THREE.ExtrudeGeometry(s,{depth:h,bevelEnabled:false}); geo.rotateX(-Math.PI/2); const m=new THREE.Mesh(geo,_mCol(col,{roughness:0.8})); m.position.y=y; m.castShadow=true; m.receiveShadow=true; g.add(m); };
+  const team=[[0x2f5f9a,0xd9dde2],[0xb8322b,0xf2efe6],[0x2f6b3a,0xf2b600]][(r()*3)|0];
+  const hS=Math.min(W,H)*0.045+0.03;
+  ring(1.0,0.93,hS*3.2,0x9ea2a8,TOP);                                                                           // outer concourse wall
+  ring(0.93,0.8,hS*2.6,team[0],TOP); ring(0.8,0.7,hS*1.8,team[1],TOP); ring(0.7,0.61,hS*1.0,team[0],TOP);        // three tiers of seats stepping up
+  const trk=new THREE.Mesh(new THREE.ShapeGeometry(ell(a*0.61,b*0.61,48)),_mCol(0xa4523b,{roughness:1})); trk.rotation.x=-Math.PI/2; trk.position.y=TOP+0.026; g.add(trk);   // running track
+  const pw=a*1.02, ph=b*0.8, pitch=new THREE.Mesh(new THREE.PlaneGeometry(pw,ph), new THREE.MeshStandardMaterial({map:_mTex('pitch',128,84,(x,W2,H2)=>{ for(let i=0;i<8;i++){ x.fillStyle=i%2?'#4f8f3a':'#5a9c42'; x.fillRect(i*W2/8,0,W2/8,H2); }
+    x.strokeStyle='#f4f4f0'; x.lineWidth=2; x.strokeRect(4,4,W2-8,H2-8); x.beginPath(); x.moveTo(W2/2,4); x.lineTo(W2/2,H2-4); x.stroke(); x.beginPath(); x.arc(W2/2,H2/2,12,0,6.28); x.stroke();
+    x.strokeRect(4,H2/2-16,16,32); x.strokeRect(W2-20,H2/2-16,16,32); }),roughness:1}));
+  pitch.rotation.x=-Math.PI/2; pitch.position.y=TOP+0.03; g.add(pitch);
+  for(const [sx,sz] of [[-1,-1],[1,-1],[1,1],[-1,1]]){ const px=sx*a*0.98*0.72, pz=sz*b*0.98*0.72, hh=hS*3.2+0.35+Math.min(W,H)*0.05;   // floodlights
+    const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.008,0.014,hh,6),_mCol(0xb8bcc0,{metalness:0.4})); pole.position.set(px,TOP+hh/2,pz); g.add(pole);
+    const lamp=_boxB(0.09,0.05,0.02,new THREE.MeshBasicMaterial({color:0xfff5cf})); lamp.position.set(px,TOP+hh,pz); lamp.rotation.y=Math.atan2(-px,-pz); g.add(lamp); }
+  const sb=_boxB(Math.min(a,0.5),0.14,0.03,_mCol(0x1c1e22)); sb.position.set(0,TOP+hS*3.2+0.09,-b*0.97); g.add(sb);
+  const scr=_boxB(Math.min(a,0.5)*0.85,0.1,0.032,new THREE.MeshBasicMaterial({color:0x2f7fd0})); scr.position.set(0,TOP+hS*3.2+0.09,-b*0.97+0.002); g.add(scr);
+  return g; }
+function _stadiumFlat(gridKind, W, H){ const g=new THREE.Group(), a=(gridKind==='hex'?1.05:W*0.47), b=(gridKind==='hex'?0.95:H*0.47);
+  const disc=(ra,rb,c,y)=>{ const m=new THREE.Mesh(new THREE.CircleGeometry(1,40),new THREE.MeshBasicMaterial({color:c,transparent:true,opacity:0.98,depthWrite:false})); m.rotation.x=-Math.PI/2; m.scale.set(ra,rb,1); m.position.y=TOP+y; m.renderOrder=3; g.add(m); };
+  disc(a,b,0x9ea2a8,0.05); disc(a*0.93,b*0.93,0x2f5f9a,0.051); disc(a*0.7,b*0.7,0xa4523b,0.052); disc(a*0.6,b*0.6,0x4f8f3a,0.053); return g; }
+// normalise a modern feature id: homes<d> → homes · skyscraper<N> → skyscraper · stadium<W>x<H> / stadiumh → stadium
+function _modernBase(f){ f=String(f||''); let m;
+  if((m=/^homes(\d)$/.exec(f))) return {f:'homes', face:+m[1]};
+  if((m=/^skyscraper(\d)$/.exec(f))) return {f:'skyscraper', n:+m[1]};
+  if((m=/^stadium(\d)x(\d)$/.exec(f))) return {f:'stadium', w:+m[1], h:+m[2]};
+  if(f==='stadiumh') return {f:'stadium', w:2, h:2, hex:true};
+  return {f}; }
+const MODERN_FEATS=new Set(['skyscraper','skyyard','stadium','stadyard','towers','apartments','shops','homes','church','school','station','railside','lot','park','sportsfield','streetside','plaza','farmstead','turbines','watertower','elevator']);
+// the modern scatter (3D); returns true when it handled the feature
+function modernScatter(group, def, gridKind, f, pts, r, mass, pathDirs, railDirs, roomy, faceDir, info){
+  info=info||{};
+  if(f==='skyyard'||f==='stadyard') return true;                                         // ground under a landmark — the anchor tile draws it
+  if(f==='skyscraper'){ const N=info.n||2, off=gridKind==='square'?(N-1)/2:0, sub=new THREE.Group(); sub.position.set(off,0,off); sub.add(_supertall(gridKind,N,r)); group.add(sub); return true; }
+  if(f==='stadium'){ const W=info.w||2, H=info.h||2, sub=new THREE.Group(); if(gridKind==='square') sub.position.set((W-1)/2,0,(H-1)/2); sub.add(_stadium(gridKind,W,H,r)); group.add(sub); return true; }
+  const spaced=(n,gap,ok)=>{ const got=[]; for(const p of pts){ if(got.length>=n) break; if((!ok||ok(p[0],p[1])) && got.every(q=>Math.hypot(q[0]-p[0],q[1]-p[1])>=gap)) got.push(p); } return got; };
+  const k = gridKind==='hex' ? 0.8 : 1;
+  if(f==='towers'){ const M=(typeof mass==='number')?mass:0.5, n=M>0.6?1+((r()*2)|0):2+((r()*2)|0);
+    spaced(n,0.3,roomy).forEach(([x,z],i)=> group.add(_skyscraper(x*0.8,z*0.8,(0.3+M*1.3)*(i?0.55+r()*0.35:0.85+r()*0.3),r))); return true; }
+  if(f==='apartments'){ spaced(2,0.36,roomy).forEach(([x,z])=>group.add(_apartments(x*0.8,z*0.8,r))); return true; }
+  if(f==='shops'){ spaced(3,0.25,roomy).forEach(([x,z])=>group.add(_shop(x,z,r))); return true; }
+  if(f==='homes'){ const g2=TE.gridFor(gridKind), face=(dx,dz)=>Math.atan2(-dz,dx);        // local +x (front door + driveway) → toward the street
+    if(pathDirs.length){ // a street runs through this tile: a house either side, facing it
+      const [ax,az]=pathDirs[0], al=Math.hypot(ax,az), ux=ax/al, uz=az/al, nx=-uz, nz=ux, perp=pathDirs.some(([bx,bz])=>Math.abs((bx*ux+bz*uz)/Math.hypot(bx,bz))<0.5);
+      for(const s of [-1,1]) for(const t of (perp?[0.28]:[-0.2,0.2])){ const along=perp?(s>0?0.28:-0.28):t; const x=nx*s*0.29+ux*along, z=nz*s*0.29+uz*along;
+        if(!roomy(x,z)) continue; group.add(_homeModern(x,z,r,face(-nx*s,-nz*s))); } }
+    else if(faceDir>=0){ // a row of houses along the street edge, back gardens behind
+      const [ex,ez]=g2.edgeMid(faceDir), el=Math.hypot(ex,ez), ux=ex/el, uz=ez/el, tx=-uz, tz=ux, sp=gridKind==='hex'?0.16:0.22;
+      for(const s of [-1,1]) group.add(_homeModern(ux*0.2+tx*s*sp, uz*0.2+tz*s*sp, r, face(ux,uz)));
+      for(const s of [-1,1]) if(r()<0.7) group.add(roundTree(-ux*0.3+tx*s*sp*1.1,-uz*0.3+tz*s*sp*1.1,0.9+r()*0.4,r));
+      if(r()<0.3){ const pool=new THREE.Mesh(new THREE.BoxGeometry(0.06,0.006,0.09), _mCol(0x3fb0d8,{roughness:0.2,metalness:0.2})); pool.position.set(-ux*0.12+tx*0.06,TOP+0.003,-uz*0.12+tz*0.06); pool.rotation.y=face(ux,uz); group.add(pool); } }
+    else { spaced(2,0.34,roomy).forEach(([x,z])=>group.add(_homeModern(x,z,r))); spaced(6,0.12,roomy).slice(-2).forEach(([x,z])=>group.add(roundTree(x,z,0.9+r()*0.4,r))); }
+    return true; }
+  const one=(o)=>{ o.scale.multiplyScalar(k); group.add(o); return true; };
+  if(f==='church') return one(_church(r));
+  if(f==='school') return one(_school(r));
+  if(f==='station') return one(_station(railDirs.length?railDirs:pathDirs, r));
+  if(f==='railside') return true;
+  if(f==='lot') return one(_lot(r));
+  if(f==='park') return one(_park(r, pathDirs.length?4:6));
+  if(f==='sportsfield') return one(_sportsField(r));
+  if(f==='plaza') return one(_plaza(r));
+  if(f==='streetside'){ _streetside(group,r); return true; }
+  if(f==='farmstead') return one(_farmstead(r));
+  if(f==='watertower') return one(_waterTower(r));
+  if(f==='elevator') return one(_elevator(r, railDirs));
+  if(f==='turbines'){ const yaw=0.7; spaced(1+((r()*2)|0),0.45,roomy).forEach(([x,z])=>group.add(_turbine(x,z,r,yaw))); return true; }
+  return false; }
+// the 2D (flat map) version: simple top-down shapes
+function modernFlat(group, f, pts, r, mass, info, gridKind, railDirs){
+  info=info||{};
+  if(f==='skyyard'||f==='stadyard') return true;
+  if(f==='skyscraper'){ const N=info.n||2, off=gridKind==='square'?(N-1)/2:0, k=gridKind==='hex'?0.62*(2*N-1)*0.72:N*0.92, sub=new THREE.Group(); sub.position.set(off,0,off); group.add(sub);
+    for(const [w,c,y] of [[0.62*k,0xb5b3ad,0.05],[0.44*k,0x3f566b,0.051],[0.35*k,0x4b6a86,0.052],[0.26*k,0x8fb4d6,0.053]]){ const d=flatDecal(w,w,c,0.99); d.position.y=TOP+y; sub.add(d); } return true; }
+  if(f==='stadium'){ const W=info.w||2, H=info.h||2, sub=_stadiumFlat(gridKind,W,H); if(gridKind==='square') sub.position.set((W-1)/2,0,(H-1)/2); group.add(sub); return true; }
+  if((f==='station'||f==='elevator') && railDirs && railDirs.length){ group.add(_tileTrain(railDirs, f==='station'?['commuter','commuter','commuter']:['hopper','hopper','hopper'], r, true)); }
+  const dec=(w,h,c,x,z,rot,y)=>{ const d=flatDecal(w,h,c,0.98); d.position.set(x||0,TOP+(y||0.05),z||0); d.rotation.y=rot||0; group.add(d); return d; };
+  const dot=(rad,c,x,z,y)=>{ const m=new THREE.Mesh(new THREE.CircleGeometry(rad,16), new THREE.MeshBasicMaterial({color:c,transparent:true,opacity:0.97,depthWrite:false})); m.rotation.x=-Math.PI/2; m.position.set(x,TOP+(y||0.051),z); m.renderOrder=3; group.add(m); };
+  const sp=(n,gap)=>{ const got=[]; for(const p of pts){ if(got.length>=n) break; if(got.every(q=>Math.hypot(q[0]-p[0],q[1]-p[1])>=gap)) got.push(p); } return got; };
+  if(f==='towers'){ sp(2,0.3).forEach(([x,z])=>{ const s=0.2+r()*0.08; dec(s*1.1,s*1.1,0x000000,x+0.02,z+0.03,0,0.046).material.opacity=0.35; dec(s,s,[0x5b6f82,0x6f7a84,0x4a6273][(r()*3)|0],x,z); dec(s*0.55,s*0.55,0x8e979e,x,z,0,0.052); }); return true; }
+  if(f==='apartments'){ sp(2,0.34).forEach(([x,z])=>{ const rot=r()*0.4; dec(0.27,0.17,[0xa4553f,0xc8b18e,0xb9b7b0][(r()*3)|0],x,z,rot); dec(0.2,0.1,0x5d6166,x,z,rot,0.052); }); return true; }
+  if(f==='shops'){ sp(3,0.25).forEach(([x,z])=>{ const rot=r()*0.5; dec(0.16,0.13,0x7d8286,x,z,rot); dec(0.16,0.03,[0xb8322b,0x2f6f9a,0x3d8a4a,0xd08a2a][(r()*4)|0],x,z+0.05,rot,0.052); }); return true; }
+  if(f==='homes'){ sp(3,0.3).forEach(([x,z])=>{ group.add(flatRoof(x,z,false,r)); dec(0.1,0.05,0x9a9a98,x+0.1,z,0,0.047); }); return true; }
+  if(f==='church'){ dec(0.14,0.26,0xf1efe8,0,0); dec(0.03,0.12,0x8a7a4a,0,-0.02,0,0.052); dec(0.09,0.03,0x8a7a4a,0,-0.04,0,0.052); return true; }
+  if(f==='school'){ dec(0.5,0.16,0xa4553f,0,-0.1); dec(0.16,0.26,0xa4553f,-0.17,0.1); return true; }
+  if(f==='station'){ dec(0.14,0.8,0xb7b3aa,0.14,0); dec(0.14,0.3,0x7a2f2a,0.3,0,0,0.052); return true; }
+  if(f==='lot'){ for(const zr of [-0.2,0.2]) for(let i=0;i<7;i++){ dec(0.005,0.1,0xf2f2f2,-0.385+i*0.11,zr,0,0.049); if(r()<0.68) dec(0.05,0.085,[0xc0392b,0x2c3e50,0xecf0f1,0x2980b9,0xf1c40f][(r()*5)|0],-0.33+i*0.11,zr,0,0.052); } return true; }
+  if(f==='park'||f==='plaza'){ for(let i=0;i<6;i++){ const a=i/6*6.28, rr=0.32; dot(0.06,0x3f7a34,Math.cos(a)*rr,Math.sin(a)*rr); } dot(0.1,f==='plaza'?0xb5b1a8:0x4f9fcf,0,0); return true; }
+  if(f==='sportsfield'){ dec(0.62,0.4,0x4f8f3a,0,0); dec(0.005,0.38,0xffffff,0,0,0,0.052); return true; }
+  if(f==='streetside'){ for(const [sx,sz] of [[-1,-1],[1,-1],[1,1],[-1,1]]) dot(0.045,0x3f7a34,sx*0.34,sz*0.34); return true; }
+  if(f==='farmstead'){ dec(0.17,0.24,0xa8322a,0.12,0.06); dec(0.17,0.03,0x55585c,0.12,0.06,0,0.052); group.add(flatRoof(-0.17,-0.12,false,r)); dot(0.04,0xb5bcc2,0.28,-0.14); return true; }
+  if(f==='turbines'){ for(let i=0;i<3;i++) dec(0.018,0.3,0xf2f4f5,Math.sin(i*2.09)*0.13,Math.cos(i*2.09)*0.13,i*2.09); dot(0.02,0xdddddd,0,0,0.053); return true; }
+  if(f==='watertower'){ dot(0.11,0xdfe7ec,0,0); dot(0.05,0x2f5f9a,0,0,0.053); return true; }
+  if(f==='elevator'){ for(let i=0;i<4;i++) dot(0.05,0xcac6bd,-0.15+i*0.1,0); return true; }
+  return f==='railside'; }
+
 // a mountain peak with SHAPE variety — random face count, height/radius/footprint independent of size, so a
 // range reads as varied crags rather than a grid of identical hex-cones. `s` sets overall size; `r` an rng.
 function peak(x,z,s,r,snow){ r=r||Math.random;
@@ -721,6 +1050,7 @@ function scatter(group, def, gridKind, seed, mass, variant){
   if(_scale==='battle' && f!=='water' && f!=='bridge' && f!=='shore' && !/^drawbridge/.test(f||'')) return;
   // 2D BOARD MODE: flat top-down decals instead of raised geometry (textured biomes already read from above).
   if(_flat){
+    { const mb=_modernBase(f); if(MODERN_FEATS.has(mb.f)){ modernFlat(group, mb.f, pts, r, mass, mb, gridKind, def.edges.map((e,i)=>e.path===P.RAIL?g.edgeMid(i):null).filter(Boolean)); return; } }
     if(f==='houses'||f==='buildings'){ const got=[]; for(const p of pts){ if(got.length>=(f==='buildings'?4:3)) break; if(got.every(q=>Math.hypot(q[0]-p[0],q[1]-p[1])>=0.24)) got.push(p); }
       got.forEach(([x,z])=> group.add(flatRoof(x,z,f==='buildings',r))); return; }
     { const km=/^keep(\d)?$/.exec(f||''); if(km){ const N=+(km[1]||1), off=(gridKind==='square'&&N>1)?(N-1)/2:0;
@@ -740,6 +1070,10 @@ function scatter(group, def, gridKind, seed, mass, variant){
     if(f==='trees'||f==='tufts'||f==='farm'||f==='treeline'||f==='foothills'||f==='citywall'||f==='field') return;   // carried by the painted top / omitted in 2D
     // water / bridge / shore fall through to their (already-flat) handlers below
   }
+  const mbase=_modernBase(f), fM=mbase.f;                                     // homes<d> (faces the street on edge d) · skyscraper<N> · stadium<W>x<H>
+  if(MODERN_FEATS.has(fM)){ const railDirs=def.edges.map((e,i)=>e.path===P.RAIL?g.edgeMid(i):null).filter(Boolean);
+    const roomy=(x,z)=>{ if(hasPath && Math.hypot(x,z)<0.22) return false; for(const [ex,ez] of pathDirs){ const t=Math.max(0,Math.min(1,(x*ex+z*ez)/(ex*ex+ez*ez))); if(Math.hypot(x-ex*t,z-ez*t)<0.22) return false; } return true; };
+    modernScatter(group, def, gridKind, fM, pts, r, mass, pathDirs, railDirs, roomy, mbase.face!=null?mbase.face:-1, mbase); return; }
   const cp=/^(gate|drawbridge)(\d)$/.exec(f||'');
   if(cp){ if(cp[1]==='gate') gatehouse(group, g, +cp[2], gridKind); else drawbridge(group, g, +cp[2], gridKind); return; }
   if(f==='trees')       take(8).forEach(([x,z])=> group.add(tree(x,z,0.8+r()*0.5)));
@@ -770,7 +1104,8 @@ function scatter(group, def, gridKind, seed, mass, variant){
     // stacked visibly on top of the base — Paul: "double stacked; I liked the transparent look before".)
     const w=new THREE.Mesh(topGeo(gridKind), new THREE.MeshStandardMaterial({ color:0x6fb8e6, roughness:0.16, metalness:0.35, transparent:true, opacity:0.55, depthWrite:false }));
     w.position.y=TOP+0.006; w.renderOrder=1; group.add(w); }
-  else if(f==='bridge'){ const pl=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.04,0.26), mat(0x6b4a2e,{roughness:1})); pl.position.y=TOP+0.05; group.add(pl); }
+  else if(f==='bridge'){ const modernB=/^(urban|suburb|park|lot)$/.test(def.biome) || def.edges.some(e=>e.path===P.RAIL);   // concrete deck for streets / railways
+    const pl=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.04,modernB?0.34:0.26), mat(modernB?0x8e9196:0x6b4a2e,{roughness:1})); pl.position.y=TOP+0.05; group.add(pl); }
   // transition strips along the N/first edge
   else if(f==='citywall'){ const [ex,ez]=g.edgeMid(0); wallSeg(group, ex*0.9, ez*0.9, edgeLenOf(gridKind), 0.24); }
   else if(f==='treeline'){ const [ex,ez]=g.edgeMid(0); for(let i=-2;i<=2;i++){ const t=Math.atan2(ex,ez)+Math.PI/2; group.add(tree(ex*0.8+Math.sin(t)*i*0.14, ez*0.8+Math.cos(t)*i*0.14, 0.7)); } }
@@ -842,7 +1177,7 @@ export function buildTileMesh(def, gridKind, seed, variant, mass, customTex){
   // tile shows the SAME texture with a centred peak, so a mountain region reads as peaks in a straight grid.
   if (!customTex){
     if (!tex) scatter(grp, def, gridKind, seed||1, mass, variant);
-    else if (def.feature==='houses' || def.feature==='buildings' || def.feature==='farm' || /^keep\d?$/.test(def.feature||'') || def.feature==='peaks' || /^(gate|drawbridge)\d$/.test(def.feature||'')) scatter(grp, def, gridKind, seed||1, mass, variant);
+    else if (MODERN_FEATS.has(_modernBase(def.feature).f) || def.feature==='houses' || def.feature==='buildings' || def.feature==='farm' || /^keep\d?$/.test(def.feature||'') || def.feature==='peaks' || /^(gate|drawbridge)\d$/.test(def.feature||'')) scatter(grp, def, gridKind, seed||1, mass, variant);
   }
   return grp;
 }
@@ -858,7 +1193,25 @@ export const stepAngle = (kind)=> kind==='hex' ? Math.PI/3 : Math.PI/2;
    ========================================================================== */
 // path widths are world-scale by default (a ribbon across a region tile). In BATTLE scale a road/stream must
 // read as a real ~5-10 ft way — roughly one 5-ft cell wide — so widen them when _scale==='battle'.
+// MODERN PACK strip textures: asphalt street (white edge lines, dashed yellow centre) · railway (ballast, sleepers, two rails)
+let _streetTex, _streetPlainTex, _railTex;
+function streetTex(){ return _streetTex || (_streetTex = makeStripTex((x,w,h)=>{
+  x.fillStyle='#3e4044'; x.fillRect(0,0,w,h); for(let i=0;i<500;i++){ const v=50+Math.random()*30|0; x.fillStyle=`rgba(${v},${v},${v+3},.6)`; x.fillRect(Math.random()*w,Math.random()*h,1.2,1.2); }
+  x.fillStyle='#a9abae'; x.fillRect(0,0,w*0.07,h); x.fillRect(w*0.93,0,w*0.07,h);                 // kerbs / sidewalk edge
+  x.fillStyle='rgba(240,240,236,.85)'; x.fillRect(w*0.11,0,w*0.025,h); x.fillRect(w*0.865,0,w*0.025,h);
+  x.fillStyle='#e8c230'; x.fillRect(w*0.485,0,w*0.03,h*0.55); },64,64)); }
+function streetPlainTex(){ return _streetPlainTex || (_streetPlainTex = makeStripTex((x,w,h)=>{ x.fillStyle='#3e4044'; x.fillRect(0,0,w,h);
+  for(let i=0;i<500;i++){ const v=50+Math.random()*30|0; x.fillStyle=`rgba(${v},${v},${v+3},.6)`; x.fillRect(Math.random()*w,Math.random()*h,1.2,1.2); } },64,64)); }
+function railTex(){ return _railTex || (_railTex = makeStripTex((x,w,h)=>{
+  x.fillStyle='#766c62'; x.fillRect(0,0,w,h); for(let i=0;i<700;i++){ const v=90+Math.random()*60|0; x.fillStyle=`rgba(${v},${v-6},${v-12},.7)`; x.fillRect(Math.random()*w,Math.random()*h,2,2); }
+  x.fillStyle='#4a3524'; for(let y=2;y<h;y+=10) x.fillRect(w*0.14,y,w*0.72,5);                   // sleepers
+  x.fillStyle='#c9ccd0'; x.fillRect(w*0.3,0,w*0.05,h); x.fillRect(w*0.65,0,w*0.05,h);            // rails
+  x.fillStyle='rgba(0,0,0,.35)'; x.fillRect(w*0.35,0,w*0.015,h); x.fillRect(w*0.7,0,w*0.015,h); },64,60)); }
 const DRAW_SPEC = {
+  // modern streets + railways are DEPTH-TESTED: they lie on the ground, so skyscrapers, stadiums and trains hide them
+  // properly (the classic always-on-top ribbons painted straight across a 40-storey tower)
+  street: ()=>({ tex:streetTex(), w:_scale==='battle'?1.15:0.2, y:TOP+0.034, ro:7, depth:true }),
+  rail:   ()=>({ tex:railTex(),   w:_scale==='battle'?0.75:0.13, y:TOP+0.037, ro:8, depth:true }),
   river: ()=>({ tex:riverTex(), w:_scale==='battle'?0.95:0.24, y:TOP+0.028, ro:5 }),
   trail: ()=>({ tex:trailTex(), w:_scale==='battle'?0.55:0.09, y:TOP+0.030, ro:6, blend:'multiply' }),   // World roads/trails halved — too thick for the map scale (Paul)
   road:  ()=>({ tex:roadTex(),  w:_scale==='battle'?0.90:0.11, y:TOP+0.034, ro:7 }),
@@ -898,7 +1251,7 @@ export function pathRibbonAlong(points, type, widthClass){
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos,3));
   g.setAttribute('uv', new THREE.Float32BufferAttribute(uv,2)); g.setIndex(idx);
   const tt=s.tex.clone(); tt.needsUpdate=true; tt.wrapT=THREE.RepeatWrapping;
-  const mo={ map:tt, transparent:true, depthTest:false, depthWrite:false, side:THREE.DoubleSide };
+  const mo={ map:tt, transparent:true, depthTest:!!s.depth, depthWrite:false, side:THREE.DoubleSide };
   if (s.blend==='multiply') mo.blending=THREE.MultiplyBlending;
   const m=new THREE.Mesh(g, new THREE.MeshBasicMaterial(mo)); m.renderOrder=s.ro; return m;
 }
@@ -907,9 +1260,9 @@ export function pathRibbonAlong(points, type, widthClass){
 export function pathPlate(type, radius){
   const s = DRAW_SPEC[type] && DRAW_SPEC[type]();
   if (!s) return null;
-  const jt=s.tex.clone(); jt.needsUpdate=true;
+  const jt=(type==='street'?streetPlainTex():s.tex).clone(); jt.needsUpdate=true;   // street crossings: plain asphalt (no painted lines through the junction)
   const plate=new THREE.Mesh(new THREE.CircleGeometry(radius || s.w*0.5, 18),   // = the road's HALF-width so the merge patch fills the junction WITHOUT bulging past the road edges as a visible disc
-    new THREE.MeshBasicMaterial({ map:jt, transparent:true, depthTest:false, depthWrite:false,
+    new THREE.MeshBasicMaterial({ map:jt, transparent:true, depthTest:!!s.depth, depthWrite:false,
       blending: s.blend==='multiply' ? THREE.MultiplyBlending : THREE.NormalBlending }));
   plate.rotation.x=-Math.PI/2; plate.renderOrder=s.ro; return plate;
 }

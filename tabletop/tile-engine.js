@@ -15,19 +15,21 @@
   'use strict';
 
   /* ---- connector (path) types carried on a tile edge ---- */
-  const PATH = { NONE:0, ROAD:1, TRAIL:2, RIVER:3, WALL:4 };
-  const PATH_NAME = ['none','road','trail','river','wall'];
-  const PATH_COLOR = { none:0x000000, road:0xC9A24B, trail:0x8a6a44, river:0x3d7fb0, wall:0x8b8b93 };
+  const PATH = { NONE:0, ROAD:1, TRAIL:2, RIVER:3, WALL:4, RAIL:5 };            // RAIL = railway (Modern Pack)
+  const PATH_NAME = ['none','road','trail','river','wall','rail'];
+  const PATH_COLOR = { none:0x000000, road:0xC9A24B, trail:0x8a6a44, river:0x3d7fb0, wall:0x8b8b93, rail:0x5a5048 };
 
   /* ---- biomes (themes) ---- */
   const BIOME = { PLAINS:'plains', VILLAGE:'village', CITY:'city', FOREST:'forest', MOUNTAINS:'mountains', WATER:'water', SNOW:'snow', ROCKS:'rocks',
     SAND:'sand', PLAZA:'plaza', DIRT:'dirt', GREEN:'green',
-    CROPS:'crops', ORCHARD:'orchard', PIVOT:'pivot' };   // sand = desert dune; town-ground bases: cobble plaza, packed dirt, town green; farmland: crop rows, fruit-tree orchard, centre-pivot circle
+    CROPS:'crops', ORCHARD:'orchard', PIVOT:'pivot',
+    URBAN:'urban', SUBURB:'suburb', LOT:'lot', PARK:'park' };   // MODERN PACK: city pavement · suburban lawn lots · asphalt parking · parkland   // sand = desert dune; town-ground bases: cobble plaza, packed dirt, town green; farmland: crop rows, fruit-tree orchard, centre-pivot circle
   const BIOME_COLOR = {
     plains:0x8Fae55, village:0x9c9464, city:0x9a9298, forest:0x3f6d3a, mountains:0x8a8172, water:0x3d7fb0,
     snow:0xdfe9f2, rocks:0x8d8577, sand:0xd9c48f,
     plaza:0x9a927e, dirt:0x8a6a44, green:0x6f9a45,
-    crops:0x9caa4a, orchard:0x517b39, pivot:0x86a24e
+    crops:0x9caa4a, orchard:0x517b39, pivot:0x86a24e,
+    urban:0x9c9ea3, suburb:0x7fa44e, lot:0x4a4c50, park:0x6f9a45
   };
   // biome pairs that may abut directly with no transition tile (symmetric).
   // NOTE: keys MUST be in canonical pairKey order (alphabetical, a<b) or they never
@@ -48,6 +50,8 @@
     'orchard|plains','orchard|village','orchard|green','orchard|forest','orchard|dirt',
     'pivot|plains','pivot|dirt','pivot|water','pivot|village','pivot|green',
     'crops|orchard','crops|pivot','orchard|pivot',
+    // modern development sits on (almost) anything that isn't high mountain
+    ...['urban','suburb','lot','park'].flatMap(m=>['plains','forest','water','rocks','sand','green','dirt','crops','orchard','pivot','village','city','plaza','urban','suburb','lot','park'].filter(o=>o!==m).map(o=>m+'|'+o)),
   ].map(k=>{ const [a,b]=k.split('|'); return pairKey(a,b); }));
 
   /* ================= grids ================= */

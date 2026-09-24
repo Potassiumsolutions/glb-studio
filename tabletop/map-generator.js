@@ -509,7 +509,7 @@
     const nearLocked = (k) => locked.has(k) || nbrs(k).some(n => locked.has(n.k));
     const buildable = (k) => !waterSet.has(k) && !mtnSet.has(k) && !riverSet.has(k) && !onShore(k) && !locked.has(k)
       && biome[k] !== B.SNOW && biome[k] !== B.ROCKS && biome[k] !== B.WATER;
-    const cand = keys.filter(k => buildable(k) && !nearLocked(k) && !nbrs(k).some(n => mtnSet.has(n.k)));   // villages don't abut mountains (no natural pair)
+    const cand = opts.wild ? [] : keys.filter(k => buildable(k) && !nearLocked(k) && !nbrs(k).some(n => mtnSet.has(n.k)));   // wild = natural land only (the Modern Pack develops it)   // villages don't abut mountains (no natural pair)
     const nSet = Math.max(1, clamp(opts.settlements != null ? opts.settlements : Math.round(NC / 26), 2, 4) - (structure ? 1 : 0));
     // SIZES (Paul): towns 9–64 cells, villages 4–12, castles 64+ (§2). Tiny mats (<50 cells) keep compact symbols.
     const battle = !!opts.battle, roomy = NC >= 50;
@@ -1169,7 +1169,7 @@
       for (let d=0; d<N; d++){ const nk=keyOf(g.step(c,d));
         if(isNew(nk) || !board.has(nk)) continue;
         const p=existingPath(nk, g.opposite(d));
-        if(p===P.ROAD || p===P.RIVER || p===P.TRAIL){ const wc=g.world(c), em=g.edgeMid(d), mx=wc.x+em[0], mz=wc.z+em[1];
+        if((p===P.ROAD || p===P.RIVER || p===P.TRAIL) && (!opts.carry || opts.carry.indexOf(PNAME[p])>=0)){ const wc=g.world(c), em=g.edgeMid(d), mx=wc.x+em[0], mz=wc.z+em[1];
           carriedAt.push([mx,mz]); carryStroke(ck, p, d, priorW(mx,mz,PNAME[p])); }
       }
     }
@@ -1184,6 +1184,7 @@
           const em=g.edgeMid(d), ex=sw.x+em[0], ez=sw.z+em[1];            // this seam edge's midpoint
           if(carriedAt.some(m=>Math.hypot(m[0]-ex, m[1]-ez)<0.14)) continue;  // already continued from the tile edge above (was carried TWICE → forked)
           for (let i=0;i<opts.priorStrokes.length;i++){ if(usedEnds.has(i)) continue; const ps=opts.priorStrokes[i], pt=_PT[ps.type]; if(!pt||!ps.end) continue;
+            if(opts.carry && opts.carry.indexOf(ps.type)<0) continue;          // only carry the requested path kinds (Modern Pack lays its own streets)
             if(Math.hypot(ps.end[0]-ex, ps.end[1]-ez) < 0.14){ usedEnds.add(i); carryStroke(ck, pt, d, ps.w); break; }   // continue it into the new land
           }
         }
@@ -1244,6 +1245,8 @@
   TE.generateBiomeFill = generateBiomeFill;
   TE.generateNextSection = generateNextSection;
   TE.regionCells = regionCells;
+  TE.chainSegments = chainSegments;
+  TE.tracePathStrokes = tracePathStrokes;
   TE.enforceTerrainSizes = enforceTerrainSizes;
   TE.registerGen = registerGen;
   TE.hydrateGenerated = hydrateGenerated;
