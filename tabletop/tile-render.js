@@ -26,7 +26,7 @@ const BIOME_TEXTURE = {
   mountains: ['mountains_rocky.jpg'],
   snow:      ['snow_field.jpg'],
   sand:      ['sand_dune.jpg','sand_dune_2.jpg','sand_dune_3.jpg'] };   // Gemini-painted: golden dunes + cracked hardpan + red desert (v0.19)
-export function biomeVariantCount(biome){ if(biome && biome.indexOf('custom:')===0) return 1; if(biome==='mountains') return 2; const a=BIOME_TEXTURE[biome]; if(a) return a.length; return PROC_VARIANTS[biome]||0; }   // mountains: 0 rocky · 1 snow-capped (paint snowcaps deliberately)
+export function biomeVariantCount(biome){ if(biome && biome.indexOf('custom:')===0) return 1; if(biome==='mountains') return 2; if(SEASON_ART[biome]) return SEASON_ART[biome].length; const a=BIOME_TEXTURE[biome]; if(a) return a.length; return PROC_VARIANTS[biome]||0; }   // mountains: 0 rocky · 1 snow-capped (paint snowcaps deliberately)
 
 // ---- USER CUSTOM TILE TEXTURES (Tile Builder) --------------------------------------------------------------
 // A custom tile is a user-uploaded image tiled onto a tile at a chosen scale. Registered by id ('custom:<uid>')
@@ -68,6 +68,36 @@ function _snowDust(x,S,amt){
 // autumn golds or winter frost with a canvas filter (variant 0 = Spring/Summer stays untouched). Winter also
 // gets a snow dusting on top (added by the caller). Only foliage is seasoned — rock/sand/water look the same.
 const _SEASON_FOLIAGE = { forest:1, plains:1, green:1 };
+const TEX_ZOOM = { forest:0.33 };   // fraction of the painting shown per tile (smaller = bigger features)
+const TEX_CROP_AT = { 'forest_canopy.jpg':[0.22,0.22] };   // crop centre (0..1) — leafy forest has a dirt trail through its middle; take a trail-free corner
+/* SEASONAL PAINTED ART — seasons 0 Spring · 1 Summer · 2 Autumn · 3 Winter.
+   forest  variant = treeType*4 + season   (treeType 0 leafy/round · 1 pine)
+   plains  variant = season
+   crops   variant = season*3 + cropType   (cropType 0/1/2 from the generator's field mix → patchwork)
+   orchard variant = season
+   Each entry: f = file, z = fraction of the painting shown per tile (smaller = bigger features),
+   at = crop centre, filter = canvas filter, dust = snow/mist dusting amount. */
+const _AUT='saturate(1.35) sepia(0.55) hue-rotate(-18deg) brightness(1.02)', _WIN='saturate(0.72) brightness(0.98) hue-rotate(6deg)';
+const SEASON_ART = {
+  forest: [
+    {f:'forest_spring.jpg', z:0.4},                                   // leafy · spring: blossom, thinner canopy
+    {f:'forest_canopy.jpg', z:0.33, at:[0.22,0.22]},                  // leafy · summer (trail-free corner)
+    {f:'forest_canopy_2.jpg', z:0.33, filter:_AUT},                   // leafy · autumn
+    {f:'forest_winter_bare.jpg', z:0.45},                             // leafy · winter: bare branches + a little snow
+    {f:'forest_canopy_3.jpg', z:0.33, filter:_WIN, dust:0.5},         // pine · spring: the misty / cloudy look
+    {f:'forest_canopy_3.jpg', z:0.33},                                // pine · summer
+    {f:'forest_canopy_3.jpg', z:0.33},                                // pine · autumn (evergreen)
+    {f:'pine_winter.jpg', z:0.5} ],                                   // pine · winter: snow on the boughs
+  plains: [ {f:'grass_plains.jpg'}, {f:'grass_summer.jpg'}, {f:'grass_autumn.jpg'}, {f:'grass_winter.jpg'} ],   // spring wildflowers · lush summer · golden autumn · snow (all edits of ONE painting)
+  green:  [ {f:'grass_plains.jpg'}, {f:'grass_summer.jpg'}, {f:'grass_autumn.jpg'}, {f:'grass_winter.jpg'} ],   // castle / town lawns follow the season too
+  crops: [
+    {f:'crop_spring.jpg'}, {f:'crop_spring.jpg'}, {f:'crop_spring.jpg', z:0.8},                    // spring: sprouting furrows
+    {f:'crop_summer.jpg'}, {f:'crop_wheat.jpg'}, {f:'crop_summer.jpg', z:0.8},                     // summer: green rows + ripening wheat
+    {f:'crop_wheat.jpg'}, {f:'crop_harvest.jpg'}, {f:'crop_harvest.jpg', z:0.8},                   // autumn: golden wheat + harvested stubble & bales
+    {f:'crop_winter.jpg'}, {f:'crop_winter.jpg'}, {f:'crop_winter.jpg', z:0.8} ],                  // winter: snowy furrows
+  pivot:   [ {f:'pivot_spring.jpg'}, {f:'pivot_summer.jpg'}, {f:'pivot_autumn.jpg'}, {f:'pivot_winter.jpg'} ],   // centre-pivot irrigation circle through the year
+  orchard: [ {f:'orchard_spring.jpg', z:0.75}, {f:'orchard_summer.jpg', z:0.75}, {f:'orchard_autumn.jpg', z:0.75}, {f:'orchard_winter.jpg', z:0.75} ],  // 3×3 trees per tile
+};
 function _seasonFilter(biome, variant){
   if(!_SEASON_FOLIAGE[biome]) return null;
   if(variant===1) return 'saturate(1.35) sepia(0.55) hue-rotate(-18deg) brightness(1.02)';   // Autumn — greens → golds/oranges
@@ -134,7 +164,7 @@ const PROC_BIOME = {
     for(let i=0;i<600;i++){ const g=70+Math.random()*50|0; x.fillStyle=`rgba(${g-20},${g+18},${g-30},.4)`;
       x.beginPath(); x.arc(Math.random()*S,Math.random()*S,Math.random()*2+0.5,0,6.28); x.fill(); }
     const crown=(v||0)%2 ? ['#b5642a','#d98a3f','#8f4a1f'] : ['#3f7a34','#57964a','#2f5f27'];        // 0 green apple · 1 autumn
-    const n=6, sp=S/n;
+    const n=3, sp=S/n;                                                                             // 3×3 trees per tile (was 6×6 = cabbage-sized)
     for(let r=0;r<n;r++)for(let c=0;c<n;c++){ const cx=sp*(c+0.5)+(r%2?sp*0.12:0), cy=sp*(r+0.5), rr=sp*0.34;
       x.fillStyle='rgba(0,0,0,.22)'; x.beginPath(); x.arc(cx+3,cy+4,rr,0,6.28); x.fill();            // cast shadow
       x.fillStyle=crown[2]; x.beginPath(); x.arc(cx,cy,rr,0,6.28); x.fill();                          // dark rim
@@ -222,6 +252,24 @@ function biomeTexture(biome, variant, gridKind, feather, edgeColor){
   if (_scale==='battle' && CLOSEUP_FOR[biome]){                                                               // 5-ft close-up ground
     const cf = (biome==='mountains' && variant===1) ? 'snowyrock' : CLOSEUP_FOR[biome];                       // snow-capped mountains → snowy bedrock
     return (_texCache[ckey]=_groundTex(PROC_CLOSEUP[cf], gridKind, feather, edgeColor)); }
+  if (SEASON_ART[biome]){                                                                                     // seasonal painted art (forest / plains / crops / orchard)
+    const A=SEASON_ART[biome], e=A[Math.max(0,Math.min(A.length-1,variant))];
+    const S=384, cv=document.createElement('canvas'); cv.width=cv.height=S; const cx=cv.getContext('2d');
+    const t=new THREE.CanvasTexture(cv); if('SRGBColorSpace' in THREE) t.colorSpace=THREE.SRGBColorSpace; t.anisotropy=8;
+    const base=(edgeColor!=null ? edgeColor : (TE.BIOME_COLOR[biome]!=null ? TE.BIOME_COLOR[biome] : 0x808080)), hex='#'+('000000'+(base>>>0).toString(16)).slice(-6);
+    const paintBase=()=>{ cx.fillStyle=hex; cx.fillRect(0,0,S,S); _finishTop(cx,S,gridKind,feather,edgeColor); t.needsUpdate=true; };
+    paintBase();
+    const img=new Image();
+    img.onload=()=>{ cx.clearRect(0,0,S,S);
+      const W=img.naturalWidth, H=img.naturalHeight, z=e.z||1, sw=W*z, sh=H*z, at=e.at||[0.5,0.5];
+      const sx=Math.max(0,Math.min(W-sw, W*at[0]-sw/2)), sy=Math.max(0,Math.min(H-sh, H*at[1]-sh/2));
+      if(e.filter){ cx.save(); cx.filter=e.filter; cx.drawImage(img,sx,sy,sw,sh,0,0,S,S); cx.restore(); try{ cx.filter='none'; }catch(_){} }
+      else cx.drawImage(img,sx,sy,sw,sh,0,0,S,S);
+      if(e.dust) _snowDust(cx,S,e.dust);
+      _finishTop(cx,S,gridKind,feather,edgeColor); t.needsUpdate=true; };
+    img.onerror=paintBase; img.src='tile-textures/'+e.f;
+    return (_texCache[ckey]=t);
+  }
   if (PROC_BIOME[biome]) return (_texCache[ckey]=PROC_BIOME[biome](gridKind, feather, edgeColor, variant));   // town-ground / farmland procedural top
   const arr = BIOME_TEXTURE[biome]; if (!arr) return (_texCache[ckey]=null);
   const file = arr[Math.max(0, Math.min(arr.length-1, variant))];
@@ -238,8 +286,11 @@ function biomeTexture(biome, variant, gridKind, feather, edgeColor){
   const img=new Image();
   img.onload=()=>{ cx.clearRect(0,0,S,S);
     const sf=_seasonFilter(biome,variant);                             // Autumn/Winter recolour for foliage (its art is all summer-green)
-    if(sf){ cx.save(); cx.filter=sf; cx.drawImage(img,0,0,S,S); cx.restore(); try{ cx.filter='none'; }catch(e){} }
-    else cx.drawImage(img,0,0,S,S);
+    // TEX_ZOOM: draw only the centre crop of the painting so its features read at map scale (forest canopy was
+    // ~10 trees per tile = "cabbage-sized" next to the castle → now ~5 across, each tree twice the size)
+    const zf=TEX_ZOOM[biome]||1, sw=img.naturalWidth*zf, sh=img.naturalHeight*zf, cc=TEX_CROP_AT[file]||[0.5,0.5], sx=Math.max(0,Math.min(img.naturalWidth-sw, img.naturalWidth*cc[0]-sw/2)), sy=Math.max(0,Math.min(img.naturalHeight-sh, img.naturalHeight*cc[1]-sh/2));
+    if(sf){ cx.save(); cx.filter=sf; cx.drawImage(img,sx,sy,sw,sh,0,0,S,S); cx.restore(); try{ cx.filter='none'; }catch(e){} }
+    else cx.drawImage(img,sx,sy,sw,sh,0,0,S,S);
     if(biome==='mountains' && variant===1) _snowDust(cx,S);             // snow-capped mountains variant → dust the rocky top with snow
     else if(_SEASON_FOLIAGE[biome] && variant===2) _snowDust(cx,S,0.5);  // Winter foliage → LIGHT snow between the trees (they stay visible, not a white blob)
     _finishTop(cx,S,gridKind,feather,edgeColor);                        // soft biome-colour edge (opaque top) / feather / hard
@@ -409,10 +460,12 @@ function archGate(group, ex, ez, edgeLen, hgt){
   const half=edgeLen*0.30, tube=0.05, stone=mat(0x8b8b93,{roughness:0.8});
   const px=(s)=>ex+Math.sin(tang)*s*half, pz=(s)=>ez+Math.cos(tang)*s*half;
   for(const s of [-1,1]){ const p=new THREE.Mesh(new THREE.BoxGeometry(0.09,H,0.09), stone); p.position.set(px(s),TOP+H/2,pz(s)); p.castShadow=true; group.add(_overTiles(p)); }
-  // rounded top: voussoir boxes stepped along a semicircle spanning the two posts (in the tangent–vertical plane)
-  const seg=6; for(let i=0;i<=seg;i++){ const a=Math.PI*i/seg, ax=Math.cos(a)*half, ay=Math.sin(a)*half*0.7;
-    const v=new THREE.Mesh(new THREE.BoxGeometry(0.11,tube*2,0.09), stone);
-    v.position.set(ex+Math.sin(tang)*ax, TOP+H+ay, ez+Math.cos(tang)*ax); v.rotation.set(0, tang, a-Math.PI/2); group.add(_overTiles(v)); }
+  // crenellated lintel across the two posts (the old stepped-voussoir arch was rotated on the wrong axis and
+  // read as tumbled rubble next to the keep)
+  const lin=new THREE.Mesh(new THREE.BoxGeometry(half*2+0.09, 0.07, 0.11), stone);
+  lin.position.set(ex, TOP+H+0.035, ez); lin.rotation.y=Math.atan2(-Math.cos(tang), Math.sin(tang)); lin.castShadow=true; group.add(_overTiles(lin));
+  for(const s of [-1,0,1]){ const m=new THREE.Mesh(new THREE.BoxGeometry(0.06,0.05,0.1), mat(0x9a9aa2,{roughness:0.8}));
+    m.position.set(px(s*0.8), TOP+H+0.095, pz(s*0.8)); m.rotation.y=lin.rotation.y; group.add(_overTiles(m)); }
 }
 const treeMat = mat(0x2f5d33), trunkMat = mat(0x6b4a2e,{roughness:1});
 function tree(x,z,s){ const g=new THREE.Group();
@@ -484,6 +537,76 @@ function flatRoof(x,z,big,r){ const g=new THREE.Group();                        
 
 // scatter a feature over the tile, keeping clear of any path strips. `mass` (0..1) = mountain-massif depth:
 // core cells build a tall central peak + satellites, fringe cells a single small foothill.
+/* ---- CASTLE PIECES: gatehouse, drawbridge, tall keep (settlement + world-map castles) ---- */
+const _stone=()=>mat(0x8f8a90,{roughness:0.85}), _stoneLt=()=>mat(0xa29ca2,{roughness:0.8}), _slate=()=>mat(0x44495e,{roughness:0.7}), _wood=()=>mat(0x7a5230,{roughness:1}), _woodDk=()=>mat(0x4f3420,{roughness:1}), _iron=()=>mat(0x2b2b30,{roughness:0.5,metalness:0.6});
+function _ringMerlons(group, x, y, z, rad, n, k){ const m=_stoneLt();
+  for(let i=0;i<n;i++){ const a=i/n*Math.PI*2; const b=new THREE.Mesh(new THREE.BoxGeometry(0.035*k,0.05*k,0.035*k), m);
+    b.position.set(x+Math.cos(a)*rad, y+0.025*k, z+Math.sin(a)*rad); b.rotation.y=-a; group.add(_overTiles(b)); } }
+function _tower(group, x, z, rad, h, k, roof){               // round tower + crenellated top (+ optional conical roof)
+  const t=new THREE.Mesh(new THREE.CylinderGeometry(rad, rad*1.08, h, 12), _stone()); t.position.set(x, TOP+h/2, z); t.castShadow=true; group.add(_overTiles(t));
+  const lip=new THREE.Mesh(new THREE.CylinderGeometry(rad*1.18, rad*1.18, 0.03*k, 12), _stoneLt()); lip.position.set(x, TOP+h, z); group.add(_overTiles(lip));
+  if(roof){ const c=new THREE.Mesh(new THREE.ConeGeometry(rad*1.25, roof, 12), _slate()); c.position.set(x, TOP+h+roof/2+0.015*k, z); c.castShadow=true; group.add(_overTiles(c)); }
+  else _ringMerlons(group, x, TOP+h+0.015*k, z, rad*1.05, 8, k);
+}
+/* GATEHOUSE on wall edge `dir`: two flanking round towers, a crenellated arch block over the road and a
+   half-raised iron portcullis — sits on the curtain-wall line so the wall runs straight into it. */
+function gatehouse(group, g, dir, gridKind){
+  const k = gridKind==='hex' ? 0.72 : 1, L = edgeLenOf(gridKind);
+  const [ex,ez]=g.edgeMid(dir), n=Math.atan2(ex,ez), tx=Math.sin(n+Math.PI/2), tz=Math.cos(n+Math.PI/2);
+  const half=L*0.34, open=0.2*k, H=0.46*k;
+  for(const s of [-1,1]) _tower(group, ex+tx*s*half, ez+tz*s*half, 0.1*k, 0.56*k, k, 0.2*k);
+  // arch block: two piers + lintel spanning the road, with merlons on top
+  const span=half*2-0.16*k, depth=0.2*k, st=_stone();
+  const lin=new THREE.Mesh(new THREE.BoxGeometry(span, H-open, depth), st); lin.position.set(ex, TOP+open+(H-open)/2, ez); lin.rotation.y=Math.atan2(-tz,tx); group.add(_overTiles(lin));
+  const nM=4; for(let i=0;i<nM;i++){ const s=(i/(nM-1)-0.5)*span*0.9; const m=new THREE.Mesh(new THREE.BoxGeometry(0.05*k,0.06*k,depth*1.02), _stoneLt());
+    m.position.set(ex+tx*s, TOP+H+0.03*k, ez+tz*s); m.rotation.y=lin.rotation.y; group.add(_overTiles(m)); }
+  // rounded arch over the opening (voussoirs)
+  const ar=span*0.36, seg=7; for(let i=0;i<=seg;i++){ const a=Math.PI*i/seg, s=Math.cos(a)*ar;
+    const v=new THREE.Mesh(new THREE.BoxGeometry(0.04*k,0.04*k,depth*1.04), _stoneLt()); v.position.set(ex+tx*s, TOP+open-0.02*k+Math.sin(a)*ar*0.35, ez+tz*s); v.rotation.y=lin.rotation.y; group.add(_overTiles(v)); }
+  // portcullis: iron grille, half raised, just behind the arch face
+  const iron=_iron(), bars=5, pw=span*0.62;
+  for(let i=0;i<bars;i++){ const s=(i/(bars-1)-0.5)*pw; const b=new THREE.Mesh(new THREE.BoxGeometry(0.012*k,open*0.55,0.012*k), iron);
+    b.position.set(ex+tx*s, TOP+open*0.72, ez+tz*s); group.add(_overTiles(b)); }
+  const cross=new THREE.Mesh(new THREE.BoxGeometry(pw,0.012*k,0.012*k), iron); cross.position.set(ex, TOP+open*0.6, ez); cross.rotation.y=lin.rotation.y; group.add(_overTiles(cross));
+  // banner over the gate
+  const ban=new THREE.Mesh(new THREE.PlaneGeometry(0.08*k,0.12*k), mat(0xa3232b,{side:THREE.DoubleSide,roughness:0.9}));
+  const eh=Math.hypot(ex,ez); ban.position.set(ex+ex/eh*depth*0.53, TOP+open+(H-open)*0.5, ez+ez/eh*depth*0.53); ban.rotation.y=n; group.add(_overTiles(ban));
+}
+/* DRAWBRIDGE across a moat cell: plank deck hinged on edge `dir` (the gate side) spanning the water to the far
+   bank, with side beams and the two chains running up to the gatehouse. */
+function drawbridge(group, g, dir, gridKind){
+  const k = gridKind==='hex' ? 0.72 : 1;
+  const [ex,ez]=g.edgeMid(dir), len=Math.hypot(ex,ez)*2, ux=ex/Math.hypot(ex,ez), uz=ez/Math.hypot(ex,ez), ang=Math.atan2(ex,ez);
+  const W=0.34*k, y=TOP+0.035, wd=_wood(), dk=_woodDk();
+  const deck=new THREE.Mesh(new THREE.BoxGeometry(W, 0.03, len*1.02), wd); deck.position.set(0, y, 0); deck.rotation.y=ang; deck.castShadow=true; group.add(_overTiles(deck));
+  const nP=Math.max(6,Math.round(len/0.07)); for(let i=0;i<nP;i++){ const t=(i+0.5)/nP-0.5;           // plank seams
+    const s=new THREE.Mesh(new THREE.BoxGeometry(W*1.01,0.004,0.008), dk); s.position.set(ux*t*len, y+0.016, uz*t*len); s.rotation.y=ang; group.add(_overTiles(s)); }
+  const px=Math.cos(ang), pz=-Math.sin(ang);                                                             // across-deck unit
+  for(const s of [-1,1]){ const b=new THREE.Mesh(new THREE.BoxGeometry(0.03*k,0.05*k,len*1.02), dk); b.position.set(px*s*W/2, y+0.03*k, pz*s*W/2); b.rotation.y=ang; group.add(_overTiles(b));
+    // chain: from the deck's OUTER end up to the gatehouse face above the hinge
+    const a=new THREE.Vector3(-ux*len*0.42+px*s*W*0.45, y+0.03, -uz*len*0.42+pz*s*W*0.45), c=new THREE.Vector3(ex*0.98+px*s*W*0.45, TOP+0.36*k, ez*0.98+pz*s*W*0.45);
+    const mid=a.clone().add(c).multiplyScalar(0.5), dv=c.clone().sub(a), ch=new THREE.Mesh(new THREE.CylinderGeometry(0.006,0.006,dv.length(),5), _iron());
+    ch.position.copy(mid); ch.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), dv.normalize()); group.add(_overTiles(ch)); }
+  // stone abutment at the far bank
+  const ab=new THREE.Mesh(new THREE.BoxGeometry(W*1.25,0.05,0.07*k), _stone()); ab.position.set(-ux*len*0.47, TOP+0.025, -uz*len*0.47); ab.rotation.y=ang; group.add(_overTiles(ab));
+}
+/* KEEP: a tall square donjon with corner turrets and a central great tower, roofed + flagged — the castle's
+   landmark, clearly taller than the curtain walls and halls around it. */
+function keepTower(group, gridKind){
+  const k = gridKind==='hex' ? 0.62 : 1, w=0.36*k, h=0.62*k, st=_stone();
+  const body=new THREE.Mesh(new THREE.BoxGeometry(w,h,w), st); body.position.y=TOP+h/2; body.castShadow=true; group.add(_overTiles(body));
+  const n=4; for(let side=0;side<4;side++) for(let i=0;i<n;i++){ const s=(i/(n-1)-0.5)*w*0.8, m=new THREE.Mesh(new THREE.BoxGeometry(0.045*k,0.055*k,0.045*k), _stoneLt());
+    const [x,z] = side===0?[s,-w/2]:side===1?[w/2,s]:side===2?[s,w/2]:[-w/2,s]; m.position.set(x, TOP+h+0.028*k, z); group.add(_overTiles(m)); }
+  for(const [sx,sz] of [[-1,-1],[1,-1],[1,1],[-1,1]]) _tower(group, sx*w/2, sz*w/2, 0.055*k, h*1.2, k, 0.15*k);
+  const gh=0.5*k; _tower(group, 0, 0, 0.11*k, h+gh, k, 0.28*k);                                        // central great tower
+  const topY=TOP+h+gh+0.3*k;
+  const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.006,0.006,0.16*k,5), _iron()); pole.position.set(0, topY+0.08*k, 0); group.add(_overTiles(pole));
+  const flag=new THREE.Mesh(new THREE.PlaneGeometry(0.1*k,0.06*k), mat(0xb3262e,{side:THREE.DoubleSide,roughness:0.9})); flag.position.set(0.05*k, topY+0.13*k, 0); group.add(_overTiles(flag));
+  // window slits
+  const slit=mat(0x1c1c22); for(let side=0;side<4;side++) for(const fy of [0.35,0.65]){ const sl=new THREE.Mesh(new THREE.BoxGeometry(0.018*k,0.06*k,0.004), slit);
+    const a=side*Math.PI/2; sl.position.set(Math.sin(a)*(w/2+0.002), TOP+h*fy, Math.cos(a)*(w/2+0.002)); sl.rotation.y=a; group.add(_overTiles(sl)); }
+}
+
 function scatter(group, def, gridKind, seed, mass, variant){
   const r = rng32(seed*2654435761>>>0);
   const snowPeaks = variant===1 && def.biome==='mountains';   // snow-capped mountains variant → every peak gets a snow cap
@@ -500,18 +623,25 @@ function scatter(group, def, gridKind, seed, mass, variant){
   const take=(n)=>pts.slice(0,n);
   // BATTLE SCALE: region features (forests, peaks, buildings) become board-level multi-tile props; a single
   // tile only keeps ground-level extras (water surface, a bridge, a shoreline). See makeBattleProp + host pass.
-  if(_scale==='battle' && f!=='water' && f!=='bridge' && f!=='shore') return;
+  if(_scale==='battle' && f!=='water' && f!=='bridge' && f!=='shore' && !/^drawbridge/.test(f||'')) return;
   // 2D BOARD MODE: flat top-down decals instead of raised geometry (textured biomes already read from above).
   if(_flat){
     if(f==='houses'||f==='buildings'){ take(f==='buildings'?5:4).forEach(([x,z])=> group.add(flatRoof(x,z,f==='buildings',r))); return; }
     if(f==='keep'){ const k=flatDecal(0.34,0.34,0x8a8a92,0.98); k.position.y=TOP+0.05; group.add(k);
-      for(const [sx,sz] of [[-1,-1],[1,-1],[1,1],[-1,1]]){ const t=flatDecal(0.1,0.1,0x6f676d,0.98); t.position.set(sx*0.15,TOP+0.052,sz*0.15); group.add(t);} return; }
+      for(const [sx,sz] of [[-1,-1],[1,-1],[1,1],[-1,1]]){ const t=flatDecal(0.1,0.1,0x6f676d,0.98); t.position.set(sx*0.15,TOP+0.052,sz*0.15); group.add(t);}
+      const gt=flatDecal(0.16,0.16,0x44495e,0.98); gt.position.y=TOP+0.054; group.add(gt); return; }
+    { const cp=/^(gate|drawbridge)(\d)$/.exec(f||''); if(cp){ const [ex,ez]=g.edgeMid(+cp[2]), a=Math.atan2(ex,ez);
+      if(cp[1]==='drawbridge'){ const d=flatDecal(0.34,Math.hypot(ex,ez)*2,0x7a5230,0.98); d.rotation.y=a; d.position.y=TOP+0.05; group.add(d); }
+      else { const L=edgeLenOf(gridKind), tx=Math.sin(a+Math.PI/2), tz=Math.cos(a+Math.PI/2); for(const s of [-1,1]){ const t=flatDecal(0.2,0.2,0x6f676d,0.98); t.position.set(ex+tx*s*L*0.34, TOP+0.052, ez+tz*s*L*0.34); group.add(t); } }
+      return; } }
     if(f==='peaks'){ const M=(typeof mass==='number')?mass:0.5; take(1+Math.round(M*3)).forEach(([x,z],i)=>{ const s=0.1+M*0.16*(i?0.6:1);
       const c=flatDecal(s,s,snowPeaks?0xdfe9f2:0x726a5c,0.92); c.position.set(x,TOP+0.05,z); c.rotation.y=r()*1.57; group.add(c);      // snow-white crag dots for the snow-capped variant
       if(snowPeaks){ const cap=flatDecal(s*0.5,s*0.5,0xffffff,0.95); cap.position.set(x,TOP+0.052,z); cap.rotation.y=c.rotation.y; group.add(cap); } }); return; }
     if(f==='trees'||f==='tufts'||f==='farm'||f==='treeline'||f==='foothills'||f==='citywall'||f==='field') return;   // carried by the painted top / omitted in 2D
     // water / bridge / shore fall through to their (already-flat) handlers below
   }
+  const cp=/^(gate|drawbridge)(\d)$/.exec(f||'');
+  if(cp){ if(cp[1]==='gate') gatehouse(group, g, +cp[2], gridKind); else drawbridge(group, g, +cp[2], gridKind); return; }
   if(f==='trees')       take(8).forEach(([x,z])=> group.add(tree(x,z,0.8+r()*0.5)));
   else if(f==='tufts')  take(5).forEach(([x,z])=> group.add(tuft(x,z)));
   else if(f==='peaks'){ const M = (typeof mass==='number') ? mass : (0.35+r()*0.5);   // core=tall massif, fringe=small foothill
@@ -521,9 +651,8 @@ function scatter(group, def, gridKind, seed, mass, variant){
   else if(f==='houses') take(4).forEach(([x,z])=> group.add(house(x,z,r()*6.28,false,r)));
   else if(f==='buildings') take(5).forEach(([x,z])=> group.add(house(x,z,r()*6.28,true,r)));
   else if(f==='farm' && pts[0]) group.add(house(pts[0][0],pts[0][1],r()*6.28,false,r));
-  else if(f==='keep'){ // castle: central keep + ring wall around the perimeter (gap at the road/gate edge)
-    const k=new THREE.Mesh(new THREE.BoxGeometry(0.26,0.42,0.26), mat(0x9a9298)); k.position.y=TOP+0.21; k.castShadow=true; group.add(k);
-    const t=new THREE.Mesh(new THREE.CylinderGeometry(0.07,0.07,0.16,8), mat(0xb9b2a6)); t.position.y=TOP+0.5; group.add(t);
+  else if(f==='keep'){ // castle: tall keep (donjon + turrets + great tower) + ring wall around the perimeter (gap at the road/gate edge)
+    keepTower(group, gridKind);
     for(let dir=0; dir<g.N; dir++){ const [ex,ez]=g.edgeMid(dir); const p=def.edges[dir].path;
       if(p===P.ROAD||p===P.TRAIL) archGate(group, ex*0.86, ez*0.86, edgeLenOf(gridKind), 0.24);     // arched gateway where the road enters
       else if(p===P.NONE) wallSeg(group, ex*0.86, ez*0.86, edgeLenOf(gridKind), 0.24); } }
@@ -604,7 +733,7 @@ export function buildTileMesh(def, gridKind, seed, variant, mass, customTex){
   // tile shows the SAME texture with a centred peak, so a mountain region reads as peaks in a straight grid.
   if (!customTex){
     if (!tex) scatter(grp, def, gridKind, seed||1, mass, variant);
-    else if (def.feature==='houses' || def.feature==='buildings' || def.feature==='keep' || def.feature==='peaks') scatter(grp, def, gridKind, seed||1, mass, variant);
+    else if (def.feature==='houses' || def.feature==='buildings' || def.feature==='keep' || def.feature==='peaks' || /^(gate|drawbridge)\d$/.test(def.feature||'')) scatter(grp, def, gridKind, seed||1, mass, variant);
   }
   return grp;
 }

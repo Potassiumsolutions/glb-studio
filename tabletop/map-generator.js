@@ -533,7 +533,11 @@
       const moatRing = new Set();
       for (const k of castleCells) for (const { k: nk } of nbrs(k)) if (!castleCells.has(nk) && !settleSet.has(nk) && !townCells.has(nk)) moatRing.add(nk);
       for (const nk of moatRing){ if (mtnSet.has(nk)) continue;                         // don't drown a mountain
-        biome[nk] = B.WATER; feature[nk] = (edges[nk] && edges[nk].includes(P.ROAD)) ? undefined : 'water'; }   // road-over-water cell = drawbridge
+        biome[nk] = B.WATER;
+        if (edges[nk] && edges[nk].includes(P.ROAD)){                                   // road-over-water cell = DRAWBRIDGE (deck hinged at the castle side)
+          const inn = nbrs(nk).find(n => castleCells.has(n.k) && edges[nk][n.dir] === P.ROAD);
+          feature[nk] = inn ? 'drawbridge' + inn.dir : 'drawbridge' + edges[nk].indexOf(P.ROAD);
+        } else feature[nk] = 'water'; }
       // FEED THE MOAT: unless a river already touches it, carve a stream from the moat out to the nearest
       // existing river / lake / board edge, so the moat reads as fed & drained — not an isolated magic ring.
       const moatW = [...moatRing].filter(k => biome[k] === B.WATER);
@@ -700,7 +704,16 @@
     // cells (one in from the edge) so the moat sits OUTSIDE the wall; otherwise it rings the whole plan.
     const walls = [];
     if (type !== 'village'){ const wallSet = moatOn ? new Set(keys.filter(k => !isBorder(k))) : new Set(keys);
-      ringWall(wallSet, k => cellOf[k], k => pos[k], g, k => edges[k], N).forEach(w => walls.push(w)); }
+      ringWall(wallSet, k => cellOf[k], k => pos[k], g, k => edges[k], N).forEach(w => walls.push(w));
+      // GATEHOUSE where a road passes through the curtain wall ('gate<dir>' = the wall edge it sits on), and a
+      // DRAWBRIDGE on the moat cell outside it ('drawbridge<dir>' = the edge it's hinged on, facing the gate).
+      for (const k of wallSet){ if (k === centerK) continue; const c = cellOf[k];
+        for (let d = 0; d < N; d++){ if (edges[k][d] !== P.ROAD) continue; const nk = keyOf(g.step(c, d));
+          if (wallSet.has(nk)) continue;
+          feature[k] = 'gate' + d;
+          if (moatOn && cellOf[nk] && biome[nk] === B.WATER) feature[nk] = 'drawbridge' + g.opposite(d);
+          break; } }
+    }
 
     // realise every cell as a connector-exact tile
     const defFeat = (bm) => ({ plains: 'tufts', forest: 'trees', mountains: 'peaks', village: 'houses', city: 'buildings', water: 'water' })[bm];

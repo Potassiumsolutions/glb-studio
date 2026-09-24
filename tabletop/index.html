@@ -416,10 +416,16 @@
       <div class="row wrap" style="align-items:center">
         <label class="fld" style="margin:0">🍂 Season</label>
         <select id="bSeason" style="flex:1;min-width:130px">
-          <option value="auto">Auto (per map)</option>
-          <option value="0">🌱 Spring / Summer — green</option>
-          <option value="1">🍂 Autumn — fall colours</option>
-          <option value="2">🌲 Winter — evergreen / pine</option>
+          <option value="auto">Auto (summer)</option>
+          <option value="0">🌸 Spring — blossom, sprouting fields</option>
+          <option value="1">☀️ Summer — full green</option>
+          <option value="2">🍂 Autumn — fall colours, harvest</option>
+          <option value="3">❄️ Winter — bare trees, snow</option>
+        </select>
+        <select id="bTrees" style="min-width:110px" title="Which trees the forests use">
+          <option value="mixed">🌳🌲 Mixed woods</option>
+          <option value="leafy">🌳 Leafy trees</option>
+          <option value="pine">🌲 Pine trees</option>
         </select>
       </div>
       <div class="row wrap">
@@ -1029,7 +1035,7 @@ import * as Tuck from './tuckbox-designer.js';
 
 const BGC = window.BGC, GAMES = window.BGC_GAMES;
 const TE = window.TileEngine, TLIB = window.TileLibrary;
-const APP_VERSION = 'v0.84';
+const APP_VERSION = 'v0.90';
 const CREDITS = `<b>Ksol Designs</b> — Paul A.T. Ramey<br>www.ksoldesigns.com<br>Built with GLB Studio · Tabletop<br><span class="ver">${APP_VERSION}</span>`;
 // ---- Board credit: a small "KSOL Designs" mark on the board for the FREE build. Owning ANY content pack
 // (TTier expansion) unlocks removing it (⚙ Settings toggle, or click the credit). ----
@@ -2698,7 +2704,7 @@ const bld = { grid:'square', cols:8, rows:8, seed:7, q0:0, r0:0, board:new Map()
               sel:null, rot:0, blend:false, groups:new Map(), off:{x:0,z:0}, radius:6,
               draw:[], tool:null, pen:[], playMode:'grid', selStroke:null,
               baseMap:null, gridScale:1,
-              props:[], propKind:null, propGlb:null, dragProp:null, propMode:'3d', propScale:1, selProp:null, wallMode:'3d', variant:'auto', miniTeam:null, measA:null, measB:null, gridLines:false, structures:[], structKey:'',
+              props:[], propKind:null, propGlb:null, dragProp:null, propMode:'3d', propScale:1, selProp:null, wallMode:'3d', variant:'auto', season:'auto', trees:'mixed', miniTeam:null, measA:null, measB:null, gridLines:false, structures:[], structKey:'',
               subdiv:new Map(), subN:2, subHexMode:'tri', subTool:false,
               subpaint:new Map(), subPaintOn:false, subPaint:'water',
               theme:'mixed', genStream:true, genRoad:true, extTerrain:'match', extFeature:'bare', repaintOn:false, tgc:'', tgcCell:1, tgcCenters:[], tgcFillTheme:'', ruler:'on', selUnit:0, _exporting:false,
@@ -3360,7 +3366,7 @@ function bRenderBaseMap(){ if(!bld.baseMap) return;
 /* ---- UNDO stack (Ctrl+Z) — snapshot the design before each edit, restore on undo ---- */
 const _undo=[]; const UNDO_MAX=20;
 function bSnapshot(){ return {
-  grid:bld.grid, cols:bld.cols, rows:bld.rows, q0:bld.q0, r0:bld.r0, seed:bld.seed, gridScale:bld.gridScale, variant:bld.variant,
+  grid:bld.grid, cols:bld.cols, rows:bld.rows, q0:bld.q0, r0:bld.r0, seed:bld.seed, gridScale:bld.gridScale, variant:bld.variant, season:bld.season, trees:bld.trees,
   board:new Map([...bld.board].map(([k,v])=>[k,{...v}])),
   zones:new Map(bld.zones),
   draw:JSON.parse(JSON.stringify(bld.draw)),
@@ -3386,11 +3392,12 @@ function bSyncBuilderUI(){
   const rChk=document.getElementById('bGenRoad'); if(rChk) rChk.checked=bld.genRoad;
   const etSel=document.getElementById('bExtTerrain'); if(etSel) etSel.value=bld.extTerrain;
   const efSel=document.getElementById('bExtFeature'); if(efSel) efSel.value=bld.extFeature;
-  const seSel=document.getElementById('bSeason'); if(seSel) seSel.value=String(bld.variant);
+  const seSel=document.getElementById('bSeason'); if(seSel) seSel.value=String(bld.season);
+  const trSel=document.getElementById('bTrees'); if(trSel) trSel.value=bld.trees||'mixed';
   bBuildPalette(); bSubInfo();
 }
 function bUndo(){ if(!_undo.length){ bStatus('Nothing to undo'); return; } const s=_undo.pop();
-  bld.grid=s.grid; bld.cols=s.cols; bld.rows=s.rows; bld.q0=s.q0; bld.r0=s.r0; bld.seed=s.seed; bld.gridScale=s.gridScale; bld.variant=s.variant;
+  bld.grid=s.grid; bld.cols=s.cols; bld.rows=s.rows; bld.q0=s.q0; bld.r0=s.r0; bld.seed=s.seed; bld.gridScale=s.gridScale; bld.variant=s.variant; if(s.season!==undefined) bld.season=s.season; if(s.trees) bld.trees=s.trees;
   bld.board=new Map([...s.board].map(([k,v])=>[k,{...v}]));
   bld.zones=new Map(s.zones);
   bld.draw=JSON.parse(JSON.stringify(s.draw));
@@ -3404,18 +3411,28 @@ function bUndo(){ if(!_undo.length){ bStatus('Nothing to undo'); return; } const
 // which painted variant a tile shows: an explicit per-tile choice, else the global pick, else auto (ONE look per map)
 const _biomeHash={};
 function biomeHash(b){ if(_biomeHash[b]!=null) return _biomeHash[b]; let h=2166136261; for(let i=0;i<b.length;i++){ h^=b.charCodeAt(i); h=Math.imul(h,16777619); } return _biomeHash[b]=(h>>>0); }
+function bSeasonNow(){ return bld.season==='auto' ? 1 : Math.max(0, Math.min(3, +bld.season||0)); }
+function bTreeType(pl, cell){                           // 0 leafy · 1 pine — per-tile pick (🖌 Repaint toggles it), else the Trees setting
+  if(pl && (pl.tree===0||pl.tree===1)) return pl.tree;
+  if(bld.trees==='leafy') return 0; if(bld.trees==='pine') return 1;
+  if(!cell) return 0;                                   // MIXED: coherent stands of pine vs leafy (smooth noise over the grid)
+  const n=Math.sin(cell.q*0.43+1.3)+Math.cos(cell.r*0.37+0.7)+Math.sin((cell.q-cell.r)*0.29+(bld.seed%17));
+  return n>0.55 ? 1 : 0; }
 function bResolveVariant(pl, def, cell){
   if(!def) return 0;                                    // stale tile from another grid — be defensive, don't crash the render
   const n = biomeVariantCount(def.biome); if(n<=1) return 0;
-  // FOLIAGE (forest / plains) carries the SEASON: variant 1 = Autumn, 2 = Winter. The Season control is GLOBAL —
-  // ONE season for the whole map — so it OVERRIDES the per-tile art variant the biome fill bakes in (otherwise
-  // one map showed green + autumn + winter tiles side by side). Auto = summer green (pick 🍂 Autumn / 🌲 Winter).
-  if(def.biome==='forest'||def.biome==='plains'||def.biome==='green')
-    return (bld.variant==='auto') ? 0 : Math.max(0, Math.min(n-1, +bld.variant||0));
+  // SEASONS (0 Spring · 1 Summer · 2 Autumn · 3 Winter; Auto = Summer) are ONE global setting for the whole map,
+  // separate from the 🎨 terrain look. Forests pick a TREE TYPE per tile (leafy vs pine — mixed woods form coherent
+  // stands), crop fields keep the generator's per-field crop type so a farm reads as a patchwork, orchards follow.
+  const sea = bSeasonNow();
+  if(def.biome==='forest'){ const type = bTreeType(pl, cell); return type*4 + sea; }
+  if(def.biome==='plains'||def.biome==='green'||def.biome==='orchard'||def.biome==='pivot') return Math.min(n-1, sea);
+  if(def.biome==='crops'){ const ct = (pl && typeof pl.variant==='number') ? (((pl.variant%3)+3)%3) : (cell ? ((((cell.q*7+cell.r*13)%3)+3)%3) : 0); return sea*3 + ct; }
   if(pl && typeof pl.variant==='number') return Math.max(0, Math.min(n-1, pl.variant));   // an explicit per-tile pick
   if(def.biome==='mountains'){          // mountains have only rocky(0) / snow-capped(1); snowcaps are deliberate, not auto-scattered
-    if(bld.variant==='auto') return 0;                     // Auto = plain rocky; paint snowcaps per-tile with 🖌 Repaint (or 🌲 Winter)
-    return (+bld.variant===2) ? 1 : 0;                     // 🌲 Winter → snow-capped everywhere; 🌱 Spring & 🍂 Autumn stay rocky
+    if(bSeasonNow()===3) return 1;                         // ❄️ Winter → snow-capped everywhere
+    if(bld.variant==='auto') return 0;                     // Auto = plain rocky; paint snowcaps per-tile with 🖌 Repaint
+    return (+bld.variant>=1) ? 1 : 0;
   }
   if(bld.variant!=='auto') return Math.max(0, Math.min(n-1, +bld.variant||0));            // the 🎨 picker / 🍂 Season forces one look everywhere
   // AUTO = ONE coherent look per biome for the WHOLE map (seed-derived) for the rest (rock/sand art variety).
@@ -3671,6 +3688,7 @@ function bRepaintAt(ev){ const hit=bPickCell(ev); if(!hit || hit.cell===undefine
   const def=bDefs()[pl.defId]; const n=def?biomeVariantCount(def.biome):0;
   if(n<=1){ bStatus(`<b>${bLabel(def?def.biome:'this')}</b> has only one look — nothing to repaint.`,true); return; }
   bPushUndo();
+  if(def.biome==='forest'){ pl.tree = 1-bTreeType(pl, hit.cell); bRender(); bStatus(`Repainted this forest tile → <b>${pl.tree?'🌲 pine':'🌳 leafy'}</b> trees (the Season setting still applies)`); return; }   // forests: toggle leafy ↔ pine
   let v;
   if(bld.variant==='auto'){ const cur=(typeof pl.variant==='number')?pl.variant:bResolveVariant(pl,def,hit.cell); v=(cur+1)%n; }   // cycle
   else v=Math.max(0,Math.min(n-1,+bld.variant||0));                                                                                // set the picked look
@@ -3876,20 +3894,36 @@ function bRevealSettlePlan(){                                             // fil
   const foot=bFillCells(), revealed=new Set(), beyond=[]; bld.board.clear();
   for(const c of foot){ const k=TE.keyOf(c);
     if(_settlePlan.tiles.has(k)){ bld.board.set(k, {..._settlePlan.tiles.get(k)}); revealed.add(k); } else beyond.push(c); }
-  // cells OUTSIDE the planned island (Extended past it) get plain countryside — no roads, so nothing re-routes
-  if(beyond.length){
-    const gb=_settleGroundBiome();
+  // cells OUTSIDE the planned island: the settlement's roads CONTINUE out across them to the map edge.
+  // Each outside cell is generated ONCE and cached in the plan (tiles + road strokes), so a later Extend only
+  // adds roads to the NEW cells, carried on from where the existing roads leave the map — nothing already
+  // placed ever re-routes (the v0.83 guarantee), but roads no longer dead-end at the moat either.
+  const P=_settlePlan; P.outer=P.outer||new Map(); P.outerDraw=P.outerDraw||[]; P.outerProps=P.outerProps||[];
+  const fresh=[]; for(const c of beyond){ const k=TE.keyOf(c), t=P.outer.get(k); if(t) bld.board.set(k,{...t}); else fresh.push(c); }
+  const inner = bClipStrokesToRevealed((P.walls||[]).concat(P.carry||[]), revealed);
+  if(fresh.length){
+    const gb=_settleGroundBiome(), before=new Set(bld.board.keys());
+    const roads=inner.concat(P.outerDraw).filter(s=>s.type==='road'||s.type==='trail'||s.type==='river');
+    if(gb==='green' && roads.length){
+      // route the road continuations on a SCRATCH copy (its terrain is thrown away) — the real outside land
+      // stays the same fields / orchards / forest countryside, just with the roads now running across it.
+      const priorStrokes=roads.flatMap(s=>[{type:s.type,end:s.pts[s.pts.length-1]},{type:s.type,end:s.pts[0]}]);
+      const r=TE.generateNextSection(bld.grid, new Map(bld.board), bDefs(), fresh, {seed:P.seed+7*(1+P.outer.size), terrain:'match', feature:'bare', priorStrokes});
+      if(Array.isArray(r.draw)) P.outerDraw=P.outerDraw.concat(r.draw.filter(s=>s.type==='road'||s.type==='trail'));
+    }
     if(gb==='green'){
       const g=bGridObj(), groups={plains:[],forest:[],orchard:[],crops:[]};
-      for(const c of beyond){ const w=g.world(c);
+      for(const c of fresh){ const w=g.world(c);
         const n=(Math.sin(w.x*0.55)+Math.cos(w.z*0.5)+Math.sin((w.x+w.z)*0.31)+Math.cos((w.x-w.z)*0.37))/4;   // ≈ -1..1 coherent noise
         const v=(n+1)/2;
         groups[v<0.26?'forest':v<0.4?'orchard':v<0.5?'crops':'plains'].push(c); }
-      for(const b in groups) if(groups[b].length) TE.generateBiomeFill(bld.grid, bld.board, groups[b], bDefs(), {seed:_settlePlan.seed, biome:b, append:true});
-    } else TE.generateBiomeFill(bld.grid, bld.board, beyond, bDefs(), {seed:_settlePlan.seed, biome:gb, append:true});
+      for(const b in groups) if(groups[b].length) TE.generateBiomeFill(bld.grid, bld.board, groups[b], bDefs(), {seed:P.seed, biome:b, append:true});
+    } else TE.generateBiomeFill(bld.grid, bld.board, fresh, bDefs(), {seed:P.seed, biome:gb, append:true});
+    for(const [k,v] of bld.board) if(!before.has(k)) P.outer.set(k,{defId:v.defId, rot:v.rot||0});
+    for(const c of fresh){ const k=TE.keyOf(c); if(!P.outer.has(k) && bld.board.has(k)) P.outer.set(k,{...bld.board.get(k)}); }
   }
-  // roads/rivers are BAKED (settlement spokes + carried surround) → just clip to what's revealed. They never move.
-  bld.draw = bClipStrokesToRevealed((_settlePlan.walls||[]).concat(_settlePlan.carry||[]), revealed);
+  // roads/rivers: baked settlement spokes (clipped to what's revealed) + the cached outside continuation. They never move.
+  bld.draw = inner.concat(bClipStrokesToRevealed(P.outerDraw, new Set(bld.board.keys())));   // never past the board edge
   bld.props = (_settlePlan.props||[]).filter(p=>{ const g=bGridObj(); for(const k of revealed){ const [q,r]=k.split(',').map(Number); const w=g.world({q,r}); if((w.x-p.x)**2+(w.z-p.z)**2<=0.5*0.5) return true; } return false; }).map(p=>({...p, rot:p.rot||0}));
   return revealed.size; }
 function bGenerateMap(){ bPushUndo();
@@ -3955,7 +3989,7 @@ function bZoomIntoSettlement(type, cell){
   bStatus(`Zoomed into the <b>${SETTLE_THEMES[type]||type}</b> at 5-ft battle scale — explore it, pop roofs, drop minis · <b>⤴ Back to map</b> (top-left) to return`);
 }
 function bZoomOut(){ if(!_zoomBack) return; const z=_zoomBack, s=z.snap; _zoomBack=null;
-  bld.grid=s.grid; bld.cols=s.cols; bld.rows=s.rows; bld.q0=s.q0; bld.r0=s.r0; bld.seed=s.seed; bld.gridScale=s.gridScale; bld.variant=s.variant;
+  bld.grid=s.grid; bld.cols=s.cols; bld.rows=s.rows; bld.q0=s.q0; bld.r0=s.r0; bld.seed=s.seed; bld.gridScale=s.gridScale; bld.variant=s.variant; if(s.season!==undefined) bld.season=s.season; if(s.trees) bld.trees=s.trees;
   bld.board=new Map([...s.board].map(([k,v])=>[k,{...v}]));
   bld.zones=new Map(s.zones); bld.draw=JSON.parse(JSON.stringify(s.draw)); bld.props=JSON.parse(JSON.stringify(s.props));
   bld.subdiv=new Map([...s.subdiv].map(([k,v])=>[k,{...v}])); bld.subpaint=new Map([...(s.subpaint||new Map())].map(([k,v])=>[k,{...v}]));
@@ -4374,7 +4408,7 @@ function bRenderHexMatGhosts(){ if(!TGC_HEXMAT[bld.tgc] || bld._exporting) retur
     const rim=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(hp), new THREE.LineBasicMaterial({color:0x6fe0ff, transparent:true, opacity:0.55, depthTest:false})); rim.renderOrder=20; builderGroup.add(rim);
     const l=bMakeTickLabel('＋'); l.position.set(w.x, TILE_TOP+0.11, w.z); l.scale.set(0.85,0.42,1); l.renderOrder=32; builderGroup.add(l); } }
 function bClear(){ bPushUndo(); bld.board.clear(); bld.zones.clear(); bld.draw=[]; bld.pen=[]; bld.props=[]; bld.subdiv.clear(); bld.subpaint.clear(); bld.selStroke=null; bld.selProp=null; bld.q0=0; bld.r0=0; bld.tgcCenters=[]; bld.selUnit=0; bld.sheetsX=1; bld.sheetsY=1; bld.sheetCX=0; bld.sheetCZ=0; _settlePlan=null; if(TGC[bld.tgc]&&TGC[bld.tgc].kind==='mat') bTgcFit(); bRender(); bStatus("Cleared"); }
-function bSaveBoard(){ const data=TE.serializeBoard(bld.grid, bld.board, bld.zones, {cols:bld.cols,rows:bld.rows,seed:bld.seed,q0:bld.q0,r0:bld.r0}); data.draw=bld.draw; data.props=bld.props;
+function bSaveBoard(){ const data=TE.serializeBoard(bld.grid, bld.board, bld.zones, {cols:bld.cols,rows:bld.rows,seed:bld.seed,q0:bld.q0,r0:bld.r0}); data.draw=bld.draw; data.props=bld.props; data.season=bld.season; data.trees=bld.trees;
   data.subdiv=[...bld.subdiv].map(([k,s])=>{ const [q,r]=k.split(',').map(Number); return {q,r,mode:s.mode,n:s.n}; });
   data.subpaint=[...bld.subpaint].map(([k,m])=>{ const [q,r]=k.split(',').map(Number); return {q,r,paint:m}; });
   if(bld.baseMap) data.baseMap={ src:bld.baseMap.src, crop:bld.baseMap.crop, shape:bld.baseMap.shape, gridScale:bld.gridScale };
@@ -4386,6 +4420,8 @@ async function bLoadBoard(e){ const f=e.target.files[0]; if(!f) return;
     bld.subdiv=new Map(); if(Array.isArray(raw.subdiv)) for(const s of raw.subdiv) bld.subdiv.set(s.q+','+s.r,{mode:s.mode,n:s.n});
     bld.subpaint=new Map(); if(Array.isArray(raw.subpaint)) for(const s of raw.subpaint) bld.subpaint.set(s.q+','+s.r, s.paint||{});
     TE.hydrateGenerated(bDefs(), bld.grid, bld.board);          // rebuild any generated map tiles the save referenced
+    if(raw.season!==undefined){ bld.season=raw.season; const se=document.getElementById('bSeason'); if(se) se.value=String(bld.season); }
+    if(raw.trees){ bld.trees=raw.trees; const tr=document.getElementById('bTrees'); if(tr) tr.value=bld.trees; }
     const m=r.meta||{}; if(m.cols) bld.cols=m.cols; if(m.rows) bld.rows=m.rows; if(m.seed) bld.seed=m.seed; bld.q0=m.q0||0; bld.r0=m.r0||0;
     document.getElementById('bCols').value=bld.cols; document.getElementById('bRows').value=bld.rows; document.getElementById('bSeed').value=bld.seed;
     document.querySelectorAll('#bGridSeg button').forEach(x=>x.classList.toggle('on',x.dataset.grid===bld.grid));
@@ -5338,13 +5374,15 @@ document.getElementById('bMeasureTool').onclick=bMeasureSet;
 document.getElementById('bGridLinesTool').onclick=()=>bGridLinesSet();
 document.getElementById('bRulerTool').onclick=()=>bRulerSet();
 // 🎨 Terrain-look picker (1/2/3) and 🍂 Season dropdown are the same control (bld.variant) — keep them synced.
-const _seasonName=['🌱 Spring / Summer','🍂 Autumn','🌲 Winter (pine)'];
+const _seasonNames=['🌸 Spring','☀️ Summer','🍂 Autumn','❄️ Winter'];
+function bSetSeason(v){ bld.season=v; const se=document.getElementById('bSeason'); if(se) se.value=String(v); bRender();
+  bStatus(`Season: <b>${v==='auto'?'Auto (summer)':_seasonNames[+v]}</b> — forests, grass, crop fields &amp; orchards${(+v===3)?', and mountain snowcaps':''} change together`); }
 function bSetVariant(v){ bld.variant = v;
   document.querySelectorAll('#bVariantSeg button').forEach(x=>x.classList.toggle('on',(x.dataset.v==='auto'?'auto':+x.dataset.v)===bld.variant));
-  const se=document.getElementById('bSeason'); if(se) se.value = String(bld.variant);
-  bRender(); bStatus(bld.variant==='auto' ? 'Season: <b>Auto</b> — one coherent look per map (change the seed for another season)' : `Season: <b>${_seasonName[bld.variant]||('look '+(bld.variant+1))}</b> everywhere`); }
+  bRender(); bStatus(bld.variant==='auto' ? 'Terrain look: <b>Auto</b> — one coherent rock / sand look per map' : `Terrain look <b>${bld.variant+1}</b> everywhere (rock, sand; 2–3 snow-caps mountains)`); }
 document.querySelectorAll('#bVariantSeg button').forEach(b=> b.onclick=()=> bSetVariant(b.dataset.v==='auto' ? 'auto' : (+b.dataset.v)));
-document.getElementById('bSeason').onchange=(e)=> bSetVariant(e.target.value==='auto' ? 'auto' : (+e.target.value));
+document.getElementById('bSeason').onchange=(e)=> bSetSeason(e.target.value==='auto' ? 'auto' : (+e.target.value));
+document.getElementById('bTrees').onchange=(e)=>{ bld.trees=e.target.value; bRender(); bStatus(`Forests: <b>${({mixed:'mixed woods (leafy + pine stands)',leafy:'leafy trees',pine:'pine trees'})[bld.trees]}</b>`); };
 document.getElementById('bRepaintTool').onclick=()=>{ bld.repaintOn=!bld.repaintOn;
   if(bld.repaintOn){ bld.tool=null; bld.propKind=null; bld.sel=null; bld.selStroke=null; bld.selProp=null; bld.subTool=false; bld.subPaintOn=false; bImageToolOff();
     document.querySelectorAll('#bDrawTools .bdtool').forEach(x=>x.classList.remove('on')); bBuildPropTools(); bHover.visible=false; }
