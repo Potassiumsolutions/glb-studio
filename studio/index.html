@@ -229,6 +229,10 @@
     race:       { icon:'🏁', name:'Race Games',       blurb:'Roll-and-move race games on the tabletop (Derby Loop — with more to come).' },
     modern:     { icon:'🏙', name:'Modern Pack',      blurb:'Modern maps: City, Suburbs and Rural themes — asphalt street grids, railways, downtown towers, homes, schools, parks, farms and wind farms.' },
     scifi:      { icon:'🚀', name:'Sci-Fi Pack',      blurb:'Starship and space-station battle maps: a symmetric ship with bridge, reactor, engineering, med bay, labs, hydroponics, brig and cargo holds — sliding doors, lifts between decks, room key, edit mode and VTT export (needs the Battle Maps Pack).' },
+    pharaohs:   { icon:'🏜', name:'Tomb of the Pharaohs', blurb:'Pharaoh\'s tombs and symmetric pyramids as battle maps: burial chambers, gilded sarcophagi, jackal shrines, canopic chambers and treasure — plus hidden TRAPS the GM sees on the key (needs the Battle Maps Pack).' },
+    horror:     { icon:'🕯', name:'Gothic Horror Pack', blurb:'Haunted manors with secret ritual rooms, asylums with locked cells, and walled graveyards whose family crypt leads down to the catacombs — battle maps for horror games (needs the Battle Maps Pack).' },
+    underdark:  { icon:'🍄', name:'Underdark Pack', blurb:'Vast underground caverns with giant glowing mushrooms, black lakes and spider webs — plus a dark-elf city carved into the caves, with a spider-goddess temple, noble houses, barracks and market (needs the Battle Maps Pack).' },
+    pirates:    { icon:'🏴‍☠️', name:'Pirates & Ports', blurb:'Sailing ships on open sea with three decks linked by hatches (main deck, gun deck, cargo hold), harbour docks with a tavern, piers and a moored sloop, and a smugglers\' sea cave with a lagoon and jetty (needs the Battle Maps Pack).' },
   };
   const ttExp = ()=>{ try{ return new Set(JSON.parse(localStorage.getItem('studio.tabletop.exp')||'[]').filter(id=>EXPANSIONS[id])); }catch(e){ return new Set(); } };
   const ttSave = s => localStorage.setItem('studio.tabletop.exp', JSON.stringify([...s]));

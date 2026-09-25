@@ -391,7 +391,7 @@
         <button class="btn sec" id="bDgUp" title="Go up a level">▲ Level</button>
         <span class="mini" id="bDgWhich" style="min-width:74px;text-align:center;color:var(--txt);font-weight:600">Level 1 / 1</span>
         <button class="btn" id="bDgDown" title="Go down a level — or generate a new one linked by stairs, a well, a trapdoor or a sinkhole">⬇ Dig deeper</button>
-        <select id="bDigKind" title="What the next level down is"><option value="dungeon">🗝 Dungeon</option><option value="cave">🪨 Cave</option><option value="mine">⛏ Mine</option><option value="sewer">🕳 Sewer</option><option value="temple">🏛 Temple</option><option value="icecave">🧊 Ice cave</option><option value="lavacave">🌋 Lava cave</option><option value="scifi" data-exp="scifi">🚀 Starship deck</option></select>
+        <select id="bDigKind" title="What the next level down is"><option value="dungeon">🗝 Dungeon</option><option value="cave">🪨 Cave</option><option value="mine">⛏ Mine</option><option value="sewer">🕳 Sewer</option><option value="temple">🏛 Temple</option><option value="icecave">🧊 Ice cave</option><option value="lavacave">🌋 Lava cave</option><option value="scifi" data-exp="scifi">🚀 Starship deck</option><option value="tomb" data-exp="pharaohs">🏜 Tomb</option><option value="pyramid" data-exp="pharaohs">🔺 Pyramid</option><option value="catacombs" data-exp="horror">💀 Catacombs</option><option value="manor" data-exp="horror">🕯 Manor</option><option value="asylum" data-exp="horror">🏚 Asylum</option><option value="underdark" data-exp="underdark">🍄 Underdark</option><option value="drowcity" data-exp="underdark">🕷 Dark-elf city</option><option value="ship" data-exp="pirates">⛵ Next deck down</option><option value="cove" data-exp="pirates">🏝 Smugglers' cove</option></select>
       </div>
       <div class="row wrap" id="bDgExtRow" style="display:none;align-items:center;margin:0 0 4px">
         <label class="fld" style="margin:0" title="What the ◀▶▲▼ Extend buttons add to a dungeon / cave">Extend as</label>
@@ -445,6 +445,16 @@
           <option value="icecave" data-exp="battlemaps">🧊 Ice cave — frozen pools, ice spikes, crystals</option>
           <option value="lavacave" data-exp="battlemaps">🌋 Lava cave — glowing lava lakes, vents, obsidian</option>
           <option value="scifi" data-exp="scifi">🚀 Starship / station — Sci-Fi Pack</option>
+          <option value="tomb" data-exp="pharaohs">🏜 Pharaoh's tomb — traps, treasure, burial chambers</option>
+          <option value="pyramid" data-exp="pharaohs">🔺 Pyramid — grand gallery, king's &amp; queen's chambers</option>
+          <option value="manor" data-exp="horror">🕯 Haunted manor — secret ritual room, cellar below</option>
+          <option value="asylum" data-exp="horror">🏚 Asylum — cells, wards, operating theatre, morgue</option>
+          <option value="graveyard" data-exp="horror">🪦 Graveyard — mausoleums, chapel, crypt to the catacombs</option>
+          <option value="underdark" data-exp="underdark">🍄 Underdark — vast fungal caverns, underground lakes</option>
+          <option value="drowcity" data-exp="underdark">🕷 Dark-elf city — buildings carved into the caverns</option>
+          <option value="ship" data-exp="pirates">⛵ Sailing ship — three decks, cannons, captain's cabin</option>
+          <option value="docks" data-exp="pirates">⚓ Harbour docks — quay, piers, tavern, a moored sloop</option>
+          <option value="cove" data-exp="pirates">🏝 Smugglers' cove — sea cave, lagoon, jetty</option>
           </optgroup>
           <option value="__dungeonlock" data-exp-lock="battlemaps" disabled>🔒 Battle Maps Pack — Dungeons · Caves</option>
           <optgroup label="Settlement (whole map)">
@@ -1129,7 +1139,7 @@ import * as Tuck from './tuckbox-designer.js';
 
 const BGC = window.BGC, GAMES = window.BGC_GAMES;
 const TE = window.TileEngine, TLIB = window.TileLibrary;
-const APP_VERSION = 'v1.27';
+const APP_VERSION = 'v1.31';
 const CREDITS = `<b>Ksol Designs</b> — Paul A.T. Ramey<br>www.ksoldesigns.com<br>Built with GLB Studio · Tabletop<br><span class="ver">${APP_VERSION}</span>`;
 // ---- Board credit: a small "KSOL Designs" mark on the board for the FREE build. Owning ANY content pack
 // (TTier expansion) unlocks removing it (⚙ Settings toggle, or click the credit). ----
@@ -3753,7 +3763,8 @@ function bRender(){
       grp.position.copy(w); grp.rotation.y=pl.rot*tileStepAngle(bld.grid);
       const lift = (!bld.boardFlat && !bld._exporting && defs[pl.defId] && defs[pl.defId].feature==='plateau') ? PLATEAU_LIFT : snowUp.has(k) ? SNOW_LIFT : 0;   // high-mountain plateaus, snowfields
       if(lift){ grp.position.y+=lift; grp.add(liftSkirt(bld.grid, lift)); }
-      grp.traverse(o=>o.userData.cell=c); builderGroup.add(grp); bld.groups.set(k,grp);
+      grp.traverse(o=>o.userData.cell=c); if(bld.dungeon && bld.dungeon.sea) grp.visible=false;   // ⚓ open sea: the ground tiles stay (for picking) but the sea shows
+      builderGroup.add(grp); bld.groups.set(k,grp);
     } else if(bHexShape){ /* flower/invader/hex-mat: outline the shape cells (so you SEE the shape before Generate); no plates elsewhere */
       if(bHexShape.has(k)){ const rimPts=bGridObj().corners().map(cn=>new THREE.Vector3(cn[0],0.05,-cn[1]));
         const rim=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(rimPts), new THREE.LineBasicMaterial({color:0x6f8f4f,transparent:true,opacity:0.85}));
@@ -4100,7 +4111,7 @@ function bStructUpperFurniture(st, f){ const CS=bCellSize(), out=[], L=bStructLa
 /* ---- FEATURE LIBRARY: one mesh builder for every piece of furniture / dungeon dressing (houses, keeps, dungeons, caves).
    it = {kind, x,z (board-world centre), w (x-extent), d (z-extent), face? (wall it backs onto: 0=-z 1=+x 2=+z 3=-x)}.
    Items that give light carry FEATURE_LIGHT → a warm glow in the picture + a light source in the 🗺 VTT export. ---- */
-const FEATURE_LIGHT={ lightpanel:{range:5,color:'ffcdeeff'}, reactorcore:{range:7,color:'ff5fd4ff'}, lantern:{range:4,color:'ffffd89a'}, lavalight:{range:7,color:'ffff5a1a'}, fireplace:{range:5,color:'ffcc8855'}, torch:{range:4,color:'ffffb060'}, brazier:{range:6,color:'ffffa040'}, campfire:{range:6,color:'ffffa040'},
+const FEATURE_LIGHT={ giantshroom:{range:4,color:'ff8f9aff'}, glowstone:{range:4,color:'ffb070ff'}, candelabra:{range:4,color:'ffffc070'}, lamppost:{range:5,color:'ffffd79a'}, ritual:{range:3,color:'ffff3a3a'}, lightpanel:{range:5,color:'ffcdeeff'}, reactorcore:{range:7,color:'ff5fd4ff'}, lantern:{range:4,color:'ffffd89a'}, lavalight:{range:7,color:'ffff5a1a'}, fireplace:{range:5,color:'ffcc8855'}, torch:{range:4,color:'ffffb060'}, brazier:{range:6,color:'ffffa040'}, campfire:{range:6,color:'ffffa040'},
   candles:{range:2,color:'ffffe0a0'}, crystals:{range:3,color:'ff88ddff'}, mushrooms:{range:2,color:'ff99ff99'} };
 const _fx={};   // cached materials / textures
 const fxMat=(key,make)=>_fx[key]||(_fx[key]=make());
@@ -4224,6 +4235,71 @@ function bFeatureMesh(it){ const CS=bCellSize(), g=new THREE.Group(), k=it.kind,
     const hm=fxMat('ventGlow',()=>new THREE.MeshBasicMaterial({color:0xff5a1a})); const hc=new THREE.Mesh(new THREE.CircleGeometry(0.1*CS,12), hm); hc.rotation.x=-Math.PI/2; hc.position.y=0.01; g.add(hc);
     const sm=fxMat('steamM',()=>new THREE.MeshStandardMaterial({color:0xe8e8e8,transparent:true,opacity:0.28,depthWrite:false})); for(let i=0;i<4;i++){ const p=new THREE.Mesh(new THREE.SphereGeometry((0.1+i*0.05)*CS,10,8), sm); p.position.set(Math.sin(i*1.7)*0.05*CS,(0.2+i*0.22)*CS,Math.cos(i*1.3)*0.05*CS); g.add(p); } }
   else if(k==='obsidian'){ const om=fxStd(0x141218,0.12,0.4); for(let i=0;i<5;i++){ const h=(0.2+((i*37)%10)/25)*CS, a=i*1.26; const c=new THREE.Mesh(new THREE.ConeGeometry(0.09*CS,h,4), om); c.position.set(Math.cos(a)*0.13*CS*(i?1:0),h/2,Math.sin(a)*0.13*CS*(i?1:0)); c.rotation.set((i?0.3:0)*Math.sin(a),a,(i?0.3:0)*Math.cos(a)); c.castShadow=true; g.add(c); } }
+  else if(k==='mast'){ const wd=fxStd(0x6b4a2a,0.8); cyl(0.09*CS,0.12*CS,2.4*CS,wd,0,1.2*CS,0,10); const yard=new THREE.Mesh(new THREE.CylinderGeometry(0.04*CS,0.04*CS,2.2*CS,8),wd); yard.rotation.z=Math.PI/2; yard.position.y=1.9*CS; g.add(yard);
+    const sail=new THREE.Mesh(new THREE.CylinderGeometry(0.1*CS,0.1*CS,2.0*CS,8), fxStd(0xe8dfc8,0.9)); sail.rotation.z=Math.PI/2; sail.position.y=1.8*CS; g.add(sail); box(0.3*CS,0.08*CS,0.3*CS,wd,0,2.2*CS,0); }
+  else if(k==='cannon'){ const ax=(it.face===1||it.face===3), dir=(it.face===1||it.face===2)?1:-1; box(ax?0.6*CS:0.45*CS,0.16*CS,ax?0.45*CS:0.6*CS,fxStd(0x5a3a22,0.8),0,0.14*CS,0);
+    const br=new THREE.Mesh(new THREE.CylinderGeometry(0.08*CS,0.11*CS,0.9*CS,12), fxStd(0x2a2a2e,0.4,0.7)); br.rotation[ax?'z':'x']=Math.PI/2; br.position.set(ax?dir*0.15*CS:0,0.3*CS,ax?0:dir*0.15*CS); br.castShadow=true; g.add(br);
+    for(const sd of [-1,1]){ const wh=new THREE.Mesh(new THREE.CylinderGeometry(0.09*CS,0.09*CS,0.05*CS,10), fxStd(0x3a2a1a,0.8)); wh.rotation[ax?'x':'z']=Math.PI/2; wh.position.set(ax?-0.1*CS:sd*0.24*CS,0.09*CS,ax?sd*0.24*CS:-0.1*CS); g.add(wh); } }
+  else if(k==='wheel'){ const wd=fxStd(0x6b4a2a,0.7); box(0.12*CS,0.5*CS,0.12*CS,wd,0,0.25*CS,0); const wh=new THREE.Mesh(new THREE.TorusGeometry(0.3*CS,0.03*CS,6,18),wd); wh.position.set(0,0.6*CS,0.08*CS); g.add(wh); for(let i=0;i<4;i++){ const sp=new THREE.Mesh(new THREE.BoxGeometry(0.72*CS,0.03*CS,0.03*CS),wd); sp.rotation.z=i*Math.PI/4; sp.position.set(0,0.6*CS,0.08*CS); g.add(sp); } }
+  else if(k==='capstan'){ const wd=fxStd(0x6b4a2a,0.7); cyl(S*0.3,S*0.36,0.5*CS,wd,0,0.25*CS,0,12); cyl(S*0.38,S*0.38,0.06*CS,fxStd(0x3a3a3e,0.5,0.5),0,0.5*CS,0,12); for(let i=0;i<4;i++){ const b=new THREE.Mesh(new THREE.BoxGeometry(S*1.1,0.04*CS,0.05*CS),wd); b.rotation.y=i*Math.PI/4; b.position.y=0.44*CS; g.add(b); } }
+  else if(k==='rope'){ const rm2=fxStd(0xb89868,0.95); for(let i=0;i<3;i++){ const t2=new THREE.Mesh(new THREE.TorusGeometry(S*(0.34-i*0.08),0.035*CS,6,18),rm2); t2.rotation.x=Math.PI/2; t2.position.y=0.035*CS+i*0.05*CS; g.add(t2); } }
+  else if(k==='hammock'){ const cl=fxStd(0xd8cbb0,0.95); const hm=new THREE.Mesh(new THREE.CylinderGeometry(S*0.5,S*0.5,L,12,1,true,Math.PI*0.15,Math.PI*0.7), cl); hm.material.side=THREE.DoubleSide; hm.rotation[long?'x':'z']=Math.PI/2; hm.rotation.y=long?0:0; hm.position.y=0.75*CS; g.add(hm); }
+  else if(k==='maptable'){ const H2=0.36*CS; box(w,0.05*CS,d,fxStd(0x5a3a22,0.6),0,H2); for(const [sx,sz] of [[-1,-1],[1,-1],[-1,1],[1,1]]) box(0.06*CS,H2,0.06*CS,fxStd(0x3a2616,0.8),sx*(w/2-0.06*CS),H2/2,sz*(d/2-0.06*CS));
+    box(w*0.7,0.01*CS,d*0.7,fxStd(0xe8d8a8,0.9),0,H2+0.03*CS,0,false); box(0.08*CS,0.01*CS,0.08*CS,fxMat('xMark',()=>new THREE.MeshBasicMaterial({color:0xc02020})),w*0.15,H2+0.04*CS,d*0.1,false); }
+  else if(k==='rowboat'){ const hm=fxMat('boatHull',()=>new THREE.MeshStandardMaterial({color:0x7a5230,roughness:0.8,side:THREE.DoubleSide})); const b=new THREE.Mesh(new THREE.SphereGeometry(0.5,14,8,0,Math.PI*2,Math.PI/2,Math.PI/2), hm); b.scale.set(w*0.9,0.35*CS,d*0.95); b.position.y=0.3*CS; b.castShadow=true; g.add(b);
+    box(w*0.8,0.03*CS,0.12*CS,fxStd(0x5a3a22,0.8),0,0.26*CS,d*0.1); box(w*0.8,0.03*CS,0.12*CS,fxStd(0x5a3a22,0.8),0,0.26*CS,-d*0.2); for(const sd of [-1,1]){ const oar=new THREE.Mesh(new THREE.CylinderGeometry(0.02*CS,0.02*CS,1.1*CS,5),fxStd(0xb89868,0.9)); oar.rotation.z=Math.PI/2+sd*0.3; oar.position.set(sd*w*0.55,0.3*CS,0); g.add(oar); } }
+  else if(k==='bollard'){ cyl(0.1*CS,0.12*CS,0.3*CS,fxStd(0x2e2f33,0.5,0.6),0,0.15*CS,0,10); cyl(0.14*CS,0.14*CS,0.05*CS,fxStd(0x2e2f33,0.5,0.6),0,0.32*CS,0,10); }
+  else if(k==='net'){ const nm=fxMat('netM',()=>new THREE.MeshBasicMaterial({color:0x6b7a5a,transparent:true,opacity:0.55,depthWrite:false})); for(let i=0;i<7;i++){ const a=(i+0.5)/7-0.5; const l1=new THREE.Mesh(new THREE.PlaneGeometry(w,0.015*CS),nm); l1.rotation.x=-Math.PI/2; l1.position.set(0,0.01,a*d); g.add(l1); const l2=new THREE.Mesh(new THREE.PlaneGeometry(0.015*CS,d),nm); l2.rotation.x=-Math.PI/2; l2.position.set(a*w,0.011,0); g.add(l2); } }
+  else if(k==='crane'){ const wd=fxStd(0x6b4a2a,0.8); box(0.5*CS,0.2*CS,0.5*CS,wd,0,0.1*CS,0); cyl(0.07*CS,0.09*CS,1.6*CS,wd,0,0.9*CS,0,8); const arm=new THREE.Mesh(new THREE.BoxGeometry(0.08*CS,0.08*CS,1.5*CS),wd); arm.position.set(0,1.6*CS,-0.55*CS); arm.rotation.x=-0.35; g.add(arm);
+    const rp=new THREE.Mesh(new THREE.CylinderGeometry(0.01*CS,0.01*CS,0.9*CS,4),fxStd(0xb89868,0.9)); rp.position.set(0,1.3*CS,-1.2*CS); g.add(rp); box(0.3*CS,0.25*CS,0.3*CS,fxMat('crateM',()=>new THREE.MeshStandardMaterial({map:fxCrateTex(),roughness:0.85})),0,0.8*CS,-1.2*CS); }
+  else if(k==='shiphatch'){ const hole=fxMat('holeM',()=>new THREE.MeshBasicMaterial({color:0x050404})); const hp=new THREE.Mesh(new THREE.PlaneGeometry(w*0.85,d*0.85),hole); hp.rotation.x=-Math.PI/2; hp.position.y=0.008; g.add(hp); const gm2=fxStd(0x6b4a2a,0.8);
+    for(let i=0;i<5;i++){ const a=(i+0.5)/5-0.5; box(w*0.85,0.04*CS,0.04*CS,gm2,0,0.04*CS,a*d*0.85,false); box(0.04*CS,0.04*CS,d*0.85,gm2,a*w*0.85,0.045*CS,0,false); } }
+  else if(k==='anchor'){ const im=fxStd(0x2a2a2e,0.5,0.6); box(0.08*CS,0.08*CS,0.7*CS,im,0,0.05*CS,0); const cr=new THREE.Mesh(new THREE.TorusGeometry(0.28*CS,0.04*CS,6,14,Math.PI),im); cr.rotation.x=-Math.PI/2; cr.position.set(0,0.05*CS,0.28*CS); g.add(cr); const rg2=new THREE.Mesh(new THREE.TorusGeometry(0.08*CS,0.02*CS,6,10),im); rg2.rotation.x=-Math.PI/2; rg2.position.set(0,0.05*CS,-0.38*CS); g.add(rg2); }
+  else if(k==='giantshroom'){ const st2=fxStd(0xd8d2c0,0.8), cap=fxMat('gshroomCap',()=>new THREE.MeshStandardMaterial({color:0x7a5ab8,emissive:0x4a2a9a,emissiveIntensity:0.55,roughness:0.6})), gill=fxMat('gshroomGill',()=>new THREE.MeshBasicMaterial({color:0x9fe6ff}));
+    const H=(1.0+((Math.abs(Math.round((it.x||0)*7+(it.y||it.z||0)*3)))%5)*0.12)*CS; cyl(0.07*CS,0.11*CS,H,st2,0,H/2,0,10); const c=new THREE.Mesh(new THREE.SphereGeometry(S*0.62,18,10,0,6.3,0,1.3), cap); c.scale.y=0.45; c.position.y=H; c.castShadow=true; g.add(c);
+    const gl=new THREE.Mesh(new THREE.CircleGeometry(S*0.55,18), gill); gl.rotation.x=Math.PI/2; gl.position.y=H-0.01*CS; g.add(gl); for(let i=0;i<3;i++){ const a=i*2.1, sm=new THREE.Mesh(new THREE.SphereGeometry(0.06*CS,8,6,0,6.3,0,1.5), cap); sm.position.set(Math.cos(a)*0.22*CS,0.05*CS,Math.sin(a)*0.22*CS); g.add(sm); } }
+  else if(k==='web'){ const wm=fxMat('webM2',()=>new THREE.MeshBasicMaterial({color:0xf0f0f0,transparent:true,opacity:0.35,depthWrite:false})); for(let i=0;i<6;i++){ const st=new THREE.Mesh(new THREE.PlaneGeometry(S,0.012*CS),wm); st.rotation.set(-Math.PI/2,0,i*Math.PI/6); st.position.y=0.012; g.add(st); }
+    for(const rr of [0.15,0.28,0.42]){ const rg=new THREE.Mesh(new THREE.RingGeometry(S*rr,S*rr+0.012*CS,12),wm); rg.rotation.x=-Math.PI/2; rg.position.y=0.013; g.add(rg); } }
+  else if(k==='spiderstatue'){ const om=fxStd(0x1a1820,0.25,0.4); box(w,0.16*CS,d,fxStd(0x2e2a36,0.9),0,0.08*CS); const bd=new THREE.Mesh(new THREE.SphereGeometry(S*0.24,14,10),om); bd.scale.set(1,0.7,1.3); bd.position.set(0,0.5*CS,-S*0.08); g.add(bd); const hd=new THREE.Mesh(new THREE.SphereGeometry(S*0.14,12,8),om); hd.position.set(0,0.48*CS,S*0.22); g.add(hd);
+    for(let i=0;i<8;i++){ const sd=i<4?-1:1, a=(i%4-1.5)*0.45; const lg=new THREE.Mesh(new THREE.CylinderGeometry(0.025*CS,0.02*CS,S*0.62,6),om); lg.position.set(sd*S*0.3,0.34*CS,Math.sin(a)*S*0.3+S*0.05); lg.rotation.set(a*0.6,0,sd*1.0); g.add(lg); }
+    for(const sd of [-1,1]){ const ey=new THREE.Mesh(new THREE.SphereGeometry(0.025*CS,6,4), fxMat('spEye',()=>new THREE.MeshBasicMaterial({color:0xd060ff}))); ey.position.set(sd*0.05*CS,0.52*CS,S*0.34); g.add(ey); } }
+  else if(k==='glowstone'){ cyl(0.08*CS,0.1*CS,0.3*CS,fxStd(0x2e2a36,0.9),0,0.15*CS,0,8); const gs=new THREE.Mesh(new THREE.OctahedronGeometry(0.1*CS,0), fxMat('glowStoneM',()=>new THREE.MeshStandardMaterial({color:0xd8a0ff,emissive:0x9040e0,emissiveIntensity:1.3}))); gs.position.y=0.42*CS; g.add(gs); }
+  else if(k==='stall'){ box(w,0.34*CS,d*0.6,fxStd(0x3e3446,0.8),0,0.17*CS); for(const [a,b2] of [[-1,-1],[1,-1],[-1,1],[1,1]]) cyl(0.02*CS,0.02*CS,0.9*CS,fxStd(0x2e2a36,0.8),a*w*0.45,0.45*CS,b2*d*0.45,6);
+    const aw=new THREE.Mesh(new THREE.PlaneGeometry(w*1.05,d*1.05), fxMat('awnM',()=>new THREE.MeshStandardMaterial({color:0x5a2a7a,side:THREE.DoubleSide,roughness:0.9}))); aw.rotation.x=-Math.PI/2+0.2; aw.position.y=0.92*CS; g.add(aw); scatterStall(); function scatterStall(){ for(let i=0;i<3;i++){ const it2=new THREE.Mesh(new THREE.SphereGeometry(0.06*CS,6,4), fxStd([0xc0a040,0x60c0a0,0xa04060][i],0.4)); it2.position.set((i-1)*w*0.25,0.4*CS,0); g.add(it2); } } }
+  else if(k==='armchair'){ const am=fxStd(0x6b2230,0.8); box(w*0.9,0.22*CS,d*0.9,am,0,0.11*CS); const [ox,oz]=AX(0,back?back*S*0.36:-S*0.36); box(long?S*0.22:w*0.9,0.5*CS,long?d*0.9:S*0.22,am,ox,0.25*CS,oz); for(const sd of [-1,1]){ const [px,pz]=AX(sd*L*0.4,0); box(long?S*0.8:0.12*CS,0.34*CS,long?0.12*CS:S*0.8,am,px,0.17*CS,pz); } }
+  else if(k==='piano'){ const pm=fxStd(0x141214,0.2,0.3); box(w,0.36*CS,d,pm,0,0.36*CS); box(w*0.96,0.02*CS,d*0.3,fxStd(0xf2f0e8,0.4),0,0.55*CS,d*0.3); for(const [a,b2] of [[-0.4,-0.4],[0.4,-0.4],[0,0.4]]) cyl(0.04*CS,0.04*CS,0.36*CS,pm,a*w,0.18*CS,b2*d,8);
+    const lid=new THREE.Mesh(new THREE.BoxGeometry(w*0.9,0.02*CS,d*0.7), pm); lid.position.set(0,0.78*CS,-d*0.1); lid.rotation.x=-0.6; g.add(lid); }
+  else if(k==='fourposter'){ const wd=fxStd(0x3e2616,0.7); box(w,0.22*CS,d,wd,0,0.11*CS); box(w*0.9,0.06*CS,d*0.9,fxStd(0x5a1e26,0.9),0,0.25*CS); for(const [a,b2] of [[-1,-1],[1,-1],[-1,1],[1,1]]) box(0.07*CS,1.1*CS,0.07*CS,wd,a*(w/2-0.04*CS),0.55*CS,b2*(d/2-0.04*CS));
+    const cm=fxMat('canopyM',()=>new THREE.MeshStandardMaterial({color:0x5a1e26,transparent:true,opacity:0.55,side:THREE.DoubleSide})); const cp=new THREE.Mesh(new THREE.PlaneGeometry(w,d),cm); cp.rotation.x=-Math.PI/2; cp.position.y=1.1*CS; g.add(cp); }
+  else if(k==='cradle'){ const wd=fxStd(0xd8cbb0,0.7); box(w*0.8,0.3*CS,d*0.8,wd,0,0.35*CS); for(const sd of [-1,1]){ const rk=new THREE.Mesh(new THREE.TorusGeometry(S*0.4,0.02*CS,6,14,Math.PI),wd); rk.rotation.set(0,long?Math.PI/2:0,Math.PI); rk.position.set(long?sd*w*0.35:0,0.22*CS,long?0:sd*d*0.35); g.add(rk); } }
+  else if(k==='doll'){ cyl(0.05*CS,0.07*CS,0.14*CS,fxStd(0x7a2c3a,0.8),0,0.07*CS,0,8); const hd=new THREE.Mesh(new THREE.SphereGeometry(0.05*CS,10,8), fxStd(0xf2e6d8,0.4)); hd.position.y=0.18*CS; g.add(hd); }
+  else if(k==='portrait'){ const [ox,oz]=AX(0,back*0.02*CS); box(long?0.03*CS:w,0.5*CS,long?d:0.03*CS,fxStd(0xb8912e,0.4,0.6),ox,0.6*CS,oz); box(long?0.035*CS:w*0.8,0.4*CS,long?d*0.8:0.035*CS,fxStd(0x2b2320,0.8),ox,0.6*CS,oz); }
+  else if(k==='grandfatherclock'){ const wd=fxStd(0x3e2616,0.6); box(w*0.8,1.2*CS,d*0.8,wd,0,0.6*CS); const face=new THREE.Mesh(new THREE.CircleGeometry(0.12*CS,16), fxStd(0xf2ead0,0.5)); face.position.set(0,1.0*CS,d*0.41); if(long){ face.rotation.y=Math.PI/2; face.position.set(w*0.41,1.0*CS,0); } g.add(face); }
+  else if(k==='candelabra'){ const im=fxStd(0x8a7a50,0.4,0.7); cyl(0.1*CS,0.12*CS,0.04*CS,im,0,0.02*CS,0,10); cyl(0.02*CS,0.02*CS,0.7*CS,im,0,0.37*CS,0,6); for(const a of [-1,0,1]){ cyl(0.02*CS,0.02*CS,0.08*CS,fxStd(0xf2ead0,0.8),a*0.1*CS,0.76*CS,0,6); flame(a*0.1*CS,0.8*CS,0,CS*0.35); } box(0.22*CS,0.02*CS,0.02*CS,im,0,0.72*CS,0); }
+  else if(k==='ritual'){ const rm=fxMat('ritualM',()=>new THREE.MeshBasicMaterial({color:0xd8302a,transparent:true,opacity:0.8})); for(const [r1,r2] of [[S*0.44,S*0.48],[S*0.3,S*0.32]]){ const rg=new THREE.Mesh(new THREE.RingGeometry(r1,r2,40),rm); rg.rotation.x=-Math.PI/2; rg.position.y=0.008; g.add(rg); }
+    for(let i=0;i<5;i++){ const a=i*Math.PI*4/5-Math.PI/2, b2=(i+1)*Math.PI*4/5-Math.PI/2; const p1=new THREE.Vector3(Math.cos(a)*S*0.3,0.009,Math.sin(a)*S*0.3), p2=new THREE.Vector3(Math.cos(b2)*S*0.3,0.009,Math.sin(b2)*S*0.3); const ln=p2.clone().sub(p1); const st=new THREE.Mesh(new THREE.PlaneGeometry(ln.length(),0.02*CS),rm); st.rotation.set(-Math.PI/2,0,-Math.atan2(ln.z,ln.x)); st.position.copy(p1.clone().add(p2).multiplyScalar(0.5)); g.add(st); } }
+  else if(k==='cobweb'){ const cw=fxMat('webM',()=>new THREE.MeshBasicMaterial({color:0xe8e8e8,transparent:true,opacity:0.22,depthWrite:false})); for(let i=0;i<4;i++){ const st=new THREE.Mesh(new THREE.PlaneGeometry(S*0.9,0.01*CS),cw); st.rotation.set(-Math.PI/2,0,i*Math.PI/4); st.position.y=0.01; g.add(st); } const rg=new THREE.Mesh(new THREE.RingGeometry(S*0.2,S*0.22,8),cw); rg.rotation.x=-Math.PI/2; rg.position.y=0.011; g.add(rg); }
+  else if(k==='bloodstain'){ const bm=fxMat('bloodM',()=>new THREE.MeshBasicMaterial({color:0x4a0d0d,transparent:true,opacity:0.7,depthWrite:false})); for(let i=0;i<4;i++){ const c=new THREE.Mesh(new THREE.CircleGeometry(S*(0.14+i%2*0.08),12),bm); c.rotation.x=-Math.PI/2; c.position.set(((i*29)%5-2)/5*S*0.5,0.009,((i*17)%5-2)/5*S*0.5); g.add(c); } }
+  else if(k==='optable'){ const st2=fxStd(0xb8bfc6,0.3,0.7); box(w,0.06*CS,d,st2,0,0.4*CS); cyl(0.06*CS,0.1*CS,0.4*CS,st2,0,0.2*CS,0,10); const lamp=new THREE.Mesh(new THREE.SphereGeometry(0.15*CS,12,8,0,6.3,0,1.4), fxStd(0xdfe4ea,0.4,0.4)); lamp.position.y=1.15*CS; lamp.rotation.x=Math.PI; g.add(lamp); cyl(0.015*CS,0.015*CS,0.4*CS,iron,0,1.35*CS,0,6); }
+  else if(k==='morguedrawers'){ box(w,0.9*CS,d,fxStd(0xa7adb3,0.35,0.6),0,0.45*CS); const n2=Math.max(2,Math.round(L/(0.5*CS))); for(let i=0;i<n2;i++) for(let j=0;j<2;j++){ const a=(i+0.5)/n2-0.5, [px,pz]=AX(a*L*0.94, back?-back*(S/2+0.005*CS):S/2+0.005*CS); box(long?0.01*CS:L/n2*0.8,0.34*CS,long?L/n2*0.8:0.01*CS,fxStd(0x8b9197,0.3,0.6),px,(0.25+j*0.42)*CS,pz,false); } }
+  else if(k==='bathtub'){ const tm=fxStd(0xe8e6e0,0.3,0.2); box(w,0.34*CS,d,tm,0,0.24*CS); box(w*0.8,0.02*CS,d*0.85,fxMat('tubW',()=>new THREE.MeshStandardMaterial({color:0x223328,roughness:0.1})),0,0.42*CS,0,false); for(const [a,b2] of [[-1,-1],[1,-1],[-1,1],[1,1]]) cyl(0.04*CS,0.05*CS,0.08*CS,iron,a*w*0.4,0.04*CS,b2*d*0.4,6); }
+  else if(k==='wheelchair'){ const wm=fxStd(0x8c96a3,0.4,0.6); box(0.45*CS,0.05*CS,0.45*CS,fxStd(0x3a3a3e,0.8),0,0.32*CS,0); box(0.45*CS,0.4*CS,0.04*CS,fxStd(0x3a3a3e,0.8),0,0.52*CS,-0.2*CS); for(const sd of [-1,1]){ const wh=new THREE.Mesh(new THREE.TorusGeometry(0.2*CS,0.02*CS,6,18),wm); wh.rotation.y=Math.PI/2; wh.position.set(sd*0.25*CS,0.2*CS,0); g.add(wh); } }
+  else if(k==='gravestone'){ const gm2=fxStd(0x8a8a82,0.95); const sl=box(long?S*0.6:w,0.5*CS,long?d:S*0.6,gm2,0,0.25*CS); const top=new THREE.Mesh(new THREE.CylinderGeometry(Math.max(w,d)/2*(long?0.6:1)*0.5,Math.max(w,d)/2*0.5,S*0.6,12,1,false,0,Math.PI), gm2); top.rotation.set(Math.PI/2,0,long?Math.PI/2:0); top.position.y=0.5*CS; g.add(top); g.rotation.z=((it.x*7+it.y*3)%5-2)*0.03; }
+  else if(k==='deadtree'){ const bk=fxStd(0x3a3028,0.95); cyl(0.07*CS,0.13*CS,1.4*CS,bk,0,0.7*CS,0,7); for(let i=0;i<5;i++){ const br=new THREE.Mesh(new THREE.CylinderGeometry(0.02*CS,0.05*CS,0.6*CS,5),bk); const a=i*1.3; br.position.set(Math.cos(a)*0.18*CS,(0.9+i*0.12)*CS,Math.sin(a)*0.18*CS); br.rotation.set(Math.sin(a)*0.9,0,Math.cos(a)*0.9); br.castShadow=true; g.add(br); } }
+  else if(k==='freshgrave'){ const hole=fxMat('holeM',()=>new THREE.MeshBasicMaterial({color:0x050404})); const hp=new THREE.Mesh(new THREE.PlaneGeometry(w*0.7,d*0.8),hole); hp.rotation.x=-Math.PI/2; hp.position.y=0.008; g.add(hp); const mound=new THREE.Mesh(new THREE.SphereGeometry(S*0.4,10,6,0,6.3,0,1.3), fxStd(0x4a3a28,1)); mound.scale.set(1,0.4,1.6); const [mx,mz]=AX(0,S*0.8); mound.position.set(mx,0,mz); g.add(mound); }
+  else if(k==='lamppost'){ cyl(0.03*CS,0.05*CS,1.3*CS,iron,0,0.65*CS,0,8); box(0.16*CS,0.2*CS,0.16*CS,fxMat('lanternM',()=>new THREE.MeshStandardMaterial({color:0xffd27a,emissive:0xffb040,emissiveIntensity:1.1})),0,1.38*CS,0); box(0.2*CS,0.03*CS,0.2*CS,iron,0,1.49*CS,0); }
+  else if(k==='path'){ const pm=fxMat('pathM',()=>new THREE.MeshStandardMaterial({color:0x8a8070,roughness:1,transparent:true,opacity:0.85,depthWrite:false})); const p=new THREE.Mesh(new THREE.PlaneGeometry(w,d),pm); p.rotation.x=-Math.PI/2; p.position.y=0.007; g.add(p); }
+  else if(k==='goldsarcophagus'){ const gm2=fxStd(0xd4a53a,0.3,0.8), bl=fxStd(0x2a4e8a,0.5,0.3); box(w,0.34*CS,d,fxStd(0xb59868,0.9),0,0.17*CS); box(w*0.8,0.18*CS,d*0.9,gm2,0,0.43*CS);
+    const [hx,hz]=AX(-L*0.3,0); const hd=new THREE.Mesh(new THREE.SphereGeometry(S*0.24,12,8), gm2); hd.scale.set(1,0.6,1); hd.position.set(hx,0.54*CS,hz); g.add(hd); for(let i=0;i<3;i++){ const [bx2,bz2]=AX(-L*0.05+i*L*0.14,0); box(long?w*0.82:0.05*CS,0.02*CS,long?0.05*CS:d*0.82,bl,bx2,0.53*CS,bz2,false); } }
+  else if(k==='anubis'){ const blk=fxStd(0x1d1d22,0.4,0.2), gld=fxStd(0xd4a53a,0.3,0.8); box(w,0.16*CS,d,fxStd(0xb59868,0.9),0,0.08*CS); box(S*0.36,0.5*CS,S*0.26,blk,0,0.41*CS,0); box(S*0.4,0.08*CS,S*0.3,gld,0,0.62*CS,0);
+    const hd=new THREE.Mesh(new THREE.BoxGeometry(S*0.22,0.2*CS,S*0.3), blk); hd.position.set(0,0.76*CS,S*0.05); g.add(hd); for(const sd of [-1,1]){ const e=new THREE.Mesh(new THREE.ConeGeometry(0.035*CS,0.16*CS,4), blk); e.position.set(sd*S*0.07,0.93*CS,0); g.add(e); } const sn=new THREE.Mesh(new THREE.BoxGeometry(S*0.1,0.08*CS,S*0.18), blk); sn.position.set(0,0.72*CS,S*0.24); g.add(sn); }
+  else if(k==='canopic'){ box(w,0.26*CS,d,fxStd(0x6b4a2a,0.8),0,0.13*CS); for(let i=0;i<4;i++){ const a=(i+0.5)/4-0.5, [px,pz]=AX(a*L*0.9,0); cyl(0.07*CS,0.09*CS,0.2*CS,fxStd(0xe7dcc3,0.7),px,0.36*CS,pz,10); const hd=new THREE.Mesh(new THREE.SphereGeometry(0.07*CS,8,6), fxStd([0xd4a53a,0x2a4e8a,0x7a3b30,0x3f7a3a][i],0.5,0.3)); hd.position.set(px,0.5*CS,pz); g.add(hd); } }
+  else if(k==='urn'){ const u=new THREE.Mesh(new THREE.SphereGeometry(S*0.3,12,10), fxStd(0xa65b33,0.8)); u.scale.set(1,1.2,1); u.position.y=0.22*CS; u.castShadow=true; g.add(u); cyl(S*0.14,S*0.18,0.1*CS,fxStd(0xa65b33,0.8),0,0.46*CS,0,10); cyl(S*0.31,S*0.31,0.03*CS,fxStd(0x2a2a2e,0.6),0,0.26*CS,0,12); }
+  else if(k==='obelisk'){ const om=fxStd(0xc9a86c,0.8); box(w,0.14*CS,d,om,0,0.07*CS); const ob=new THREE.Mesh(new THREE.CylinderGeometry(S*0.12,S*0.2,1.2*CS,4), om); ob.rotation.y=Math.PI/4; ob.position.y=0.74*CS; ob.castShadow=true; g.add(ob); const tp=new THREE.Mesh(new THREE.ConeGeometry(S*0.12*1.1,0.16*CS,4), fxStd(0xd4a53a,0.3,0.8)); tp.rotation.y=Math.PI/4; tp.position.y=1.42*CS; g.add(tp); }
+  else if(k==='treasurepile'){ const gm2=fxStd(0xe0b040,0.25,0.9); const pile=new THREE.Mesh(new THREE.SphereGeometry(S*0.42,14,8,0,Math.PI*2,0,Math.PI/2), gm2); pile.scale.y=0.45; pile.castShadow=true; g.add(pile);
+    for(let i=0;i<6;i++){ const a=i*1.05, gem=new THREE.Mesh(new THREE.OctahedronGeometry(0.05*CS,0), fxStd([0xc0203a,0x2a6ad0,0x2aa05a][i%3],0.1,0.3)); gem.position.set(Math.cos(a)*S*0.22,0.1*CS+(i%2)*0.04*CS,Math.sin(a)*S*0.22); g.add(gem); } box(0.22*CS,0.16*CS,0.16*CS,fxStd(0x6b4424,0.8),S*0.25,0.08*CS,-S*0.2); }
+  else if(k==='embalmtable'){ box(w,0.36*CS,d,fxStd(0x9a9186,0.9),0,0.18*CS); const [px,pz]=AX(0,0); const bd=new THREE.Mesh(new THREE.CapsuleGeometry(S*0.18,L*0.55,4,8), fxStd(0xe7dcc3,0.9)); bd.rotation[long?'x':'z']=Math.PI/2; bd.position.set(px,0.46*CS,pz); g.add(bd); }
+  else if(k==='trap'){ const tp=new THREE.Mesh(new THREE.PlaneGeometry(w*0.7,d*0.7), fxMat('trapM',()=>new THREE.MeshStandardMaterial({color:0x000000,transparent:true,opacity:0.12,depthWrite:false}))); tp.rotation.x=-Math.PI/2; tp.position.y=0.009; g.add(tp); }   // barely there — the GM sees a T badge
   else if(k==='console'){ const H=0.34*CS, sm=fxStd(0x3c434c,0.4,0.5); box(w,H,d,sm,0,H/2); const [ox,oz]=AX(0,back*S*0.2); const scr=fxMat('conScr',()=>new THREE.MeshStandardMaterial({color:0x5fd4ff,emissive:0x2a9ad0,emissiveIntensity:1.0}));
     const p=box(long?S*0.12:w*0.9,0.28*CS,long?d*0.9:S*0.12,sm,ox,H+0.14*CS,oz); const sc2=box(long?S*0.02:w*0.8,0.2*CS,long?d*0.8:S*0.02,scr,ox-(long?back*S*0.07:0),H+0.15*CS,oz-(long?0:back*S*0.07),false);
     box(w*0.8,0.015*CS,d*0.5,fxMat('conKeys',()=>new THREE.MeshStandardMaterial({color:0xffb347,emissive:0x8a4a10,emissiveIntensity:0.8})),0,H+0.01*CS,0,false); }
@@ -5102,7 +5178,13 @@ function bDungeonBW(u,v){ const D=bld.dungeon; return [D.q0-0.5+u, D.r0-0.5+v]; 
 // 🎨 dungeon / cave themes (v1.25): kind = the engine (rooms+corridors / caverns), style = the look + dressing
 const DG_THEMES={ dungeon:{kind:'dungeon', name:'dungeon'}, cave:{kind:'cave', name:'cave'}, mine:{kind:'dungeon', style:'mine', name:'mine'}, sewer:{kind:'dungeon', style:'sewer', name:'sewer'},
   temple:{kind:'dungeon', style:'temple', name:'temple'}, icecave:{kind:'cave', style:'ice', name:'ice cave'}, lavacave:{kind:'cave', style:'lava', name:'lava cave'},
-  scifi:{kind:'dungeon', style:'scifi', name:'starship', pack:'scifi'} };   // 🚀 Sci-Fi Pack (its own unlock)
+  scifi:{kind:'dungeon', style:'scifi', name:'starship', pack:'scifi'},
+  tomb:{kind:'dungeon', style:'tomb', name:'tomb', pack:'pharaohs'}, pyramid:{kind:'dungeon', style:'pyramid', name:'pyramid', pack:'pharaohs'},   // 🏜 Tomb of the Pharaohs
+  manor:{kind:'dungeon', style:'manor', name:'haunted manor', pack:'horror', dig:'catacombs'}, asylum:{kind:'dungeon', style:'asylum', name:'asylum', pack:'horror', dig:'asylum'},
+  graveyard:{kind:'dungeon', style:'graveyard', name:'graveyard', pack:'horror', dig:'catacombs', noExtend:1}, catacombs:{kind:'dungeon', style:'catacombs', name:'catacombs', pack:'horror'},   // 🕯 Gothic Horror
+  underdark:{kind:'cave', style:'underdark', name:'Underdark cavern', pack:'underdark'}, drowcity:{kind:'cave', style:'drow', name:'dark-elf city', pack:'underdark', dig:'underdark'},   // 🍄 Underdark
+  ship:{kind:'dungeon', style:'ship', name:'sailing ship', pack:'pirates', noExtend:1, dig:'ship'}, docks:{kind:'dungeon', style:'docks', name:'harbour', pack:'pirates', noExtend:1, dig:'cove'},
+  cove:{kind:'cave', style:'cove', name:"smugglers' cove", pack:'pirates'} };   // 🏴‍☠️ Pirates & Ports   // 🚀 Sci-Fi Pack (its own unlock)
 const dgThemeOf=(D)=>{ if(!D) return 'dungeon'; for(const k in DG_THEMES){ const t=DG_THEMES[k]; if(t.kind===D.kind && (t.style||null)===(D.style||null)) return k; } return D.kind; };
 const dgName=(D)=>(DG_THEMES[dgThemeOf(D)]||{}).name||(D&&D.kind)||'dungeon';
 function bGenerateDungeon(theme){ const TT=DG_THEMES[theme]||{kind:theme}, kind=TT.kind;
@@ -5113,7 +5195,7 @@ function bGenerateDungeon(theme){ const TT=DG_THEMES[theme]||{kind:theme}, kind=
   setTileScale('battle'); bld.scale='battle'; document.querySelectorAll('#bScaleSeg button').forEach(x=>x.classList.toggle('on', x.dataset.scale==='battle'));
   bld.cols=Math.max(12,Math.min(64,bld.cols|0)); bld.rows=Math.max(10,Math.min(64,bld.rows|0)); if(!TGC[bld.tgc]){ bld.q0=0; bld.r0=0; }
   document.getElementById('bCols').value=bld.cols; document.getElementById('bRows').value=bld.rows;
-  const D=DungeonGen.generate({kind, style:TT.style, cols:bld.cols, rows:bld.rows, seed:bld.seed}); const dk=document.getElementById('bDigKind'); if(dk) dk.value=theme;
+  const D=DungeonGen.generate({kind, style:TT.style, cols:bld.cols, rows:bld.rows, seed:bld.seed}); const dk=document.getElementById('bDigKind'); if(dk) dk.value=TT.dig||theme;
   bld.board.clear(); bld.zones.clear(); bld.subdiv.clear(); bld.subpaint.clear();
   const defs=bDefs(), id=TE.registerGen(defs,'square','dirt',[0,0,0,0],undefined);
   for(const c of bCells()) bld.board.set(TE.keyOf(c),{defId:id,rot:0});
@@ -5137,6 +5219,32 @@ function bDungeonTex(kind){ if(_dgTex[kind]) return _dgTex[kind]; const S=128, c
     for(let i=0;i<22;i++){ x.fillStyle='rgba(40,34,28,.6)'; x.beginPath(); x.arc(rnd()*S,rnd()*S,1+rnd()*2.5,0,6.3); x.fill(); } }
   else if(kind==='brickfloor'||kind==='brickwall'){ const wall=kind==='brickwall'; x.fillStyle=wall?'#3e3a33':'#34382f'; x.fillRect(0,0,S,S); for(let r=0;r<8;r++){ const off=(r%2)*16; for(let c=-1;c<5;c++){ const v=(wall?88:74)+rnd()*26|0; x.fillStyle=`rgb(${v},${v*0.72|0},${v*0.58|0})`; x.fillRect(c*32+off+1,r*16+1,30,14); } }
     x.fillStyle='rgba(40,70,40,.22)'; for(let i=0;i<30;i++) x.fillRect(rnd()*S,rnd()*S,4+rnd()*12,2+rnd()*6); }
+  else if(kind==='deck'){ x.fillStyle='#8a6440'; x.fillRect(0,0,S,S); for(let i=0;i<4;i++){ const v=130+rnd()*30|0; x.fillStyle=`rgb(${v},${v*0.72|0},${v*0.47|0})`; x.fillRect(i*32+1,0,30,S); x.fillStyle='rgba(40,25,10,.55)'; x.fillRect(i*32,0,1.5,S); x.fillRect(i*32+1,(rnd()*S)|0,30,1.5); }
+    x.fillStyle='rgba(30,20,10,.5)'; for(let i=0;i<8;i++){ x.beginPath(); x.arc((i%4)*32+16,(i<4?20:100),1.6,0,6.3); x.fill(); } }
+  else if(kind==='shipwall'){ x.fillStyle='#4a3120'; x.fillRect(0,0,S,S); for(let i=0;i<8;i++){ const v=70+rnd()*25|0; x.fillStyle=`rgb(${v},${v*0.68|0},${v*0.44|0})`; x.fillRect(0,i*16+1,S,14); } }
+  else if(kind==='shiptop'){ x.fillStyle='#2c1e14'; x.fillRect(0,0,S,S); for(let i=0;i<500;i++){ const v=40+rnd()*20|0; x.fillStyle=`rgba(${v},${v*0.7|0},${v*0.45|0},.6)`; x.fillRect(rnd()*S,rnd()*S,3,1); } }
+  else if(kind==='sea'){ x.fillStyle='#1d4e6e'; x.fillRect(0,0,S,S); for(let i=0;i<70;i++){ x.strokeStyle=`rgba(${150+rnd()*80|0},${200+rnd()*50|0},255,${0.15+rnd()*0.25})`; x.lineWidth=1+rnd(); x.beginPath(); const px=rnd()*S, py=rnd()*S; x.moveTo(px,py); x.quadraticCurveTo(px+6,py-3,px+12,py); x.stroke(); } }
+  else if(kind==='udfloor'){ x.fillStyle='#3b3646'; x.fillRect(0,0,S,S); for(let i=0;i<1500;i++){ const v=50+rnd()*40|0; x.fillStyle=`rgba(${v},${v-6},${v+14},.5)`; x.fillRect(rnd()*S,rnd()*S,2+rnd()*3,2+rnd()*3); }
+    for(let i=0;i<10;i++){ x.fillStyle='rgba(120,200,160,.18)'; x.beginPath(); x.arc(rnd()*S,rnd()*S,2+rnd()*5,0,6.3); x.fill(); } }
+  else if(kind==='udside'){ x.fillStyle='#2e2a36'; x.fillRect(0,0,S,S); for(let i=0;i<900;i++){ const v=40+rnd()*40|0; x.fillStyle=`rgba(${v},${v-4},${v+10},.55)`; x.fillRect(rnd()*S,rnd()*S,3+rnd()*6,2+rnd()*3); } }
+  else if(kind==='parquet'){ x.fillStyle='#5a3a22'; x.fillRect(0,0,S,S); for(let r=0;r<8;r++) for(let c=0;c<8;c++){ const v=85+rnd()*35|0; x.fillStyle=`rgb(${v},${v*0.64|0},${v*0.38|0})`; if((r+c)%2) x.fillRect(c*16+1,r*16+1,14,6),x.fillRect(c*16+1,r*16+9,14,6); else x.fillRect(c*16+1,r*16+1,6,14),x.fillRect(c*16+9,r*16+1,6,14); } }
+  else if(kind==='wallpaper'){ x.fillStyle='#3d1f28'; x.fillRect(0,0,S,S); x.fillStyle='rgba(170,120,80,.35)'; for(let r=0;r<4;r++) for(let c=0;c<4;c++){ const px=c*32+(r%2)*16+16, py=r*32+16; x.beginPath(); x.ellipse(px,py,6,11,0,0,6.3); x.fill(); x.fillRect(px-1,py-15,2,30); } x.fillStyle='#2a1a12'; x.fillRect(0,S-14,S,14); }
+  else if(kind==='roofdark'){ x.fillStyle='#1d1c20'; x.fillRect(0,0,S,S); for(let i=0;i<600;i++){ const v=28+rnd()*18|0; x.fillStyle=`rgba(${v},${v},${v+4},.6)`; x.fillRect(rnd()*S,rnd()*S,2,2); } }
+  else if(kind==='asylumtile'){ for(let i=0;i<8;i++) for(let j=0;j<8;j++){ const v=200+rnd()*25|0; x.fillStyle=`rgb(${v},${v},${v-8})`; x.fillRect(i*16,j*16,16,16); } x.strokeStyle='rgba(60,60,50,.35)'; x.lineWidth=1; for(let i=0;i<=8;i++){ x.beginPath(); x.moveTo(i*16,0); x.lineTo(i*16,S); x.moveTo(0,i*16); x.lineTo(S,i*16); x.stroke(); }
+    for(let i=0;i<10;i++){ x.fillStyle=`rgba(90,80,40,${0.08+rnd()*0.12})`; x.beginPath(); x.arc(rnd()*S,rnd()*S,6+rnd()*18,0,6.3); x.fill(); } }
+  else if(kind==='grimewall'){ x.fillStyle='#b8b9ad'; x.fillRect(0,0,S,S); x.fillStyle='#6d7a6a'; x.fillRect(0,S*0.55,S,S*0.45); for(let i=0;i<14;i++){ x.fillStyle=`rgba(70,60,30,${0.1+rnd()*0.15})`; x.fillRect(rnd()*S,rnd()*S*0.5,2+rnd()*4,20+rnd()*50); } }
+  else if(kind==='deadgrass'){ x.fillStyle='#4f5236'; x.fillRect(0,0,S,S); for(let i=0;i<1800;i++){ const v=60+rnd()*50|0; x.fillStyle=`rgba(${v+10},${v+8},${v-20|0},.6)`; x.fillRect(rnd()*S,rnd()*S,1,2+rnd()*4); } }
+  else if(kind==='mossstone'){ x.fillStyle='#6a6b62'; x.fillRect(0,0,S,S); for(let r=0;r<8;r++){ const off=(r%2)*16; for(let c=-1;c<5;c++){ const v=95+rnd()*30|0; x.fillStyle=`rgb(${v},${v+2},${v-6})`; x.fillRect(c*32+off+1,r*16+1,30,14); } }
+    for(let i=0;i<40;i++){ x.fillStyle='rgba(70,100,50,.45)'; x.beginPath(); x.arc(rnd()*S,rnd()*S,2+rnd()*6,0,6.3); x.fill(); } }
+  else if(kind==='wallcap'){ x.fillStyle='#55564f'; x.fillRect(0,0,S,S); for(let i=0;i<500;i++){ const v=70+rnd()*30|0; x.fillStyle=`rgba(${v},${v},${v-4},.6)`; x.fillRect(rnd()*S,rnd()*S,2,2); } }
+  else if(kind==='sandstone'){ x.fillStyle='#b99a64'; x.fillRect(0,0,S,S); for(let r=0;r<4;r++){ const off=(r%2)*32; for(let c=-1;c<3;c++){ const v=180+rnd()*30|0; x.fillStyle=`rgb(${v},${v*0.82|0},${v*0.55|0})`; x.fillRect(c*64+off+2,r*32+2,60,28); } }
+    x.fillStyle='rgba(120,90,50,.25)'; for(let i=0;i<300;i++) x.fillRect(rnd()*S,rnd()*S,1.5,1.5); }
+  else if(kind==='hieroglyph'){ x.fillStyle='#c9a86c'; x.fillRect(0,0,S,S); for(let r=0;r<2;r++) for(let c=0;c<2;c++){ const v=195+rnd()*25|0; x.fillStyle=`rgb(${v},${v*0.83|0},${v*0.56|0})`; x.fillRect(c*64+2,r*64+2,60,60); }
+    x.strokeStyle='rgba(70,45,20,.7)'; x.fillStyle='rgba(60,90,120,.55)'; x.lineWidth=2; for(let i=0;i<8;i++){ const gx=10+(i%4)*29, gy=14+Math.floor(i/4)*56, k=Math.floor(rnd()*4); x.beginPath();
+      if(k===0){ x.arc(gx+6,gy+6,5,0,6.3); x.moveTo(gx+6,gy+11); x.lineTo(gx+6,gy+26); x.moveTo(gx,gy+16); x.lineTo(gx+12,gy+16); } else if(k===1){ x.ellipse(gx+7,gy+12,8,4,0,0,6.3); x.moveTo(gx+7,gy+16); x.lineTo(gx+3,gy+24); }
+      else if(k===2){ x.moveTo(gx,gy+22); x.lineTo(gx+8,gy+4); x.lineTo(gx+14,gy+22); } else { x.moveTo(gx,gy+6); x.quadraticCurveTo(gx+14,gy+2,gx+10,gy+14); x.lineTo(gx+2,gy+24); } x.stroke(); } }
+  else if(kind==='sand'){ x.fillStyle='#7d5f37'; x.fillRect(0,0,S,S); for(let i=0;i<1400;i++){ const v=110+rnd()*45|0; x.fillStyle=`rgba(${v},${v*0.84|0},${v*0.55|0},.5)`; x.fillRect(rnd()*S,rnd()*S,1.5,1.5); }
+    x.strokeStyle='rgba(150,115,60,.35)'; x.lineWidth=1.5; for(let i=0;i<6;i++){ x.beginPath(); const y0=rnd()*S; x.moveTo(0,y0); x.bezierCurveTo(S*0.3,y0-8,S*0.6,y0+8,S,y0); x.stroke(); } }
   else if(kind==='deckplate'){ x.fillStyle='#5b636d'; x.fillRect(0,0,S,S); for(const [px,py] of [[0,0],[64,0],[0,64],[64,64]]){ const v=88+rnd()*16|0; x.fillStyle=`rgb(${v},${v+6},${v+14})`; x.fillRect(px+2,py+2,60,60);
       x.fillStyle='rgba(255,255,255,.08)'; for(let i=0;i<10;i++) x.fillRect(px+6+i*5,py+8,2,46); x.fillStyle='#3d434a'; for(const [rx,ry] of [[6,6],[56,6],[6,56],[56,56]]){ x.beginPath(); x.arc(px+rx,py+ry,2.2,0,6.3); x.fill(); } } }
   else if(kind==='bulkhead'){ x.fillStyle='#8a929c'; x.fillRect(0,0,S,S); for(let c=0;c<2;c++){ x.fillStyle='#9aa3ad'; x.fillRect(c*64+3,4,58,120); x.fillStyle='rgba(0,0,0,.25)'; x.fillRect(c*64+3,60,58,3); } x.fillStyle='#5fd4ff'; x.fillRect(0,26,S,3); x.fillStyle='rgba(95,212,255,.25)'; x.fillRect(0,22,S,11); }
@@ -5154,10 +5262,11 @@ function bDungeonTex(kind){ if(_dgTex[kind]) return _dgTex[kind]; const S=128, c
     if(kind==='basalt'){ x.strokeStyle='rgba(255,90,20,.55)'; x.lineWidth=1.2; for(let i=0;i<5;i++){ x.beginPath(); let px=rnd()*S, py=rnd()*S; x.moveTo(px,py); for(let j=0;j<4;j++){ px+=(rnd()-0.5)*36; py+=(rnd()-0.5)*36; x.lineTo(px,py); } x.stroke(); } } }
   const t=new THREE.CanvasTexture(cv); t.wrapS=t.wrapT=THREE.RepeatWrapping; if(THREE.SRGBColorSpace) t.colorSpace=THREE.SRGBColorSpace; t.anisotropy=4; return (_dgTex[kind]=t); }
 // per-style look: floor / wall side / rock top textures + the pool material
-const DG_LOOK={ mine:{floor:'minefloor', side:'caveside', top:'rocktop'}, sewer:{floor:'brickfloor', side:'brickwall', top:'rocktop'}, temple:{floor:'marble', side:'templewall', top:'rocktop'}, scifi:{floor:'deckplate', side:'bulkhead', top:'hull'},
+const DG_LOOK={ mine:{floor:'minefloor', side:'caveside', top:'rocktop'}, sewer:{floor:'brickfloor', side:'brickwall', top:'rocktop'}, temple:{floor:'marble', side:'templewall', top:'rocktop'}, scifi:{floor:'deckplate', side:'bulkhead', top:'hull'}, tomb:{floor:'sandstone', side:'hieroglyph', top:'sand'}, manor:{floor:'parquet', side:'wallpaper', top:'roofdark'}, ship:{floor:'deck', side:'shipwall', top:'shiptop'}, docks:{floor:'deck', side:'shipwall', top:'shiptop'}, cove:{floor:'cavefloor', side:'caveside', top:'rocktop'}, underdark:{floor:'udfloor', side:'udside', top:'rocktop'}, drow:{floor:'udfloor', side:'udside', top:'rocktop'}, asylum:{floor:'asylumtile', side:'grimewall', top:'roofdark'}, graveyard:{floor:'deadgrass', side:'mossstone', top:'wallcap'}, pyramid:{floor:'sandstone', side:'hieroglyph', top:'sand'},
   ice:{floor:'icefloor', side:'iceside', top:'snowtop'}, lava:{floor:'basalt', side:'basaltside', top:'ashtop'} };
 function bPoolMat(style){ return style==='lava' ? fxMat('lavaM',()=>new THREE.MeshStandardMaterial({color:0xff6a1a, emissive:0xff3a00, emissiveIntensity:1.3, roughness:0.6}))
   : style==='ice' ? fxMat('iceM',()=>new THREE.MeshStandardMaterial({color:0x7fc4e4, roughness:0.04, metalness:0.25, transparent:true, opacity:0.9}))
+  : (style==='underdark'||style==='drow') ? fxMat('udLake',()=>new THREE.MeshStandardMaterial({color:0x1a2a52, emissive:0x0a1430, emissiveIntensity:0.6, roughness:0.08, metalness:0.3, transparent:true, opacity:0.92}))
   : style==='sewer' ? fxMat('sewerW',()=>{ const t=bDungeonTex('sewerwater'); return new THREE.MeshStandardMaterial({map:t, roughness:0.15, metalness:0.15, transparent:true, opacity:0.93}); })
   : new THREE.MeshStandardMaterial({color:0x2c5f7a, roughness:0.15, metalness:0.2, transparent:true, opacity:0.88}); }
 // loops → nested shapes by containment depth (winding-independent): even depth = floor boundary, odd = rock island
@@ -5182,14 +5291,15 @@ function bRenderDungeon(){ const D=bld.dungeon; if(!D) return; const flat=!!bld.
   const LK=DG_LOOK[D.style]||null, ft=LK?bDungeonTex(LK.floor):cave?bDungeonTex('cavefloor'):bFloorTex('flag'); ft.repeat.set(1,1);
   const fm=new THREE.Mesh(new THREE.ShapeGeometry(floor), new THREE.MeshStandardMaterial({map:ft, roughness:0.95})); fm.rotation.x=-Math.PI/2; fm.position.y=top; fm.receiveShadow=true; grp.add(fm);
   const capT=bDungeonTex(LK?LK.top:'rocktop'), sideT=bDungeonTex(LK?LK.side:cave?'caveside':'masonry');
-  if(flat){ const rm=new THREE.Mesh(new THREE.ShapeGeometry(rock), new THREE.MeshStandardMaterial({map:capT, roughness:1})); rm.rotation.x=-Math.PI/2; rm.position.y=top+0.02; grp.add(rm); }
+  if(D.sea){ bRenderSea(D, grp, top, flat, capT, sideT); }
+  else if(flat){ const rm=new THREE.Mesh(new THREE.ShapeGeometry(rock), new THREE.MeshStandardMaterial({map:capT, roughness:1})); rm.rotation.x=-Math.PI/2; rm.position.y=top+0.02; grp.add(rm); }
   else { const H=0.9; const g=new THREE.ExtrudeGeometry(rock,{depth:H, bevelEnabled:false, curveSegments:1}); g.rotateX(-Math.PI/2);
     const rm=new THREE.Mesh(g,[new THREE.MeshStandardMaterial({map:capT, roughness:1}), new THREE.MeshStandardMaterial({map:sideT, roughness:0.95})]); rm.position.y=top; rm.castShadow=true; rm.receiveShadow=true; grp.add(rm); }
   if(D.waterLoops && D.waterLoops.length){ const V=(p)=>{ const [x,z]=bDungeonBW(p.x,p.y); return new THREE.Vector2(x-bld.off.x, -(z-bld.off.z)); };
     const ws=D.waterLoops.map(l=>new THREE.Shape(l.map(V))); const wm=new THREE.Mesh(new THREE.ShapeGeometry(ws), bPoolMat(D.style));
     wm.rotation.x=-Math.PI/2; wm.position.y=top+0.012; grp.add(wm); }
   // doors: a plank leaf across the opening (open archways get just the stone posts)
-  const ship=D.style==='scifi', leafM=new THREE.MeshStandardMaterial(ship?{color:0x8c96a3, roughness:0.35, metalness:0.6}:{color:0x6b4424, roughness:0.8}), postM=new THREE.MeshStandardMaterial(ship?{color:0x4a525c, roughness:0.4, metalness:0.5}:{color:0x8d8981, roughness:0.95}),
+  const ship=D.style==='scifi', stoneD=D.style==='tomb'||D.style==='pyramid', leafM=new THREE.MeshStandardMaterial(ship?{color:0x8c96a3, roughness:0.35, metalness:0.6}:stoneD?{color:0xb59868, roughness:0.95}:D.style==='asylum'?{color:0x7d8288, roughness:0.5, metalness:0.4}:D.style==='manor'?{color:0x3e2616, roughness:0.7}:{color:0x6b4424, roughness:0.8}), postM=new THREE.MeshStandardMaterial(ship?{color:0x4a525c, roughness:0.4, metalness:0.5}:{color:0x8d8981, roughness:0.95}),
     bandM=new THREE.MeshStandardMaterial(ship?{color:0x5fd4ff, emissive:0x2a9ad0, emissiveIntensity:0.9}:{color:0x3a3a3e, roughness:0.5, metalness:0.5});
   _fxStyle=D.style||null;
   const lockM=new THREE.MeshStandardMaterial({color:0xd4a53a, roughness:0.4, metalness:0.6}), slabM=new THREE.MeshStandardMaterial({map:sideT, roughness:0.95}), capM2=new THREE.MeshStandardMaterial({map:capT, roughness:1});
@@ -5207,9 +5317,24 @@ function bRenderDungeon(){ const D=bld.dungeon; if(!D) return; const flat=!!bld.
       const txt = f.link==='down' ? (lv<n ? `▼ Level ${lv+1}` : '▼ (dig deeper)') : (lv>1 ? `▲ Level ${lv-1}` : '▲ Surface');
       const l=bDgLabel(txt, f.link==='down'?'#ffcf7a':'#9fe0ff'); l.position.set(x-bld.off.x, top+(bld.boardFlat?0.4:1.5), z-bld.off.z); grp.add(l); } });
   _fxStyle=null; builderGroup.add(grp); }
+// ⚓ open-sea maps (ships, docks): the sea is a plane; real walls (cabin partitions, harbour buildings) are extruded; rails run along deck edges that meet the sea
+function bRenderSea(D, grp, top, flat, capT, sideT){ const W=D.cols, H=D.rows, sea=D.sea, fl=D.floor;
+  const st=bDungeonTex('sea'); const sm=new THREE.MeshStandardMaterial({map:st, roughness:0.25, metalness:0.15}); const pad=6, pg=new THREE.PlaneGeometry(W+pad*2, H+pad*2); st.repeat.set(1,1);
+  const uv=pg.attributes.uv; for(let i=0;i<uv.count;i++) uv.setXY(i, uv.getX(i)*(W+pad*2), uv.getY(i)*(H+pad*2));
+  const sp=new THREE.Mesh(pg, sm); sp.rotation.x=-Math.PI/2; const [c0x,c0z]=bDungeonBW(W/2,H/2); sp.position.set(c0x-bld.off.x, top-0.012, c0z-bld.off.z); sp.renderOrder=1; sp.receiveShadow=true; grp.add(sp);
+  const wmask=new Array(W*H); for(let k=0;k<W*H;k++) wmask[k]=(!fl[k] && !sea[k])?1:0;
+  if(wmask.some(v=>v)){ const {floor:ws}=bDungeonShapes(DungeonGen.gridLoops(wmask,W,H));
+    if(flat){ const m=new THREE.Mesh(new THREE.ShapeGeometry(ws), new THREE.MeshStandardMaterial({map:capT, roughness:1})); m.rotation.x=-Math.PI/2; m.position.y=top+0.02; grp.add(m); }
+    else { const g=new THREE.ExtrudeGeometry(ws,{depth:0.9, bevelEnabled:false, curveSegments:1}); g.rotateX(-Math.PI/2); const m=new THREE.Mesh(g,[new THREE.MeshStandardMaterial({map:capT, roughness:1}), new THREE.MeshStandardMaterial({map:sideT, roughness:0.9})]); m.position.y=top; m.castShadow=true; m.receiveShadow=true; grp.add(m); } }
+  const railed=(k)=> D.style==='ship' ? !!fl[k] : !!(D.rail && D.rail[k]), rm=fxStd(0x5a3a22,0.8), rh=flat?0.05:0.32, rg=new THREE.BoxGeometry(1,rh,0.1);
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){ const k=y*W+x; if(!railed(k)) continue;
+    for(const [dx,dy,ex,ey,alongX] of [[0,-1,0.5,0.05,1],[0,1,0.5,0.95,1],[-1,0,0.05,0.5,0],[1,0,0.95,0.5,0]]){ const X=x+dx, Y=y+dy; const out=X<0||Y<0||X>=W||Y>=H||sea[Y*W+X]; if(!out) continue;
+      const [bx,bz]=bDungeonBW(x+ex,y+ey); const b=new THREE.Mesh(rg, rm); b.position.set(bx-bld.off.x, top+rh/2, bz-bld.off.z); if(!alongX) b.rotation.y=Math.PI/2; b.castShadow=true; grp.add(b); } } }
 // EXTEND a dungeon / cave: the existing layout stays exactly as it is; DungeonGen.extend fills a 12-square strip on that
 // side with new rooms (wired to the nearest old rooms through proper doors) or new caverns that flow across the seam.
-function bExtendDungeon(dir){ const E=12, D=bld.dungeon; bPushUndo();
+function bExtendDungeon(dir){ const E=12, D=bld.dungeon; const TT=DG_THEMES[dgThemeOf(D)]||{};
+  if(TT.noExtend){ bStatus(`A ${TT.name} is one walled site — generate a bigger map instead of extending it (⬇ Dig deeper still goes below).`,true); return; }
+  bPushUndo();
   let newCells;
   if(dir==='E'){ newCells=bCellsRange(bld.q0+bld.cols, bld.q0+bld.cols+E, bld.r0, bld.r0+bld.rows); bld.cols+=E; }
   else if(dir==='W'){ newCells=bCellsRange(bld.q0-E, bld.q0, bld.r0, bld.r0+bld.rows); bld.q0-=E; bld.cols+=E; }
@@ -5237,12 +5362,13 @@ function bSwitchLevel(i, quiet){ const L=bld.dungeonLevels||[]; if(i<0||i>=L.len
   bRender(); bStatus(`🗝 Level <b>${i+1}</b> of ${L.length} — a <b>${dgName(bld.dungeon)}</b>. The ▲ / ▼ markers show where each way up / down leads (screen only).`); }
 function bDigDeeper(){ const L=bld.dungeonLevels||[], i=bld.dungeonLevel||0; if(!bld.dungeon) return;
   if(i<L.length-1){ bSwitchLevel(i+1); return; }
-  const th=document.getElementById('bDigKind').value||dgThemeOf(bld.dungeon), TT=DG_THEMES[th]||{kind:bld.dungeon.kind}, kind=TT.kind;
+  if(bld.dungeon.style==='ship' && (document.getElementById('bDigKind').value||'ship')==='ship' && (bld.dungeon.deck||1)>=3){ bStatus('The cargo hold is the bottom of the ship — pick another level type in the list to dig below it.',true); return; }
+  const th=document.getElementById('bDigKind').value||(DG_THEMES[dgThemeOf(bld.dungeon)]||{}).dig||dgThemeOf(bld.dungeon), TT=DG_THEMES[th]||{kind:bld.dungeon.kind}, kind=TT.kind;
   if(TT.pack && window.TTier && !TTier.has(TT.pack)){ bStatus(`🔒 That level type is part of the <b>${(TTier.LABELS||{})[TT.pack]||TT.pack}</b>.`,true); return; }
   bPushUndo(); const seed=1+Math.floor(Math.random()*999999);
   const above=DungeonGen.ensureDown(bld.dungeon, seed); const added=above!==bld.dungeon;
   const here={...above, q0:bld.q0, r0:bld.r0}; L[i]=here;
-  const D2=DungeonGen.generate({kind, style:TT.style, cols:bld.cols, rows:bld.rows, seed:seed+17, arrivals:DungeonGen.arrivalsFrom(here)});
+  const D2=DungeonGen.generate({kind, style:TT.style, cols:bld.cols, rows:bld.rows, seed:seed+17, arrivals:DungeonGen.arrivalsFrom(here), deck:L.length+1});
   L.push({...D2, q0:bld.q0, r0:bld.r0}); bld.dungeonLevels=L; bSwitchLevel(L.length-1, true); bRender();
   const downs=here.features.filter(f=>f.link==='down').map(f=>({stairs:'stairs',well:'a well',pit:'a trapdoor pit',sinkhole:'a sinkhole'})[f.kind]||f.kind);
   bStatus(`⬇ Dug down to <b>Level ${L.length}</b> — a <b>${TT.name||kind}</b>. It connects to Level ${L.length-1} by ${downs.join(', ')}${added?' (a new way down was added above)':''}; every landing is on the same square. <b>▲ Level</b> to go back up.`); }
@@ -5284,12 +5410,13 @@ function bKeyLabels(){ if(bld.dungeon){ const K=bDungeonKey(); if(!K) return [];
     return K.entries.map(e=>{ const [x,z]=bDungeonBW(e.x,e.y); return {t:String(e.n),x,z}; }).concat(K.marks.map(m=>{ const [x,z]=bDungeonBW(m.x,m.y); return {t:m.id,x,z,letter:1}; })); }
   return bTownKey().map(e=>({t:String(e.n), x:e.x, z:e.z, si:e.si})); }
 function bDoorMarks(floor){ const out=[];
-  if(bld.dungeon){ if(floor) return out; for(const d of bld.dungeon.doors){ if(!d.secret && !d.lock) continue; const [x,z]=bDungeonBW((d.x1+d.x2)/2,(d.y1+d.y2)/2); out.push({t:d.secret?'S':'L', x, z, door:1}); } return out; }
+  if(bld.dungeon){ if(floor) return out; for(const f of bld.dungeon.features) if(f.kind==='trap'){ const [x,z]=bDungeonBW(f.x,f.y); out.push({t:'T', x, z, door:1}); }
+    for(const d of bld.dungeon.doors){ if(!d.secret && !d.lock) continue; const [x,z]=bDungeonBW((d.x1+d.x2)/2,(d.y1+d.y2)/2); out.push({t:d.secret?'S':'L', x, z, door:1}); } return out; }
   for(const st of (bld.structures||[])){ if((st.floors||1)<=(floor||0)) continue; const f=floor!=null?floor:Math.min(st.activeFloor||0,(st.floors||1)-1); if(floor==null && st.roofOn) continue; const L=bStructLayout(st,f);
     for(const d of L.secret) out.push({t:'S', x:(d[0]+d[2])/2, z:(d[1]+d[3])/2, door:1}); for(const d of L.locked) out.push({t:'L', x:(d[0]+d[2])/2, z:(d[1]+d[3])/2, door:1}); } return out; }
 function bKeyBadgeCanvas(t, letter, px){ const cv=document.createElement('canvas'); cv.width=cv.height=px; const x=cv.getContext('2d'); bKeyBadgeDraw(x,px/2,px/2,px*0.46,t,letter); return cv; }
 function bKeyBadgeDraw(x, cx, cy, r, t, letter){ x.save(); x.beginPath();
-  if(letter==='door'){ x.rect(cx-r,cy-r,2*r,2*r); x.fillStyle=t==='S'?'#d9ccff':'#ffd98a'; x.fill(); x.lineWidth=Math.max(1.5,r*0.18); x.strokeStyle='#1d1a16'; x.stroke(); x.fillStyle='#1d1a16'; x.font=`bold ${Math.round(r*1.3)}px system-ui,Arial,sans-serif`; x.textAlign='center'; x.textBaseline='middle'; x.fillText(t,cx,cy+r*0.06); x.restore(); return; }
+  if(letter==='door'){ x.rect(cx-r,cy-r,2*r,2*r); x.fillStyle=t==='S'?'#d9ccff':t==='T'?'#ffb0a0':'#ffd98a'; x.fill(); x.lineWidth=Math.max(1.5,r*0.18); x.strokeStyle='#1d1a16'; x.stroke(); x.fillStyle='#1d1a16'; x.font=`bold ${Math.round(r*1.3)}px system-ui,Arial,sans-serif`; x.textAlign='center'; x.textBaseline='middle'; x.fillText(t,cx,cy+r*0.06); x.restore(); return; }
   if(letter){ const s=r*0.9; x.moveTo(cx,cy-s*1.15); x.lineTo(cx+s*1.15,cy); x.lineTo(cx,cy+s*1.15); x.lineTo(cx-s*1.15,cy); x.closePath(); } else x.arc(cx,cy,r,0,Math.PI*2);
   x.fillStyle=letter?'#ffd166':'#fbf6e9'; x.fill(); x.lineWidth=Math.max(2,r*0.16); x.strokeStyle='#1d1a16'; x.stroke();
   x.fillStyle='#1d1a16'; x.font=`bold ${Math.round(r*(t.length>2?0.9:t.length>1?1.1:1.3))}px system-ui,Arial,sans-serif`; x.textAlign='center'; x.textBaseline='middle'; x.fillText(t,cx,cy+r*0.06); x.restore(); }
@@ -5334,7 +5461,7 @@ img{display:block;width:100%;height:auto;border:1px solid var(--line);border-rad
 footer{color:var(--mut);font:12px system-ui,Arial,sans-serif;text-align:center;padding:10px 0 24px}
 @media print{ .bar{display:none} body{background:#fff;font-size:11pt} main{max-width:none;padding:0} section{break-before:page} section:first-of-type{break-before:auto} img{max-height:9in;object-fit:contain} }
 </style></head><body><div class="bar"><b>📜 ${esc(title)}</b><button onclick="print()">🖨 Print</button><button onclick="(function(){var a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['<!doctype html>'+document.documentElement.outerHTML],{type:'text/html'}));a.download='${esc((town?'town':'dungeon')+'-'+bld.seed+'_gm-key.html')}';a.click();})()">⬇ Save</button></div>
-<main><h1>${esc(title)}</h1><p class="sub">${bld.cols} × ${bld.rows} squares · 1 square = 5 ft · ${pages.length>1?pages.length+(town?' floors':' levels')+' · ':''}for the game master's eyes only${pages.some(p=>/S|L/.test('')) ? '' : ''} · on the map: <b>S</b> = secret door, <b>L</b> = locked door, <b>A</b>, <b>B</b>… = a way up / down in a passage</p>
+<main><h1>${esc(title)}</h1><p class="sub">${bld.cols} × ${bld.rows} squares · 1 square = 5 ft · ${pages.length>1?pages.length+(town?' floors':' levels')+' · ':''}for the game master's eyes only${pages.some(p=>/S|L/.test('')) ? '' : ''} · on the map: <b>S</b> = secret door, <b>L</b> = locked door, <b>T</b> = trap, <b>A</b>, <b>B</b>… = a way up / down in a passage</p>
 ${pages.map(p=>`<section><h2>${esc(p.h)}</h2><img src="${p.img}" alt="${esc(p.h)} map">${(p.entries.length||p.marks.length)?`<div class="k">${p.entries.map(e=>item(e)).join('')}${p.marks.map(m=>item(m,1)).join('')}</div>`:(town?'<p class="sub" style="margin-top:8px">Rooms on this floor are listed under the ground floor, building by building.</p>':'')}</section>`).join('\n')}
 <footer>Made with KSOL Designs Tabletop ${APP_VERSION}</footer></main></body></html>`;
   const blob=new Blob([html],{type:'text/html'}), name=`${town?'town':what.toLowerCase().replace(/ /g,'-')}-${bld.seed}_gm-key.html`;
@@ -5353,9 +5480,13 @@ window.__bGmKey=()=>bGmKey();
 const EDIT_ADD={ chest:[0.9,0.6], table:[1.4,0.8], barrel:[0.55,0.55], crate:[0.8,0.8], statue:[0.9,0.9], altar:[1.3,0.6], sarcophagus:[0.8,1.8], bed:[0.8,1.5],
   bookshelf:[1.8,0.35], weaponrack:[1.2,0.35], cauldron:[0.8,0.8], brazier:[0.8,0.8], torch:[0.3,0.3], candles:[0.3,0.3], campfire:[0.9,0.9], bedroll:[0.6,1.5],
   bones:[0.6,0.6], rubble:[0.8,0.8], crystals:[0.7,0.7], mushrooms:[0.6,0.6], plant:[0.4,0.4], sofa:[1.4,0.6], officedesk:[0.7,0.45], labbench:[1.6,0.6], tank:[0.55,0.55], lockers:[1.2,0.4], pew:[1.5,0.45], wardrobe:[1,0.5], font:[0.9,0.9],
+  cannon:[1.2,0.7], mast:[0.8,0.8], rope:[0.6,0.6], hammock:[2,0.6], rowboat:[1.2,2.4], bollard:[0.3,0.3], net:[1.4,0.9], anchor:[0.9,0.9], maptable:[1.4,0.9],
+  giantshroom:[1,1], web:[1,1], spiderstatue:[1.4,1.4], glowstone:[0.4,0.4], stall:[1.2,0.8],
+  candelabra:[0.4,0.4], armchair:[0.8,0.8], piano:[1.4,1], fourposter:[1.3,1.8], portrait:[0.8,0.3], grandfatherclock:[0.6,0.5], ritual:[1.8,1.8], cobweb:[0.8,0.8], bloodstain:[0.7,0.7], gravestone:[0.7,0.35], deadtree:[1,1], optable:[0.9,1.8], bathtub:[0.9,1.7],
+  trap:[0.9,0.9], goldsarcophagus:[1,2], anubis:[0.9,0.9], urn:[0.5,0.5], obelisk:[0.8,0.8], treasurepile:[0.8,0.8], canopic:[1,0.6],
   console:[1.2,0.6], captainchair:[0.9,0.9], container:[1.6,0.9], cryopod:[0.9,1.7], medbed:[0.9,1.7], hydro:[1.6,0.7], lightpanel:[0.3,0.3],
   minecart:[0.9,1.3], ore:[0.8,0.8], lantern:[0.3,0.3], toolrack:[1.2,0.35], powder:[0.55,0.55], drain:[0.6,0.6], valve:[1.2,0.6], icespike:[0.6,0.6], vent:[0.6,0.6], obsidian:[0.7,0.7] };
-const EDIT_ADD_NAME={ console:'control console', captainchair:"captain's chair", container:'cargo container', cryopod:'cryo pod', medbed:'medical bed', hydro:'hydroponic tray', lightpanel:'light panel', minecart:'mine cart', ore:'ore', toolrack:'tool rack', powder:'powder keg', drain:'floor drain', valve:'valve wheel', font:'stone font', icespike:'ice spikes', vent:'steam vent', obsidian:'obsidian', weaponrack:'weapon rack', crystals:'glowing crystals', mushrooms:'glowing mushrooms', bones:'pile of bones', rubble:'rubble', candles:'candles' };
+const EDIT_ADD_NAME={ rope:'coil of rope', rowboat:'rowing boat', maptable:'chart table', giantshroom:'giant mushroom', web:'spider web', spiderstatue:'spider statue', stall:'market stall', grandfatherclock:'grandfather clock', fourposter:'four-poster bed', ritual:'ritual circle', optable:'operating table', deadtree:'dead tree', trap:'trap (pressure plate)', goldsarcophagus:'gilded sarcophagus', anubis:'jackal statue', treasurepile:'treasure heap', canopic:'canopic jars', console:'control console', captainchair:"captain's chair", container:'cargo container', cryopod:'cryo pod', medbed:'medical bed', hydro:'hydroponic tray', lightpanel:'light panel', minecart:'mine cart', ore:'ore', toolrack:'tool rack', powder:'powder keg', drain:'floor drain', valve:'valve wheel', font:'stone font', icespike:'ice spikes', vent:'steam vent', obsidian:'obsidian', weaponrack:'weapon rack', crystals:'glowing crystals', mushrooms:'glowing mushrooms', bones:'pile of bones', rubble:'rubble', candles:'candles' };
 const DOOR_CYCLE={closed:'locked', locked:'secret', secret:'open', open:'closed'}, DOOR_NAME={closed:'closed door', locked:'locked door', secret:'secret door', open:'open archway'};
 const EDIT_HELP={ door:'🚪 <b>Doors</b> — click a door to cycle <b>closed → locked → secret → archway</b>; click a doorway in a room wall or a narrow passage to add one. A secret door looks like wall (and reaches your VTT as a wall) — you see an <b>S</b>. Buildings: click one to open its roof first.',
   furn:'🪑 <b>Furniture</b> — drag to move (whole squares) · click to select, then <b>R</b> rotates / <b>Delete</b> removes · pick an item in <b>➕ add</b> and click the floor to place it. Stairs, wells and pits stay put so the levels line up.',
@@ -5436,7 +5567,7 @@ function bEditClick(ev){ const p=bEditPt(ev); if(!p) return; const E=bld.edit, C
     bStatus('Click a building to open its roof, then click a doorway.'); return; }
   if(E==='furn'){ const kind=document.getElementById('bEditAdd').value;
     if(kind){ const [w,d]=EDIT_ADD[kind];
-      if(bld.dungeon){ const it={kind, x:Math.floor(p.u)+0.5, y:Math.floor(p.v)+0.5, w, d}; if(bDungeonEdit(D=>DungeonGen.addFeature(D,it))) bStatus(`Placed ${EDIT_ADD_NAME[kind]||kind} — click to place another, or pick “➕ add…” to stop.`); else bStatus('That square is not open floor.'); return; }
+      if(bld.dungeon){ const it={kind, x:Math.floor(p.u)+0.5, y:Math.floor(p.v)+0.5, w, d}; if(kind==='trap'){ it.trap='darts'; it.flat=1; } if(bDungeonEdit(D=>DungeonGen.addFeature(D,it))) bStatus(`Placed ${EDIT_ADD_NAME[kind]||kind} — click to place another, or pick “➕ add…” to stop.`); else bStatus('That square is not open floor.'); return; }
       const si=(bld.structures||[]).findIndex(st=>p.x>st.x0&&p.x<st.x1&&p.z>st.z0&&p.z<st.z1);
       if(si<0){ bStatus('Click inside a building (roof off) to place it.'); return; } const st=bld.structures[si]; if(st.roofOn){ bToggleStructure(si); return; }
       const f=Math.min(st.activeFloor||0,(st.floors||1)-1), x=Math.min(st.x1-CS/2, st.x0+(Math.floor((p.x-st.x0)/CS)+0.5)*CS), z=Math.min(st.z1-CS/2, st.z0+(Math.floor((p.z-st.z0)/CS)+0.5)*CS);

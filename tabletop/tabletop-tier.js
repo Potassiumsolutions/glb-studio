@@ -12,6 +12,10 @@
      · battlemaps  → Battle Maps Pack: Battle (D&D 5-ft) scale + real-world base maps
      · race        → Race games (Royal Game of Ur, …)
      · scifi       → Sci-Fi Pack: starship / space-station battle maps (needs Battle Maps for the 5-ft scale)
+     · pharaohs    → Tomb of the Pharaohs: tomb + pyramid battle maps with traps (needs Battle Maps)
+     · horror      → Gothic Horror: haunted manor, asylum, graveyard + catacombs (needs Battle Maps)
+     · underdark   → Underdark: vast fungal caverns + a dark-elf city carved into them (needs Battle Maps)
+     · pirates     → Pirates & Ports: sailing-ship decks, harbour docks, smugglers' cove (needs Battle Maps)
      · modern      → Modern Pack: City / Suburbs / Rural map themes, asphalt streets, railways,
                      modern buildings (towers, homes, schools, farms, wind farms …)
 
@@ -28,7 +32,7 @@
    ============================================================================ */
 (function (root) {
   'use strict';
-  const ALL = ['terrain', 'battlemaps', 'race', 'modern', 'scifi'];
+  const ALL = ['terrain', 'battlemaps', 'race', 'modern', 'scifi', 'pharaohs', 'horror', 'underdark', 'pirates'];
   const params = new URLSearchParams(location.search);
   let exp;
 
@@ -60,7 +64,7 @@
   root.TTier = {
     has, apply,
     list: () => [...exp],
-    LABELS: { terrain: 'Terrain Pack', battlemaps: 'Battle Maps Pack', race: 'Race Games', modern: 'Modern Pack', scifi: 'Sci-Fi Pack' }
+    LABELS: { terrain: 'Terrain Pack', battlemaps: 'Battle Maps Pack', race: 'Race Games', modern: 'Modern Pack', scifi: 'Sci-Fi Pack', pharaohs: 'Tomb of the Pharaohs', horror: 'Gothic Horror Pack', underdark: 'Underdark Pack', pirates: 'Pirates & Ports' }
   };
 
   if (document.readyState !== 'loading') apply();
