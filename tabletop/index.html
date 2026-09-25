@@ -389,7 +389,7 @@
         <button class="btn sec" id="bDgUp" title="Go up a level">▲ Level</button>
         <span class="mini" id="bDgWhich" style="min-width:74px;text-align:center;color:var(--txt);font-weight:600">Level 1 / 1</span>
         <button class="btn" id="bDgDown" title="Go down a level — or generate a new one linked by stairs, a well, a trapdoor or a sinkhole">⬇ Dig deeper</button>
-        <select id="bDigKind" title="What the next level down is"><option value="dungeon">🗝 Dungeon</option><option value="cave">🪨 Cave</option></select>
+        <select id="bDigKind" title="What the next level down is"><option value="dungeon">🗝 Dungeon</option><option value="cave">🪨 Cave</option><option value="mine">⛏ Mine</option><option value="sewer">🕳 Sewer</option><option value="temple">🏛 Temple</option><option value="icecave">🧊 Ice cave</option><option value="lavacave">🌋 Lava cave</option></select>
       </div>
       <div class="row wrap" id="bDgExtRow" style="display:none;align-items:center;margin:0 0 4px">
         <label class="fld" style="margin:0" title="What the ◀▶▲▼ Extend buttons add to a dungeon / cave">Extend as</label>
@@ -397,6 +397,18 @@
         <select id="bDgEnd" style="display:none" title="What waits at the end of the dead-end passage">
           <option value="none">…that just ends</option><option value="stairs">⬇ ending in stairs down</option><option value="well">🪣 ending in a well</option>
           <option value="pit">🕳 ending in a pit / sinkhole</option><option value="treasure">💰 ending in a treasure nook</option></select>
+      </div>
+      <div class="row wrap" id="bKeyRow" data-exp="battlemaps" style="display:none;align-items:center;margin:0 0 4px">
+        <label class="fld" style="margin:0" title="Numbered rooms / caverns / buildings + a printable key for the game master">🔢 Room key</label>
+        <label class="row" style="gap:4px;cursor:pointer" title="Show the numbers on the map (screen only)"><input type="checkbox" id="bKeyShow" checked> <span class="mini">numbers</span></label>
+        <label class="row" style="gap:4px;cursor:pointer" title="Also print the numbers on the exported VTT image — a GM copy (players shouldn't see it)"><input type="checkbox" id="bKeyImg"> <span class="mini">on VTT image</span></label>
+        <button class="btn" id="bKeyPrint" title="A printable page for the game master: the map with numbers + a description of every room, every level / floor">📜 GM key</button>
+      </div>
+      <div class="row wrap" id="bEditRow" data-exp="battlemaps" style="display:none;align-items:center;margin:0 0 4px;gap:6px">
+        <label class="fld" style="margin:0" title="Hand-edit the generated dungeon / cave / buildings">✏ Edit</label>
+        <div class="seg" id="bEditSeg"><button data-edit="door" title="Click a door to cycle closed → locked → secret → archway; click a doorway without a door to add one">🚪 Doors</button><button data-edit="furn" title="Drag furniture to move it · click to select, R rotates, Delete removes · pick an item to add, then click the floor">🪑 Furniture</button><button data-edit="dig" title="Click / drag to dig out floor">⛏ Dig</button><button data-edit="fill" title="Click / drag to fill squares with solid rock">🧱 Fill</button></div>
+        <select id="bEditAdd" style="display:none" title="Furniture to add — pick one, then click the floor"><option value="">➕ add…</option></select>
+        <button class="btn sec" id="bEditRot" style="display:none" title="Rotate the selected piece (R)">⟳</button><button class="btn sec" id="bEditDel" style="display:none" title="Delete the selected piece (Delete)">🗑</button>
       </div>
       <div class="mini" data-exp-lock="battlemaps" style="margin:2px 0 6px;padding:6px 9px;border:1px dashed #3a4a63;border-radius:8px;color:#9fb4d4;background:rgba(91,140,255,.06)">🔒 <b>🗺 Export for virtual tabletops</b> (map + grid + walls + doors, .dd2vtt) is part of the <b>Battle Maps Pack</b> — unlock it in <b>GLB&nbsp;Studio → ✨ Upgrades</b> (<a href="https://www.patreon.com/KsolDesigns" target="_blank" rel="noopener" style="color:var(--acc,#5b8cff)">Patreon</a>).</div>
       <div class="mini" data-exp="battlemaps" style="margin:0 0 4px;color:var(--mut)">Universal VTT (.dd2vtt) imports into virtual tabletops that read that format (e.g. via a Universal Battlemap importer). Other product names are trademarks of their respective owners; KSOL Designs is not affiliated with them.</div>
@@ -425,6 +437,11 @@
           <optgroup label="⚔ Dungeons (5-ft battle maps)" data-exp="battlemaps">
           <option value="dungeon" data-exp="battlemaps">🗝 Dungeon — rooms, corridors, doors, torches</option>
           <option value="cave" data-exp="battlemaps">🪨 Cave — caverns, pools, crystals, a camp</option>
+          <option value="mine" data-exp="battlemaps">⛏ Mine — hewn drifts, rails, carts, ore, lanterns</option>
+          <option value="sewer" data-exp="battlemaps">🕳 Sewer — water channels, cisterns, iron grates</option>
+          <option value="temple" data-exp="battlemaps">🏛 Temple — a symmetric nave, chapels, ossuary</option>
+          <option value="icecave" data-exp="battlemaps">🧊 Ice cave — frozen pools, ice spikes, crystals</option>
+          <option value="lavacave" data-exp="battlemaps">🌋 Lava cave — glowing lava lakes, vents, obsidian</option>
           </optgroup>
           <option value="__dungeonlock" data-exp-lock="battlemaps" disabled>🔒 Battle Maps Pack — Dungeons · Caves</option>
           <optgroup label="Settlement (whole map)">
@@ -1109,7 +1126,7 @@ import * as Tuck from './tuckbox-designer.js';
 
 const BGC = window.BGC, GAMES = window.BGC_GAMES;
 const TE = window.TileEngine, TLIB = window.TileLibrary;
-const APP_VERSION = 'v1.22';
+const APP_VERSION = 'v1.25';
 const CREDITS = `<b>Ksol Designs</b> — Paul A.T. Ramey<br>www.ksoldesigns.com<br>Built with GLB Studio · Tabletop<br><span class="ver">${APP_VERSION}</span>`;
 // ---- Board credit: a small "KSOL Designs" mark on the board for the FREE build. Owning ANY content pack
 // (TTier expansion) unlocks removing it (⚙ Settings toggle, or click the credit). ----
@@ -2051,8 +2068,9 @@ renderer.domElement.addEventListener('pointerdown', (ev)=>{
   if (BUILD){ if(ev.button!==0) return;
     if(typeof bClosePropMenu==='function') bClosePropMenu();   // a fresh click on the board dismisses the prop edit menu
     if(PLAYB){ bPlayClick(ev); return; }
+    if(bld.edit && bEditDown(ev)) return;                              // ✏ edit mode: furniture drag / dig-fill strokes
     // With NO click-tool active, clicking a placed prop ARMS a live drag-to-move (needs pointerdown + pointermove).
-    const clickTool = bld.tool||bld.propKind||bld.propGlb||bld.subPaintOn||bld.repaintOn||bld.imgToolOn||bld.subTool||bld.sel;
+    const clickTool = bld.edit||bld.tool||bld.propKind||bld.propGlb||bld.subPaintOn||bld.repaintOn||bld.imgToolOn||bld.subTool||bld.sel;
     const placing = !!(bld.propKind||bld.propGlb) && !bld.tool;
     if(!clickTool || placing){ const pi=bPickProp(ev);          // click a placed prop to select it; drag to MOVE it (Delete removes)
       if(pi>=0){
@@ -2090,6 +2108,7 @@ renderer.domElement.addEventListener('pointerdown', (ev)=>{
 // DRAG a placed prop to reposition it (build mode). Moves just that prop's mesh live; full re-render on release.
 renderer.domElement.addEventListener('pointermove',(ev)=>{
   if(bld._down && !bld._down.moved && Math.hypot(ev.clientX-bld._down.x, ev.clientY-bld._down.y)>6) bld._down.moved=true;   // moved enough → it's a drag, not a click
+  if(BUILD && bEditMove(ev)) return;
   if(!BUILD || bld.dragProp==null) return;
   const pr=bld.props[bld.dragProp]; if(!pr){ bld.dragProp=null; return; } const p=bPickPoint(ev); if(!p) return;
   if(!bld._dragMoved){ bPushUndo(); bld._dragMoved=true; }               // snapshot pre-move state once, only if actually dragged
@@ -2102,12 +2121,13 @@ function bEndPropDrag(ev){ if(bld.dragProp==null) return; const pr=bld.props[bld
   if(moved && pr && pr.kind==='mini'){ const c=bNearestCell(pr.x,pr.z); if(c){ const w=bGridObj().world(c); pr.x=w.x; pr.z=w.z; } }   // a moved mini re-snaps to the nearest cell centre
   bRender(); if(moved&&pr) bStatus(`Moved the <b>${propLabel(pr)}</b> · drag to reposition · <b>Delete</b> removes · Scale slider resizes`);
   const mo=bld._menuOnUp; bld._menuOnUp=null; const i=bld.props.indexOf(pr); if(mo && !moved && i>=0) bOpenPropMenu(i, mo.x, mo.y); }
-renderer.domElement.addEventListener('pointerup',(ev)=>{ bEndPropDrag(ev);
+renderer.domElement.addEventListener('pointerup',(ev)=>{ if(BUILD && bEditUp(ev)) return; bEndPropDrag(ev);
   if(bld._down){ const d=bld._down; bld._down=null; if(!d.moved && BUILD && !PLAYB && ev.button===0) bBuildClick(ev); } });
 renderer.domElement.addEventListener('pointercancel',(ev)=>{ bEndPropDrag(ev); bld._down=null; });
 // The deferred build-click dispatcher: runs on pointerup ONLY for a genuine click (no drag). This is the body that
 // used to run inline on pointerdown — moved here so dragging to orbit never triggers placement.
 function bBuildClick(ev){
+  if(bld.edit){ bEditClick(ev); return; }
   if(bld.tool==='mini'){ bPlaceMini(ev); return; }
   if(bld.tool==='measure'){ bMeasureClick(ev); return; }
   if(bld.subPaintOn){ bSubPaintAt(ev); return; }
@@ -3555,6 +3575,7 @@ function bSnapshot(){ return {
   settlePlan:bClonePlan(_settlePlan), structPlans:(bld.structPlans||[]).slice(), modern:bld.modern?{...bld.modern}:null,
   sheetsX:bld.sheetsX, sheetsY:bld.sheetsY, sheetCX:bld.sheetCX, sheetCZ:bld.sheetCZ, tgcCenters:(bld.tgcCenters||[]).map(c=>({...c})), selUnit:bld.selUnit,
   dungeon:bld.dungeon||null, dungeonLevels:(bld.dungeonLevels||[]).slice(), dungeonLevel:bld.dungeonLevel||0,   // levels are immutable once generated → shared by reference
+  structEdits:JSON.parse(JSON.stringify(bld.structEdits||{})),   // ✏ hand edits to battle buildings (doors / furniture)
   baseMap:bld.baseMap };   // by reference — its texture is immutable, kept alive by the snapshot
 }
 function bClonePlan(P){ return P ? {...P, outer:new Map(P.outer||[]), outerDraw:(P.outerDraw||[]).slice(), outerProps:(P.outerProps||[]).slice()} : null; }
@@ -3591,7 +3612,7 @@ function bUndo(){ if(!_undo.length){ bStatus('Nothing to undo'); return; } const
   bld.props=JSON.parse(JSON.stringify(s.props));
   bld.subdiv=new Map([...s.subdiv].map(([k,v])=>[k,{...v}]));
   bld.subpaint=new Map([...(s.subpaint||new Map())].map(([k,v])=>[k,{...v}]));
-  bld.baseMap=s.baseMap; bld.selStroke=null; bld.selProp=null; bld.pen=[]; bRestoreDungeon(s); bld.structKey='';
+  bld.baseMap=s.baseMap; bld.selStroke=null; bld.selProp=null; bld.pen=[]; bRestoreDungeon(s); bld.structKey=''; bld.structEdits=JSON.parse(JSON.stringify(s.structEdits||{})); bld.editSel=null;
   bRestorePlans(s);
   bSyncBuilderUI(); bRender(); bFit();
   bStatus(`Undo — ${_undo.length} step${_undo.length===1?'':'s'} of history left`);
@@ -3678,7 +3699,7 @@ function bRender(){
   bPlaceNorthArrow();                                              // compass at the NW corner so orientation is clear at a glance
   bRenderDraw();                                                   // freeform drawn roads/streams/walls + connector dots
   bRenderDungeon();                                                // ⚔ dungeon / cave layer (rock, floors, doors, dressing)
-  bRenderStructures(); bDgUI();                                     // + the dungeon level bar / building floor picker                                             // BATTLE scale: explorable settlement buildings (roof-poppable)
+  bRenderStructures(); bDgUI(); bRenderKeyNums();                                   // + the dungeon level bar / building floor picker                                             // BATTLE scale: explorable settlement buildings (roof-poppable)
   bBattleProps();                                                  // BATTLE scale: trees/boulders spanning squares (after buildings → kept off their roofs)
   bRenderProps();                                                  // placed trees/houses/castles (3D or 2D) + minis
   bRenderSubdiv();                                                  // finer-grid overlays on subdivided cells
@@ -3838,10 +3859,16 @@ function bBuildStructures(){
     bld.structures.push({ cells:lot, x0:R.x0, x1:R.x1, z0:R.z0, z1:R.z1, rooms, inner, door, type, floorMat, wallTh:S.wallTh||0.15,
       biome, floors, roofOn:true, activeFloor:0, modern:spec || (S.wall ? {wall:S.wall, roof:S.roof} : null) });
   }
+  // 🏢 v1.25 modern interiors: ~⅓ of office towers are RESEARCH LABS; a town of 5+ modern buildings gets one POLICE STATION (the best-sized block nearest the middle)
+  const mods=bld.structures.filter(st=>st.modern && st.type!=='keep');
+  for(const st of mods) if(st.type==='towers' && bStructHash(st.cells[0],91)<0.34) st.use='lab';
+  if(mods.length>=5){ let mx=0, mz=0; for(const st of bld.structures){ mx+=(st.x0+st.x1)/2; mz+=(st.z0+st.z1)/2; } mx/=bld.structures.length; mz/=bld.structures.length;
+    const cand=mods.filter(st=>!st.use && st.rooms.length>=3 && /^(towers|shops|school|station|apartments|hotel)$/.test(st.type)).sort((a,b)=>Math.hypot((a.x0+a.x1)/2-mx,(a.z0+a.z1)/2-mz)-Math.hypot((b.x0+b.x1)/2-mx,(b.z0+b.z1)/2-mz));
+    if(cand[0]) cand[0].use='police'; }
 }
 // ONE source of truth for a building's walls + doorways on storey `f` (board-world coords, wall CENTRE-lines).
 // walls: [x1,z1,x2,z2]  doors: [x1,z1,x2,z2] (the doorway opening; the front door only on the ground floor)
-function bStructLayout(st, f){ f=f||0; const CS=bCellSize(), th=(st.wallTh||0.15)*CS, i=th/2, gh=0.36*CS;
+function bStructLayout(st, f, raw){ f=f||0; const CS=bCellSize(), th=(st.wallTh||0.15)*CS, i=th/2, gh=0.36*CS;
   const X0=st.x0+i, X1=st.x1-i, Z0=st.z0+i, Z1=st.z1-i, walls=[], doors=[];
   const seg=(ax,az,bx,bz,at)=>{ const alongX=Math.abs(bz-az)<1e-9;         // horizontal (runs along x) vs vertical
     if(at==null){ walls.push([ax,az,bx,bz]); return; }
@@ -3853,7 +3880,13 @@ function bStructLayout(st, f){ f=f||0; const CS=bCellSize(), th=(st.wallTh||0.15
   seg(X0,Z0,X1,Z0,D(0)); seg(X1,Z0,X1,Z1,D(1)); seg(X0,Z1,X1,Z1,D(2)); seg(X0,Z0,X0,Z1,D(3));
   for(const w of (st.inner||[])){ const cl=(v,a,b)=>Math.min(Math.max(v,a),b);
     seg(cl(w.a[0],X0,X1), cl(w.a[1],Z0,Z1), cl(w.b[0],X0,X1), cl(w.b[1],Z0,Z1), w.door); }
-  return {walls, doors}; }
+  // ✏ edited door states (v1.24): 'open' = empty doorway (no leaf, no VTT door) · 'secret' = wall (VTT wall) · 'locked' = door + lock
+  const E=raw?null:bStructEdit(st), secret=[], locked=[]; if(E && E.doors){ const kept=[]; for(const d of doors){ const s2=E.doors[bDoorKey(f,d)];
+      if(s2==='secret'){ walls.push(d.slice()); secret.push(d); } else if(s2==='open'){ /* gap */ } else { if(s2==='locked') locked.push(d); kept.push(d); } } doors.length=0; doors.push(...kept); }
+  return {walls, doors, secret, locked}; }
+// ✏ per-building edits live in bld.structEdits (saved with the board, part of Undo), keyed by map seed + the building's first cell
+function bStructEdit(st, make){ const E=bld.structEdits||(bld.structEdits={}), k=bld.seed+'|'+st.cells[0]; if(!E[k] && make) E[k]={}; return E[k]||null; }
+const bDoorKey=(f,d)=>f+':'+((d[0]+d[2])/2).toFixed(2)+','+((d[1]+d[3])/2).toFixed(2);
 /* floor materials — one canvas tile per SQUARE, repeated across the floor (grid-aligned, reads at 5-ft scale) */
 const _floorTex={};
 function bFloorTex(kind){ if(_floorTex[kind]) return _floorTex[kind]; const S=128, cv=document.createElement('canvas'); cv.width=cv.height=S; const x=cv.getContext('2d');
@@ -3874,9 +3907,40 @@ function bFloorTex(kind){ if(_floorTex[kind]) return _floorTex[kind]; const S=12
   return (_floorTex[kind]=t); }
 // deterministic furniture per room (board-world coords): [{kind, x,z, w,d}] — never against a wall that has a doorway
 // furniture for storey f (0 = ground). Upper floors get their OWN rooms' contents; the stairs sit on the same square on every floor.
-function bStructFurniture(st, f){ f=f||0; st._furn=st._furn&&!Array.isArray(st._furn)?st._furn:{}; if(st._furn[f]) return st._furn[f];
+// 🏢 which room is what, per floor, for offices / labs / the police station (null = the old per-type furniture)
+function bModernPlan(st, f){ const n=st.rooms.length, idx=[...Array(n).keys()], area=(i)=>(st.rooms[i].x1-st.rooms[i].x0)*(st.rooms[i].z1-st.rooms[i].z0);
+  const fill=(first, list, rest)=>{ const P=Array(n).fill(rest); let k=0; const order=idx.filter(i=>i!==0).sort((a,b)=>area(b)-area(a)); P[0]=first; for(const i of order){ if(k<list.length) P[i]=list[k++]; } return P; };
+  if(st.use==='police') return f===0 ? fill('Front desk', ['Bullpen','Holding cells','Interrogation room','Evidence room','Armory'], 'Records') : f===1 ? fill("Chief's office", ['Offices','Locker room','Records'], 'Offices') : fill('Offices', ['Meeting room','Records'], 'Offices');
+  if(st.use==='lab') return f===0 ? fill('Reception', ['Laboratory','Specimen room','Server room'], 'Office') : f%2 ? fill('Laboratory', ['Specimen room','Server room','Office'], 'Office') : fill('Laboratory', ['Office','Meeting room'], 'Office');
+  if(st.type==='towers') return f===0 ? fill('Lobby', ['Open-plan office','Mail room'], 'Office') : fill('Open-plan office', ['Meeting room','Kitchenette'], 'Open-plan office');
+  return null; }
+function bModernRoom(name, rm, free, T){ const {against, inRoom, scatter, put, out, CS, rw, rd, big}=T, cx=(rm.x0+rm.x1)/2, cz=(rm.z0+rm.z1)/2, W=(sd)=>free.length?against(rm, free.shift(), ...sd):false;
+  const plant=()=>{ for(const [fx,fz] of [[0.18,0.18],[0.82,0.82],[0.82,0.18],[0.18,0.82]]){ if(put({kind:'plant', x:rm.x0+rw*fx, z:rm.z0+rd*fz, w:0.4*CS, d:0.4*CS})) return; } };
+  const desks=(step)=>{ for(let x=rm.x0+0.75*CS; x<rm.x1-0.55*CS; x+=step*CS) for(let z=rm.z0+0.8*CS; z<rm.z1-0.6*CS; z+=step*CS) put({kind:'officedesk', x, z, w:0.7*CS, d:0.45*CS}); };
+  switch(name){
+    case 'Lobby': case 'Reception': case 'Front desk': W([Math.min(1.8*CS, Math.max(rw,rd)*0.6), 0.45*CS, 'counter']); W([1.4*CS, 0.6*CS, name==='Front desk'?'bench':'sofa']); plant(); plant(); break;
+    case 'Open-plan office': case 'Offices': case 'Office': case 'Bullpen': desks(1.3); plant(); break;
+    case 'Meeting room': case 'Interrogation room': { const mt=name==='Meeting room', Lc=mt?Math.max(1.0*CS, Math.min(2.4*CS, Math.max(rw,rd)-1.4*CS)):1.0*CS, Sc=mt?0.9*CS:0.7*CS; inRoom(rm,'conftable', rw>=rd?Lc:Sc, rw>=rd?Sc:Lc); if(mt) plant(); break; }
+    case 'Kitchenette': W([1.4*CS, 0.45*CS, 'counter']); W([0.6*CS, 0.5*CS, 'fridge']); plant(); break;
+    case 'Mail room': case 'Records': W([1.3*CS, 0.35*CS, 'shelf']); W([1.3*CS, 0.35*CS, 'shelf']); scatter(rm,'crate',1,0.6*CS,0.6*CS); break;
+    case 'Holding cells': { const sd=free.length?free.shift():0, L=(sd===0||sd===2)?rw:rd, it=(sd===0||sd===2)?{kind:'cellbars', x:cx, z:sd===0?rm.z0+0.9*CS:rm.z1-0.9*CS, w:L-0.1*CS, d:0.08*CS, face:sd}:{kind:'cellbars', x:sd===3?rm.x0+0.9*CS:rm.x1-0.9*CS, z:cz, w:0.08*CS, d:L-0.1*CS, face:sd};
+      out.push(it); const bx=(sd===0||sd===2)?cx:(sd===3?rm.x0+0.3*CS:rm.x1-0.3*CS), bz=(sd===0||sd===2)?(sd===0?rm.z0+0.3*CS:rm.z1-0.3*CS):cz; out.push({kind:'bench', x:bx, z:bz, w:(sd===0||sd===2)?1.2*CS:0.35*CS, d:(sd===0||sd===2)?0.35*CS:1.2*CS}); W([1*CS,0.45*CS,'desk']); break; }
+    case 'Evidence room': W([1.3*CS,0.35*CS,'shelf']); W([1.3*CS,0.35*CS,'shelf']); scatter(rm,'crate',2,0.55*CS,0.55*CS); break;
+    case 'Armory': W([1.2*CS,0.35*CS,'weaponrack']); W([1.2*CS,0.4*CS,'lockers']); scatter(rm,'crate',1,0.6*CS,0.6*CS); break;
+    case "Chief's office": inRoom(rm,'officedesk',0.9*CS,0.5*CS); W([1.3*CS,0.35*CS,'bookshelf']); plant(); break;
+    case 'Locker room': W([1.4*CS,0.4*CS,'lockers']); W([1.4*CS,0.4*CS,'lockers']); inRoom(rm,'bench',1.2*CS,0.35*CS); break;
+    case 'Laboratory': W([Math.min(2*CS, Math.max(rw,rd)-0.6*CS),0.6*CS,'labbench']); W([Math.min(2*CS, Math.max(rw,rd)-0.6*CS),0.6*CS,'labbench']); W([0.9*CS,0.6*CS,'fumehood']); inRoom(rm,'labbench',1.2*CS,0.6*CS); break;
+    case 'Specimen room': for(const [fx,fz] of [[0.3,0.3],[0.7,0.3],[0.3,0.7],[0.7,0.7]]) put({kind:'tank', x:rm.x0+rw*fx, z:rm.z0+rd*fz, w:0.55*CS, d:0.55*CS}); W([1.2*CS,0.6*CS,'labbench']); break;
+    case 'Server room': W([1.4*CS,0.5*CS,'serverrack']); W([1.4*CS,0.5*CS,'serverrack']); W([1.4*CS,0.5*CS,'serverrack']); inRoom(rm,'officedesk',0.7*CS,0.45*CS); break;
+    default: desks(1.3); }
+}
+function bStructFurniture(st, f){ f=f||0; const base=bStructFurnitureBase(st,f), E=bStructEdit(st), fe=E&&E.furn&&E.furn[f];
+  if(!fe) return base.map((it,i)=>({...it,_i:i}));
+  const out=[]; base.forEach((it,i)=>{ if(fe.del && fe.del.includes(i)) return; out.push({...it, ...((fe.mv&&fe.mv[i])||{}), _i:i}); });
+  (fe.add||[]).forEach((it,k)=>out.push({...it, _i:'a'+k})); return out; }
+function bStructFurnitureBase(st, f){ f=f||0; st._furn=st._furn&&!Array.isArray(st._furn)?st._furn:{}; if(st._furn[f]) return st._furn[f];
   if(f>0) return (st._furn[f]=bStructUpperFurniture(st,f));
-  const CS=bCellSize(), out=[]; const L=bStructLayout(st,0);
+  const CS=bCellSize(), out=[]; const L=bStructLayout(st,0,true);
   const dmid=L.doors.map(d=>[(d[0]+d[2])/2,(d[1]+d[3])/2]), tol=0.2*CS;
   const hasDoor=(rm,side)=>dmid.some(([x,z])=> side===0? Math.abs(z-rm.z0)<tol && x>rm.x0-0.1 && x<rm.x1+0.1 : side===2? Math.abs(z-rm.z1)<tol && x>rm.x0-0.1 && x<rm.x1+0.1
                                             : side===1? Math.abs(x-rm.x1)<tol && z>rm.z0-0.1 && z<rm.z1+0.1 : Math.abs(x-rm.x0)<tol && z>rm.z0-0.1 && z<rm.z1+0.1);
@@ -3894,10 +3958,11 @@ function bStructFurniture(st, f){ f=f||0; st._furn=st._furn&&!Array.isArray(st._
       const x=rm.x0+(rm.x1-rm.x0)*fx, z=rm.z0+(rm.z1-rm.z0)*fz; if(x-w/2<rm.x0+m||x+w/2>rm.x1-m||z-d/2<rm.z0+m||z+d/2>rm.z1-m) continue;
       if(put({kind,x,z,w,d,pad:kind==='table'?0.28*CS:0})) return {x,z}; } return null; };
   const scatter=(rm,kind,n,w,d)=>{ for(let i=0;i<n;i++){ const x=rm.x0+0.4*CS+(rm.x1-rm.x0-0.8*CS)*hh(s++), z=rm.z0+0.4*CS+(rm.z1-rm.z0-0.8*CS)*hh(s++); put({kind,x,z,w,d}); } };
-  const t=st.type;
+  const t=st.type, RN=[]; (st._rn||(st._rn={}))[0]=RN; const plan=bModernPlan(st,0);
   st.rooms.forEach((rm,ri)=>{ const free=[0,1,2,3].filter(sd=>!hasDoor(rm,sd)).sort((a,b)=>hh(s+a)-hh(s+b)); s+=4; const cx=(rm.x0+rm.x1)/2, cz=(rm.z0+rm.z1)/2;
     const rw=rm.x1-rm.x0, rd=rm.z1-rm.z0, big=Math.min(rw,rd)>=2.5*CS;
     if(ri===0 && st.floors>1 && free.length) against(rm, free.shift(), 1.7*CS, 0.8*CS, 'stairs');
+    if(plan){ RN[ri]=plan[ri]; bModernRoom(plan[ri], rm, free, {against, inRoom, scatter, put, out, CS, rw, rd, big}); return; }
     if(t==='church'){ const rows=[]; for(let z=rm.z0+1.0*CS; z<rm.z1-1.6*CS; z+=0.9*CS) rows.push(z);
       for(const z of rows){ out.push({kind:'pew',x:cx-rw*0.24,z,w:rw*0.3,d:0.3*CS}); out.push({kind:'pew',x:cx+rw*0.24,z,w:rw*0.3,d:0.3*CS}); }
       const az=(st.door.side===2?rm.z0+0.7*CS:rm.z1-0.7*CS); out.push({kind:'altar',x:cx,z:az,w:1.2*CS,d:0.5*CS});
@@ -3920,7 +3985,7 @@ function bStructFurniture(st, f){ f=f||0; st._furn=st._furn&&!Array.isArray(st._
     if(!bedroom && oldWorld && hh(s++)<0.6){ const c=[[rm.x0+0.35*CS,rm.z0+0.35*CS],[rm.x1-0.35*CS,rm.z0+0.35*CS],[rm.x0+0.35*CS,rm.z1-0.35*CS],[rm.x1-0.35*CS,rm.z1-0.35*CS]][Math.floor(hh(s++)*4)]; put({kind:'barrel',x:c[0],z:c[1],w:0.4*CS,d:0.4*CS}); }
   });
   return (st._furn[0]=out); }
-function bStructUpperFurniture(st, f){ const CS=bCellSize(), out=[], L=bStructLayout(st,f), top=f===(st.floors||1)-1;
+function bStructUpperFurniture(st, f){ const CS=bCellSize(), out=[], L=bStructLayout(st,f,true), top=f===(st.floors||1)-1;
   const dmid=L.doors.map(d=>[(d[0]+d[2])/2,(d[1]+d[3])/2]), tol=0.2*CS;
   const hasDoor=(rm,side)=>dmid.some(([x,z])=> side===0? Math.abs(z-rm.z0)<tol && x>rm.x0-0.1 && x<rm.x1+0.1 : side===2? Math.abs(z-rm.z1)<tol && x>rm.x0-0.1 && x<rm.x1+0.1
                                             : side===1? Math.abs(x-rm.x1)<tol && z>rm.z0-0.1 && z<rm.z1+0.1 : Math.abs(x-rm.x0)<tol && z>rm.z0-0.1 && z<rm.z1+0.1);
@@ -3937,10 +4002,12 @@ function bStructUpperFurniture(st, f){ const CS=bCellSize(), out=[], L=bStructLa
       if(put({kind,x,z,w,d,pad:kind==='table'?0.28*CS:0})) return {x,z}; } return null; };
   const scatter=(rm,kind,n,w,d)=>{ for(let i=0;i<n;i++){ put({kind,x:rm.x0+0.4*CS+(rm.x1-rm.x0-0.8*CS)*hh(s++),z:rm.z0+0.4*CS+(rm.z1-rm.z0-0.8*CS)*hh(s++),w,d}); } };
   // the stairwell: same square as the ground floor's stairs (up AND down on middle floors, arriving on the top one)
-  const gs=bStructFurniture(st,0).find(i=>i.kind==='stairs'); if(gs) out.push({...gs, link: top?'down':'both'});
+  const gs=bStructFurnitureBase(st,0).find(i=>i.kind==='stairs'); if(gs) out.push({...gs, link: top?'down':'both'});
   const t=st.type, bedroomish = t==='city'||t==='village'||t==='homes'||t==='apartments'||t==='hotel'||t==='farmstead'||t==='keep'&&top;
+  const RN=[]; (st._rn||(st._rn={}))[f]=RN; const plan=bModernPlan(st,f);
   st.rooms.forEach((rm,ri)=>{ const free=[0,1,2,3].filter(sd=>!hasDoor(rm,sd)).sort((a,b)=>hh(s+a)-hh(s+b)); s+=4;
     const rw=rm.x1-rm.x0, rd=rm.z1-rm.z0, big=Math.min(rw,rd)>=2.5*CS;
+    if(plan){ const ss=out.find(i=>i.kind==='stairs'); if(ss && ss.x>rm.x0&&ss.x<rm.x1&&ss.z>rm.z0&&ss.z<rm.z1 && free.length>1) free.shift(); RN[ri]=plan[ri]; bModernRoom(plan[ri], rm, free, {against, inRoom, scatter, put, out, CS, rw, rd, big}); return; }
     if(t==='keep' && !top){ for(let i=0;i<3 && free.length;i++) against(rm, free[i%free.length], 0.8*CS, 1.5*CS, 'bed');   // keep, middle floors: barracks
       if(free.length) against(rm, free[free.length-1], 1.2*CS, 0.35*CS, 'weaponrack'); scatter(rm,'chest',1,0.9*CS,0.6*CS); if(free.length) against(rm, free[0], 0.2*CS, 0.2*CS, 'torch'); return; }
     if(t==='keep'){ const tb=inRoom(rm,'desk',1.0*CS,0.6*CS); if(tb) out.push({kind:'rug',x:tb.x,z:tb.z,w:2.0*CS,d:1.6*CS,flat:1});   // keep, top floor: the lord's quarters
@@ -3962,7 +4029,7 @@ function bStructUpperFurniture(st, f){ const CS=bCellSize(), out=[], L=bStructLa
 /* ---- FEATURE LIBRARY: one mesh builder for every piece of furniture / dungeon dressing (houses, keeps, dungeons, caves).
    it = {kind, x,z (board-world centre), w (x-extent), d (z-extent), face? (wall it backs onto: 0=-z 1=+x 2=+z 3=-x)}.
    Items that give light carry FEATURE_LIGHT → a warm glow in the picture + a light source in the 🗺 VTT export. ---- */
-const FEATURE_LIGHT={ fireplace:{range:5,color:'ffcc8855'}, torch:{range:4,color:'ffffb060'}, brazier:{range:6,color:'ffffa040'}, campfire:{range:6,color:'ffffa040'},
+const FEATURE_LIGHT={ lantern:{range:4,color:'ffffd89a'}, lavalight:{range:7,color:'ffff5a1a'}, fireplace:{range:5,color:'ffcc8855'}, torch:{range:4,color:'ffffb060'}, brazier:{range:6,color:'ffffa040'}, campfire:{range:6,color:'ffffa040'},
   candles:{range:2,color:'ffffe0a0'}, crystals:{range:3,color:'ff88ddff'}, mushrooms:{range:2,color:'ff99ff99'} };
 const _fx={};   // cached materials / textures
 const fxMat=(key,make)=>_fx[key]||(_fx[key]=make());
@@ -4041,6 +4108,51 @@ function bFeatureMesh(it){ const CS=bCellSize(), g=new THREE.Group(), k=it.kind,
     for(let i=0;i<9;i++){ const a=i*0.7, s2=(0.07+((i*13)%5)/60)*CS; const rk=new THREE.Mesh(new THREE.DodecahedronGeometry(s2,0), fxStd(0x6d675e,1)); rk.position.set(Math.cos(a)*S*0.52,s2*0.5,Math.sin(a)*S*0.52); rk.rotation.set(i,i*2,i); rk.castShadow=true; g.add(rk); } }
   else if(k==='splash'){ const pool=new THREE.Mesh(new THREE.CircleGeometry(S*0.45,20), fxMat('splashM',()=>new THREE.MeshStandardMaterial({color:0x2c5f7a,roughness:0.15,metalness:0.2,transparent:true,opacity:0.9})));   // where a well-drop lands: a shallow pool + a few stones
     pool.rotation.x=-Math.PI/2; pool.position.y=0.01; g.add(pool); for(let i=0;i<5;i++){ const a=i*1.3+0.4, s2=0.07*CS; const rk=new THREE.Mesh(new THREE.DodecahedronGeometry(s2,0), fxStd(0x7d786f,1)); rk.position.set(Math.cos(a)*S*0.5,s2*0.4,Math.sin(a)*S*0.5); g.add(rk); } }
+  else if(k==='plant'){ cyl(S*0.3,S*0.24,0.3*CS,fxStd(0xb86b3c,0.8),0,0.15*CS,0,10); const lf=fxStd(0x3f7a3a,0.9); for(let i=0;i<5;i++){ const a=i*1.26, b=new THREE.Mesh(new THREE.SphereGeometry(S*(0.28-i*0.02),8,6), lf); b.position.set(Math.cos(a)*S*0.12*(i?1:0),0.4*CS+i*0.06*CS,Math.sin(a)*S*0.12*(i?1:0)); b.castShadow=true; g.add(b); } }
+  else if(k==='sofa'){ const sm=fxStd(0x4d5d74,0.9), H=0.22*CS; box(w,H,d,sm,0,H/2); const [ox,oz]=AX(0,back*S*0.38); box(long?S*0.25:w,0.42*CS,long?d:S*0.25,sm,ox,0.21*CS,oz); for(const sd of [-1,1]){ const [px,pz]=AX(sd*(L/2-0.06*CS),0); box(long?S:0.12*CS,0.32*CS,long?0.12*CS:S,sm,px,0.16*CS,pz); } }
+  else if(k==='bench'){ box(w,0.05*CS,d,fxStd(0x7a7c80,0.5,0.4),0,0.24*CS); for(const sd of [-1,1]){ const [px,pz]=AX(sd*(L/2-0.1*CS),0); box(long?S*0.8:0.05*CS,0.24*CS,long?0.05*CS:S*0.8,iron,px,0.12*CS,pz); } }
+  else if(k==='officedesk'){ const H=0.3*CS; box(w,0.04*CS,d,fxStd(0xd8d4cc,0.6),0,H); box(w*0.9,H,0.03*CS,fxStd(0x6d7178,0.6),0,H/2,-d*0.4); box(0.3*CS,0.2*CS,0.03*CS,fxStd(0x1e2228,0.4),0,H+0.12*CS,-d*0.25);
+    box(0.28*CS,0.16*CS,0.01*CS,fxMat('screenM',()=>new THREE.MeshStandardMaterial({color:0x5aa0d8,emissive:0x2a6aa0,emissiveIntensity:0.6})),0,H+0.13*CS,-d*0.23); cyl(0.1*CS,0.1*CS,0.2*CS,fxStd(0x2e3238,0.7),0,0.1*CS,d/2+0.16*CS,10); }
+  else if(k==='conftable'){ const H=0.3*CS; box(w,0.05*CS,d,fxStd(0x5a4030,0.5),0,H); cyl(0.08*CS,0.12*CS,H,iron,0,H/2,0,10); const nA=Math.max(1,Math.floor(L/(0.6*CS)));
+    for(let i=0;i<nA;i++){ const a=(i+0.5)/nA-0.5; for(const sd of [-1,1]){ const [px,pz]=AX(a*L*0.9, sd*(S/2+0.18*CS)); cyl(0.1*CS,0.1*CS,0.2*CS,fxStd(0x2e3238,0.7),px,0.1*CS,pz,10); } } }
+  else if(k==='fridge'){ box(w,0.8*CS,d,fxStd(0xe8eaec,0.4),0,0.4*CS); box(0.03*CS,0.3*CS,0.03*CS,iron,w*0.3,0.55*CS,0); }
+  else if(k==='lockers'){ const n2=Math.max(2,Math.round(L/(0.3*CS))); box(w,0.8*CS,d,fxStd(0x5d6f82,0.5,0.4),0,0.4*CS); for(let i=1;i<n2;i++){ const a=i/n2*L-L/2; box(long?w*1.02:0.015*CS,0.78*CS,long?0.015*CS:d*1.02,fxStd(0x3a4652,0.6),long?0:a,0.4*CS,long?a:0); } }
+  else if(k==='labbench'){ const H=0.36*CS; box(w,H,d,fxStd(0xdad8d2,0.5),0,H/2); box(w*1.01,0.03*CS,d*1.02,fxStd(0x2b2d31,0.3),0,H+0.015*CS); const gm=fxMat('glassM',()=>new THREE.MeshStandardMaterial({color:0x9fe0c8,emissive:0x2a8a6a,emissiveIntensity:0.5,transparent:true,opacity:0.8}));
+    for(let i=0;i<4;i++){ const a=(i+0.5)/4-0.5, [px,pz]=AX(a*L*0.8,0); cyl(0.04*CS,0.05*CS,(0.1+(i%2)*0.08)*CS,gm,px,H+(0.05+(i%2)*0.04)*CS,pz,8); } }
+  else if(k==='fumehood'){ box(w,0.45*CS,d,fxStd(0xdad8d2,0.5),0,0.225*CS); box(w,0.35*CS,d*0.9,fxMat('hoodGlass',()=>new THREE.MeshStandardMaterial({color:0xbfd9e0,transparent:true,opacity:0.45,roughness:0.05})),0,0.62*CS,0); box(w,0.12*CS,d,fxStd(0xc2c0ba,0.5),0,0.86*CS,0); }
+  else if(k==='tank'){ cyl(S*0.42,S*0.42,0.08*CS,iron,0,0.04*CS,0,14); cyl(S*0.38,S*0.38,0.7*CS,fxMat('tankM',()=>new THREE.MeshStandardMaterial({color:0x7dffb0,emissive:0x1f9a5a,emissiveIntensity:0.8,transparent:true,opacity:0.6})),0,0.43*CS,0,14); cyl(S*0.42,S*0.42,0.06*CS,iron,0,0.81*CS,0,14);
+    const sp=new THREE.Mesh(new THREE.SphereGeometry(S*0.14,8,6), fxStd(0x5a4a3a,0.9)); sp.position.y=0.45*CS; g.add(sp); }
+  else if(k==='serverrack'){ box(w,0.85*CS,d,fxStd(0x1f2226,0.5,0.3),0,0.425*CS); const lm=fxMat('ledM',()=>new THREE.MeshBasicMaterial({color:0x5aff7a})); for(let i=0;i<6;i++){ const [px,pz]=AX(((i%3)-1)*L*0.25, back?-back*(S/2+0.005*CS):S/2+0.005*CS); box(0.04*CS,0.02*CS,0.01*CS,lm,px,(0.25+Math.floor(i/3)*0.3)*CS,pz,false); } }
+  else if(k==='cellbars'){ const bm=fxStd(0x3a3a3e,0.5,0.6), n2=Math.max(3,Math.round(L/(0.14*CS))); for(let i=0;i<=n2;i++){ const a=i/n2*L-L/2, [px,pz]=AX(a,0); cyl(0.018*CS,0.018*CS,0.85*CS,bm,px,0.425*CS,pz,6); }
+    box(long?0.05*CS:L,0.05*CS,long?L:0.05*CS,bm,0,0.83*CS,0); box(long?0.05*CS:L,0.04*CS,long?L:0.05*CS,bm,0,0.03*CS,0); }
+  else if(k==='rail'){ const steel=fxStd(0x6d6f73,0.35,0.8), sl=fxStd(0x5a4028,0.9); const along=w>=d, Lr=along?w:d;   // ⛏ rails: two steel strips on wooden sleepers
+    for(let i=0;i<3;i++){ const t=(i+0.5)/3-0.5; box(along?0.08*CS:0.62*CS,0.025*CS,along?0.62*CS:0.08*CS,sl,along?t*Lr:0,0.0125*CS,along?0:t*Lr,false); }
+    for(const sd of [-1,1]) box(along?Lr:0.03*CS,0.03*CS,along?0.03*CS:Lr,steel,along?0:sd*0.2*CS,0.04*CS,along?sd*0.2*CS:0,false); }
+  else if(k==='timber'){ const tw=fxStd(0x6b4a2a,0.9), along=w>=d, Lr=Math.max(w,d);   // pit-prop frame across the drift: two posts + a cap beam
+    for(const sd of [-1,1]) box(0.1*CS,0.85*CS,0.1*CS,tw,along?sd*(Lr/2-0.06*CS):0,0.425*CS,along?0:sd*(Lr/2-0.06*CS));
+    box(along?Lr:0.12*CS,0.1*CS,along?0.12*CS:Lr,tw,0,0.87*CS,0); }
+  else if(k==='minecart'){ const along=w>=d, Lc=Math.max(w,d)*0.9, Wc=Math.min(w,d)*0.8, body=fxStd(0x5a4632,0.8), rim=fxStd(0x3a3a3e,0.5,0.6);
+    box(along?Lc:Wc,0.32*CS,along?Wc:Lc,body,0,0.3*CS,0); box(along?Lc*1.02:Wc*1.02,0.04*CS,along?Wc*1.02:Lc*1.02,rim,0,0.47*CS,0);
+    for(const a of [-1,1]) for(const b of [-1,1]){ const wh=new THREE.Mesh(new THREE.CylinderGeometry(0.1*CS,0.1*CS,0.05*CS,10), rim); wh.rotation[along?'x':'z']=Math.PI/2; wh.position.set(along?a*Lc*0.33:b*(Wc/2+0.03*CS),0.1*CS,along?b*(Wc/2+0.03*CS):a*Lc*0.33); g.add(wh); }
+    for(let i=0;i<5;i++){ const s2=(0.07+i%3*0.02)*CS, o=new THREE.Mesh(new THREE.DodecahedronGeometry(s2,0), fxStd(i%2?0x5c534a:0x8a6d3b,0.6,i%2?0:0.5)); o.position.set(((i*29)%7-3)/7*Lc*0.6,0.5*CS+s2*0.4,((i*17)%5-2)/5*Wc*0.5); g.add(o); } }
+  else if(k==='ore'){ for(let i=0;i<7;i++){ const s2=(0.07+((i*13)%5)/40)*CS, o=new THREE.Mesh(new THREE.DodecahedronGeometry(s2,0), i%3===0?fxStd(0xd4a53a,0.35,0.8):fxStd(0x4d4640,0.9)); o.position.set(((i*29)%9-4)/9*w*0.7,s2*0.6,((i*17)%9-4)/9*d*0.7); o.rotation.set(i,i*2,0); o.castShadow=true; g.add(o); } }
+  else if(k==='lantern'){ const [ox,oz]=AX(0,back*0.02*CS); box(0.02*CS,0.12*CS,0.02*CS,iron,ox,0.66*CS,oz); box(0.12*CS,0.16*CS,0.12*CS,fxMat('lanternM',()=>new THREE.MeshStandardMaterial({color:0xffd27a,emissive:0xffb040,emissiveIntensity:1.1})),ox,0.52*CS,oz); box(0.14*CS,0.03*CS,0.14*CS,iron,ox,0.61*CS,oz); }
+  else if(k==='toolrack'){ const H=0.55*CS; box(w,0.05*CS,d,dark,0,H); for(let i=0;i<4;i++){ const a=(i-1.5)/4*L; const p=new THREE.Mesh(new THREE.CylinderGeometry(0.015*CS,0.015*CS,0.6*CS,6), wood); p.position.set(long?0:a,0.3*CS,long?a:0); p.rotation[long?'x':'z']=0.25; g.add(p);
+      const hd=new THREE.Mesh(new THREE.BoxGeometry(long?0.03*CS:0.2*CS,0.04*CS,long?0.2*CS:0.03*CS), fxStd(0x7a7c80,0.4,0.7)); hd.position.set(long?0:a,0.58*CS,long?a:0); g.add(hd); } }
+  else if(k==='powder'){ const r2=S/2; cyl(r2*0.9,r2*0.9,r2*1.8,fxStd(0x6b4a2c,0.85),0,r2*0.9,0,12); cyl(r2*0.94,r2*0.94,0.04*CS,fxStd(0xb3261e,0.6),0,r2*1.1,0,12); cyl(r2*0.94,r2*0.94,0.03*CS,iron,0,r2*0.4,0,12); }
+  else if(k==='drain'){ const gm2=fxStd(0x2e2f33,0.5,0.6); box(w,0.02*CS,d,fxMat('holeM',()=>new THREE.MeshBasicMaterial({color:0x050404})),0,0.005*CS,0,false); for(let i=0;i<5;i++){ const t=(i+0.5)/5-0.5; box(w*0.95,0.025*CS,0.035*CS,gm2,0,0.02*CS,t*d*0.95,false); } }
+  else if(k==='pipe'){ const [ox,oz]=AX(0,back*0.18*CS); const pp=new THREE.Mesh(new THREE.CylinderGeometry(0.1*CS,0.1*CS,0.3*CS,12), fxStd(0x5a5f55,0.5,0.4)); pp.rotation[long?'z':'x']=Math.PI/2; pp.position.set(ox,0.35*CS,oz); pp.castShadow=true; g.add(pp);
+    const tr=new THREE.Mesh(new THREE.CircleGeometry(0.2*CS,14), fxMat('sewerM',()=>new THREE.MeshStandardMaterial({color:0x3f5a36,roughness:0.2,metalness:0.1,transparent:true,opacity:0.9}))); tr.rotation.x=-Math.PI/2; tr.position.set(0,0.008,0); g.add(tr); }
+  else if(k==='valve'){ box(w*0.6,0.4*CS,d*0.6,fxStd(0x4a4d52,0.5,0.6),0,0.2*CS); const wh=new THREE.Mesh(new THREE.TorusGeometry(0.28*CS,0.03*CS,6,18), fxStd(0xb3261e,0.5,0.4)); wh.position.set(0,0.55*CS,0); wh.rotation.x=Math.PI/2; g.add(wh);
+    cyl(0.03*CS,0.03*CS,0.2*CS,iron,0,0.45*CS,0,6); }
+  else if(k==='font'){ cyl(S*0.18,S*0.26,0.4*CS,stone,0,0.2*CS,0,12); cyl(S*0.44,S*0.3,0.14*CS,fxStd(0xbdb6a8,0.8),0,0.46*CS,0,16); cyl(S*0.38,S*0.38,0.01*CS,fxStd(0x6fb6d4,0.1,0.2),0,0.53*CS,0,16); }
+  else if(k==='icespike'){ const im=fxMat('iceSp',()=>new THREE.MeshStandardMaterial({color:0xcff0ff,emissive:0x3a7fa0,emissiveIntensity:0.25,roughness:0.1,transparent:true,opacity:0.85}));
+    for(let i=0;i<5;i++){ const h=(0.3+((i*37)%10)/18)*CS, a=i*1.26; const c=new THREE.Mesh(new THREE.ConeGeometry(0.08*CS,h,6), im); c.position.set(Math.cos(a)*0.14*CS*(i?1:0),h/2,Math.sin(a)*0.14*CS*(i?1:0)); c.rotation.set((i?0.2:0)*Math.sin(a),0,(i?0.2:0)*Math.cos(a)); c.castShadow=true; g.add(c); } }
+  else if(k==='vent'){ const rg=new THREE.Mesh(new THREE.RingGeometry(0.1*CS,0.26*CS,14), fxStd(0x241f1c,1)); rg.rotation.x=-Math.PI/2; rg.position.y=0.008; g.add(rg);
+    const hm=fxMat('ventGlow',()=>new THREE.MeshBasicMaterial({color:0xff5a1a})); const hc=new THREE.Mesh(new THREE.CircleGeometry(0.1*CS,12), hm); hc.rotation.x=-Math.PI/2; hc.position.y=0.01; g.add(hc);
+    const sm=fxMat('steamM',()=>new THREE.MeshStandardMaterial({color:0xe8e8e8,transparent:true,opacity:0.28,depthWrite:false})); for(let i=0;i<4;i++){ const p=new THREE.Mesh(new THREE.SphereGeometry((0.1+i*0.05)*CS,10,8), sm); p.position.set(Math.sin(i*1.7)*0.05*CS,(0.2+i*0.22)*CS,Math.cos(i*1.3)*0.05*CS); g.add(p); } }
+  else if(k==='obsidian'){ const om=fxStd(0x141218,0.12,0.4); for(let i=0;i<5;i++){ const h=(0.2+((i*37)%10)/25)*CS, a=i*1.26; const c=new THREE.Mesh(new THREE.ConeGeometry(0.09*CS,h,4), om); c.position.set(Math.cos(a)*0.13*CS*(i?1:0),h/2,Math.sin(a)*0.13*CS*(i?1:0)); c.rotation.set((i?0.3:0)*Math.sin(a),a,(i?0.3:0)*Math.cos(a)); c.castShadow=true; g.add(c); } }
+  else if(k==='lavalight'){ /* glow only — the lava pool itself is the light */ }
   else { const H=0.3*CS; box(w,H,d,fxStd(0x8a6a44,0.8),0,H/2); }
   const Lt=FEATURE_LIGHT[k]; if(Lt){ const col=new THREE.Color('#'+Lt.color.slice(2)); const gm=new THREE.MeshBasicMaterial({map:fxGlowTex(),color:col,transparent:true,opacity:0.55,blending:THREE.AdditiveBlending,depthWrite:false});
     const R=Math.min(Lt.range,5)*0.42*CS; const gl=new THREE.Mesh(new THREE.PlaneGeometry(R*2,R*2), gm); gl.rotation.x=-Math.PI/2; gl.position.y=0.012; gl.renderOrder=4; g.add(gl); }   // warm pool of light on the floor
@@ -4082,7 +4194,9 @@ function bMakeStructure(st, idx){
   const X0=st.x0+th/2, X1=st.x1-th/2, Z0=st.z0+th/2, Z1=st.z1-th/2, onOuter=(s)=> (Math.abs(s[1]-Z0)<1e-6&&Math.abs(s[3]-Z0)<1e-6) || (Math.abs(s[1]-Z1)<1e-6&&Math.abs(s[3]-Z1)<1e-6) || (Math.abs(s[0]-X0)<1e-6&&Math.abs(s[2]-X0)<1e-6) || (Math.abs(s[0]-X1)<1e-6&&Math.abs(s[2]-X1)<1e-6);
   const oldWorld = !st.modern || st.type==='keep', timber = st.type==='village', glassM=M(0x27313c,0.25), sillM=M(0xd8d0bc,0.9), beamM=M(0x4a3222,0.9);
   const shutM=M([0x3f6b4a,0x2f4f7a,0x7a3b30,0x5a4a3a][Math.floor(hh(71)*4)],0.8);
+  const lockM=M(0xd4a53a,0.4);
   for(let f=0; f<topFloor; f++){ const L=bStructLayout(st,f), top=f===topFloor-1;
+    if(!st.roofOn && f===act) for(const s of L.locked){ const lk=new THREE.Mesh(new THREE.BoxGeometry(0.12*CS,0.1*CS,0.12*CS), lockM); lk.position.set((s[0]+s[2])/2-ox, TILE_TOP+f*floorH+0.16, (s[1]+s[3])/2-oz); lk.userData.struct=idx; g.add(lk); }
     for(const s of L.walls){ box(s[0],s[1],s[2],s[3], f*floorH, floorH, wallMat); if(top && !st.roofOn) box(s[0],s[1],s[2],s[3], (f+1)*floorH, capH, capMat);   // dark cap = crisp wall line top-down
       if(!onOuter(s)) continue;
       // WINDOWS on outer walls (every ~1.4 squares, clear of the wall ends) + shutters / sill; half-timber beams on cottages
@@ -4108,7 +4222,7 @@ function bMakeStructure(st, idx){
       b.position.set(isNS?cx:(s2===1?x1:x0), TILE_TOP+f*floorH+floorH*0.55, isNS?(s2===0?z0:z1):cz); b.userData.struct=idx; g.add(b); } }
   if(!st.roofOn){ const y0=act*floorH+0.06;                                // furniture on the floor you're looking into
     for(const it of bStructFurniture(st, act)){
-      const fm=bFeatureMesh(it); fm.position.set(it.x-ox, TILE_TOP+y0, it.z-oz); fm.traverse(o=>o.userData.struct=idx); g.add(fm); } }
+      const fm=bFeatureMesh(it); fm.position.set(it.x-ox, TILE_TOP+y0, it.z-oz); fm.traverse(o=>{ o.userData.struct=idx; o.userData.furn=it._i; o.userData.furnF=act; }); fm.userData.furnRoot=1; g.add(fm); } }
   if(st.roofOn){ const topY=TILE_TOP+wallH;
     if(st.modern && st.type!=='keep'){ const roof=new THREE.Mesh(new THREE.BoxGeometry(w+0.02*CS, 0.1*CS, d+0.02*CS), M(roofCol,0.8));   // modern: flat roof + parapet + rooftop plant
       roof.position.set(cx, topY+0.05*CS, cz); roof.castShadow=true; roof.userData.struct=idx; g.add(roof);
@@ -4542,7 +4656,7 @@ function bRevealSettlePlan(){                                             // fil
     .concat((P.outerProps||[]).map(p=>({...p, rot:p.rot||0})));
   return revealed.size; }
 function bGenerateMap(){ bPushUndo();
-  if(bld.theme==='dungeon'||bld.theme==='cave'){ bGenerateDungeon(bld.theme); return; }
+  if(DG_THEMES[bld.theme]){ bGenerateDungeon(bld.theme); return; }
   bld.dungeon=null; bld.dungeonLevels=[]; bld.dungeonLevel=0;           // any other map replaces a dungeon
   if(!SETTLE_THEMES[bld.theme]) _settlePlan=null;                        // a non-settlement generate clears any planned settlement
   // On the SMALL flower/invader mats, a named terrain theme fills as its base biome (clean + consistent across
@@ -4636,7 +4750,7 @@ function bZoomOut(){ if(!_zoomBack) return; const z=_zoomBack, s=z.snap; _zoomBa
   bld.board=new Map([...s.board].map(([k,v])=>[k,{...v}]));
   bld.zones=new Map(s.zones); bld.draw=JSON.parse(JSON.stringify(s.draw)); bld.props=JSON.parse(JSON.stringify(s.props));
   bld.subdiv=new Map([...s.subdiv].map(([k,v])=>[k,{...v}])); bld.subpaint=new Map([...(s.subpaint||new Map())].map(([k,v])=>[k,{...v}]));
-  bld.baseMap=s.baseMap; bld.selStroke=null; bld.selProp=null; bld.pen=[]; bld.structKey=''; bRestoreDungeon(s); bRestorePlans(s);
+  bld.baseMap=s.baseMap; bld.selStroke=null; bld.selProp=null; bld.pen=[]; bld.structKey=''; bRestoreDungeon(s); bRestorePlans(s); bld.structEdits=JSON.parse(JSON.stringify(s.structEdits||{})); bld.editSel=null;
   setTileScale(z.scale); bld.scale=z.scale;
   document.querySelectorAll('#bScaleSeg button').forEach(x=>x.classList.toggle('on', x.dataset.scale===z.scale));
   bSyncBuilderUI(); bRender(); bFit(); bShowZoomBack(false);
@@ -4892,14 +5006,19 @@ document.getElementById('bTgcExport').onclick=bTgcExport;
    3D rock (extruded from the SAME wall loops), a textured floor, cave pools, doors and furniture — and the 🗺 VTT
    export reads the same loops/doors/lights. bld.dungeon = { …layout, q0, r0 } (the map's top-left cell). */
 function bDungeonBW(u,v){ const D=bld.dungeon; return [D.q0-0.5+u, D.r0-0.5+v]; }   // grid units → board-world (square grid, 1 unit = 1 cell)
-function bGenerateDungeon(kind){
+// 🎨 dungeon / cave themes (v1.25): kind = the engine (rooms+corridors / caverns), style = the look + dressing
+const DG_THEMES={ dungeon:{kind:'dungeon', name:'dungeon'}, cave:{kind:'cave', name:'cave'}, mine:{kind:'dungeon', style:'mine', name:'mine'}, sewer:{kind:'dungeon', style:'sewer', name:'sewer'},
+  temple:{kind:'dungeon', style:'temple', name:'temple'}, icecave:{kind:'cave', style:'ice', name:'ice cave'}, lavacave:{kind:'cave', style:'lava', name:'lava cave'} };
+const dgThemeOf=(D)=>{ if(!D) return 'dungeon'; for(const k in DG_THEMES){ const t=DG_THEMES[k]; if(t.kind===D.kind && (t.style||null)===(D.style||null)) return k; } return D.kind; };
+const dgName=(D)=>(DG_THEMES[dgThemeOf(D)]||{}).name||(D&&D.kind)||'dungeon';
+function bGenerateDungeon(theme){ const TT=DG_THEMES[theme]||{kind:theme}, kind=TT.kind;
   if(window.TTier && !TTier.has('battlemaps')){ bStatus('🔒 Dungeons &amp; caves are part of the <b>Battle Maps Pack</b> — unlock it in GLB Studio → ✨ Upgrades.',true); return; }
   if(TGC_HEXMAT[bld.tgc]){ bStatus('Dungeons need a square board — pick a square print size (or Screen only) first.',true); return; }
   if(bld.grid!=='square'){ bld.grid='square'; document.querySelectorAll('#bGridSeg button,#bMapGridSeg button').forEach(x=>x.classList.toggle('on',x.dataset.grid==='square')); bBuildPalette(); }
   setTileScale('battle'); bld.scale='battle'; document.querySelectorAll('#bScaleSeg button').forEach(x=>x.classList.toggle('on', x.dataset.scale==='battle'));
   bld.cols=Math.max(12,Math.min(64,bld.cols|0)); bld.rows=Math.max(10,Math.min(64,bld.rows|0)); if(!TGC[bld.tgc]){ bld.q0=0; bld.r0=0; }
   document.getElementById('bCols').value=bld.cols; document.getElementById('bRows').value=bld.rows;
-  const D=DungeonGen.generate({kind, cols:bld.cols, rows:bld.rows, seed:bld.seed});
+  const D=DungeonGen.generate({kind, style:TT.style, cols:bld.cols, rows:bld.rows, seed:bld.seed}); const dk=document.getElementById('bDigKind'); if(dk) dk.value=theme;
   bld.board.clear(); bld.zones.clear(); bld.subdiv.clear(); bld.subpaint.clear();
   const defs=bDefs(), id=TE.registerGen(defs,'square','dirt',[0,0,0,0],undefined);
   for(const c of bCells()) bld.board.set(TE.keyOf(c),{defId:id,rot:0});
@@ -4907,8 +5026,8 @@ function bGenerateDungeon(kind){
   bld.draw=[]; bld.pen=[]; bld.props=[]; bld.structPlans=[]; bld.modern=null; _settlePlan=null; bld.structKey=''; bld.selStroke=null; bld.selProp=null;
   bRender(); bFit();
   const lights=D.features.filter(f=>FEATURE_LIGHT[f.kind]).length;
-  bStatus(kind==='cave' ? `Generated a <b>cave</b> #${bld.seed} (${bld.cols}×${bld.rows} squares) — ${D.waterLoops.length} pool${D.waterLoops.length===1?'':'s'}, ${lights} light source${lights===1?'':'s'} · <b>🗺 Export for VTT</b> gives walls + lights`
-    : `Generated a <b>dungeon</b> #${bld.seed} (${bld.cols}×${bld.rows} squares) — ${D.rooms.length} rooms (${[...new Set(D.rooms.map(r=>r.type))].join(', ')}), ${D.doors.filter(d=>!d.open).length} doors, ${lights} lights · <b>🗺 Export for VTT</b> gives walls, doors + lights`);
+  bStatus(kind==='cave' ? `Generated a <b>${TT.name||'cave'}</b> #${bld.seed} (${bld.cols}×${bld.rows} squares) — ${D.waterLoops.length} pool${D.waterLoops.length===1?'':'s'}, ${lights} light source${lights===1?'':'s'} · <b>🗺 Export for VTT</b> gives walls + lights`
+    : `Generated a <b>${TT.name||'dungeon'}</b> #${bld.seed} (${bld.cols}×${bld.rows} squares) — ${D.rooms.length} rooms (${[...new Set(D.rooms.map(r=>r.type))].join(', ')}), ${D.doors.filter(d=>!d.open).length} doors, ${lights} lights · <b>🗺 Export for VTT</b> gives walls, doors + lights`);
 }
 const _dgTex={};
 function bDungeonTex(kind){ if(_dgTex[kind]) return _dgTex[kind]; const S=128, cv=document.createElement('canvas'); cv.width=cv.height=S; const x=cv.getContext('2d');
@@ -4919,7 +5038,29 @@ function bDungeonTex(kind){ if(_dgTex[kind]) return _dgTex[kind]; const S=128, c
   else if(kind==='caveside'){ x.fillStyle='#5a534a'; x.fillRect(0,0,S,S); for(let i=0;i<900;i++){ const v=70+rnd()*50|0; x.fillStyle=`rgba(${v},${v-4},${v-10},.55)`; x.fillRect(rnd()*S,rnd()*S,3+rnd()*6,2+rnd()*3); } }
   else if(kind==='cavefloor'){ x.fillStyle='#7a7064'; x.fillRect(0,0,S,S); for(let i=0;i<1600;i++){ const v=95+rnd()*45|0; x.fillStyle=`rgba(${v},${v-8},${v-18},.45)`; x.fillRect(rnd()*S,rnd()*S,2+rnd()*3,2+rnd()*3); }
     for(let i=0;i<14;i++){ x.fillStyle='rgba(60,54,46,.55)'; x.beginPath(); x.ellipse(rnd()*S,rnd()*S,3+rnd()*5,2+rnd()*4,rnd()*3,0,6.3); x.fill(); } }
+  else if(kind==='minefloor'){ x.fillStyle='#6a5a48'; x.fillRect(0,0,S,S); for(let i=0;i<1500;i++){ const v=80+rnd()*50|0; x.fillStyle=`rgba(${v},${v-12|0},${v-26|0},.5)`; x.fillRect(rnd()*S,rnd()*S,1+rnd()*3,1+rnd()*3); }
+    for(let i=0;i<22;i++){ x.fillStyle='rgba(40,34,28,.6)'; x.beginPath(); x.arc(rnd()*S,rnd()*S,1+rnd()*2.5,0,6.3); x.fill(); } }
+  else if(kind==='brickfloor'||kind==='brickwall'){ const wall=kind==='brickwall'; x.fillStyle=wall?'#3e3a33':'#34382f'; x.fillRect(0,0,S,S); for(let r=0;r<8;r++){ const off=(r%2)*16; for(let c=-1;c<5;c++){ const v=(wall?88:74)+rnd()*26|0; x.fillStyle=`rgb(${v},${v*0.72|0},${v*0.58|0})`; x.fillRect(c*32+off+1,r*16+1,30,14); } }
+    x.fillStyle='rgba(40,70,40,.22)'; for(let i=0;i<30;i++) x.fillRect(rnd()*S,rnd()*S,4+rnd()*12,2+rnd()*6); }
+  else if(kind==='sewerwater'){ x.fillStyle='#26302a'; x.fillRect(0,0,S,S); for(let i=0;i<60;i++){ x.strokeStyle='rgba('+(70+rnd()*40|0)+','+(85+rnd()*40|0)+',60,.35)'; x.lineWidth=1+rnd()*1.5; x.beginPath(); const px=rnd()*S, py=rnd()*S; x.moveTo(px,py); x.quadraticCurveTo(px+10+rnd()*20,py+(rnd()-0.5)*6,px+25+rnd()*30,py+(rnd()-0.5)*4); x.stroke(); }
+    for(let i=0;i<14;i++){ x.fillStyle='rgba(120,110,70,.35)'; x.beginPath(); x.arc(rnd()*S,rnd()*S,1+rnd()*2,0,6.3); x.fill(); } }
+  else if(kind==='marble'){ x.fillStyle='#d9d4c9'; x.fillRect(0,0,S,S); x.strokeStyle='rgba(120,110,100,.35)'; x.lineWidth=1; for(let i=0;i<6;i++){ x.beginPath(); let px=rnd()*S, py=rnd()*S; x.moveTo(px,py); for(let j=0;j<6;j++){ px+=(rnd()-0.5)*40; py+=(rnd()-0.3)*30; x.lineTo(px,py); } x.stroke(); }
+    x.strokeStyle='rgba(90,80,70,.4)'; x.lineWidth=1.5; x.strokeRect(0.75,0.75,S-1.5,S-1.5); x.beginPath(); x.moveTo(S/2,0); x.lineTo(S/2,S); x.moveTo(0,S/2); x.lineTo(S,S/2); x.stroke(); }
+  else if(kind==='templewall'){ x.fillStyle='#b9b1a1'; x.fillRect(0,0,S,S); for(let r=0;r<4;r++){ const off=(r%2)*32; for(let c=-1;c<3;c++){ const v=175+rnd()*30|0; x.fillStyle=`rgb(${v},${v-8},${v-22})`; x.fillRect(c*64+off+2,r*32+2,60,28); } } }
+  else if(kind==='icefloor'||kind==='iceside'||kind==='snowtop'){ const top=kind==='snowtop'; x.fillStyle=top?'#e9f2f6':kind==='iceside'?'#9ccbe0':'#bfe0ec'; x.fillRect(0,0,S,S);
+    for(let i=0;i<900;i++){ const v=top?220+rnd()*35:180+rnd()*60|0; x.fillStyle=`rgba(${v|0},${Math.min(255,v+15)|0},255,.35)`; x.fillRect(rnd()*S,rnd()*S,2+rnd()*4,1+rnd()*3); }
+    if(!top){ x.strokeStyle='rgba(255,255,255,.55)'; x.lineWidth=1; for(let i=0;i<8;i++){ x.beginPath(); let px=rnd()*S, py=rnd()*S; x.moveTo(px,py); for(let j=0;j<3;j++){ px+=(rnd()-0.5)*50; py+=(rnd()-0.5)*50; x.lineTo(px,py); } x.stroke(); } } }
+  else if(kind==='basalt'||kind==='basaltside'||kind==='ashtop'){ x.fillStyle=kind==='ashtop'?'#2a2624':kind==='basaltside'?'#35302d':'#3b3533'; x.fillRect(0,0,S,S);
+    for(let i=0;i<1200;i++){ const v=40+rnd()*35|0; x.fillStyle=`rgba(${v},${v-4},${v-6},.55)`; x.fillRect(rnd()*S,rnd()*S,2+rnd()*3,2+rnd()*3); }
+    if(kind==='basalt'){ x.strokeStyle='rgba(255,90,20,.55)'; x.lineWidth=1.2; for(let i=0;i<5;i++){ x.beginPath(); let px=rnd()*S, py=rnd()*S; x.moveTo(px,py); for(let j=0;j<4;j++){ px+=(rnd()-0.5)*36; py+=(rnd()-0.5)*36; x.lineTo(px,py); } x.stroke(); } } }
   const t=new THREE.CanvasTexture(cv); t.wrapS=t.wrapT=THREE.RepeatWrapping; if(THREE.SRGBColorSpace) t.colorSpace=THREE.SRGBColorSpace; t.anisotropy=4; return (_dgTex[kind]=t); }
+// per-style look: floor / wall side / rock top textures + the pool material
+const DG_LOOK={ mine:{floor:'minefloor', side:'caveside', top:'rocktop'}, sewer:{floor:'brickfloor', side:'brickwall', top:'rocktop'}, temple:{floor:'marble', side:'templewall', top:'rocktop'},
+  ice:{floor:'icefloor', side:'iceside', top:'snowtop'}, lava:{floor:'basalt', side:'basaltside', top:'ashtop'} };
+function bPoolMat(style){ return style==='lava' ? fxMat('lavaM',()=>new THREE.MeshStandardMaterial({color:0xff6a1a, emissive:0xff3a00, emissiveIntensity:1.3, roughness:0.6}))
+  : style==='ice' ? fxMat('iceM',()=>new THREE.MeshStandardMaterial({color:0x7fc4e4, roughness:0.04, metalness:0.25, transparent:true, opacity:0.9}))
+  : style==='sewer' ? fxMat('sewerW',()=>{ const t=bDungeonTex('sewerwater'); return new THREE.MeshStandardMaterial({map:t, roughness:0.15, metalness:0.15, transparent:true, opacity:0.93}); })
+  : new THREE.MeshStandardMaterial({color:0x2c5f7a, roughness:0.15, metalness:0.2, transparent:true, opacity:0.88}); }
 // loops → nested shapes by containment depth (winding-independent): even depth = floor boundary, odd = rock island
 function bDungeonShapes(loops){
   const V=(p)=>{ const [x,z]=bDungeonBW(p.x,p.y); return new THREE.Vector2(x-bld.off.x, -(z-bld.off.z)); };
@@ -4939,25 +5080,31 @@ function bDungeonShapes(loops){
 function bRenderDungeon(){ const D=bld.dungeon; if(!D) return; const flat=!!bld.boardFlat, cave=D.kind==='cave', top=TILE_TOP+0.03;
   const grp=new THREE.Group(); grp.name='dungeon';
   const {floor, rock}=bDungeonShapes(D.walls);
-  const ft=cave?bDungeonTex('cavefloor'):bFloorTex('flag'); ft.repeat.set(1,1);
+  const LK=DG_LOOK[D.style]||null, ft=LK?bDungeonTex(LK.floor):cave?bDungeonTex('cavefloor'):bFloorTex('flag'); ft.repeat.set(1,1);
   const fm=new THREE.Mesh(new THREE.ShapeGeometry(floor), new THREE.MeshStandardMaterial({map:ft, roughness:0.95})); fm.rotation.x=-Math.PI/2; fm.position.y=top; fm.receiveShadow=true; grp.add(fm);
-  const capT=bDungeonTex('rocktop'), sideT=bDungeonTex(cave?'caveside':'masonry');
+  const capT=bDungeonTex(LK?LK.top:'rocktop'), sideT=bDungeonTex(LK?LK.side:cave?'caveside':'masonry');
   if(flat){ const rm=new THREE.Mesh(new THREE.ShapeGeometry(rock), new THREE.MeshStandardMaterial({map:capT, roughness:1})); rm.rotation.x=-Math.PI/2; rm.position.y=top+0.02; grp.add(rm); }
   else { const H=0.9; const g=new THREE.ExtrudeGeometry(rock,{depth:H, bevelEnabled:false, curveSegments:1}); g.rotateX(-Math.PI/2);
     const rm=new THREE.Mesh(g,[new THREE.MeshStandardMaterial({map:capT, roughness:1}), new THREE.MeshStandardMaterial({map:sideT, roughness:0.95})]); rm.position.y=top; rm.castShadow=true; rm.receiveShadow=true; grp.add(rm); }
   if(D.waterLoops && D.waterLoops.length){ const V=(p)=>{ const [x,z]=bDungeonBW(p.x,p.y); return new THREE.Vector2(x-bld.off.x, -(z-bld.off.z)); };
-    const ws=D.waterLoops.map(l=>new THREE.Shape(l.map(V))); const wm=new THREE.Mesh(new THREE.ShapeGeometry(ws), new THREE.MeshStandardMaterial({color:0x2c5f7a, roughness:0.15, metalness:0.2, transparent:true, opacity:0.88}));
+    const ws=D.waterLoops.map(l=>new THREE.Shape(l.map(V))); const wm=new THREE.Mesh(new THREE.ShapeGeometry(ws), bPoolMat(D.style));
     wm.rotation.x=-Math.PI/2; wm.position.y=top+0.012; grp.add(wm); }
   // doors: a plank leaf across the opening (open archways get just the stone posts)
   const leafM=new THREE.MeshStandardMaterial({color:0x6b4424, roughness:0.8}), postM=new THREE.MeshStandardMaterial({color:0x8d8981, roughness:0.95}), bandM=new THREE.MeshStandardMaterial({color:0x3a3a3e, roughness:0.5, metalness:0.5});
+  const lockM=new THREE.MeshStandardMaterial({color:0xd4a53a, roughness:0.4, metalness:0.6}), slabM=new THREE.MeshStandardMaterial({map:sideT, roughness:0.95}), capM2=new THREE.MeshStandardMaterial({map:capT, roughness:1});
   for(const d of D.doors){ const [ax,az]=bDungeonBW(d.x1,d.y1), [bx,bz]=bDungeonBW(d.x2,d.y2), alongX=Math.abs(az-bz)<1e-6, cx=(ax+bx)/2-bld.off.x, cz=(az+bz)/2-bld.off.z, L=Math.hypot(bx-ax,bz-az);
+    if(d.secret){ const h=flat?0.03:0.9, sl=new THREE.Mesh(new THREE.BoxGeometry(alongX?L:0.3, h, alongX?0.3:L), flat?capM2:[slabM,slabM,capM2,capM2,slabM,slabM]); sl.position.set(cx, top+h/2+(flat?0.02:0), cz); sl.castShadow=true; grp.add(sl); continue; }   // SECRET: looks like wall
     for(const s of [-1,1]){ const p=new THREE.Mesh(new THREE.BoxGeometry(alongX?0.14:0.24, flat?0.05:0.9, alongX?0.24:0.14), postM); p.position.set(cx+(alongX?s*(L/2-0.07):0), top+(flat?0.03:0.45), cz+(alongX?0:s*(L/2-0.07))); p.castShadow=true; grp.add(p); }
+    if(!d.open && d.grate){ const h=flat?0.05:0.8, nb=Math.max(4,Math.round(L/0.13)); for(let b=0;b<nb;b++){ const t=(b+0.5)/nb-0.5, bar=new THREE.Mesh(new THREE.CylinderGeometry(0.018,0.018,h,6), bandM); bar.position.set(cx+(alongX?t*(L-0.2):0), top+h/2, cz+(alongX?0:t*(L-0.2))); grp.add(bar); }
+      const rail=new THREE.Mesh(new THREE.BoxGeometry(alongX?L-0.2:0.05,0.05,alongX?0.05:L-0.2), bandM); rail.position.set(cx, top+h*0.85, cz); grp.add(rail);
+      if(d.lock){ const lk=new THREE.Mesh(new THREE.BoxGeometry(0.14,0.14,0.14), lockM); lk.position.set(cx, top+0.4, cz); grp.add(lk); } continue; }
     if(!d.open){ const h=flat?0.04:0.72; const l=new THREE.Mesh(new THREE.BoxGeometry(alongX?L-0.26:0.1, h, alongX?0.1:L-0.26), leafM); l.position.set(cx, top+h/2, cz); l.castShadow=true; grp.add(l);
-      if(!flat) for(const y of [0.2,0.55]){ const b=new THREE.Mesh(new THREE.BoxGeometry(alongX?L-0.28:0.12,0.04,alongX?0.12:L-0.28), bandM); b.position.set(cx, top+y, cz); grp.add(b); } } }
-  for(const f of D.features){ const [x,z]=bDungeonBW(f.x,f.y); const it={...f, x, z}; const m=bFeatureMesh(it); m.position.set(x-bld.off.x, top, z-bld.off.z); grp.add(m);
+      if(!flat) for(const y of [0.2,0.55]){ const b=new THREE.Mesh(new THREE.BoxGeometry(alongX?L-0.28:0.12,0.04,alongX?0.12:L-0.28), bandM); b.position.set(cx, top+y, cz); grp.add(b); }
+      if(d.lock){ const lk=new THREE.Mesh(new THREE.BoxGeometry(0.14,flat?0.06:0.14,0.14), lockM); lk.position.set(cx, top+(flat?0.07:0.4), cz); grp.add(lk); } } }
+  D.features.forEach((f,fi)=>{ const [x,z]=bDungeonBW(f.x,f.y); const it={...f, x, z}; const m=bFeatureMesh(it); m.position.set(x-bld.off.x, top, z-bld.off.z); m.traverse(o=>o.userData.feat=fi); m.userData.featRoot=1; grp.add(m);
     if(f.link && !bld._exporting){ const lv=(bld.dungeonLevel||0)+1, n=(bld.dungeonLevels||[]).length;   // ▲ / ▼ where this way up / down leads (never in an exported image)
       const txt = f.link==='down' ? (lv<n ? `▼ Level ${lv+1}` : '▼ (dig deeper)') : (lv>1 ? `▲ Level ${lv-1}` : '▲ Surface');
-      const l=bDgLabel(txt, f.link==='down'?'#ffcf7a':'#9fe0ff'); l.position.set(x-bld.off.x, top+(bld.boardFlat?0.4:1.5), z-bld.off.z); grp.add(l); } }
+      const l=bDgLabel(txt, f.link==='down'?'#ffcf7a':'#9fe0ff'); l.position.set(x-bld.off.x, top+(bld.boardFlat?0.4:1.5), z-bld.off.z); grp.add(l); } });
   builderGroup.add(grp); }
 // EXTEND a dungeon / cave: the existing layout stays exactly as it is; DungeonGen.extend fills a 12-square strip on that
 // side with new rooms (wired to the nearest old rooms through proper doors) or new caverns that flow across the seam.
@@ -4986,19 +5133,218 @@ function bExtendDungeon(dir){ const E=12, D=bld.dungeon; bPushUndo();
 function bRestoreDungeon(s){ bld.dungeonLevels = (s.dungeonLevels&&s.dungeonLevels.length) ? s.dungeonLevels.slice() : (s.dungeon?[s.dungeon]:[]);
   bld.dungeonLevel = Math.min(s.dungeonLevel||0, Math.max(0,bld.dungeonLevels.length-1)); bld.dungeon = bld.dungeonLevels[bld.dungeonLevel]||null; }
 function bSwitchLevel(i, quiet){ const L=bld.dungeonLevels||[]; if(i<0||i>=L.length) return; bld.dungeonLevel=i; bld.dungeon=L[i]; bld.structKey=''; if(quiet) return;
-  bRender(); bStatus(`🗝 Level <b>${i+1}</b> of ${L.length} — a <b>${bld.dungeon.kind}</b>. The ▲ / ▼ markers show where each way up / down leads (screen only).`); }
+  bRender(); bStatus(`🗝 Level <b>${i+1}</b> of ${L.length} — a <b>${dgName(bld.dungeon)}</b>. The ▲ / ▼ markers show where each way up / down leads (screen only).`); }
 function bDigDeeper(){ const L=bld.dungeonLevels||[], i=bld.dungeonLevel||0; if(!bld.dungeon) return;
   if(i<L.length-1){ bSwitchLevel(i+1); return; }
-  bPushUndo(); const seed=1+Math.floor(Math.random()*999999), kind=document.getElementById('bDigKind').value||bld.dungeon.kind;
+  bPushUndo(); const seed=1+Math.floor(Math.random()*999999), th=document.getElementById('bDigKind').value||dgThemeOf(bld.dungeon), TT=DG_THEMES[th]||{kind:bld.dungeon.kind}, kind=TT.kind;
   const above=DungeonGen.ensureDown(bld.dungeon, seed); const added=above!==bld.dungeon;
   const here={...above, q0:bld.q0, r0:bld.r0}; L[i]=here;
-  const D2=DungeonGen.generate({kind, cols:bld.cols, rows:bld.rows, seed:seed+17, arrivals:DungeonGen.arrivalsFrom(here)});
+  const D2=DungeonGen.generate({kind, style:TT.style, cols:bld.cols, rows:bld.rows, seed:seed+17, arrivals:DungeonGen.arrivalsFrom(here)});
   L.push({...D2, q0:bld.q0, r0:bld.r0}); bld.dungeonLevels=L; bSwitchLevel(L.length-1, true); bRender();
   const downs=here.features.filter(f=>f.link==='down').map(f=>({stairs:'stairs',well:'a well',pit:'a trapdoor pit',sinkhole:'a sinkhole'})[f.kind]||f.kind);
-  bStatus(`⬇ Dug down to <b>Level ${L.length}</b> — a <b>${kind}</b>. It connects to Level ${L.length-1} by ${downs.join(', ')}${added?' (a new way down was added above)':''}; every landing is on the same square. <b>▲ Level</b> to go back up.`); }
+  bStatus(`⬇ Dug down to <b>Level ${L.length}</b> — a <b>${TT.name||kind}</b>. It connects to Level ${L.length-1} by ${downs.join(', ')}${added?' (a new way down was added above)':''}; every landing is on the same square. <b>▲ Level</b> to go back up.`); }
 function bDgLabel(text, col){ const cv=document.createElement('canvas'); cv.width=256; cv.height=64; const x=cv.getContext('2d');
   x.font='bold 34px system-ui,Arial'; x.textAlign='center'; x.textBaseline='middle'; x.lineWidth=7; x.strokeStyle='rgba(8,11,16,0.92)'; x.strokeText(text,128,32); x.fillStyle=col||'#ffe9b0'; x.fillText(text,128,32);
   const tex=new THREE.CanvasTexture(cv); const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex, transparent:true, depthTest:false})); sp.scale.set(2.2,0.55,1); sp.renderOrder=40; return sp; }
+/* ---- 🔢 ROOM KEY (v1.23): numbered rooms / caverns / buildings + a printable GM key ----
+   Dungeons & caves: DungeonGen stores the numbers ON the layout (room.n / D.chambers) so they never change when the
+   map is extended; DungeonGen.roomKey writes the description. Battle towns: buildings are numbered in reading order
+   (north → south, west → east) and each floor's rooms are named from their furniture. */
+const _keyCache=new WeakMap();
+function bDungeonKey(i){ const L=bld.dungeonLevels&&bld.dungeonLevels.length?bld.dungeonLevels:[bld.dungeon], D=L[i==null?(bld.dungeonLevel||0):i]; if(!D) return null;
+  const lv=(i==null?(bld.dungeonLevel||0):i)+1, c=_keyCache.get(D);
+  if(c && c.nL===L.length && c.lv===lv) return c.K;
+  const K=DungeonGen.roomKey(D,{level:lv, levels:L.length, seed:bld.seed}); _keyCache.set(D,{nL:L.length, lv, K}); return K; }
+const B_TYPE_NAME={ village:'Cottage', city:'Town house', keep:'Keep', towers:'Office tower', apartments:'Apartment block', shops:'Shops', homes:'House', school:'School',
+  church:'Church', factory:'Factory', warehouse:'Warehouse', hotel:'Hotel', station:'Station', depot:'Depot', farmstead:'Farmhouse' };
+function bRoomName(st, rm, furn, f, ri){ const c={}, t=st.type, W=DungeonGen.words, named=st._rn&&st._rn[f||0]&&st._rn[f||0][ri]; const inside=furn.filter(it=>it.x>rm.x0&&it.x<rm.x1&&it.z>rm.z0&&it.z<rm.z1);
+  for(const it of inside) c[it.kind]=(c[it.kind]||0)+1;
+  const name = named ? named : (c.altar||c.pew) ? 'Nave' : (c.desk||0)>=3 ? (t==='school'?'Classroom':'Offices') : (c.counter && (t==='shops'||t==='station')) ? (t==='station'?'Ticket hall':'Shop floor')
+    : (t==='keep' && c.bed && c.desk) ? "Lord's chamber" : (c.bed && (c.fireplace||c.counter)) ? 'Main room' : (c.bed||0)>=2 ? (t==='keep'?'Barracks':'Bedroom') : c.bed ? 'Bedroom' : (c.bookshelf && c.desk) ? 'Study'
+    : (c.fireplace && c.table) ? (t==='keep'?'Great hall':'Hall & kitchen') : c.fireplace ? 'Hall' : c.counter ? 'Kitchen' : (c.crate||0)>=2 ? 'Storeroom' : c.stairs ? 'Landing' : 'Room';
+  const things=Object.keys(c).filter(k=>k!=='torch'&&k!=='candles').sort((a,b)=>c[b]-c[a]||a.localeCompare(b)).map(k=>W.cnt(c[k],k));
+  return things.length ? `${name} (${W.andJoin(things)})` : name; }
+function bTownKey(){ if(bld.scale!=='battle' || bld.dungeon) return [];
+  const CS=bCellSize(), W=DungeonGen.words, S=bld.structures||[], cz=(st)=>(st.z0+st.z1)/2;
+  // reading order: rows of buildings (centres within 2 squares of the row's first) north → south, then west → east
+  const byZ=S.map((st,i)=>i).sort((a,b)=>cz(S[a])-cz(S[b])||S[a].x0-S[b].x0), idx=[]; let row=[], z0=null;
+  for(const i of byZ){ if(z0!=null && cz(S[i])-z0>2*CS){ idx.push(...row.sort((a,b)=>S[a].x0-S[b].x0)); row=[]; z0=null; } if(z0==null) z0=cz(S[i]); row.push(i); }
+  idx.push(...row.sort((a,b)=>S[a].x0-S[b].x0));
+  return idx.map((si,k)=>{ const st=bld.structures[si], w=Math.round((st.x1-st.x0)/CS), d=Math.round((st.z1-st.z0)/CS), fl=st.floors||1, lines=[];
+    lines.push(`${w} × ${d} squares (${w*5} × ${d*5} ft)${fl>1?`, ${fl} floors`:''}.`);
+    if(st.door) lines.push(`Front door on the ${W.SIDE[st.door.side]} side.`);
+    for(let f=0; f<fl; f++){ const furn=bStructFurniture(st,f); lines.push((fl>1?(f?`Floor ${f+1}`:'Ground floor')+': ':'')+st.rooms.map((rm,ri)=>bRoomName(st,rm,furn,f,ri)).join('; ')+'.'); }
+    return {n:k+1, si, x:(st.x0+st.x1)/2, z:(st.z0+st.z1)/2, title:(st.use==='police'&&(st.floors||1)>=4?'Police headquarters':B_USE_NAME[st.use])||B_TYPE_NAME[st.type]||'Building', lines}; }); }
+const B_USE_NAME={ police:'Police station', lab:'Research lab' };
+// every label of the current map: [{t:'3', x,z (board-world), letter, si}]
+function bKeyLabels(){ if(bld.dungeon){ const K=bDungeonKey(); if(!K) return [];
+    return K.entries.map(e=>{ const [x,z]=bDungeonBW(e.x,e.y); return {t:String(e.n),x,z}; }).concat(K.marks.map(m=>{ const [x,z]=bDungeonBW(m.x,m.y); return {t:m.id,x,z,letter:1}; })); }
+  return bTownKey().map(e=>({t:String(e.n), x:e.x, z:e.z, si:e.si})); }
+function bDoorMarks(floor){ const out=[];
+  if(bld.dungeon){ if(floor) return out; for(const d of bld.dungeon.doors){ if(!d.secret && !d.lock) continue; const [x,z]=bDungeonBW((d.x1+d.x2)/2,(d.y1+d.y2)/2); out.push({t:d.secret?'S':'L', x, z, door:1}); } return out; }
+  for(const st of (bld.structures||[])){ if((st.floors||1)<=(floor||0)) continue; const f=floor!=null?floor:Math.min(st.activeFloor||0,(st.floors||1)-1); if(floor==null && st.roofOn) continue; const L=bStructLayout(st,f);
+    for(const d of L.secret) out.push({t:'S', x:(d[0]+d[2])/2, z:(d[1]+d[3])/2, door:1}); for(const d of L.locked) out.push({t:'L', x:(d[0]+d[2])/2, z:(d[1]+d[3])/2, door:1}); } return out; }
+function bKeyBadgeCanvas(t, letter, px){ const cv=document.createElement('canvas'); cv.width=cv.height=px; const x=cv.getContext('2d'); bKeyBadgeDraw(x,px/2,px/2,px*0.46,t,letter); return cv; }
+function bKeyBadgeDraw(x, cx, cy, r, t, letter){ x.save(); x.beginPath();
+  if(letter==='door'){ x.rect(cx-r,cy-r,2*r,2*r); x.fillStyle=t==='S'?'#d9ccff':'#ffd98a'; x.fill(); x.lineWidth=Math.max(1.5,r*0.18); x.strokeStyle='#1d1a16'; x.stroke(); x.fillStyle='#1d1a16'; x.font=`bold ${Math.round(r*1.3)}px system-ui,Arial,sans-serif`; x.textAlign='center'; x.textBaseline='middle'; x.fillText(t,cx,cy+r*0.06); x.restore(); return; }
+  if(letter){ const s=r*0.9; x.moveTo(cx,cy-s*1.15); x.lineTo(cx+s*1.15,cy); x.lineTo(cx,cy+s*1.15); x.lineTo(cx-s*1.15,cy); x.closePath(); } else x.arc(cx,cy,r,0,Math.PI*2);
+  x.fillStyle=letter?'#ffd166':'#fbf6e9'; x.fill(); x.lineWidth=Math.max(2,r*0.16); x.strokeStyle='#1d1a16'; x.stroke();
+  x.fillStyle='#1d1a16'; x.font=`bold ${Math.round(r*(t.length>2?0.9:t.length>1?1.1:1.3))}px system-ui,Arial,sans-serif`; x.textAlign='center'; x.textBaseline='middle'; x.fillText(t,cx,cy+r*0.06); x.restore(); }
+function bRenderKeyNums(){ bEditUI(); bRenderEditSel(); const row=document.getElementById('bKeyRow'), show=document.getElementById('bKeyShow');
+  const on=bld.scale==='battle' && (!!bld.dungeon || (bld.structures||[]).length>0); if(row) row.style.display=on?'':'none';
+  if(!on || bld._exporting || (window.TTier && !TTier.has('battlemaps'))) return;
+  const top=TILE_TOP+0.03, CS=bCellSize(), grp=new THREE.Group(); grp.name='roomKey';
+  for(const L of ((show && !show.checked) ? [] : bKeyLabels()).concat(bDoorMarks())){ const tex=new THREE.CanvasTexture(bKeyBadgeCanvas(L.t, L.door?'door':L.letter, 96)); if(THREE.SRGBColorSpace) tex.colorSpace=THREE.SRGBColorSpace;
+    const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex, transparent:true, depthTest:false})); const s=0.62*CS; sp.scale.set(L.door?s*0.6:s, L.door?s*0.6:s, 1); sp.renderOrder=41;
+    let y=top+(bld.boardFlat?0.4:((L.letter||L.door)?(L.door&&!bld.dungeon?0.95:0.3):1.25)), dz=(L.letter&&bld.boardFlat)?-0.75*CS:0;   // letters (ways up / down in passages): on the floor in 3D / just north in 2D → clear of their raised ▲▼ label
+    if(L.si!=null && bld._structMeshes && bld._structMeshes[L.si]){ const bb=new THREE.Box3().setFromObject(bld._structMeshes[L.si]); if(isFinite(bb.max.y)) y=bb.max.y+0.25; }   // above the roof
+    sp.position.set(L.x-bld.off.x, y, L.z-bld.off.z+dz); grp.add(sp); }
+  builderGroup.add(grp); }
+// 📜 the printable GM key: every level (dungeon) / floor (town) as a numbered map image + the written key
+async function bGmKey(){
+  if(window.TTier && !TTier.has('battlemaps')){ bStatus('📜 The room key is part of the <b>Battle Maps Pack</b> — unlock it in GLB Studio → ✨ Upgrades.',true); return; }
+  const town=!bld.dungeon; if(town && !(bld.structures||[]).length){ bStatus('Generate a dungeon, a cave or a ⚔ battle-scale town first.',true); return; }
+  const ppg=Math.max(24,Math.min(80,Math.floor(1500/Math.max(bld.cols,bld.rows,1)))), pages=[];
+  bStatus('📜 Drawing the GM key…'); await new Promise(r=>setTimeout(r,30));
+  if(!town){ const L=bld.dungeonLevels&&bld.dungeonLevels.length?bld.dungeonLevels:[bld.dungeon], cur=bld.dungeonLevel||0;
+    for(let i=0;i<L.length;i++){ bSwitchLevel(i,true); const r=await bVttExport({returnOnly:true, ppg, keyNums:true}); if(!r){ bSwitchLevel(cur,true); bRender(); return; }
+      const K=bDungeonKey(i); pages.push({h:`Level ${i+1}${L.length>1?' of '+L.length:''} — ${DungeonGen.words.cap(dgName(L[i]))}`, img:r.url, entries:K.entries, marks:K.marks}); }
+    bSwitchLevel(cur,true); bRender(); }
+  else { const maxF=Math.max(1,...bld.structures.map(s=>s.floors||1)), K=bTownKey();
+    for(let f=0;f<maxF;f++){ const r=await bVttExport({returnOnly:true, ppg, keyNums:true, floor:f, roofsOff:true}); if(!r) return;
+      pages.push({h:maxF>1?(f?`Floor ${f+1}`:'Ground floor'):'Town', img:r.url, entries:f?[]:K, marks:[]}); } }
+  const esc=(s)=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
+  const what=town?'Town':DungeonGen.words.cap(dgName(bld.dungeon)), title=`${what} #${bld.seed} — GM key`;
+  const item=(e,letter)=>`<div class="e${letter?' m':''}"><h3><span class="b">${esc(letter?e.id:e.n)}</span>${esc(e.title)}</h3><p>${e.lines.map(esc).join(' ')}</p>${e.flavor?`<p class="fl">${esc(e.flavor)}</p>`:''}<div class="nt">Notes</div></div>`;
+  const html=`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title><style>
+:root{--ink:#1d1a16;--mut:#6b6358;--line:#d8d0c2;--bg:#fbf8f2;--acc:#8a5a14}
+*{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 Georgia,'Times New Roman',serif}
+.bar{position:sticky;top:0;display:flex;gap:8px;align-items:center;padding:10px 16px;background:#fff;border-bottom:1px solid var(--line);font-family:system-ui,Arial,sans-serif;z-index:2}
+.bar b{flex:1} .bar button{font:inherit;padding:6px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;cursor:pointer}
+main{max-width:1000px;margin:0 auto;padding:16px} h1{font-size:26px;margin:8px 0 2px} .sub{color:var(--mut);margin:0 0 14px;font-family:system-ui,Arial,sans-serif;font-size:13px}
+section{margin:0 0 28px} h2{font-size:20px;border-bottom:2px solid var(--ink);padding-bottom:4px;margin:18px 0 10px}
+img{display:block;width:100%;height:auto;border:1px solid var(--line);border-radius:4px;background:#222}
+.k{columns:2 320px;column-gap:26px;margin-top:14px} .e{break-inside:avoid;margin:0 0 12px;padding:0 0 10px;border-bottom:1px dotted var(--line)}
+.e h3{font-size:16px;margin:0 0 3px;display:flex;align-items:center;gap:8px} .e p{margin:0} .fl{font-style:italic;color:var(--acc);margin-top:3px!important}
+.b{display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:26px;padding:0 5px;border-radius:13px;border:2px solid var(--ink);background:#fff;font:bold 13px system-ui,Arial,sans-serif}
+.m .b{border-radius:4px;background:#ffd166} .nt{margin-top:6px;height:30px;border-bottom:1px solid var(--line);color:var(--mut);font:11px system-ui,Arial,sans-serif}
+footer{color:var(--mut);font:12px system-ui,Arial,sans-serif;text-align:center;padding:10px 0 24px}
+@media print{ .bar{display:none} body{background:#fff;font-size:11pt} main{max-width:none;padding:0} section{break-before:page} section:first-of-type{break-before:auto} img{max-height:9in;object-fit:contain} }
+</style></head><body><div class="bar"><b>📜 ${esc(title)}</b><button onclick="print()">🖨 Print</button><button onclick="(function(){var a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['<!doctype html>'+document.documentElement.outerHTML],{type:'text/html'}));a.download='${esc((town?'town':'dungeon')+'-'+bld.seed+'_gm-key.html')}';a.click();})()">⬇ Save</button></div>
+<main><h1>${esc(title)}</h1><p class="sub">${bld.cols} × ${bld.rows} squares · 1 square = 5 ft · ${pages.length>1?pages.length+(town?' floors':' levels')+' · ':''}for the game master's eyes only${pages.some(p=>/S|L/.test('')) ? '' : ''} · on the map: <b>S</b> = secret door, <b>L</b> = locked door, <b>A</b>, <b>B</b>… = a way up / down in a passage</p>
+${pages.map(p=>`<section><h2>${esc(p.h)}</h2><img src="${p.img}" alt="${esc(p.h)} map">${(p.entries.length||p.marks.length)?`<div class="k">${p.entries.map(e=>item(e)).join('')}${p.marks.map(m=>item(m,1)).join('')}</div>`:(town?'<p class="sub" style="margin-top:8px">Rooms on this floor are listed under the ground floor, building by building.</p>':'')}</section>`).join('\n')}
+<footer>Made with KSOL Designs Tabletop ${APP_VERSION}</footer></main></body></html>`;
+  const blob=new Blob([html],{type:'text/html'}), name=`${town?'town':what.toLowerCase().replace(/ /g,'-')}-${bld.seed}_gm-key.html`;
+  const w=window.open(URL.createObjectURL(blob),'_blank'); if(!w) bDownload(blob,name);
+  const n=pages.reduce((a,p)=>a+p.entries.length,0);
+  bStatus(`📜 GM key ${w?'opened in a new tab':'saved as <b>'+name+'</b>'} — ${pages.length} ${town?(pages.length>1?'floors':'map'):(pages.length>1?'levels':'level')}, <b>${n}</b> ${town?'buildings':'rooms'} described. Use <b>🖨 Print</b> on that page (or save it).`);
+  return {pages:pages.length, entries:n, html}; }
+document.getElementById('bKeyPrint').onclick=()=>bGmKey();
+document.getElementById('bKeyShow').onchange=()=>bRender();
+window.__bKey=()=>({labels:bKeyLabels(), dungeon:bld.dungeon?bDungeonKey():null, town:bld.dungeon?null:bTownKey().map(e=>({n:e.n,title:e.title,lines:e.lines}))});
+window.__bGmKey=()=>bGmKey();
+/* ---- ✏ EDIT MODE (v1.24): hand-edit a generated dungeon / cave / battle town ----
+   🚪 doors (closed → locked → secret → archway, or add one) · 🪑 furniture (drag / rotate / delete / add) · ⛏ dig · 🧱 fill.
+   Dungeon edits go through DungeonGen (a new layout per edit → Undo-safe); building edits live in bld.structEdits.
+   Everything downstream (3D, VTT walls / doors / lights, the room key) reads the edited data. */
+const EDIT_ADD={ chest:[0.9,0.6], table:[1.4,0.8], barrel:[0.55,0.55], crate:[0.8,0.8], statue:[0.9,0.9], altar:[1.3,0.6], sarcophagus:[0.8,1.8], bed:[0.8,1.5],
+  bookshelf:[1.8,0.35], weaponrack:[1.2,0.35], cauldron:[0.8,0.8], brazier:[0.8,0.8], torch:[0.3,0.3], candles:[0.3,0.3], campfire:[0.9,0.9], bedroll:[0.6,1.5],
+  bones:[0.6,0.6], rubble:[0.8,0.8], crystals:[0.7,0.7], mushrooms:[0.6,0.6], plant:[0.4,0.4], sofa:[1.4,0.6], officedesk:[0.7,0.45], labbench:[1.6,0.6], tank:[0.55,0.55], lockers:[1.2,0.4], pew:[1.5,0.45], wardrobe:[1,0.5], font:[0.9,0.9],
+  minecart:[0.9,1.3], ore:[0.8,0.8], lantern:[0.3,0.3], toolrack:[1.2,0.35], powder:[0.55,0.55], drain:[0.6,0.6], valve:[1.2,0.6], icespike:[0.6,0.6], vent:[0.6,0.6], obsidian:[0.7,0.7] };
+const EDIT_ADD_NAME={ minecart:'mine cart', ore:'ore', toolrack:'tool rack', powder:'powder keg', drain:'floor drain', valve:'valve wheel', font:'stone font', icespike:'ice spikes', vent:'steam vent', obsidian:'obsidian', weaponrack:'weapon rack', crystals:'glowing crystals', mushrooms:'glowing mushrooms', bones:'pile of bones', rubble:'rubble', candles:'candles' };
+const DOOR_CYCLE={closed:'locked', locked:'secret', secret:'open', open:'closed'}, DOOR_NAME={closed:'closed door', locked:'locked door', secret:'secret door', open:'open archway'};
+const EDIT_HELP={ door:'🚪 <b>Doors</b> — click a door to cycle <b>closed → locked → secret → archway</b>; click a doorway in a room wall or a narrow passage to add one. A secret door looks like wall (and reaches your VTT as a wall) — you see an <b>S</b>. Buildings: click one to open its roof first.',
+  furn:'🪑 <b>Furniture</b> — drag to move (whole squares) · click to select, then <b>R</b> rotates / <b>Delete</b> removes · pick an item in <b>➕ add</b> and click the floor to place it. Stairs, wells and pits stay put so the levels line up.',
+  dig:'⛏ <b>Dig</b> — click or drag to carve out floor. Walls, the VTT export and the room key follow. (Top view is easiest.)',
+  fill:'🧱 <b>Fill</b> — click or drag to fill squares with solid rock (ways up / down stay). (Top view is easiest.)' };
+{ const sel=document.getElementById('bEditAdd'); for(const k of Object.keys(EDIT_ADD)){ const o=document.createElement('option'); o.value=k; o.textContent='➕ '+(EDIT_ADD_NAME[k]||k); sel.appendChild(o); } }
+function bEditUI(){ const row=document.getElementById('bEditRow'); if(!row) return; const on=bld.scale==='battle' && (!!bld.dungeon || (bld.structures||[]).length>0) && !(window.TTier && !TTier.has('battlemaps'));
+  row.style.display=on?'':'none'; if(!on && bld.edit){ bld.edit=null; bld.editSel=null; }
+  row.querySelectorAll('[data-edit]').forEach(b=>{ b.classList.toggle('on', bld.edit===b.dataset.edit); if(b.dataset.edit==='dig'||b.dataset.edit==='fill') b.style.display=bld.dungeon?'':'none'; });
+  const f=bld.edit==='furn', sl=f&&!!bld.editSel; document.getElementById('bEditAdd').style.display=f?'':'none';
+  document.getElementById('bEditRot').style.display=sl?'':'none'; document.getElementById('bEditDel').style.display=sl?'':'none'; }
+document.querySelectorAll('#bEditSeg [data-edit]').forEach(b=>b.onclick=()=>{ const e=b.dataset.edit, was=bld.edit; bCancelTools(); bld.edit=(was===e)?null:e; bld.editSel=null; bRender(); bStatus(bld.edit?EDIT_HELP[bld.edit]:'✏ Edit off.'); });
+document.getElementById('bEditRot').onclick=()=>bEditRotate(); document.getElementById('bEditDel').onclick=()=>bEditDelete();
+function bEditPt(ev){ const p=bPickPoint(ev); if(!p) return null; const D=bld.dungeon; return D ? {x:p.x, z:p.z, u:p.x-(D.q0-0.5), v:p.z-(D.r0-0.5)} : {x:p.x, z:p.z}; }
+function bDungeonSet(N){ const D=bld.dungeon, D2={...N, q0:D.q0, r0:D.r0}, i=bld.dungeonLevel||0;
+  if(bld.dungeonLevels && bld.dungeonLevels.length) bld.dungeonLevels[i]=D2; else bld.dungeonLevels=[D2]; bld.dungeon=D2; }
+function bDungeonEdit(fn){ const D=bld.dungeon; if(!D) return false; const N=fn(D); if(!N || N===D) return false; bPushUndo(); bDungeonSet(N); bRender(); return true; }
+let _editRaf=0; function bEditQueueRender(){ if(_editRaf) return; _editRaf=requestAnimationFrame(()=>{ _editRaf=0; bRender(); }); }
+function bEditRay(ev){ const r=renderer.domElement.getBoundingClientRect(); ndc.x=((ev.clientX-r.left)/r.width)*2-1; ndc.y=-((ev.clientY-r.top)/r.height)*2+1; ray.setFromCamera(ndc,camera); }
+function bEditPickFurn(ev){ bEditRay(ev);
+  if(bld.dungeon){ const g=builderGroup.getObjectByName('dungeon'); if(!g) return null;
+    for(const h of ray.intersectObject(g,true)){ const o=h.object; if(o.isSprite || o.userData.feat==null) continue; const f=bld.dungeon.features[o.userData.feat]; if(!f) continue; return {dg:1, i:o.userData.feat, link:!!f.link}; } return null; }
+  for(const h of ray.intersectObjects((bld._structMeshes||[]).filter(Boolean),true)){ const o=h.object; if(o.isSprite) continue;
+    if(o.userData.furn!=null){ const st=bld.structures[o.userData.struct], f=o.userData.furnF||0, it=st&&bStructFurniture(st,f).find(x=>x._i===o.userData.furn); return {si:o.userData.struct, f, i:o.userData.furn, link:!!(it&&it.kind==='stairs')}; } }
+  return null; }
+function bEditItem(sel){ if(!sel) return null; const CS=bCellSize();
+  if(sel.dg){ const f=bld.dungeon && bld.dungeon.features[sel.i]; if(!f) return null; const [x,z]=bDungeonBW(f.x,f.y); return {kind:f.kind, x, z, w:f.w, d:f.d, y:0}; }
+  const st=bld.structures[sel.si]; if(!st) return null; const it=bStructFurniture(st,sel.f).find(o=>o._i===sel.i); return it ? {...it, y:sel.f*0.85*CS+0.06} : null; }
+function bEditMesh(h){ let found=null; const root=h.dg ? builderGroup.getObjectByName('dungeon') : (bld._structMeshes||[])[h.si];
+  if(root) root.traverse(o=>{ if(found) return; if(h.dg ? (o.userData.featRoot && o.userData.feat===h.i) : (o.userData.furnRoot && o.userData.furn===h.i)) found=o; }); return found; }
+function bRenderEditSel(){ if(bld.edit!=='furn' || !bld.editSel || bld._exporting) return; const it=bEditItem(bld.editSel); if(!it){ bld.editSel=null; return; }
+  const m=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(it.w+0.14, 0.7, it.d+0.14)), new THREE.LineBasicMaterial({color:0xffd166, depthTest:false}));
+  m.renderOrder=50; m.position.set(it.x-bld.off.x, TILE_TOP+(it.y||0)+0.35, it.z-bld.off.z); builderGroup.add(m); }
+function bEditDown(ev){ const E=bld.edit;
+  if(E==='dig'||E==='fill'){ if(!bld.dungeon) return false; bPushUndo(); bld._paint={v:E==='dig'?1:0, done:new Set(), n:0};
+    controls.enableRotate=false; try{ renderer.domElement.setPointerCapture(ev.pointerId); }catch(e){} bEditPaintAt(ev); return true; }
+  if(E==='furn'){ const h=bEditPickFurn(ev); if(!h) return false;
+    if(h.link){ bStatus(h.dg?'Ways up / down stay put so the levels line up.':'Stairs stay put so the floors line up.'); return true; }
+    bld.editSel=h; bld._dragFeat={h, p0:bEditPt(ev), du:0, dv:0, moved:false};
+    controls.enableRotate=false; try{ renderer.domElement.setPointerCapture(ev.pointerId); }catch(e){} bRender(); return true; }
+  return false; }
+function bEditPaintAt(ev){ const P=bld._paint, p=bEditPt(ev); if(!P || !p || !bld.dungeon) return; const cx=Math.floor(p.u), cy=Math.floor(p.v), k=cx+','+cy; if(P.done.has(k)) return; P.done.add(k);
+  const D=bld.dungeon, N=DungeonGen.paint(D,[[cx,cy]],P.v); if(N===D) return; P.n++; bDungeonSet(N); bEditQueueRender(); }
+function bEditMove(ev){ if(bld._paint){ bEditPaintAt(ev); return true; } const d=bld._dragFeat; if(!d) return false; const p=bEditPt(ev); if(!p || !d.p0) return true;
+  const CS=bCellSize(), du=Math.round((p.x-d.p0.x)/CS), dv=Math.round((p.z-d.p0.z)/CS); if(du===d.du && dv===d.dv) return true; d.du=du; d.dv=dv; d.moved=true;
+  const m=bEditMesh(d.h); if(m){ if(!m.userData._p0) m.userData._p0=m.position.clone(); m.position.set(m.userData._p0.x+du*CS, m.position.y, m.userData._p0.z+dv*CS); } return true; }
+function bEditUp(ev){ const release=()=>{ controls.enableRotate=(camMode==='orbit'); try{ renderer.domElement.releasePointerCapture(ev.pointerId); }catch(e){} bld._down=null; };
+  if(bld._paint){ const P=bld._paint; bld._paint=null; release(); if(!P.n) _undo.pop(); bRender(); if(P.n) bStatus(`${P.v?'⛏ Dug':'🧱 Filled'} <b>${P.n}</b> square${P.n===1?'':'s'} — walls, VTT export and room key updated. Ctrl+Z undoes the stroke.`); return true; }
+  const d=bld._dragFeat; if(!d) return false; bld._dragFeat=null; release();
+  if(d.moved && (d.du||d.dv)){ const CS=bCellSize(); const ok = d.h.dg ? bDungeonEdit(D=>DungeonGen.moveFeature(D,d.h.i,d.du,d.dv)) : bStructFurnEdit(d.h,'move',{dx:d.du*CS, dz:d.dv*CS});
+    bStatus(ok ? 'Moved · <b>R</b> rotates · <b>Delete</b> removes' : 'Blocked — furniture has to stay on open floor inside the room.'); }
+  else bStatus('Selected · drag to move · <b>R</b> rotates · <b>Delete</b> removes');
+  bRender(); return true; }
+function bEditRotate(){ const h=bld.editSel; if(!h) return; const ok = h.dg ? bDungeonEdit(D=>DungeonGen.rotateFeature(D,h.i)) : bStructFurnEdit(h,'rot'); if(!ok) bStatus('No room to rotate it there.'); else bRender(); }
+function bEditDelete(){ const h=bld.editSel; if(!h) return; const ok = h.dg ? bDungeonEdit(D=>DungeonGen.deleteFeature(D,h.i)) : bStructFurnEdit(h,'del'); bld.editSel=null; bRender(); if(ok) bStatus('Deleted · Ctrl+Z brings it back'); }
+// building furniture edits (generated items by index; added items 'a0','a1'…)
+function bStructFurnEdit(h, op, arg){ const st=bld.structures[h.si]; if(!st) return false; const cur=bStructFurniture(st,h.f).find(o=>o._i===h.i); if(!cur) return false;
+  if(op==='move'){ const nx=cur.x+arg.dx, nz=cur.z+arg.dz; if(nx<st.x0||nx>st.x1||nz<st.z0||nz>st.z1) return false; }
+  bPushUndo(); const E=bStructEdit(st,true); E.furn=E.furn||{}; const fe=E.furn[h.f]||(E.furn[h.f]={});
+  if(typeof h.i==='string'){ const k=+h.i.slice(1), it=(fe.add||[])[k]; if(!it) return false;
+    if(op==='del') fe.add.splice(k,1); else if(op==='move'){ it.x+=arg.dx; it.z+=arg.dz; } else { const w=it.w; it.w=it.d; it.d=w; if(it.face!=null) it.face=(it.face+1)%4; } return true; }
+  if(op==='del'){ (fe.del||(fe.del=[])).push(h.i); return true; }
+  const mv=fe.mv||(fe.mv={}), m=mv[h.i]||(mv[h.i]={});
+  if(op==='move'){ m.x=cur.x+arg.dx; m.z=cur.z+arg.dz; } else { m.w=cur.d; m.d=cur.w; if(cur.face!=null) m.face=(cur.face+1)%4; } return true; }
+function bStructDoorAt(p){ const CS=bCellSize(); let best=null, bd=0.45*CS;
+  (bld.structures||[]).forEach((st,si)=>{ if(st.roofOn) return; const f=Math.min(st.activeFloor||0,(st.floors||1)-1);
+    for(const d of bStructLayout(st,f,true).doors){ const m=Math.hypot((d[0]+d[2])/2-p.x,(d[1]+d[3])/2-p.z); if(m<bd){ bd=m; best={si,st,f,d}; } } }); return best; }
+function bEditClick(ev){ const p=bEditPt(ev); if(!p) return; const E=bld.edit, CS=bCellSize();
+  if(E==='door'){
+    if(bld.dungeon){ const D=bld.dungeon, i=DungeonGen.doorAt(D,p.u,p.v);
+      if(i>=0){ const nx=DOOR_CYCLE[DungeonGen.doorState(D.doors[i])]; bDungeonEdit(D=>DungeonGen.setDoor(D,i,nx)); bStatus(`🚪 Now a <b>${DOOR_NAME[nx]}</b> — click again for: ${DOOR_NAME[DOOR_CYCLE[nx]]}`); return; }
+      const e=DungeonGen.doorwayAt(D,p.u,p.v); if(e){ bDungeonEdit(D=>DungeonGen.addDoor(D,e)); bStatus('🚪 Added a <b>door</b> — click it to lock it, make it secret or an archway.'); return; }
+      bStatus('Click a door — or a doorway in a room wall / a narrow passage to add one.'); return; }
+    const hit=bStructDoorAt(p);
+    if(hit){ bPushUndo(); const Ed=bStructEdit(hit.st,true); Ed.doors=Ed.doors||{}; const k=bDoorKey(hit.f,hit.d), nx=DOOR_CYCLE[Ed.doors[k]||'closed']; if(nx==='closed') delete Ed.doors[k]; else Ed.doors[k]=nx;
+      bRender(); bStatus(`🚪 Now a <b>${nx==='open'?'open doorway':DOOR_NAME[nx]}</b> — click again for: ${DOOR_NAME[DOOR_CYCLE[nx]]}`); return; }
+    const si=bPickStructure(ev); if(si>=0){ bToggleStructure(si); return; }
+    bStatus('Click a building to open its roof, then click a doorway.'); return; }
+  if(E==='furn'){ const kind=document.getElementById('bEditAdd').value;
+    if(kind){ const [w,d]=EDIT_ADD[kind];
+      if(bld.dungeon){ const it={kind, x:Math.floor(p.u)+0.5, y:Math.floor(p.v)+0.5, w, d}; if(bDungeonEdit(D=>DungeonGen.addFeature(D,it))) bStatus(`Placed ${EDIT_ADD_NAME[kind]||kind} — click to place another, or pick “➕ add…” to stop.`); else bStatus('That square is not open floor.'); return; }
+      const si=(bld.structures||[]).findIndex(st=>p.x>st.x0&&p.x<st.x1&&p.z>st.z0&&p.z<st.z1);
+      if(si<0){ bStatus('Click inside a building (roof off) to place it.'); return; } const st=bld.structures[si]; if(st.roofOn){ bToggleStructure(si); return; }
+      const f=Math.min(st.activeFloor||0,(st.floors||1)-1), x=Math.min(st.x1-CS/2, st.x0+(Math.floor((p.x-st.x0)/CS)+0.5)*CS), z=Math.min(st.z1-CS/2, st.z0+(Math.floor((p.z-st.z0)/CS)+0.5)*CS);
+      bPushUndo(); const Ed=bStructEdit(st,true); Ed.furn=Ed.furn||{}; const fe=Ed.furn[f]||(Ed.furn[f]={}); (fe.add||(fe.add=[])).push({kind, x, z, w:w*CS, d:d*CS}); bRender(); bStatus(`Placed ${EDIT_ADD_NAME[kind]||kind}.`); return; }
+    if(!bld.dungeon){ const si=bPickStructure(ev); if(si>=0 && bld.structures[si].roofOn){ bToggleStructure(si); return; } }
+    bld.editSel=null; bRender(); return; }
+}
+// test hooks
+window.__bEdit=(o)=>{ o=o||{}; if(o.tool!==undefined){ bld.edit=o.tool; bld.editSel=null; bRender(); } return {edit:bld.edit, doors:bld.dungeon?bld.dungeon.doors.map(d=>DungeonGen.doorState(d)):null, structEdits:bld.structEdits, undo:_undo.length}; };
+window.__bLayout=()=>bld.dungeon?JSON.parse(JSON.stringify({cols:bld.dungeon.cols,rows:bld.dungeon.rows,res:bld.dungeon.res,floor:bld.dungeon.floor,doors:bld.dungeon.doors,rooms:bld.dungeon.rooms,features:bld.dungeon.features})):null;
+window.__bTownDbg=()=>{ const S=bld.structures||[]; const si=S.findIndex(st=>st.rooms.length>1)>=0?S.findIndex(st=>st.rooms.length>1):0; const st=S[si]; if(!st) return null; const f=Math.min(st.activeFloor||0,(st.floors||1)-1); const d=bStructLayout(st,f,true).doors[0]; const fu=bStructFurniture(st,f); const it=fu.find(o=>o.kind!=='stairs'&&o.kind!=='rug'); return {si, cx:(st.x0+st.x1)/2, cz:(st.z0+st.z1)/2, roofOn:st.roofOn, door:d?[(d[0]+d[2])/2,(d[1]+d[3])/2]:null, furn:it?{x:it.x,z:it.z,kind:it.kind}:null, nFurn:fu.length}; };
+window.__bGridScreen=(u,v)=>{ const D=bld.dungeon; let x,z; if(D){ [x,z]=bDungeonBW(u,v); } else { x=u; z=v; } const w=new THREE.Vector3(x-bld.off.x, TILE_TOP, z-bld.off.z).project(camera), rc=renderer.domElement.getBoundingClientRect(); return {x:rc.left+(w.x+1)/2*rc.width, y:rc.top+(1-w.y)/2*rc.height}; };
 function bFloorUI(){ const sel=document.getElementById('bVttFloor'); if(!sel) return; const maxF=bld.dungeon?1:Math.max(1,...(bld.structures||[]).map(s=>s.floors||1));
   if(maxF<=1){ sel.style.display='none'; sel.value='0'; if(!bld.dungeon) document.getElementById('bVttAllWrap').style.display='none'; return; }
   if(sel.options.length!==maxF){ const v=sel.value; sel.innerHTML=''; for(let f=0;f<maxF;f++){ const o=document.createElement('option'); o.value=f; o.textContent=f?`Floor ${f+1}`:'Ground floor'; sel.appendChild(o); } sel.value=Math.min(+v||0,maxF-1); }
@@ -5052,7 +5398,7 @@ function bVttGeometry(floor){ floor=floor||0;
       const a=cs[by[0].i], b=cs[by[1].i]; addWall([[w.x+a[0],w.z+a[1]],[w.x+b[0],w.z+b[1]]]); }); }
   // 2b) dungeon / cave walls (closed loops) + closed doors (open archways are just gaps)
   if(bld.dungeon){ const D=bld.dungeon; for(const l of D.walls){ const pts=l.map(p=>bDungeonBW(p.x,p.y)); pts.push(pts[0]); walls.push(pts); }
-    for(const d of D.doors) if(!d.open){ const a=bDungeonBW(d.x1,d.y1), b=bDungeonBW(d.x2,d.y2); doors.push([a[0],a[1],b[0],b[1]]); } }
+    for(const d of D.doors) if(!d.open){ const a=bDungeonBW(d.x1,d.y1), b=bDungeonBW(d.x2,d.y2); if(d.secret) walls.push([a,b]); else doors.push([a[0],a[1],b[0],b[1]]); } }   // secret doors reach the VTT as walls (the GM opens them there)
   // 3) hand-drawn wall strokes
   for(const s of bld.draw) if(s.type==='wall' && s.pts && s.pts.length>=2) addWall(s.pts.map(p=>[p[0],p[1]]));
   return {walls, doors};
@@ -5065,13 +5411,14 @@ async function bVttExport(opts){
   let ppg=+(opts.ppg||document.getElementById('bVttPpg').value)||140;
   const roofsOff = opts.roofsOff!=null ? !!opts.roofsOff : !!document.getElementById('bVttRoofs').checked;
   const floor = opts.floor!=null ? opts.floor : (+document.getElementById('bVttFloor').value||0);   // storey to export (0 = ground)
+  const keyNums = opts.keyNums!=null ? !!opts.keyNums : !!(document.getElementById('bKeyImg')||{}).checked;   // 🔢 GM copy: room numbers on the image
   bStatus('🗺 Rendering the map for your VTT…'); await new Promise(r=>setTimeout(r,30));
   const saved=(bld.structures||[]).map(s=>({roofOn:s.roofOn, activeFloor:s.activeFloor}));
   const savedTgc=bld.tgc; let out=null;
   try{
     if(floor) (bld.structures||[]).forEach(s=>{ if((s.floors||1)>floor){ s.roofOn=false; s.activeFloor=floor; } else { s.roofOn=true; s.activeFloor=0; } });   // upper floor: open the buildings that reach it, roof the rest
     else if(roofsOff) (bld.structures||[]).forEach(s=>{ s.roofOn=false; s.activeFloor=0; });   // look down INTO the ground floor
-    bld._exporting=true; bRender();
+    bld._exporting=true; bld._gmCopy=keyNums; bRender();
     const bb=bTgcSceneBBox(), unit=bCellSize();                   // 1 grid unit = one square (square) / centre-to-centre (hex)
     let W=Math.round(bb.w/unit*ppg), H=Math.round(bb.h/unit*ppg); const MAXD=8192;
     if(Math.max(W,H)>MAXD){ ppg=Math.floor(ppg*MAXD/Math.max(W,H)); W=Math.round(bb.w/unit*ppg); H=Math.round(bb.h/unit*ppg); }
@@ -5083,13 +5430,15 @@ async function bVttExport(opts){
     bld.tgc=savedTgc;
     // scene coords → grid units. Board-world (data) coords are scene + bld.off.
     const G=(x,z)=>({ x:+((x-bld.off.x-x0)/unit).toFixed(4), y:+((z-bld.off.z-z0)/unit).toFixed(4) });
+    if(keyNums){ for(const L of bKeyLabels()){ const g=G(L.x,L.z); bKeyBadgeDraw(cx, g.x*ppg, g.y*ppg, Math.max(9,ppg*0.3), L.t, L.letter); }
+      for(const L of bDoorMarks(floor)){ const g=G(L.x,L.z); bKeyBadgeDraw(cx, g.x*ppg, g.y*ppg, Math.max(6,ppg*0.17), L.t, 'door'); } }
     const geo=bVttGeometry(floor);
     const los=geo.walls.map(pts=>pts.map(p=>G(p[0],p[1])));
     const portals=geo.doors.map(d=>{ const a=G(d[0],d[1]), b=G(d[2],d[3]);
       return { position:{x:+((a.x+b.x)/2).toFixed(4), y:+((a.y+b.y)/2).toFixed(4)}, bounds:[a,b], rotation:+Math.atan2(b.y-a.y,b.x-a.x).toFixed(4), closed:true, freestanding:false }; });
     const lights=bLightSources(floor).map(l=>({ position:G(l.x,l.y===undefined?l.z:l.z), range:l.range, intensity:1, color:l.color, shadows:true }));
     const gw=+(W/ppg).toFixed(4), gh=+(H/ppg).toFixed(4);
-    const base=`tabletop-${bld.scale==='battle'?'battlemap':'map'}-${bld.seed}_${Math.round(gw)}x${Math.round(gh)}${floor?'_floor-'+(floor+1):''}`;
+    const base=`tabletop-${bld.scale==='battle'?'battlemap':'map'}-${bld.seed}_${Math.round(gw)}x${Math.round(gh)}${floor?'_floor-'+(floor+1):''}${keyNums?'_gm':''}`;
     if(opts.returnOnly){ out={W,H,ppg,gw,gh,walls:los,portals,lights,url:cv.toDataURL('image/png')}; }
     else if(opts.collect && fmt==='png'){ out={name:`${base}_${ppg}px.png`, data:await bCanvasBytes(cv), W,H,ppg}; }
     else if(fmt==='png'){
@@ -5108,7 +5457,7 @@ async function bVttExport(opts){
       bStatus(`🗺 Exported <b>${base}.${fmt}</b> (${mb} MB) — ${W}×${H}px, <b>${ppg} px/${bld.grid==='hex'?'hex':'square'}</b>, <b>${los.length}</b> wall${los.length===1?'':'s'}, <b>${portals.length}</b> door${portals.length===1?'':'s'}, <b>${lights.length}</b> light${lights.length===1?'':'s'}.${bld.grid==='hex'?' Hex map: set a <b>flat-top hex</b> grid of '+ppg+' px in your VTT (the file format itself only describes square grids).':''}${bld.scale!=='battle'?' Tip: <b>⚔ Battle (5 ft)</b> maps export buildings with walls + doors.':''}`); }
     }
   }catch(e){ bStatus('VTT export failed: '+(e&&e.message||e), true); console.error(e); }
-  bld.tgc=savedTgc; bld._exporting=false;
+  bld.tgc=savedTgc; bld._exporting=false; bld._gmCopy=false;
   (bld.structures||[]).forEach((s,i)=>{ if(saved[i]){ s.roofOn=saved[i].roofOn; s.activeFloor=saved[i].activeFloor; } });
   bRender();
   return out;
@@ -5345,9 +5694,10 @@ function bRenderHexMatGhosts(){ if(!TGC_HEXMAT[bld.tgc] || bld._exporting) retur
     for(let i=0;i<=6;i++){ const a=i*Math.PI/3; hp.push(new THREE.Vector3(w.x+0.85*Math.cos(a), TILE_TOP+0.07, w.z+0.85*Math.sin(a))); }
     const rim=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(hp), new THREE.LineBasicMaterial({color:0x6fe0ff, transparent:true, opacity:0.55, depthTest:false})); rim.renderOrder=20; builderGroup.add(rim);
     const l=bMakeTickLabel('＋'); l.position.set(w.x, TILE_TOP+0.11, w.z); l.scale.set(0.85,0.42,1); l.renderOrder=32; builderGroup.add(l); } }
-function bClear(){ bPushUndo(); bld.dungeon=null; bld.dungeonLevels=[]; bld.dungeonLevel=0; bld.board.clear(); bld.zones.clear(); bld.draw=[]; bld.pen=[]; bld.props=[]; bld.subdiv.clear(); bld.subpaint.clear(); bld.selStroke=null; bld.selProp=null; bld.q0=0; bld.r0=0; bld.tgcCenters=[]; bld.selUnit=0; bld.sheetsX=1; bld.sheetsY=1; bld.sheetCX=0; bld.sheetCZ=0; _settlePlan=null; bld.structPlans=[]; bld.modern=null; if(TGC[bld.tgc]&&TGC[bld.tgc].kind==='mat') bTgcFit(); bRender(); bStatus("Cleared"); }
+function bClear(){ bPushUndo(); bld.dungeon=null; bld.dungeonLevels=[]; bld.dungeonLevel=0; bld.structEdits={}; bld.editSel=null; bld.board.clear(); bld.zones.clear(); bld.draw=[]; bld.pen=[]; bld.props=[]; bld.subdiv.clear(); bld.subpaint.clear(); bld.selStroke=null; bld.selProp=null; bld.q0=0; bld.r0=0; bld.tgcCenters=[]; bld.selUnit=0; bld.sheetsX=1; bld.sheetsY=1; bld.sheetCX=0; bld.sheetCZ=0; _settlePlan=null; bld.structPlans=[]; bld.modern=null; if(TGC[bld.tgc]&&TGC[bld.tgc].kind==='mat') bTgcFit(); bRender(); bStatus("Cleared"); }
 function bSaveBoard(){ const data=TE.serializeBoard(bld.grid, bld.board, bld.zones, {cols:bld.cols,rows:bld.rows,seed:bld.seed,q0:bld.q0,r0:bld.r0}); data.draw=bld.draw; data.props=bld.props; data.season=bld.season; data.trees=bld.trees;
   data.dungeon=bld.dungeon||null; data.dungeonLevels=bld.dungeonLevels||[]; data.dungeonLevel=bld.dungeonLevel||0;   // ⚔ dungeon / cave levels (plain JSON)
+  data.structEdits=bld.structEdits||{};                                    // ✏ hand edits to battle buildings
   data.modern=bld.modern||null;                                           // Modern Pack street-grid state → Extend continues the grid after a reload
   data.structPlans=(bld.structPlans||[]).map(P=>({id:P.id, w:P.w, h:P.h, tiles:[...P.tiles], draw:P.draw}));   // an unfinished castle still completes after a reload
   data.subdiv=[...bld.subdiv].map(([k,s])=>{ const [q,r]=k.split(',').map(Number); return {q,r,mode:s.mode,n:s.n}; });
@@ -5362,7 +5712,7 @@ async function bLoadBoard(e){ const f=e.target.files[0]; if(!f) return;
     bld.subpaint=new Map(); if(Array.isArray(raw.subpaint)) for(const s of raw.subpaint) bld.subpaint.set(s.q+','+s.r, s.paint||{});
     TE.hydrateGenerated(bDefs(), bld.grid, bld.board);          // rebuild any generated map tiles the save referenced
     bld.structPlans=(Array.isArray(raw.structPlans)?raw.structPlans:[]).map(P=>({id:P.id, w:P.w, h:P.h, tiles:new Map(P.tiles), draw:P.draw||[]}));
-    for(const P of bld.structPlans) TE.hydrateGenerated(bDefs(), bld.grid, P.tiles); _settlePlan=null; bld.modern=raw.modern||null; bRestoreDungeon(raw); bld.structKey='';
+    for(const P of bld.structPlans) TE.hydrateGenerated(bDefs(), bld.grid, P.tiles); _settlePlan=null; bld.modern=raw.modern||null; bRestoreDungeon(raw); bld.structKey=''; bld.structEdits=raw.structEdits||{}; bld.editSel=null;
     if(raw.season!==undefined){ bld.season=raw.season; const se=document.getElementById('bSeason'); if(se) se.value=String(bld.season); }
     if(raw.trees){ bld.trees=raw.trees; const tr=document.getElementById('bTrees'); if(tr) tr.value=bld.trees; }
     const m=r.meta||{}; if(m.cols) bld.cols=m.cols; if(m.rows) bld.rows=m.rows; if(m.seed) bld.seed=m.seed; bld.q0=m.q0||0; bld.r0=m.r0||0;
@@ -6277,7 +6627,8 @@ function bSubToolOff(){ if(bld.subTool){ bld.subTool=false; const b=document.get
   if(bld.subPaintOn){ bld.subPaintOn=false; const b=document.getElementById('bSubPaintTool'); if(b){ b.textContent='🖌 Paint pieces: off'; b.classList.remove('on'); } } }
 // Cancel / deselect EVERY active build tool or selection (Esc key, or clicking away). Returns true if anything was active.
 function bCancelTools(){
-  const had = !!(bld.tool||bld.propKind||bld.propGlb||bld.miniTeam||bld.repaintOn||bld.imgToolOn||bld.subTool||bld.subPaintOn||bld.sel||bld.selStroke!=null||bld.selProp!=null||bld.measA);
+  const hadEdit=!!bld.edit; bld.edit=null; bld.editSel=null; if(hadEdit) setTimeout(()=>bRender(),0);
+  const had = hadEdit || !!(bld.tool||bld.propKind||bld.propGlb||bld.miniTeam||bld.repaintOn||bld.imgToolOn||bld.subTool||bld.subPaintOn||bld.sel||bld.selStroke!=null||bld.selProp!=null||bld.measA);
   bld.tool=null; bld.pen=[]; bld.propKind=null; bld.propGlb=null; bld.miniTeam=null;
   bld.sel=null; bld.rot=0; bld.selStroke=null; bld.selProp=null; bld.measA=null; bld.measB=null;
   bRepaintOff(); bImageToolOff(); bSubToolOff();
@@ -6477,6 +6828,7 @@ window.addEventListener('keydown',(ev)=>{ if(!BUILD||PLAYB) return;
     if(bld.tool && bld.tool!=='erase' && bld.pen.length>=2) bDrawFinish();        // commit a multi-point line being drawn, then exit the tool
     if(bCancelTools()) bStatus('Cancelled — tool cleared (Esc)'); return;
   }
+  if(bld.edit==='furn' && bld.editSel){ if(ev.key==='Delete'||ev.key==='Backspace'){ ev.preventDefault(); bEditDelete(); return; } if(ev.key==='r'||ev.key==='R'){ ev.preventDefault(); bEditRotate(); return; } }
   if((ev.key==='Delete'||ev.key==='Backspace') && bld.selStroke!=null){ ev.preventDefault(); bDeleteSelStroke(); return; }
   if((ev.key==='Delete'||ev.key==='Backspace') && bld.selProp!=null){ ev.preventDefault(); bDeleteSelProp(); return; }
   if((ev.key==='PageUp'||ev.key==='PageDown') && bld.selProp!=null && bld.props[bld.selProp]){ ev.preventDefault(); const pr=bld.props[bld.selProp];   // lift / lower the selected prop
