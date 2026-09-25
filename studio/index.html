@@ -233,6 +233,10 @@
     horror:     { icon:'🕯', name:'Gothic Horror Pack', blurb:'Haunted manors with secret ritual rooms, asylums with locked cells, and walled graveyards whose family crypt leads down to the catacombs — battle maps for horror games (needs the Battle Maps Pack).' },
     underdark:  { icon:'🍄', name:'Underdark Pack', blurb:'Vast underground caverns with giant glowing mushrooms, black lakes and spider webs — plus a dark-elf city carved into the caves, with a spider-goddess temple, noble houses, barracks and market (needs the Battle Maps Pack).' },
     pirates:    { icon:'🏴‍☠️', name:'Pirates & Ports', blurb:'Sailing ships on open sea with three decks linked by hatches (main deck, gun deck, cargo hold), harbour docks with a tavern, piers and a moored sloop, and a smugglers\' sea cave with a lagoon and jetty (needs the Battle Maps Pack).' },
+    western:    { icon:'🤠', name:'Wild West Pack', blurb:'A frontier town on a dusty main street — saloon, sheriff\'s office and jail, bank with a vault, general store, livery, undertaker — and the silver mine beneath it (needs the Battle Maps Pack).' },
+    japan:      { icon:'🏯', name:'Feudal Japan Pack', blurb:'A symmetric Japanese castle: audience hall with the lord\'s dais, dojo, tea room, shrine, armoury and koi-pond gardens, with tatami floors and sliding paper doors (needs the Battle Maps Pack).' },
+    ruins:      { icon:'☢', name:'Post-Apocalypse Pack', blurb:'A shattered city block — cracked streets, half-collapsed buildings, burned-out cars, toxic pools and a barricaded survivors\' camp, with the sewers below (needs the Battle Maps Pack).' },
+    wizard:     { icon:'🧙', name:"Wizard's Tower", blurb:'A round tower you build upward floor by floor: entrance hall, library, alchemy lab, summoning chamber, bedchamber and observatory, linked by a spiral stair (needs the Battle Maps Pack).' },
   };
   const ttExp = ()=>{ try{ return new Set(JSON.parse(localStorage.getItem('studio.tabletop.exp')||'[]').filter(id=>EXPANSIONS[id])); }catch(e){ return new Set(); } };
   const ttSave = s => localStorage.setItem('studio.tabletop.exp', JSON.stringify([...s]));

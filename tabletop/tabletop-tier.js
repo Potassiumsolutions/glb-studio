@@ -16,6 +16,7 @@
      · horror      → Gothic Horror: haunted manor, asylum, graveyard + catacombs (needs Battle Maps)
      · underdark   → Underdark: vast fungal caverns + a dark-elf city carved into them (needs Battle Maps)
      · pirates     → Pirates & Ports: sailing-ship decks, harbour docks, smugglers' cove (needs Battle Maps)
+     · western / japan / ruins / wizard → Wild West town, Feudal Japan castle, Post-apocalypse ruins, Wizard's tower (need Battle Maps)
      · modern      → Modern Pack: City / Suburbs / Rural map themes, asphalt streets, railways,
                      modern buildings (towers, homes, schools, farms, wind farms …)
 
@@ -32,7 +33,7 @@
    ============================================================================ */
 (function (root) {
   'use strict';
-  const ALL = ['terrain', 'battlemaps', 'race', 'modern', 'scifi', 'pharaohs', 'horror', 'underdark', 'pirates'];
+  const ALL = ['terrain', 'battlemaps', 'race', 'modern', 'scifi', 'pharaohs', 'horror', 'underdark', 'pirates', 'western', 'japan', 'ruins', 'wizard'];
   const params = new URLSearchParams(location.search);
   let exp;
 
@@ -64,7 +65,7 @@
   root.TTier = {
     has, apply,
     list: () => [...exp],
-    LABELS: { terrain: 'Terrain Pack', battlemaps: 'Battle Maps Pack', race: 'Race Games', modern: 'Modern Pack', scifi: 'Sci-Fi Pack', pharaohs: 'Tomb of the Pharaohs', horror: 'Gothic Horror Pack', underdark: 'Underdark Pack', pirates: 'Pirates & Ports' }
+    LABELS: { terrain: 'Terrain Pack', battlemaps: 'Battle Maps Pack', race: 'Race Games', modern: 'Modern Pack', scifi: 'Sci-Fi Pack', pharaohs: 'Tomb of the Pharaohs', horror: 'Gothic Horror Pack', underdark: 'Underdark Pack', pirates: 'Pirates & Ports', western: 'Wild West Pack', japan: 'Feudal Japan Pack', ruins: 'Post-Apocalypse Pack', wizard: "Wizard's Tower" }
   };
 
   if (document.readyState !== 'loading') apply();

@@ -76,9 +76,10 @@
     scifi:['quarters','messhall','medbay','cargo','armory','lab','hydroponics','brig','airlock','cryo'],   // 🚀 Sci-Fi Pack
     manor:['parlour','library','diningroom','kitchen','study','conservatory','bedroom','nursery','servants','ballroom'], asylum:['cell','cell','cell','ward','operating','morgue','office','dayroom','hydrotherapy','records'],
     catacombs:['ossuary','crypt','shrine','ossuary','crypt'],   // 🕯 Gothic Horror
+    japan:['dojo','tearoom','jshrine','jarmory','jquarters','jkitchen','garden','jstudy'],   // 🏯 Feudal Japan
     tomb:['antechamber','treasury','falsechamber','anubis','canopic','pillarhall','embalming','offerings'], pyramid:['antechamber','treasury','falsechamber','anubis','canopic','pillarhall','embalming','offerings'] };   // 🏜 Tomb of the Pharaohs
-  const STYLE_BIG={ mine:['stope','collapse'], sewer:['cistern','cistern'], temple:['chapel','ossuary'], scifi:['cargo','hydroponics'], tomb:['pillarhall','treasury'], pyramid:['pillarhall','treasury'], manor:['ballroom','diningroom'], asylum:['ward','dayroom'], catacombs:['ossuary','crypt'] };
-  const STYLE_PILLARS={ mine:['stope'], sewer:['cistern'], temple:['chapel','ossuary','lair'], scifi:[], tomb:['pillarhall','lair'], pyramid:['pillarhall'], manor:[], asylum:[], catacombs:['ossuary','crypt','lair'] };
+  const STYLE_BIG={ mine:['stope','collapse'], sewer:['cistern','cistern'], temple:['chapel','ossuary'], scifi:['cargo','hydroponics'], tomb:['pillarhall','treasury'], pyramid:['pillarhall','treasury'], manor:['ballroom','diningroom'], asylum:['ward','dayroom'], catacombs:['ossuary','crypt'], japan:['dojo','garden'] };
+  const STYLE_PILLARS={ mine:['stope'], sewer:['cistern'], temple:['chapel','ossuary','lair'], scifi:[], tomb:['pillarhall','lair'], pyramid:['pillarhall'], manor:[], asylum:[], catacombs:['ossuary','crypt','lair'], japan:['dojo'] };
   // base (Extend): { floor, rooms, doors, features, region:{x0,y0,x1,y1} } already in the NEW grid's coords. The old
   // layout is kept exactly; new rooms go only inside `region` (the added strip) and are wired to the nearest old rooms.
   function dungeon(cols, rows, seed, base, arrivals, opt){ arrivals=arrivals||[]; opt=opt||{};
@@ -139,7 +140,7 @@
       if(style==='sewer') for(const k of path){ const x=k%W, y=(k/W)|0; if(!nearRoom(x,y)) water[k]=1;
         for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){ const X=x+dx,Y=y+dy; if(X<1||Y<1||X>=W-1||Y>=H-1||roomAt[Y*W+X]>=0||nearRoom(X,Y)||(SEAL&&SEAL[Y*W+X])) continue; floor[Y*W+X]=1; } }
       else if(style==='mine') for(const k of path){ if(r()<0.12){ const x=k%W, y=(k/W)|0, [dx,dy]=[[1,0],[-1,0],[0,1],[0,-1]][ri(4)], X=x+dx, Y=y+dy; if(X>1&&Y>1&&X<W-2&&Y<H-2&&roomAt[Y*W+X]<0&&!nearRoom(X,Y)&&!(SEAL&&SEAL[Y*W+X])) floor[Y*W+X]=1; } } }
-    const pOpen = style==='mine'?0.85 : style==='sewer'?0.6 : style==='temple'?0.45 : style==='scifi'?0.15 : (style==='tomb'||style==='pyramid')?0.35 : style==='manor'?0.15 : style==='asylum'?0.08 : style==='catacombs'?0.5 : 0.28;
+    const pOpen = style==='mine'?0.85 : style==='sewer'?0.6 : style==='temple'?0.45 : style==='scifi'?0.15 : (style==='tomb'||style==='pyramid')?0.35 : style==='manor'?0.15 : style==='asylum'?0.08 : style==='catacombs'?0.5 : style==='japan'?0.4 : 0.28;
     for(const d of used){ const open = r()<pOpen;   // an open archway, else a door (a sewer's are iron grates)
       // the doorway is the shared edge between the room's border cell and the corridor cell outside it
       if(d.side===0) newDoors.push({x1:d.ix,y1:d.iy,x2:d.ix+1,y2:d.iy,open}); else if(d.side===2) newDoors.push({x1:d.ix,y1:d.iy+1,x2:d.ix+1,y2:d.iy+1,open});
@@ -188,17 +189,19 @@
       if(style==='sewer' && water){ if(o.type==='cistern'){ for(let y=o.y+1;y<o.y+o.h-1;y++) for(let x=o.x+1;x<o.x+o.w-1;x++) if(floor[y*W+x]) water[y*W+x]=1; }
         else if(o.type==='overflow'){ for(let y=o.y+Math.ceil(o.h/2);y<o.y+o.h-1;y++) for(let x=o.x+1;x<o.x+o.w-1;x++) if(floor[y*W+x]) water[y*W+x]=1; } } } }
   // 🏛 TEMPLE: rooms are laid out on the WEST half around a central nave, then mirrored east → a symmetric plan
-  const MIRROR_TYPE={ lair:'reliquary', treasury:'treasury', medbay:'lab', lab:'medbay', armory:'brig', brig:'armory', messhall:'hydroponics', hydroponics:'messhall' };
+  const MIRROR_TYPE={ dojo:'jarmory', jarmory:'dojo', tearoom:'jstudy', jstudy:'tearoom', lair:'reliquary', treasury:'treasury', medbay:'lab', lab:'medbay', armory:'brig', brig:'armory', messhall:'hydroponics', hydroponics:'messhall' };
   function temple(cols, rows, seed, style){ style=style||'temple'; const W=cols, H=rows, half=Math.floor(W/2), odd=W%2, ship=style==='scifi';
     const nw=ship ? (odd?3:(W>=30?4:2)) : (W>=30?8:6)+odd, nh=ship ? Math.max(8, Math.min(H-4, Math.round(H*0.78))) : Math.max(6, Math.min(H-6, Math.round(H*0.55))), nx=(W-nw)/2, ny=Math.floor((H-nh)/2);
     const L=dungeon(W,H,seed,null,[],{style, force:[{x:nx,y:ny,w:nw,h:nh}], maxX:half, noDress:true});
     const F=L.floor.slice(); for(let y=0;y<H;y++) for(let x=W-half;x<W;x++) F[y*W+x]=L.floor[y*W+(W-1-x)];
     const rooms=[]; for(const o of L.rooms){ if(o.x===nx && o.y===ny && o.w===nw && o.h===nh){ rooms.push({x:o.x,y:o.y,w:o.w,h:o.h,type:'entrance'}); continue; }
-      if(o.x+o.w<=half){ rooms.push({x:o.x,y:o.y,w:o.w,h:o.h,type:o.type}); rooms.push({x:W-o.x-o.w,y:o.y,w:o.w,h:o.h,type:ship?(o.type==='lair'?'engineering':(MIRROR_TYPE[o.type]||o.type)):style==='pyramid'?(o.type==='lair'?'treasury':o.type):(o.type==='lair'?'reliquary':o.type)}); } }
+      if(o.x+o.w<=half){ rooms.push({x:o.x,y:o.y,w:o.w,h:o.h,type:o.type}); rooms.push({x:W-o.x-o.w,y:o.y,w:o.w,h:o.h,type:ship?(o.type==='lair'?'engineering':(MIRROR_TYPE[o.type]||o.type)):style==='japan'?(o.type==='lair'?'jarmory':(MIRROR_TYPE[o.type]||o.type)):style==='pyramid'?(o.type==='lair'?'treasury':o.type):(o.type==='lair'?'reliquary':o.type)}); } }
     let doors=[]; for(const d of L.doors){ if(d.x1===d.x2){ if(d.x1*2<W){ doors.push({...d}); doors.push({...d, x1:W-d.x1, x2:W-d.x1}); } else if(d.x1*2===W) doors.push({...d}); }
       else { if(d.x1<half){ doors.push({...d}); doors.push({...d, x1:W-1-d.x1, x2:W-d.x1}); } else if(odd && d.x1===half) doors.push({...d}); } }
     // nave pillars: two symmetric rows, clear of the altar end and the way in
     if(!ship) for(let y=ny+2;y<ny+nh-2;y+=2){ F[y*W+nx+1]=0; F[y*W+nx+nw-2]=0; }
+    let JW=null;   // 🏯 garden rooms get a koi pond
+    if(style==='japan'){ JW=new Array(W*H).fill(0); }
     // keep only what the nave reaches
     const seen=new Uint8Array(W*H), st=[(ny+nh-1)*W+nx+Math.floor(nw/2)]; seen[st[0]]=1;
     while(st.length){ const k=st.pop(), x=k%W, y=(k/W)|0; for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){ const X=x+dx,Y=y+dy,K=Y*W+X; if(X<0||Y<0||X>=W||Y>=H||seen[K]||!F[K]) continue; seen[K]=1; st.push(K); } }
@@ -207,7 +210,9 @@
     const T={floor:F, cols:W, rows:H, res:1}; doors=doors.filter(d=>doorOk(T,d));
     const r=rng32((seed^0x51ed270b)>>>0);
     if(ship||style==='pyramid'){ const cand=R2.filter(o=>o.type!=='entrance'&&o.type!=='lair').sort((a,b)=>a.y-b.y||a.x-b.x); if(cand[0]){ const b0=cand[0]; b0.type=ship?'bridge':'kingschamber'; const m=R2.find(o=>o!==b0&&o.y===b0.y&&o.x===W-b0.x-b0.w&&o.w===b0.w); if(m) m.type=ship?'comms':'queenschamber'; } }   // the bow / the king's chamber
-    const features=dungeonDressing(R2, doors, F, W, H, r, {allRooms:R2, style}); drops(features, R2, F, W, H, r, 'dungeon', 1, false, null, style);
+    if(JW) for(const o of R2) if(o.type==='garden' && o.w>=4 && o.h>=4) for(let y=o.y+1;y<o.y+o.h-1;y++) for(let x=o.x+1;x<o.x+o.w-1;x++) if(F[y*W+x] && (x-o.x)<o.w*0.6) JW[y*W+x]=1;
+    const features=dungeonDressing(R2, doors, F, W, H, r, {allRooms:R2, style, water:JW}); drops(features, R2, F, W, H, r, 'dungeon', 1, false, JW, style);
+    if(JW && JW.some(v=>v)) return { kind:'dungeon', style, cols, rows, res:1, floor:F, water:JW, walls:gridLoops(F,W,H), waterLoops:gridLoops(JW,W,H), doors, rooms:R2, features, sealed:[], newRooms:R2.length };
     return { kind:'dungeon', style, cols, rows, res:1, floor:F, water:null, walls:gridLoops(F,W,H), waterLoops:[], doors, rooms:R2, features, sealed:[], newRooms:R2.length }; }
   function graveyard(cols, rows, seed){ const W=cols, H=rows, r=rng32(seed), ri=(n)=>Math.floor(r()*n), floor=new Array(W*H).fill(0);
     for(let y=2;y<H-2;y++) for(let x=2;x<W-2;x++) floor[y*W+x]=1;                                    // the grounds, walled (rock ring = the wall)
@@ -307,6 +312,89 @@
     for(let i=0;i<3;i++){ for(let t=0;t<40;t++){ const x=1+ri(W-3), y=2+ri(qTop-4); let ok=true; for(let dy=-2;dy<=2&&ok;dy++) for(let dx=-1;dx<=1;dx++){ const X=x+dx,Y=y+dy; if(X<0||Y<0||X>=W||Y>=H||!sea[Y*W+X]||F.some(f=>Math.hypot(f.x-X-0.5,f.y-Y-0.5)<1.2)) { ok=false; break; } } if(ok){ F.push({kind:'rowboat',x:x+0.5,y:y+0.5,w:1.2,d:2.4,afloat:1}); break; } } }
     const names={tavern:TAVERNS[ri(TAVERNS.length)], sloop:SHIPNAMES[ri(SHIPNAMES.length)]}; for(const o of rooms) if(names[o.type]) o.name=names[o.type];
     return { kind:'dungeon', style:'docks', cols, rows, res:1, floor, water:null, sea, rail, walls:gridLoops(floor,W,H), waterLoops:[], doors, rooms, features:F, sealed:[], newRooms:rooms.length }; }
+  // shared helpers for open-ground sites (a building = wall ring of rock + one door)
+  function openSite(W,H){ const floor=new Array(W*H).fill(1), F=[], occ=new Set(), rooms=[], doors=[];
+    const put=(it)=>{ const cells=[]; for(let y=Math.floor(it.y-it.d/2+0.05);y<=Math.floor(it.y+it.d/2-0.05);y++) for(let x=Math.floor(it.x-it.w/2+0.05);x<=Math.floor(it.x+it.w/2-0.05);x++) cells.push([x,y]);
+      if(cells.some(([x,y])=>x<0||y<0||x>=W||y>=H||!floor[y*W+x]||occ.has(x+','+y))) return false; if(!it.flat) cells.forEach(([x,y])=>occ.add(x+','+y)); F.push(it); return true; };
+    const building=(x,y,w,h,type,doorSide)=>{ for(let yy=y-1;yy<=y+h;yy++) for(let xx=x-1;xx<=x+w;xx++){ const inner=yy>=y&&yy<y+h&&xx>=x&&xx<x+w; floor[yy*W+xx]=inner?1:0; }
+      const o={x,y,w,h,type}; let d; if(doorSide===1){ const dy=y+Math.floor(h/2); floor[dy*W+x+w]=1; d={x1:x+w,y1:dy,x2:x+w,y2:dy+1,open:false}; } else if(doorSide===3){ const dy=y+Math.floor(h/2); floor[dy*W+x-1]=1; d={x1:x,y1:dy,x2:x,y2:dy+1,open:false}; }
+      else if(doorSide===0){ const dx=x+Math.floor(w/2); floor[(y-1)*W+dx]=1; d={x1:dx,y1:y,x2:dx+1,y2:y,open:false}; } else { const dx=x+Math.floor(w/2); floor[(y+h)*W+dx]=1; d={x1:dx,y1:y+h,x2:dx+1,y2:y+h,open:false}; }
+      doors.push(d); rooms.push(o); for(let yy=y-1;yy<=y+h;yy++) for(let xx=x-1;xx<=x+w;xx++) if(!(yy>=y&&yy<y+h&&xx>=x&&xx<x+w)) occ.add(xx+','+yy); return o; };   // walls + porch reserved; the inside stays free for furniture
+    return {floor, F, occ, rooms, doors, put, building}; }
+  // 🤠 WILD WEST: a main street (north–south) lined with buildings facing it; the silver mine lies below
+  const WEST_TYPES=['saloon','sheriff','bank','store','hotel','livery','undertaker','church','smithy'];
+  function western(cols, rows, seed){ const W=cols, H=rows, r=rng32(seed), ri=(n)=>Math.floor(r()*n), S0=openSite(W,H), {floor,F,rooms,doors,put,building}=S0;
+    const sx0=Math.floor(W/2)-2, sx1=sx0+4; rooms.push({x:sx0,y:0,w:4,h:H,type:'entrance'});
+    let t=0; for(const side of [-1,1]){ let y=2; while(y<H-4){ const h=3+ri(3), w=4+ri(3); if(y+h>H-2) break; const x=side<0 ? sx0-2-w : sx1+2; if(x<2||x+w>W-2){ y+=h+2; continue; }
+        const o=building(x,y,w,h,WEST_TYPES[t%WEST_TYPES.length],side<0?1:3); t++;
+        if(o.type==='bank' && o.w>=5){ const vx=side<0?o.x:o.x+o.w-1; for(let yy=o.y;yy<o.y+o.h;yy++) floor[yy*W+(side<0?o.x+1:o.x+o.w-2)]=0; const vy=o.y+Math.floor(o.h/2), wx=side<0?o.x+1:o.x+o.w-2; floor[vy*W+wx]=1; doors.push({x1:side<0?wx:wx+1,y1:vy,x2:side<0?wx:wx+1,y2:vy+1,open:false,lock:true}); o.vault=vx; }
+        y+=h+2+ri(2); } }
+    rooms.slice(1).forEach(o=>westDress(o,put,floor,W));
+    for(let y=1;y<H-1;y+=3){ put({kind:'hitchrail',x:sx0+0.5,y:y+0.5,w:0.3,d:1.2}); put({kind:'hitchrail',x:sx1-0.5,y:y+1.5,w:0.3,d:1.2}); }
+    for(let i=0;i<2;i++) for(let k=0;k<20;k++) if(put({kind:'trough',x:(i?sx1-0.5:sx0+0.5),y:2+ri(H-4)+0.5,w:0.6,d:1.2})) break;
+    for(let k=0;k<20;k++) if(put({kind:'wagon',x:sx0+2,y:3+ri(H-6)+0.5,w:1.4,d:2.4})) break;
+    const inB=(x,y)=>rooms.slice(1).some(o=>x>=o.x-1&&x<=o.x+o.w&&y>=o.y-1&&y<=o.y+o.h);
+    for(let i=0;i<6;i++) for(let k=0;k<30;k++){ const x=1+ri(W-2), y=1+ri(H-2); if(!inB(x,y) && put({kind:r()<0.6?'cactus':'tumbleweed',x:x+0.5,y:y+0.5,w:0.7,d:0.7})) break; }
+    for(let i=0;i<4;i++) for(let k=0;k<20;k++) if(put({kind:'barrel',x:(i%2?sx1-0.5:sx0+0.5),y:1+ri(H-2)+0.5,w:0.55,d:0.55})) break;
+    for(let k=0;k<40;k++){ const x=1+ri(W-3), y=H-3; if(put({kind:'minehead',x:x+0.5,y:y+0.5,w:1.8,d:1.2})){ F.push({kind:'stairs',x:x+0.5,y:y-0.6,w:1.7,d:0.9,face:0,link:'down'}); break; } }
+    for(let y=0;y<H;y++) F.push({kind:'path',x:sx0+2,y:y+0.5,w:4,d:1,flat:1,dirt:1});
+    return { kind:'dungeon', style:'western', cols, rows, res:1, floor, water:null, walls:gridLoops(floor,W,H), waterLoops:[], doors, rooms, features:F, sealed:[], newRooms:rooms.length }; }
+  function westDress(o, put, floor, W){ const cx=o.x+o.w/2, cy=o.y+o.h/2, back=(o.vault!=null)?0:0;
+    const T=o.type; if(T==='saloon'){ put({kind:'counter',x:cx,y:o.y+0.3,w:Math.min(3,o.w-0.6),d:0.45}); put({kind:'table',x:o.x+1,y:cy+0.8,w:0.9,d:0.9}); put({kind:'table',x:o.x+o.w-1,y:cy+0.8,w:0.9,d:0.9}); put({kind:'piano',x:o.x+0.8,y:o.y+o.h-0.6,w:1.4,d:0.8}); put({kind:'barrel',x:o.x+o.w-0.4,y:o.y+0.4,w:0.5,d:0.5}); }
+    else if(T==='sheriff'){ put({kind:'desk',x:cx,y:o.y+0.5,w:1,d:0.55}); put({kind:'cellbars',x:cx,y:o.y+o.h-1.3,w:o.w-0.2,d:0.08}); put({kind:'bench',x:cx,y:o.y+o.h-0.4,w:1.2,d:0.35}); put({kind:'weaponrack',x:o.x+0.25,y:cy-0.5,w:0.35,d:1.2}); }
+    else if(T==='bank'){ put({kind:'counter',x:cx,y:o.y+0.4,w:Math.min(2.4,o.w-2),d:0.45}); const vx=o.vault+0.5; put({kind:'chest',x:vx,y:o.y+0.5,w:0.8,d:0.6}); put({kind:'treasurepile',x:vx,y:o.y+o.h-0.6,w:0.8,d:0.8}); }
+    else if(T==='store'){ put({kind:'counter',x:cx,y:o.y+0.4,w:Math.min(2.4,o.w-1),d:0.45}); put({kind:'shelf',x:o.x+0.2,y:cy+0.5,w:0.35,d:1.2}); put({kind:'shelf',x:o.x+o.w-0.2,y:cy+0.5,w:0.35,d:1.2}); put({kind:'barrel',x:cx,y:o.y+o.h-0.5,w:0.5,d:0.5}); put({kind:'crate',x:cx+1,y:o.y+o.h-0.5,w:0.7,d:0.7}); }
+    else if(T==='hotel'){ for(let i=0;i<Math.min(3,Math.floor(o.w/1.5));i++) put({kind:'bed',x:o.x+0.6+i*1.5,y:o.y+0.8,w:0.8,d:1.5}); put({kind:'table',x:cx,y:o.y+o.h-0.6,w:1,d:0.7}); }
+    else if(T==='livery'){ for(let i=0;i<3;i++) put({kind:'haybale',x:o.x+0.6+i*1.2,y:o.y+0.5,w:1,d:0.7}); put({kind:'trough',x:cx,y:o.y+o.h-0.5,w:1.2,d:0.6}); }
+    else if(T==='undertaker'){ for(let i=0;i<Math.min(3,o.w-1);i++) put({kind:'coffin',x:o.x+0.6+i*1.2,y:cy,w:0.7,d:1.8}); }
+    else if(T==='church'){ put({kind:'altar',x:cx,y:o.y+0.4,w:1.3,d:0.6}); for(let y=o.y+1.5;y<o.y+o.h-0.5;y++) put({kind:'pew',x:cx,y,w:Math.min(2.4,o.w-1.2),d:0.4}); }
+    else if(T==='smithy'){ put({kind:'fireplace',x:o.x+0.4,y:cy,w:0.6,d:1.2}); put({kind:'anvil',x:cx,y:cy,w:0.7,d:0.5}); put({kind:'barrel',x:o.x+o.w-0.4,y:o.y+0.4,w:0.5,d:0.5}); } }
+  // ☢ RUINS: a shattered city block — cracked streets, half-collapsed buildings, wrecks, a survivors' camp; the sewers below
+  const RUIN_TYPES=['ruinstore','ruinoffice','ruinflats','clinic','garage','ruinstore','ruinflats'];
+  function ruins(cols, rows, seed){ const W=cols, H=rows, r=rng32(seed), ri=(n)=>Math.floor(r()*n), S0=openSite(W,H), {floor,F,occ,rooms,doors,put,building}=S0;
+    const hy=Math.floor(H/2)-1, vx=Math.floor(W/2)-1; rooms.push({x:0,y:hy,w:W,h:3,type:'entrance'});
+    const quads=[[1,1,vx-2,hy-2],[vx+3,1,W-2,hy-2],[1,hy+4,vx-2,H-2],[vx+3,hy+4,W-2,H-2]]; let t=0, camp=null;
+    for(const [qx0,qy0,qx1,qy1] of quads){ let x=qx0+1; while(x<qx1-3){ const w=3+ri(3), h=Math.min(qy1-qy0-1,3+ri(3)); if(x+w>qx1||h<3) break; const y=qy0+1+ri(Math.max(1,qy1-qy0-h-1));
+        if(!camp && r()<0.4){ camp={x,y,w:Math.min(w+1,qx1-x),h}; rooms.push({x:camp.x,y:camp.y,w:camp.w,h:camp.h,type:'camp'}); x+=camp.w+2; continue; }
+        const o=building(x,y,w,h,RUIN_TYPES[t%RUIN_TYPES.length], y+h/2<hy?2:0); t++; doors[doors.length-1].open=true;
+        for(let k=0;k<2+ri(3);k++){ const side=ri(4), L2=side%2?h:w, p=ri(L2); const cx=side===0?x+p:side===2?x+p:side===1?x+w:x-1, cy=side===1||side===3?y+p:side===0?y-1:y+h; if(cx>0&&cy>0&&cx<W-1&&cy<H-1){ floor[cy*W+cx]=1; occ.delete(cx+','+cy); put({kind:'rubble',x:cx+0.5,y:cy+0.5,w:0.8,d:0.8}); } }   // collapsed wall sections
+        x+=w+2+ri(2); } }
+    if(!camp){ camp={x:vx+4,y:hy+5,w:4,h:3}; rooms.push({...camp,type:'camp'}); }
+    for(const o of rooms.slice(1)) ruinDress(o,put,r);
+    put({kind:'campfire',x:camp.x+camp.w/2,y:camp.y+camp.h/2,w:0.9,d:0.9}); put({kind:'tent',x:camp.x+0.9,y:camp.y+0.8,w:1.6,d:1.4}); put({kind:'watertank',x:camp.x+camp.w-0.6,y:camp.y+0.6,w:0.9,d:0.9});
+    for(let x=camp.x-1;x<=camp.x+camp.w;x+=2) put({kind:'barricade',x:x+0.5,y:camp.y+camp.h+0.5,w:1.4,d:0.5});
+    for(let i=0;i<4;i++) for(let k=0;k<30;k++){ const h2=r()<0.5; if(put({kind:'wreck',x:h2?2+ri(W-4)+0.5:vx+1,y:h2?hy+1.5:2+ri(H-4)+0.5,w:h2?2.2:1.1,d:h2?1.1:2.2})) break; }
+    for(let i=0;i<10;i++) for(let k=0;k<30;k++) if(put({kind:r()<0.5?'rubble':'shrub',x:1+ri(W-2)+0.5,y:1+ri(H-2)+0.5,w:0.8,d:0.8})) break;
+    for(let k=0;k<40;k++){ const x=2+ri(W-4); if(put({kind:'manhole',x:x+0.5,y:hy+0.5,w:0.9,d:0.9,link:'down'})) break; }
+    const water=new Array(W*H).fill(0); for(let i=0;i<3;i++){ const px=2+ri(W-4), py=2+ri(H-4); for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){ const X=px+dx,Y=py+dy; if(X>0&&Y>0&&X<W-1&&Y<H-1&&floor[Y*W+X]&&!occ.has(X+','+Y)&&r()<0.8) water[Y*W+X]=1; } }
+    for(let x=0;x<W;x++) for(let y=hy;y<hy+3;y++) F.push({kind:'path',x:x+0.5,y:y+0.5,w:1,d:1,flat:1,asphalt:1}); for(let y=0;y<H;y++) for(let x=vx;x<vx+3;x++) if(y<hy||y>=hy+3) F.push({kind:'path',x:x+0.5,y:y+0.5,w:1,d:1,flat:1,asphalt:1});
+    return { kind:'dungeon', style:'ruins', cols, rows, res:1, floor, water, walls:gridLoops(floor,W,H), waterLoops:gridLoops(water,W,H), doors, rooms, features:F, sealed:[], newRooms:rooms.length }; }
+  function ruinDress(o, put, r){ const cx=o.x+o.w/2, cy=o.y+o.h/2, T=o.type;
+    if(T==='ruinstore'){ put({kind:'shelf',x:o.x+0.2,y:cy,w:0.35,d:1.2}); put({kind:'counter',x:cx,y:o.y+o.h-0.4,w:Math.min(2,o.w-1),d:0.45}); put({kind:'crate',x:o.x+o.w-0.6,y:o.y+0.6,w:0.7,d:0.7}); }
+    else if(T==='ruinoffice'){ put({kind:'officedesk',x:cx,y:cy,w:0.7,d:0.45}); put({kind:'shelf',x:o.x+o.w-0.2,y:cy,w:0.35,d:1.2}); put({kind:'bones',x:o.x+0.6,y:o.y+0.6,w:0.6,d:0.6}); }
+    else if(T==='ruinflats'){ put({kind:'bed',x:o.x+0.6,y:o.y+0.9,w:0.8,d:1.5}); put({kind:'sofa',x:cx+0.5,y:o.y+o.h-0.5,w:1.4,d:0.6}); }
+    else if(T==='clinic'){ put({kind:'medbed',x:o.x+0.6,y:cy,w:0.9,d:1.7}); put({kind:'shelf',x:o.x+o.w-0.2,y:cy,w:0.35,d:1.2}); put({kind:'chest',x:cx,y:o.y+0.4,w:0.8,d:0.6}); }
+    else if(T==='garage'){ put({kind:'wreck',x:cx,y:cy,w:Math.min(2.2,o.w-0.8),d:1.1}); put({kind:'barrel',x:o.x+0.4,y:o.y+0.4,w:0.5,d:0.5}); put({kind:'toolrack',x:o.x+o.w-0.2,y:cy,w:0.35,d:1.2}); } }
+  // 🧙 WIZARD'S TOWER: a round tower you build UPWARD — each "level" is the next floor; a spiral stair joins them
+  const TOWER_FLOORS=['entrance','library','alchemy','summoning','bedchamber','observatory'];
+  function tower(cols, rows, seed, floorN, arrivals){ const W=cols, H=rows, r=rng32(seed), ri=(n)=>Math.floor(r()*n); floorN=Math.max(1,floorN||1); arrivals=arrivals||[];
+    const cx=W/2, cy=H/2, R=Math.max(5, Math.min(W,H)/2-2), floor=new Array(W*H).fill(0);
+    for(let y=0;y<H;y++) for(let x=0;x<W;x++) if(Math.hypot(x+0.5-cx,y+0.5-cy)<=R-0.5) floor[y*W+x]=1;
+    const type=TOWER_FLOORS[Math.min(floorN-1,TOWER_FLOORS.length-1)], doors=[], F=[], occ=new Set();
+    if(floorN===1){ for(let y=Math.floor(cy+R-1);y<H;y++){ floor[y*W+Math.floor(cx)]=1; floor[y*W+Math.floor(cx)-1]=1; } const dy=Math.floor(cy+R-0.5); doors.push({x1:Math.floor(cx)-1,y1:dy,x2:Math.floor(cx)+1,y2:dy,open:false}); }
+    const x0=Math.floor(cx-R), y0=Math.floor(cy-R), rooms=[{x:x0,y:y0,w:Math.ceil(2*R),h:Math.ceil(2*R),type:floorN===1?'entrance':type}];
+    const put=(it)=>{ const cells=[]; for(let y=Math.floor(it.y-it.d/2+0.05);y<=Math.floor(it.y+it.d/2-0.05);y++) for(let x=Math.floor(it.x-it.w/2+0.05);x<=Math.floor(it.x+it.w/2-0.05);x++) cells.push([x,y]);
+      if(cells.some(([x,y])=>x<0||y<0||x>=W||y>=H||!floor[y*W+x]||occ.has(x+','+y))) return false; if(!it.flat) cells.forEach(([x,y])=>occ.add(x+','+y)); F.push(it); return true; };
+    for(const a of arrivals){ F.push({...a, link:'up'}); for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++) occ.add((Math.floor(a.x)+dx)+','+(Math.floor(a.y)+dy)); }
+    const ring=(n,kind,w,d,rad,a0)=>{ for(let i=0;i<n;i++){ const a=a0+i*Math.PI*2/n, side=Math.abs(Math.cos(a))>Math.abs(Math.sin(a)), long=w>d*1.5; put({kind,x:cx+Math.cos(a)*rad,y:cy+Math.sin(a)*rad,w:long&&side?d:w,d:long&&side?w:d}); } };
+    const up=floorN*1.9+0.6; put({kind:'spiralstair',x:Math.floor(cx+Math.cos(up)*(R-1.8))+0.5,y:Math.floor(cy+Math.sin(up)*(R-1.8))+0.5,w:1.8,d:1.8,link:'down'});   // up to the next floor
+    if(type==='entrance'){ put({kind:'rug',x:cx,y:cy,w:3,d:2,flat:1}); put({kind:'statue',x:cx-2,y:cy+R-2.5,w:0.9,d:0.9}); put({kind:'statue',x:cx+2,y:cy+R-2.5,w:0.9,d:0.9}); put({kind:'table',x:cx,y:cy-1,w:1.4,d:0.8}); ring(4,'candelabra',0.4,0.4,R-1.2,0.4); }
+    else if(type==='library'){ ring(Math.max(8,Math.round(R*1.6)),'bookshelf',1.4,0.35,R-1.3,0); put({kind:'table',x:cx,y:cy,w:1.4,d:0.8}); put({kind:'candles',x:cx+1.2,y:cy,w:0.3,d:0.3}); put({kind:'armchair',x:cx-1.5,y:cy+1,w:0.8,d:0.8}); }
+    else if(type==='alchemy'){ put({kind:'labbench',x:cx,y:cy-1.5,w:2,d:0.6}); put({kind:'cauldron',x:cx,y:cy+0.5,w:0.9,d:0.9}); ring(3,'tank',0.55,0.55,R-1.5,0.9); ring(4,'shelf',1.2,0.35,R-0.9,2.2); put({kind:'fireplace',x:cx+R-1.3,y:cy,w:0.6,d:1.2}); }
+    else if(type==='summoning'){ put({kind:'ritual',x:cx,y:cy,w:2.6,d:2.6,flat:1}); ring(5,'candles',0.3,0.3,1.7,-Math.PI/2); ring(2,'brazier',0.8,0.8,R-1.6,0.3); put({kind:'bones',x:cx+R-2,y:cy+1.5,w:0.6,d:0.6}); }
+    else if(type==='bedchamber'){ put({kind:'fourposter',x:cx-1.5,y:cy-1,w:1.3,d:1.8}); put({kind:'wardrobe',x:cx+R-1.5,y:cy-1,w:0.5,d:1}); put({kind:'desk',x:cx+1.5,y:cy+1.5,w:1,d:0.55}); put({kind:'rug',x:cx,y:cy+0.5,w:2,d:1.6,flat:1}); put({kind:'chest',x:cx-2,y:cy+2,w:0.9,d:0.6}); }
+    else { put({kind:'telescope',x:cx,y:cy,w:1,d:1}); put({kind:'maptable',x:cx+1.8,y:cy+1.2,w:1.4,d:0.9}); ring(3,'candles',0.3,0.3,R-1.3,0.5); put({kind:'globe',x:cx-1.8,y:cy+1.2,w:0.7,d:0.7}); }
+    return { kind:'dungeon', style:'tower', towerFloor:floorN, cols, rows, res:1, floor, water:null, walls:gridLoops(floor,W,H), waterLoops:[], doors, rooms, features:F, sealed:[], newRooms:1 }; }
   // furniture / dressing per room type, kept clear of doorways; wall torches everywhere
   function dungeonDressing(rooms, doors, floor, W, H, r, opt){ opt=opt||{}; const allRooms=opt.allRooms||rooms, Rg=opt.region;
     const F=[], ri=(n)=>Math.floor(r()*n), WA=opt.water, ST=opt.style||null, isF=(x,y)=>x>=0&&y>=0&&x<W&&y<H&&floor[y*W+x]===1&&!(WA&&WA[y*W+x]);
@@ -324,7 +412,7 @@
     const scatter=(o,kind,n,s)=>{ for(let i=0;i<n;i++){ put({kind,x:o.x+0.5+ri(o.w)+ (r()-0.5)*0.2,y:o.y+0.5+ri(o.h)+(r()-0.5)*0.2,w:s,d:s}); } };
     for(const o of rooms){ const sides=[0,1,2,3].sort(()=>r()-0.5);
       switch(o.type){
-        case 'entrance': if(!opt.noEntranceStairs){ let st=null; for(const sd of ((ST==='temple'||ST==='pyramid')?[2,...sides]:sides)){ st=wall(o,sd,1.7,0.9,'stairs'); if(st) break; } if(st) st.link='up'; } if(ST!=='scifi'&&ST!=='manor'&&ST!=='asylum') scatter(o,'rubble',1,0.7); break;   // every wall is tried → the way in always has its stairs
+        case 'entrance': if(!opt.noEntranceStairs){ let st=null; for(const sd of ((ST==='temple'||ST==='pyramid')?[2,...sides]:sides)){ st=wall(o,sd,1.7,0.9,'stairs'); if(st) break; } if(st) st.link='up'; } if(ST!=='scifi'&&ST!=='manor'&&ST!=='asylum'&&ST!=='japan') scatter(o,'rubble',1,0.7); break;   // every wall is tried → the way in always has its stairs
         case 'lair': { let st=null; for(const sd of sides){ st=wall(o,sd,1.7,0.9,'stairs'); if(st) break; } if(st) st.link='down'; } if(ST) break; mid(o,'statue',0.9,0.9); wall(o,sides[1],1,0.9,'chest'); scatter(o,'bones',3,0.6); put({kind:'brazier',x:o.x+1.5,y:o.y+1.5,w:0.8,d:0.8}); put({kind:'brazier',x:o.x+o.w-1.5,y:o.y+o.h-1.5,w:0.8,d:0.8}); break;
         case 'crypt': for(let i=0;i<Math.min(4,Math.floor(o.w/2));i++) put({kind:'sarcophagus',x:o.x+1.5+i*2,y:o.y+o.h/2,w:0.8,d:1.8}); scatter(o,'bones',2,0.6); break;
         case 'barracks': for(let i=0;i<Math.max(2,Math.floor(o.w/1.5));i++) wall(o,i%2?0:2,0.8,1.5,'bed',3); wall(o,sides[1],1.2,0.35,'weaponrack'); wall(o,sides[2],1,0.8,'chest'); break;
@@ -397,6 +485,15 @@
         case 'dayroom': mid(o,'conftable',Math.max(1.2,Math.min(o.w-2.2,2.4)),0.9); wall(o,sides[0],0.8,0.8,'armchair'); wall(o,sides[1],0.8,0.8,'wheelchair'); break;
         case 'hydrotherapy': wall(o,sides[0],0.9,1.7,'bathtub'); wall(o,sides[1],0.9,1.7,'bathtub'); break;
         case 'records': for(let i=0;i<3;i++) wall(o,sides[i],1.2,0.35,'shelf'); break;
+        // 🏯 Japan
+        case 'dojo': wall(o,sides[0],1.2,0.35,'weaponrack'); wall(o,sides[1],1.2,0.35,'weaponrack'); scatter(o,'dummy',2,0.5); break;
+        case 'tearoom': mid(o,'chabudai',1.2,0.8); for(const [dx,dy] of [[-1,0],[1,0]]) put({kind:'cushion',x:o.x+o.w/2+dx,y:o.y+o.h/2+dy,w:0.5,d:0.5}); break;
+        case 'jshrine': wall(o,sides[0],1.2,0.5,'altar'); put({kind:'stonelantern',x:o.x+0.7,y:o.y+0.7,w:0.5,d:0.5}); put({kind:'stonelantern',x:o.x+o.w-0.7,y:o.y+0.7,w:0.5,d:0.5}); put({kind:'candles',x:o.x+o.w/2,y:o.y+o.h/2,w:0.3,d:0.3}); break;
+        case 'jarmory': wall(o,sides[0],0.7,0.7,'armorstand'); wall(o,sides[1],0.7,0.7,'armorstand'); wall(o,sides[2],1.2,0.35,'weaponrack'); break;
+        case 'jquarters': wall(o,sides[0],0.9,1.8,'futon'); wall(o,sides[1],0.9,1.8,'futon'); wall(o,sides[2],1,0.8,'chest'); break;
+        case 'jkitchen': wall(o,sides[0],1.2,0.6,'fireplace'); mid(o,'chabudai',1.2,0.8); scatter(o,'barrel',2,0.55); break;
+        case 'garden': put({kind:'stonelantern',x:o.x+o.w-1,y:o.y+1,w:0.5,d:0.5}); put({kind:'sakura',x:o.x+o.w-1,y:o.y+o.h-1,w:1,d:1}); put({kind:'plant',x:o.x+o.w-1.5,y:o.y+o.h/2,w:0.4,d:0.4}); break;
+        case 'jstudy': mid(o,'chabudai',1,0.7); wall(o,sides[0],Math.min(2.4,(sides[0]%2?o.h:o.w)-1),0.35,'bookshelf'); break;
         case 'kingschamber': case 'queenschamber': if(!mid(o,'goldsarcophagus',1,2)) mid(o,'goldsarcophagus',2,1); wall(o,sides[0],0.9,0.9,'anubis'); scatter(o,'treasurepile',o.type==='kingschamber'?2:1,0.8); scatter(o,'urn',2,0.5); break; }
       const TOMB=ST==='tomb'||ST==='pyramid';
       if(TOMB && o.type==='lair'){ if(!mid(o,'goldsarcophagus',1,2)) mid(o,'goldsarcophagus',2,1); wall(o,sides[1],0.9,0.9,'anubis'); wall(o,sides[2],0.9,0.9,'anubis'); scatter(o,'treasurepile',2,0.8); wall(o,sides[3],1,0.8,'chest'); }
@@ -410,17 +507,19 @@
         put({kind:'brazier',x:o.x+o.w/2-1.5,y:o.y+1.5,w:0.8,d:0.8}); put({kind:'brazier',x:o.x+o.w/2+1.5,y:o.y+1.5,w:0.8,d:0.8}); }
       if(ST && o.type==='lair'){ if(ST==='mine'){ scatter(o,'ore',2,0.8); wall(o,sides[1],1.3,0.9,'minecart'); scatter(o,'bones',2,0.6); }
         else if(ST==='sewer'){ scatter(o,'bones',4,0.6); scatter(o,'rubble',2,0.7); wall(o,sides[1],1,0.8,'chest'); }
-        else if(ST==='scifi'||ST==='tomb'||ST==='pyramid'||ST==='manor'||ST==='asylum'||ST==='catacombs'){ }
+        else if(ST==='scifi'||ST==='tomb'||ST==='pyramid'||ST==='manor'||ST==='asylum'||ST==='catacombs'||ST==='japan'){ }
         else { mid(o,'altar',1.3,0.6); wall(o,sides[1],0.9,0.9,'statue'); put({kind:'brazier',x:o.x+1.5,y:o.y+1.5,w:0.8,d:0.8}); put({kind:'brazier',x:o.x+o.w-1.5,y:o.y+o.h-1.5,w:0.8,d:0.8}); mid(o,'font',0.9,0.9); } }
       const HOUSE=ST==='manor'||ST==='asylum';
+      if(ST==='japan' && o.type==='entrance'){ wall(o,0,Math.min(3,o.w-2),1.2,'dais'); put({kind:'stonelantern',x:o.x+0.7,y:o.y+o.h-1,w:0.5,d:0.5}); put({kind:'stonelantern',x:o.x+o.w-0.7,y:o.y+o.h-1,w:0.5,d:0.5}); put({kind:'taiko',x:o.x+o.w/2,y:o.y+o.h-1.5,w:0.9,d:0.9}); }
+      if(ST==='japan' && o.type==='lair'){ mid(o,'futon',0.9,1.8); wall(o,sides[1],1,0.8,'chest'); wall(o,sides[2],0.7,0.7,'armorstand'); }
       if(ST==='manor' && o.type==='entrance'){ wall(o,sides[1],0.6,0.5,'grandfatherclock'); mid(o,'rug',Math.min(o.w-1.4,2.4),Math.min(o.h-1.4,1.8)); put({kind:'candelabra',x:o.x+0.6,y:o.y+0.6,w:0.4,d:0.4}); }
       if(ST==='asylum' && o.type==='entrance'){ wall(o,sides[1],1.2,0.45,'counter'); wall(o,sides[2],1.2,0.35,'shelf'); }
       if(ST==='manor' && o.type==='lair'){ mid(o,'ritual',1.8,1.8); for(const [dx,dy] of [[-1,-1],[1,-1],[-1,1],[1,1]]) put({kind:'candles',x:o.x+o.w/2+dx*1.2,y:o.y+o.h/2+dy*1.2,w:0.3,d:0.3}); scatter(o,'bones',2,0.6); }
       if(ST==='asylum' && o.type==='lair'){ wall(o,sides[1],0.8,1.5,'bed'); scatter(o,'bloodstain',2,0.8); }
       if(ST==='catacombs' && o.type==='lair'){ mid(o,'sarcophagus',0.8,1.8); scatter(o,'bones',4,0.6); }
-      if(ST && o.type==='entrance' && ST!=='temple' && ST!=='scifi' && !TOMB && !HOUSE && ST!=='catacombs') scatter(o,'crate',ST==='mine'?2:1,0.8);
+      if(ST && o.type==='entrance' && ST!=='temple' && ST!=='scifi' && !TOMB && !HOUSE && ST!=='catacombs' && ST!=='japan') scatter(o,'crate',ST==='mine'?2:1,0.8);
       // wall lights: torches (classic / temple), lanterns (mine), the odd lantern (sewer — mostly dark)
-      const LK = TOMB ? (o.w*o.h>=20?'torch':null) : ST==='manor' ? 'candelabra' : ST==='asylum' ? (r()<0.5?'lantern':null) : !ST||ST==='temple' ? 'torch' : ST==='mine' ? 'lantern' : ST==='scifi' ? 'lightpanel' : (r()<0.4?'lantern':null);
+      const LK = TOMB ? (o.w*o.h>=20?'torch':null) : ST==='manor' ? 'candelabra' : ST==='japan' ? 'paperlantern' : ST==='asylum' ? (r()<0.5?'lantern':null) : !ST||ST==='temple' ? 'torch' : ST==='mine' ? 'lantern' : ST==='scifi' ? 'lightpanel' : (r()<0.4?'lantern':null);
       if(LK) for(const s of sides.slice(0, o.w*o.h>30?2:1)) wall(o,s,0.3,0.3,LK,8);
     }
     // corridor torches + a little debris along the passages
@@ -440,7 +539,7 @@
           if(h7%23===0) onWall('lantern',0.3); else if(h7%53===0 && hz!==vt) put({kind:'minecart',x:x+0.5,y:y+0.5,w:hz?1.3:0.9,d:hz?0.9:1.3}); else if(r()<0.02) put({kind:'rubble',x:x+0.5,y:y+0.5,w:0.6,d:0.6}); }
         else { if(h7%17===0) onWall('pipe',0.4); else if(h7%41===0) onWall('lantern',0.3); else if(h7%29===0) put({kind:'drain',x:x+0.5,y:y+0.5,w:0.6,d:0.6,flat:1}); else if(r()<0.02) put({kind:r()<0.5?'rubble':'bones',x:x+0.5,y:y+0.5,w:0.6,d:0.6}); }
         continue; }
-      if(((x*7+y*13)%23)===0){ const s=!isF(x,y-1)?0:!isF(x+1,y)?1:!isF(x,y+1)?2:!isF(x-1,y)?3:-1; if(s>=0 && put({kind:'torch',x:x+0.5+(s===1?0.34:s===3?-0.34:0),y:y+0.5+(s===2?0.34:s===0?-0.34:0),w:0.3,d:0.3,face:s})) n++; }
+      if(((x*7+y*13)%23)===0){ const s=!isF(x,y-1)?0:!isF(x+1,y)?1:!isF(x,y+1)?2:!isF(x-1,y)?3:-1; if(s>=0 && put({kind:ST==='japan'?'paperlantern':'torch',x:x+0.5+(s===1?0.34:s===3?-0.34:0),y:y+0.5+(s===2?0.34:s===0?-0.34:0),w:0.3,d:0.3,face:s})) n++; }
       else if(r()<0.02) put({kind:r()<0.5?'rubble':'bones',x:x+0.5,y:y+0.5,w:0.6,d:0.6}); }
     return F; }
 
@@ -465,7 +564,7 @@
     return { ...D, cols, rows, floor, water, walls:gridLoops(floor,W,rows), waterLoops:water?gridLoops(water,W,rows):[], doors, rooms, features:D.features.map(sh), sealed:shiftSeal(D.sealed,ox,oy) }; }
   // the landing below each way down: stairs arrive on the same square; a well lands in a pool, a pit/sinkhole on rubble
   function arrivalsFrom(D){ return D.features.filter(f=>f.link==='down').map(f=> f.kind==='stairs' ? {kind:'stairs',x:f.x,y:f.y,w:f.w,d:f.d,face:f.face}
-      : f.kind==='well' ? {kind:'splash',x:f.x,y:f.y,w:1.2,d:1.2} : f.kind==='lift' ? {kind:'liftpad',x:f.x,y:f.y,w:1.2,d:1.2} : (f.kind==='hatch'||f.kind==='shiphatch') ? {kind:'ladder',x:f.x,y:f.y,w:0.9,d:0.9} : {kind:'rubble',x:f.x,y:f.y,w:1.1,d:1.1}); }
+      : f.kind==='well' ? {kind:'splash',x:f.x,y:f.y,w:1.2,d:1.2} : f.kind==='spiralstair' ? {kind:'spiralstair',x:f.x,y:f.y,w:f.w,d:f.d} : f.kind==='manhole' ? {kind:'ladder',x:f.x,y:f.y,w:0.9,d:0.9} : f.kind==='lift' ? {kind:'liftpad',x:f.x,y:f.y,w:1.2,d:1.2} : (f.kind==='hatch'||f.kind==='shiphatch') ? {kind:'ladder',x:f.x,y:f.y,w:0.9,d:0.9} : {kind:'rubble',x:f.x,y:f.y,w:1.1,d:1.1}); }
 
   /* ---------- CAVE: cellular-automata caverns on a 3×-finer sub-grid ---------- */
   const N4=[[1,0],[-1,0],[0,1],[0,-1]];
@@ -738,6 +837,10 @@
     armchair:['armchair','armchairs'], piano:['grand piano','grand pianos'], fourposter:['four-poster bed','four-poster beds'], cradle:['cradle','cradles'], doll:['porcelain doll','porcelain dolls'],
     portrait:['portrait','portraits'], grandfatherclock:['grandfather clock','grandfather clocks'], candelabra:['candelabra','candelabras'], ritual:['chalk ritual circle','chalk ritual circles'], cobweb:['cobweb','cobwebs'],
     optable:['operating table','operating tables'], morguedrawers:['bank of morgue drawers','banks of morgue drawers'], bathtub:['iron bathtub','iron bathtubs'], wheelchair:['wheelchair','wheelchairs'], bloodstain:['old bloodstain','old bloodstains'],
+    hitchrail:['hitching rail','hitching rails'], trough:['water trough','water troughs'], wagon:['wagon','wagons'], cactus:['cactus','cacti'], tumbleweed:['tumbleweed','tumbleweeds'], minehead:['mine head','mine heads'], haybale:['hay bale','hay bales'], coffin:['coffin','coffins'], anvil:['anvil','anvils'],
+    tent:['tent','tents'], watertank:['water tank','water tanks'], barricade:['barricade','barricades'], wreck:['burned-out car','burned-out cars'], shrub:['tangle of weeds','tangles of weeds'], manhole:['manhole','manholes'],
+    dummy:['training post','training posts'], chabudai:['low table','low tables'], cushion:['floor cushion','floor cushions'], stonelantern:['stone lantern','stone lanterns'], armorstand:['suit of samurai armour','suits of samurai armour'], futon:['futon','futons'], sakura:['cherry tree','cherry trees'], dais:['raised dais','raised daises'], taiko:['taiko drum','taiko drums'], paperlantern:['paper lantern','paper lanterns'],
+    spiralstair:['spiral stair','spiral stairs'], telescope:['great telescope','great telescopes'], globe:['celestial globe','celestial globes'],
     mast:['mast','masts'], cannon:['cannon','cannons'], wheel:["ship's wheel","ship's wheels"], capstan:['capstan','capstans'], rope:['coil of rope','coils of rope'], hammock:['hammock','hammocks'], maptable:['chart table','chart tables'],
     rowboat:['rowing boat','rowing boats'], bollard:['bollard','bollards'], net:['fishing net','fishing nets'], crane:['cargo crane','cargo cranes'], anchor:['anchor','anchors'],
     giantshroom:['giant glowing mushroom','giant glowing mushrooms'], web:['thick spider web','thick spider webs'], spiderstatue:['great spider statue','great spider statues'], glowstone:['violet glowstone','violet glowstones'], stall:['market stall','market stalls'],
@@ -749,7 +852,7 @@
     officedesk:['desk','desks'], conftable:['table with chairs','tables with chairs'], cellbars:['wall of cell bars','walls of cell bars'], lockers:['bank of lockers','banks of lockers'], labbench:['lab bench','lab benches'],
     fumehood:['fume hood','fume hoods'], tank:['specimen tank','specimen tanks'], serverrack:['server rack','server racks'], plant:['potted plant','potted plants'], sofa:['sofa','sofas'], bench:['bench','benches'], fridge:['fridge','fridges'],
     pew:['pew','pews'], desk:['desk','desks'], counter:['counter','counters'], shelf:['shelf','shelves'], wardrobe:['wardrobe','wardrobes'], rug:['rug','rugs'], stairs:['flight of stairs','flights of stairs'] };   // (+ building furniture, for the town key)
-  const LIGHTK=new Set(['fireplace','torch','brazier','campfire','candles','crystals','mushrooms','lantern','lightpanel','candelabra','lamppost','ritual','giantshroom','glowstone']), SKIPK=new Set(['rail','timber','lavalight','trap','path','cobweb']);
+  const LIGHTK=new Set(['fireplace','torch','brazier','campfire','candles','crystals','mushrooms','lantern','lightpanel','candelabra','lamppost','ritual','giantshroom','glowstone','stonelantern','paperlantern']), SKIPK=new Set(['rail','timber','lavalight','trap','path','cobweb']);
   const TRAP_TEXT={ darts:'a pressure plate fires darts from holes in the walls', block:'a loose flagstone drops a stone block from the ceiling', blade:'a tripwire swings a scything blade out of the wall',
     sand:'the floor tips anyone on it into a sand-filled pit', gas:'a hidden vent puffs out a cloud of choking dust', spikes:'a false floor gives way over a pit of spikes', fire:'jets of flame burst from the walls' };
   const trapLine=(f)=>TRAP_TEXT[f.trap]||'a hidden trap';
@@ -763,6 +866,10 @@
     treasury:'Treasury', kitchen:'Kitchen', guardroom:'Guardroom', deadend:'Dead end', landing:'Landing',
     stope:'Ore working', orevein:'Ore vein', cartdepot:'Cart depot', toolstore:'Tool store', bunkroom:'Bunkroom', collapse:'Collapsed gallery', powder:'Powder store',
     cistern:'Cistern', junction:'Junction chamber', pumproom:'Pump room', smugglers:"Smugglers' den", overflow:'Overflow chamber',
+    saloon:'Saloon', sheriff:"Sheriff's office & jail", bank:'Bank', store:'General store', hotel:'Hotel', livery:'Livery stable', undertaker:'Undertaker', smithy:'Blacksmith',
+    ruinstore:'Looted store', ruinoffice:'Collapsed office', ruinflats:'Ruined apartment', clinic:'Abandoned clinic', garage:'Burned-out garage', camp:"Survivors' camp",
+    dojo:'Dojo', tearoom:'Tea room', jshrine:'Shrine', jarmory:'Armoury', jquarters:'Sleeping quarters', jkitchen:'Kitchen', garden:'Courtyard garden', jstudy:'Scriptorium',
+    room:'Room', library:'Library', alchemy:'Alchemy laboratory', summoning:'Summoning chamber', bedchamber:"Wizard's bedchamber", observatory:'Observatory',
     forecastle:'Forecastle', quarterdeck:'Quarterdeck', cabin:"Captain's cabin", galley:'Galley', magazine:'Powder magazine', bilge:'Bilge', pier:'Pier', warehouse:'Warehouse', harbourmaster:"Harbourmaster's office", tavern:'Tavern', sloop:'Sloop',
     parlour:'Parlour', diningroom:'Dining room', study:'Study', conservatory:'Conservatory', bedroom:'Bedroom', nursery:'Nursery', servants:"Servants' hall", ballroom:'Ballroom',
     cell:'Cell', ward:'Ward', operating:'Operating theatre', morgue:'Morgue', office:"Doctor's office", dayroom:'Day room', hydrotherapy:'Hydrotherapy room', records:'Records room',
@@ -770,7 +877,7 @@
     antechamber:'Antechamber', falsechamber:'False burial chamber', anubis:'Shrine of the jackal god', canopic:'Canopic chamber', pillarhall:'Hall of pillars', embalming:'Embalming room', offerings:'Offering room', kingschamber:"King's chamber", queenschamber:"Queen's chamber",
     bridge:'Bridge', comms:'Comms room', engineering:'Engineering', quarters:'Crew quarters', messhall:'Mess hall', medbay:'Med bay', cargo:'Cargo hold', armory:'Armory', lab:'Science lab', hydroponics:'Hydroponics', brig:'Brig', airlock:'Airlock', cryo:'Cryo bay',
     chapel:'Chapel', cells:"Monks' cells", scriptorium:'Scriptorium', refectory:'Refectory', vestry:'Vestry', ossuary:'Ossuary', reliquary:'Reliquary' };
-  const DT_STYLE={ mine:{entrance:'Mine entrance', lair:'Deep workings'}, sewer:{entrance:'Access chamber', lair:"Rat king's nest"}, temple:{entrance:'Nave', lair:'Inner sanctum'}, scifi:{entrance:'Main corridor', lair:'Reactor'}, tomb:{entrance:'Tomb entrance', lair:'Burial chamber'}, manor:{entrance:'Foyer', lair:'Hidden ritual chamber'}, docks:{entrance:'Quay'}, asylum:{entrance:'Reception', lair:'Isolation room'}, graveyard:{entrance:'Graveyard grounds', lair:'Family crypt', chapel:'Chapel of rest'}, catacombs:{entrance:'Catacomb stairs', lair:'Ancient tomb'}, pyramid:{entrance:'Grand gallery', lair:'Descending passage'} };
+  const DT_STYLE={ mine:{entrance:'Mine entrance', lair:'Deep workings'}, sewer:{entrance:'Access chamber', lair:"Rat king's nest"}, temple:{entrance:'Nave', lair:'Inner sanctum'}, scifi:{entrance:'Main corridor', lair:'Reactor'}, tomb:{entrance:'Tomb entrance', lair:'Burial chamber'}, manor:{entrance:'Foyer', lair:'Hidden ritual chamber'}, docks:{entrance:'Quay'}, western:{entrance:'Main street'}, ruins:{entrance:'Ruined streets'}, japan:{entrance:'Audience hall', lair:"Lord's private chambers"}, tower:{entrance:'Entrance hall'}, asylum:{entrance:'Reception', lair:'Isolation room'}, graveyard:{entrance:'Graveyard grounds', lair:'Family crypt', chapel:'Chapel of rest'}, catacombs:{entrance:'Catacomb stairs', lair:'Ancient tomb'}, pyramid:{entrance:'Grand gallery', lair:'Descending passage'} };
   const FLAV={
     entrance:['Cold air drifts down the steps behind you.','Old boot prints cross the dust here.','Someone has scratched a crude arrow on the wall, pointing deeper in.'],
     arrival:['Debris from above litters the floor.','The air here moves, as if a shaft opens somewhere overhead.','Your footsteps from the level above still echo down.'],
@@ -805,6 +912,18 @@
     vestry:['Robes hang in a row, moth-eaten.','A silver censer lies on the floor.','A chest of vestments has been forced open.'],
     ossuary:['Skulls are stacked in careful patterns along the walls.','The bones are arranged by size.','A cold draught stirs the dust.'],
     reliquary:['A glass case holds a single finger bone.','The font holds water that never evaporates.','Gold leaf flakes from the walls.'],
+    mainstreet:['Tumbleweed rolls down the empty street.','A shutter bangs in the hot wind.','Every window seems to have someone watching from it.'], saloon:['The piano stops the moment you walk in.','A card game freezes mid-hand.','Bullet holes pepper the ceiling.'],
+    sheriff:['Wanted posters cover the wall; one face looks familiar.','The cell door is open and the prisoner is gone.','The sheriff’s star lies on the desk.'], bank:['The vault door is heavier than a wagon.','The teller’s window has been shot out.','Gold dust glitters in the floor cracks.'],
+    store:['Everything is priced for the gold rush.','The shopkeeper keeps a shotgun under the counter.','Canned beans are stacked to the ceiling.'], hotel:['Only one guest has signed the book in a month.','The beds are lumpy and the sheets are thin.','Someone has carved initials into the headboard.'],
+    livery:['Horses stamp nervously in their stalls.','The hay smells fresh.','A saddle with a bullet hole hangs on a peg.'], undertaker:['One coffin is already measured with your name.','The undertaker is the richest man in town.','The coffins are stacked, waiting.'],
+    smithy:['The forge is still hot.','Horseshoes hang in rows.','The anvil rings with every step on the boards.'], church:['The preacher’s bible is open at Revelation.','Sunlight falls through a single stained-glass window.','The bell rope is frayed.'],
+    ruinstreets:['Wind whistles through empty window frames.','A rusted road sign still points to a city that is gone.','Something moves in the rubble.'], ruin:['Mould blackens the walls.','Someone camped here recently.','Glass crunches underfoot.'], camp:['A dog growls from behind the barricade.','The survivors eye your gear hungrily.','The water tank is nearly empty.'],
+    audience:['The lord’s dais faces a sea of tatami.','Painted screens show cranes and pine trees.','Everyone kneels in silence.'], dojo:['The floor is polished by years of bare feet.','Wooden practice swords hang on the wall.','A sensei’s calligraphy reads PATIENCE.'],
+    tearoom:['The kettle is just coming to the boil.','A single flower stands in a vase.','The tea bowls are older than the castle.'], jshrine:['Incense smoke curls up to the rafters.','Paper charms hang from the beam.','Offerings of rice and sake sit before the altar.'],
+    jarmory:['Lacquered armour stares from its stand.','Blades rest in their scabbards.','A war banner is folded neatly.'], jquarters:['The futons are rolled and stored.','A brazier keeps the chill away.','A poem is pinned to the screen.'], garden:['Koi drift lazily in the pond.','Raked gravel forms perfect ripples.','Cherry petals fall onto the water.'],
+    tower:['The walls hum faintly with old magic.','A draught climbs the stair from far below.','The stones are carved with shifting runes.'], library:['Books whisper on the shelves.','A ladder slides round the room on its own.','One book is chained shut.'],
+    alchemy:['Something bubbles in the cauldron.','Specimens float in green liquid.','The air smells of sulphur and roses.'], summoning:['The circle still smoulders.','Something has scratched at the inside of the circle.','The candles burn with a blue flame.'],
+    bedchamber:['A cat with too many eyes watches from the bed.','The wardrobe is locked from the inside.','Star charts cover the ceiling.'], observatory:['The telescope is aimed at a star that is not there.','The roof opens to the night sky.','A comet is marked on the chart for tonight.'],
     maindeck:['The deck rolls gently underfoot.','Gulls wheel and scream around the masts.','Ropes creak and the sails snap in the wind.'], forecastle:['Spray bursts over the bow.','The anchor chain rattles in its hawse.','A lookout’s spyglass lies forgotten on a coil of rope.'],
     quarterdeck:['The wheel is lashed in place.','The ship’s bell swings with the swell.','From here you can see the whole deck.'], cabin:['Charts cover the table, one marked with an X.','A locked strongbox is bolted to the floor.','The stern windows look out over the wake.'],
     gundeck:['The cannons are run out, ready to fire.','Powder smoke has blackened the beams.','Hammocks sway with the roll of the ship.'], galley:['A pot of something grey simmers on the stove.','The ship’s cat eyes you from a barrel.','Weevils crawl in the ship’s biscuit.'],
@@ -881,7 +1000,9 @@
     return hz&&vt ? `in the ${vt}-${hz} corner` : (hz||vt) ? `by the ${vt||hz} wall` : 'in the middle'; };
   const whereFrom=(x,y,cx,cy)=>{ const dx=x-cx, dy=y-cy; if(Math.hypot(dx,dy)<1.5) return 'in the middle';
     const a=(Math.atan2(dy,dx)*180/Math.PI+360+22.5)%360, d=['east','south-east','south','south-west','west','north-west','north','north-east'][Math.floor(a/45)]; return `on the ${d} side`; };
-  function linkText(f, lv, nL, style){ const ship=style==='scifi'||style==='ship', sand=(style==='tomb'||style==='pyramid'), house=(style==='manor'||style==='asylum'), below=lv<nL?(ship?`Deck ${lv+1}`:`Level ${lv+1}`):(ship?'a lower deck':'a deeper level'), above=lv>1?(ship?`Deck ${lv-1}`:`Level ${lv-1}`):(ship?'the docking deck':sand?'the desert sands':house?'the front door':'the surface');
+  function linkText(f, lv, nL, style){ const ship=style==='scifi'||style==='ship', sand=(style==='tomb'||style==='pyramid'), house=(style==='manor'||style==='asylum'), castle=style==='japan', below=lv<nL?(ship?`Deck ${lv+1}`:`Level ${lv+1}`):(ship?'a lower deck':'a deeper level'), above=lv>1?(ship?`Deck ${lv-1}`:`Level ${lv-1}`):(ship?'the docking deck':sand?'the desert sands':house?'the front door':castle?'the castle courtyard':'the surface');
+    if(style==='tower'){ const fu=`Floor ${lv+1}`, fd=`Floor ${lv-1}`; return f.link==='down' ? `a spiral stair up to ${lv<nL?fu:'the floor above'}` : `the spiral stair down to ${fd}`; }
+    if(f.kind==='manhole') return `an open manhole: a ladder down into ${below==='a deeper level'?'the sewers':below}`;
     if(f.kind==='shiphatch') return `a hatch with a ladder down to ${below}`;
     if(f.kind==='lift') return `a lift shaft down to ${below}`; if(f.kind==='hatch') return `a maintenance hatch with a ladder down to ${below}`; if(f.kind==='liftpad') return `the lift pad from ${above}`; if(f.kind==='ladder') return `a ladder up through a hatch to ${above}`;
     if(ship && f.kind==='stairs') return f.link==='down' ? `a stairwell down to ${below}` : `a stairwell up to ${above}`;
@@ -889,7 +1010,7 @@
       if(f.kind==='pit') return sand ? `a burial shaft: a sheer drop to ${below}` : `a trapdoor pit: a fall to ${below}`; if(f.kind==='sinkhole') return `a sinkhole: a steep drop to ${below}`; return `a way down to ${below}`; }
     if(f.kind==='stairs') return `stairs up to ${above}`; if(f.kind==='splash') return `a pool under the well shaft from ${above}`;
     return `rubble under a hole in the ceiling (the drop from ${above})`; }
-  const LINKT={shiphatch:'Hatch', stairs:'Stairs', well:'Well', pit:'Trapdoor pit', sinkhole:'Sinkhole', splash:'Pool', rubble:'Rubble', lift:'Lift shaft', hatch:'Maintenance hatch', liftpad:'Lift pad', ladder:'Ladder'};
+  const LINKT={manhole:'Manhole', spiralstair:'Spiral stair', shiphatch:'Hatch', stairs:'Stairs', well:'Well', pit:'Trapdoor pit', sinkhole:'Sinkhole', splash:'Pool', rubble:'Rubble', lift:'Lift shaft', hatch:'Maintenance hatch', liftpad:'Lift pad', ladder:'Ladder'};
   function contents(F){ const c={}, L={}; for(const f of F){ if(f.link||f.kind==='splash'||SKIPK.has(f.kind)) continue; (LIGHTK.has(f.kind)?L:c)[f.kind]=((LIGHTK.has(f.kind)?L:c)[f.kind]||0)+1; }
     const order=(o)=>Object.keys(o).sort((a,b)=>o[b]-o[a]||a.localeCompare(b));
     return { things:order(c).map(k=>cnt(c[k],k)), lights:order(L).map(k=>cnt(L[k],k)), count:{...c,...L} }; }
@@ -917,18 +1038,18 @@
       R.forEach((r,i)=>{ const inR=D.features.filter(f=>f.x>=r.x&&f.x<r.x+r.w&&f.y>=r.y&&f.y<r.y+r.h&&roomAt[cellK(f.x,f.y)]===i), C=contents(inR), lines=[];
         lines.push(`${r.w} × ${r.h} squares (${r.w*5} × ${r.h*5} ft).`);
         lines.push(C.things.length ? cap(andJoin(C.things))+'.' : 'Bare floor.');
-        if(D.water){ let wn=0; for(let y=r.y;y<r.y+r.h;y++) for(let x=r.x;x<r.x+r.w;x++) if(D.water[y*W+x]) wn++; if(wn) lines.push(wn>=r.w*r.h*0.4 ? 'Dark water fills the middle; a narrow walkway runs round the edge.' : 'Part of the floor is under foul water.'); }
+        if(D.water){ let wn=0; for(let y=r.y;y<r.y+r.h;y++) for(let x=r.x;x<r.x+r.w;x++) if(D.water[y*W+x]) wn++; if(wn) lines.push(D.style==='japan' ? 'A koi pond fills part of the garden.' : D.style==='ruins' ? 'Pools of glowing toxic sludge cover part of the ground.' : wn>=r.w*r.h*0.4 ? 'Dark water fills the middle; a narrow walkway runs round the edge.' : 'Part of the floor is under foul water.'); }
         for(const f of inR.filter(f=>f.link)) lines.push(cap(whereIn(f.x,f.y,r))+': '+linkText(f,lv,nL,D.style)+'.');
-        if(r.type==='entrance' && lv===1 && !inR.some(f=>f.link==='up')) lines.push(D.style==='graveyard'?'The gate is in the south wall.':D.style==='ship'?'Boarded from the sea, over either rail.':D.style==='docks'?'The town lies beyond the quay to the south.':'The way in from the surface.');
+        if(r.type==='entrance' && lv===1 && !inR.some(f=>f.link==='up')) lines.push(D.style==='western'?'The trail into town comes in at both ends of the street.':D.style==='ruins'?'The broken highway runs east to west through the ruins.':D.style==='tower'?'The great door opens on the south side.':D.style==='graveyard'?'The gate is in the south wall.':D.style==='ship'?'Boarded from the sea, over either rail.':D.style==='docks'?'The town lies beyond the quay to the south.':'The way in from the surface.');
         for(const f of inR.filter(f=>f.kind==='trap')) lines.push('Trap ('+whereIn(f.x,f.y,r)+'): '+trapLine(f)+'.');
-        const outdoor=(D.style==='ship'&&D.deck===1&&r.type!=='cabin')||(D.style==='docks'&&(r.type==='entrance'||r.type==='pier'||r.type==='sloop'))||(D.style==='graveyard'&&r.type==='entrance');
+        const outdoor=((D.style==='western'||D.style==='ruins')&&(r.type==='entrance'||r.type==='camp'))||(D.style==='ship'&&D.deck===1&&r.type!=='cabin')||(D.style==='docks'&&(r.type==='entrance'||r.type==='pier'||r.type==='sloop'))||(D.style==='graveyard'&&r.type==='entrance');
         lines.push(outdoor ? 'Open to the sky'+(C.lights.length?'; at night lit by '+andJoin(C.lights):'')+'.' : C.lights.length ? 'Lit by '+andJoin(C.lights)+'.' : 'Dark.');
         const ex=OP[i].map(run=>{ const d=doorOn(r,run), ds=d&&doorState(d), what=d?(ds==='closed'&&d.grate?'iron grate':({open:'archway', closed:'door', locked:d.grate?'locked grate':'locked door', secret:'secret door'})[ds]):'opening', to=new Set();
           for(const [x,y] of run.cells){ const k=y*W+x; if(roomAt[k]>=0) to.add(R[roomAt[k]].n); else if(comp[k]>=0) for(const j of touch[comp[k]]) if(j!==i) to.add(R[j].n); }
           return `${what} ${SIDE[run.side]}` + (to.size ? ` (to ${nums([...to])})` : ' (a passage that leads nowhere else)'); });
-        if(!((D.style==='graveyard'||D.style==='docks') && r.type==='entrance')) lines.push(ex.length ? 'Exits: '+ex.join(', ')+'.' : 'No exits.');
-        const deep=r.type==='entrance'&&lv>1&&D.style!=='ship', SD=D.style==='ship'?{entrance:D.deck===2?'Gun deck':D.deck===3?'Cargo hold':'Main deck'}:(DT_STYLE[D.style]||{}), title=deep?(D.style==='temple'?'Nave':D.style==='scifi'?'Main corridor':D.style==='pyramid'?'Grand gallery':D.style==='tomb'?'Lower gallery':'Landing hall'):(SD[r.type]||DT[r.type]||cap(r.type||'room'));
-        const HS={ship:{entrance:D.deck===2?'gundeck':D.deck===3?'hold':'maindeck'}, docks:{entrance:'quay'}, manor:{entrance:'foyer',lair:'ritual'}, asylum:{entrance:'office',lair:'isolation'}, graveyard:{entrance:'grounds',lair:'crypt2'}, catacombs:{entrance:'crypt2',lair:'crypt'}}[D.style], TB=D.style==='tomb'||D.style==='pyramid', fp = HS&&HS[r.type] ? HS[r.type] : TB&&r.type==='entrance' ? (D.style==='pyramid'?'gallery':'tombentrance') : TB&&r.type==='lair' ? (D.style==='pyramid'?'tombentrance':'burial') : D.style==='scifi'&&r.type==='entrance' ? 'corridor' : D.style==='scifi'&&r.type==='lair' ? 'reactor' : D.style==='temple'&&r.type==='entrance' ? 'nave' : D.style==='temple'&&r.type==='lair' ? 'sanctum' : (D.style&&(r.type==='entrance'||r.type==='lair')) ? (r.type==='lair'?(D.style==='mine'?'stope':'overflow'):'arrival') : deep?'arrival':(FLAV[r.type]?r.type:'cave');
+        if(!((D.style==='graveyard'||D.style==='docks'||D.style==='western'||D.style==='ruins') && r.type==='entrance') && D.style!=='tower') lines.push(ex.length ? 'Exits: '+ex.join(', ')+'.' : 'No exits.');
+        const deep=r.type==='entrance'&&lv>1&&D.style!=='ship'&&D.style!=='tower', SD=D.style==='ship'?{entrance:D.deck===2?'Gun deck':D.deck===3?'Cargo hold':'Main deck'}:D.style==='tower'?{entrance:'Entrance hall'}:(DT_STYLE[D.style]||{}), title=deep?(D.style==='temple'?'Nave':D.style==='scifi'?'Main corridor':D.style==='pyramid'?'Grand gallery':D.style==='tomb'?'Lower gallery':'Landing hall'):(SD[r.type]||DT[r.type]||cap(r.type||'room'));
+        const HS={western:{entrance:'mainstreet'}, ruins:{entrance:'ruinstreets', ruinstore:'ruin', ruinoffice:'ruin', ruinflats:'ruin', clinic:'ruin', garage:'ruin'}, japan:{entrance:'audience', jkitchen:'kitchen', jstudy:'scriptorium'}, tower:{entrance:'tower'}, ship:{entrance:D.deck===2?'gundeck':D.deck===3?'hold':'maindeck'}, docks:{entrance:'quay'}, manor:{entrance:'foyer',lair:'ritual'}, asylum:{entrance:'office',lair:'isolation'}, graveyard:{entrance:'grounds',lair:'crypt2'}, catacombs:{entrance:'crypt2',lair:'crypt'}}[D.style], TB=D.style==='tomb'||D.style==='pyramid', fp = HS&&HS[r.type] ? HS[r.type] : TB&&r.type==='entrance' ? (D.style==='pyramid'?'gallery':'tombentrance') : TB&&r.type==='lair' ? (D.style==='pyramid'?'tombentrance':'burial') : D.style==='scifi'&&r.type==='entrance' ? 'corridor' : D.style==='scifi'&&r.type==='lair' ? 'reactor' : D.style==='temple'&&r.type==='entrance' ? 'nave' : D.style==='temple'&&r.type==='lair' ? 'sanctum' : (D.style&&(r.type==='entrance'||r.type==='lair')) ? (r.type==='lair'?(D.style==='mine'?'stope':'overflow'):'arrival') : deep?'arrival':(FLAV[r.type]?r.type:'cave');
         entries.push({n:r.n, x:r.x+r.w/2, y:r.y+r.h/2, title:r.name?(r.type==='sloop'?'The sloop '+r.name.replace(/^the /,''):r.name):title, type:r.type, lines, fp}); });
       // ways up / down out in the passages get letters
       let ti=0; for(const f of D.features){ if(f.kind!=='trap' || roomAt[cellK(f.x,f.y)]>=0) continue; let near=null, nd=FAR; for(const r of R){ const d=Math.hypot(r.x+r.w/2-f.x, r.y+r.h/2-f.y); if(d<nd){ nd=d; near=r; } }
@@ -964,11 +1085,11 @@
         for(const f of F.filter(f=>f.link)) lines.push(cap(whereFrom(f.x,f.y,c.x,c.y))+': '+linkText(f,lv,nL,D.style)+'.');
         lines.push(D.style==='lava'&&a.water ? 'Lit by the red glow of the lava'+(C.lights.length?' and '+andJoin(C.lights):'')+'.' : C.lights.length ? 'Lit by '+andJoin(C.lights)+'.' : 'Dark.');
         const adj=[...a.adj].map(j=>ch[j].n); lines.push(adj.length ? `Passages lead to ${nums(adj)}.` : 'No other way out.');
-        entries.push({n:c.n, x:c.x, y:c.y, title, type:'cave', lines, fp:D.style==='ice'?'ice':D.style==='lava'?'lava':(D.style==='underdark'||D.style==='drow')?'underdark':D.style==='cove'?'cove':'cave'}); });
+        entries.push({n:c.n, x:c.x, y:c.y, title:c.name||title, type:'cave', lines, fp:D.style==='ice'?'ice':D.style==='lava'?'lava':(D.style==='underdark'||D.style==='drow')?'underdark':D.style==='cove'?'cove':'cave'}); });
       BR.forEach(o=>{ const inR=D.features.filter(f=>f.x>=o.x&&f.x<o.x+o.w&&f.y>=o.y&&f.y<o.y+o.h), C=contents(inR), lines=[`${o.w} × ${o.h} squares (${o.w*5} × ${o.h*5} ft), carved out of the rock.`];
         lines.push(C.things.length ? cap(andJoin(C.things))+'.' : 'Bare floor.'); for(const f of inR.filter(f=>f.link)) lines.push(cap(whereIn(f.x,f.y,o))+': '+linkText(f,lv,nL,D.style)+'.');
         lines.push(C.lights.length ? 'Lit by '+andJoin(C.lights)+'.' : 'Dark.'); const pk=cellK(o.x+Math.floor(o.w/2)+0.5, o.y+o.h+1.5), g=reg[pk]; lines.push('Door south'+(g>=0&&ch[g]?`, out to ${ch[g].n}`:'')+'.');
-        entries.push({n:o.n, x:o.x+o.w/2, y:o.y+o.h/2, title:({lair:'Temple of the spider goddess', noblehouse:'Noble house', barracks:'Barracks', alchemist:"Alchemist's workshop", slavepens:'Slave pens'})[o.type]||cap(o.type), type:o.type, lines, fp:o.type==='lair'?'spidertemple':'drowhouse'}); });
+        entries.push({n:o.n, x:o.x+o.w/2, y:o.y+o.h/2, title:o.name||({lair:'Temple of the spider goddess', noblehouse:'Noble house', barracks:'Barracks', alchemist:"Alchemist's workshop", slavepens:'Slave pens'})[o.type]||cap(o.type), type:o.type, lines, fp:o.type==='lair'?'spidertemple':'drowhouse'}); });
     }
     entries.sort((a,b)=>a.n-b.n); for(const e of entries){ e.flavor=flav(e.fp,e.n); delete e.fp; }   // in number order → no line repeats while the pool lasts
     return { kind:D.kind, level:lv, levels:nL, entries, marks }; }
@@ -1014,14 +1135,24 @@
     const features=D.features.slice(); features[i]=it; return {...D, features, edited:true}; }
   function deleteFeature(D, i){ const f=D.features[i]; if(!f || f.link) return D; const features=D.features.slice(); features.splice(i,1); return {...D, features, edited:true}; }
   function addFeature(D, it){ if(!footOk(D,it)) return D; return {...D, features:D.features.concat([it]), edited:true}; }
+  // draw a new room: dig the rectangle (whole squares) and add it to the key (numbered next); name optional
+  function addRoom(D, rc, type, name){ const cells=[]; for(let y=rc.y;y<rc.y+rc.h;y++) for(let x=rc.x;x<rc.x+rc.w;x++) cells.push([x,y]); const P=paint(D,cells,1);
+    const o={x:rc.x,y:rc.y,w:rc.w,h:rc.h,type:type||'room'}; if(name) o.name=name; const N={...P, rooms:(P.rooms||[]).concat([o]), edited:true}; if(N.chambers) N.chambers=N.chambers.map(c=>({...c})); return numberKey(N); }
+  // give a room / building / cave chamber a custom name for the GM key (which = {room:i} | {chamber:i})
+  function renameRoom(D, which, name){ const N={...D, edited:true}; if(which.room!=null){ N.rooms=D.rooms.map((o,i)=>i===which.room?{...o,name:name||undefined}:o); } else if(which.chamber!=null){ N.chambers=(D.chambers||[]).map((c,i)=>i===which.chamber?{...c,name:name||undefined}:c); } return N; }
 
   root.DungeonGen = { generate(o){ o=o||{}; const cols=Math.max(12,o.cols|0||30), rows=Math.max(10,o.rows|0||24), seed=(o.seed>>>0)||1, arr=o.arrivals||[];
       if(o.kind==='cave') return numberKey(cave(cols,rows,seed,arr,o.style||null));
       if(o.style==='ship') return numberKey(ship(cols,Math.max(rows,16),seed,o.deck||(arr.length?2:1),arr));
+      if(o.style==='tower') return numberKey(tower(cols,rows,seed,o.deck||(arr.length?2:1),arr));
+      if(o.style==='western' && !arr.length) return numberKey(western(cols,rows,seed));
+      if(o.style==='western') o={...o, style:'mine'};   // below the town: the silver mine
+      if(o.style==='ruins' && !arr.length) return numberKey(ruins(cols,rows,seed));
+      if(o.style==='ruins') o={...o, style:'sewer'};   // below the ruins: the sewers
       if(o.style==='docks') return numberKey(docks(cols,rows,seed));
       if(o.style==='graveyard' && !arr.length) return numberKey(graveyard(cols,rows,seed));
       if(o.style==='graveyard') o={...o, style:'catacombs'};   // below a graveyard: the catacombs
-      if((o.style==='temple'||o.style==='scifi'||o.style==='pyramid') && !arr.length && cols>=20 && rows>=14){ let best=null; for(let t=0;t<6;t++){ const g=temple(cols,rows,(seed+t*7919)>>>0,o.style); if(!best||g.rooms.length>best.rooms.length) best=g; if(g.rooms.length>=5) break; } return numberKey(best); }
+      if((o.style==='temple'||o.style==='scifi'||o.style==='pyramid'||o.style==='japan') && !arr.length && cols>=20 && rows>=14){ let best=null; for(let t=0;t<6;t++){ const g=temple(cols,rows,(seed+t*7919)>>>0,o.style); if(!best||g.rooms.length>best.rooms.length) best=g; if(g.rooms.length>=5) break; } return numberKey(best); }
       const sopt=o.style?{style:o.style}:undefined;
       let best=null; for(let t=0;t<8;t++){ const g=dungeon(cols,rows,(seed+t*7919)>>>0,null,arr,sopt); if(!best||g.rooms.length>best.rooms.length) best=g; if(g.rooms.length>=Math.min(4,Math.max(3,Math.round(cols*rows/120)))) return numberKey(g); } return numberKey(best); },   // retry a cramped layout
     extend(D, dir, E, seed){ const e=Math.max(6,E|0||12), {ox,oy}=offsetOf(dir,e); return numberKey(carryKey(extend(D,dir,E,seed),D,ox,oy)); },
@@ -1029,7 +1160,7 @@
     addArrival(L, a){ return numberKey(addArrival(L,a)); },
     pad(D, dir, E){ const {ox,oy}=offsetOf(dir,E); return carryKey(pad(D,dir,E),D,ox,oy); },   // untouched levels keep their numbers as they are
     numberKey, roomKey, words:{cnt, andJoin, cap, SIDE},
-    paint, doorAt, doorwayAt, doorState, setDoor, addDoor, moveFeature, rotateFeature, deleteFeature, addFeature, sqFloor:(D,x,y)=>sqFloor(D,x,y),
+    paint, addRoom, renameRoom, doorAt, doorwayAt, doorState, setDoor, addDoor, moveFeature, rotateFeature, deleteFeature, addFeature, sqFloor:(D,x,y)=>sqFloor(D,x,y),
     arrivalsFrom, gridLoops, msLoops,
     // make sure a level has a way DOWN (for ⬇ Dig deeper): a well / pit (dungeon) or a sinkhole (cave), else a plain pit anywhere open
     ensureDown(D, seed){ if(D.features.some(f=>f.link==='down')) return D; const F=D.features.slice(), r=rng32(seed>>>0||1), W=D.cols*D.res, H=D.rows*D.res;
