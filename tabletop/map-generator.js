@@ -369,7 +369,7 @@
         else if (mtn.length) { let mx = 0, mz = 0; mtn.forEach(k => { mx += pos[k].x; mz += pos[k].z; }); fx = pos[best].x - mx / mtn.length; fz = pos[best].z - mz / mtn.length; }
         const tmp = new Map();
         const rs = generateSettlement(gridKind, tmp, reg, defs, { seed: (((opts.seed || 1) * 7919) + 3) >>> 0, settlementType: 'castle', moat: !!opts.moat,
-          outskirts: OUT, keepSize: opts.keepSize, feedDir: (opts.moat && opts.stream !== false) ? [fx, fz] : null });
+          outskirts: OUT, keepSize: opts.keepSize, battle: !!opts.battle, feedDir: (opts.moat && opts.stream !== false) ? [fx, fz] : null });
         const regKeys = reg.map(keyOf), regSet = new Set(regKeys), tiles = [];
         for (const k of regKeys) { const t = tmp.get(k); if (!t) continue; tiles.push([k, { defId: t.defId, rot: 0 }]);
           if (!cset.has(k)) continue;
@@ -902,7 +902,9 @@
     if (type === 'castle'){
       const inner = (k) => cset.has(k) && !isBorder(k) && nbrs(k).every(n => !isBorder(n.k));   // leave room for the curtain wall
       const c0 = cellOf[centerK];
-      for (let want = clamp((opts.keepSize | 0) || 1, 1, 4); want > 1; want--){
+      const kWant = !opts.battle ? clamp((opts.keepSize | 0) || 1, 1, 4)               // world scale: 1–4 cells
+        : gridKind === 'hex' ? clamp(((opts.keepSize | 0) || 1) + 2, 3, 4) : clamp(((opts.keepSize | 0) || 1) * 2 + 2, 4, 8);   // 5-ft battle: a 20–40 ft keep
+      for (let want = kWant; want > 1; want--){
         const blk = [];
         if (gridKind === 'hex'){ const R0 = want - 1;
           for (let dq = -R0; dq <= R0; dq++) for (let dr = -R0; dr <= R0; dr++){ if ((Math.abs(dq) + Math.abs(dr) + Math.abs(dq + dr)) / 2 > R0) continue; blk.push(keyOf({ q: c0.q + dq, r: c0.r + dr })); } }
@@ -947,6 +949,11 @@
     biome[centerK] = (type === 'castle') ? B.CITY : B.GREEN;
     if (type === 'castle'){ for (const k of keepBlock){ biome[k] = B.CITY; feature[k] = 'keepyard'; } feature[keepAnchor] = keepN > 1 ? 'keep' + keepN : 'keep'; }
 
+    // 5-ft BATTLE scale: lay out real building PLOTS (rectangles sized like houses, fronting the streets, a yard /
+    // alley between buildings, a clear lane inside the curtain wall) instead of per-cell scatter — so every
+    // building the renderer makes has sensible walls, rooms and floors. World scale keeps the per-cell look below.
+    if (opts.battle){ battlePlots(); }
+    else
     // building lots on every non-street, non-centre cell
     for (const k of keys){ if (k === centerK || keepBlock.has(k)) continue;
       if (street.has(k)){ biome[k] = B.GREEN; continue; }                                   // road runs over open ground
@@ -972,6 +979,49 @@
           else biome[k] = B.GREEN;
         }
       }
+    }
+
+    function battlePlots(){
+      const hexG = gridKind === 'hex', moatE = opts.moat && type !== 'village';
+      const ix = (k) => { const c = cellOf[k]; return { c: c.q, w: hexG ? c.r + Math.floor(c.q / 2) : c.r }; };
+      const kx = (c, w) => keyOf({ q: c, r: hexG ? w - Math.floor(c / 2) : w });
+      const lane = (k) => type !== 'village' && (isBorder(k) || (moatE && nbrs(k).some(n => isBorder(n.k))));
+      const plaza = (k) => type === 'town' && dCentre(k) < 1.6;
+      const courtyard = (k) => type === 'castle' && dCentre(k) / maxR < 0.32;
+      const avail = new Set(keys.filter(k => k !== centerK && !keepBlock.has(k) && !street.has(k) && !lane(k) && !plaza(k) && !courtyard(k)));
+      const sd = {}, qu = []; for (const k of street){ sd[k] = 0; qu.push(k); }      // steps to the nearest street
+      while (qu.length){ const k = qu.shift(); for (const { k: n } of nbrs(k)) if (sd[n] == null){ sd[n] = sd[k] + 1; qu.push(n); } }
+      const tie = {}; for (const k of avail) tie[k] = rng();
+      const SZ = type === 'village' ? { w: [2, 4], d: [3, 5] } : type === 'town' ? { w: [3, 5], d: [3, 6] } : { w: [3, 5], d: [4, 7] };
+      const budget = Math.round(avail.size * (type === 'village' ? 0.42 : type === 'town' ? 0.8 : 0.5));
+      const built = new Set(), spare = new Set();
+      for (const a of [...avail].sort((p, q) => ((sd[p] ?? 99) - (sd[q] ?? 99)) || (tie[p] - tie[q]))){
+        if (built.size >= budget) break; if (built.has(a) || spare.has(a)) continue; const A = ix(a);
+        for (let t = 0; t < 14; t++){
+          let W = SZ.w[0] + ri(SZ.w[1] - SZ.w[0] + 1), D = SZ.d[0] + ri(SZ.d[1] - SZ.d[0] + 1); if (rng() < 0.5){ const s = W; W = D; D = s; }
+          if (t >= 9){ W = 2 + ri(2); D = 2 + ri(2); }                               // squeeze in a small one
+          const c0 = A.c - ri(W), w0 = A.w - ri(D); let ok = true; const rect = [];
+          for (let c = c0; c < c0 + W && ok; c++) for (let w = w0; w < w0 + D; w++){ const k = kx(c, w); if (!avail.has(k) || built.has(k) || spare.has(k)){ ok = false; break; } rect.push(k); }
+          if (!ok) continue;
+          rect.forEach(k => built.add(k));
+          for (let c = c0 - 1; c <= c0 + W; c++) for (let w = w0 - 1; w <= w0 + D; w++){ const k = kx(c, w); if (!built.has(k)) spare.add(k); }   // yard / alley ring
+          break; } }
+      const near2 = new Set(); for (const k of built){ const P0 = ix(k); for (let dc = -2; dc <= 2; dc++) for (let dw = -2; dw <= 2; dw++) near2.add(kx(P0.c + dc, P0.w + dw)); }
+      for (const k of keepBlock){ const P0 = ix(k); for (let dc = -2; dc <= 2; dc++) for (let dw = -2; dw <= 2; dw++) near2.add(kx(P0.c + dc, P0.w + dw)); }
+      const TREES = B.FOREST;
+      for (const k of keys){ if (k === centerK || keepBlock.has(k)) continue;
+        if (street.has(k) || lane(k) || plaza(k)){ biome[k] = B.GREEN; continue; }
+        const treeOK = !near2.has(k); B.FOREST = treeOK ? TREES : B.GREEN;       // (restored right after this cell)
+        if (built.has(k)){ if (type === 'village'){ biome[k] = B.VILLAGE; feature[k] = 'houses'; } else { biome[k] = B.CITY; feature[k] = 'buildings'; } continue; }
+        const rv = rng(), rr = dCentre(k) / maxR;
+        if (type === 'castle'){
+          if (rr < 0.32){ if (rv < 0.18){ biome[k] = B.FOREST; feature[k] = 'trees'; } else if (rv < 0.24){ biome[k] = B.WATER; feature[k] = 'water'; } else biome[k] = B.GREEN; }
+          else if (rr > 0.66){ if (rv < 0.3){ biome[k] = B.ORCHARD; feature[k] = undefined; } else if (rv < 0.5){ biome[k] = B.CROPS; feature[k] = undefined; } else biome[k] = B.GREEN; }
+          else { if (rv < 0.25){ biome[k] = B.FOREST; feature[k] = 'trees'; } else biome[k] = B.GREEN; }
+        } else if (type === 'village'){ if (rv < 0.14){ biome[k] = B.FOREST; feature[k] = 'trees'; } else if (rv < 0.26 && !spare.has(k)){ biome[k] = B.CROPS; feature[k] = undefined; } else biome[k] = B.GREEN; }
+        else { if (rv < 0.07){ biome[k] = B.FOREST; feature[k] = 'trees'; } else biome[k] = B.GREEN; }
+        B.FOREST = TREES; if (!treeOK && biome[k] === B.GREEN && feature[k] === 'trees') feature[k] = undefined; }
+      B.FOREST = TREES;
     }
 
     // MOAT + DRAWBRIDGE (toggle) — the OUTERMOST ring of the plan becomes the water moat, which sits OUTSIDE the

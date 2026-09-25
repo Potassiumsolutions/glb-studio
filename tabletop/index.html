@@ -365,6 +365,25 @@
         <button class="btn" id="bTgcExport" style="flex:1">🖨 Export for print (The Game Crafter)</button>
         <label class="row" style="gap:4px;cursor:pointer"><input type="checkbox" id="bTgcSheet"> <span class="mini">+ letter sheet</span></label>
       </div>
+      <div class="row wrap" data-exp="battlemaps" style="align-items:center;margin:2px 0 4px">
+        <label class="fld" style="margin:0" title="Export this map for a virtual tabletop">🗺 VTT</label>
+        <select id="bVttFmt" style="flex:1;min-width:150px" title="Universal VTT files carry the map + grid + walls + doors">
+          <option value="dd2vtt">.dd2vtt — map + grid + walls + doors</option>
+          <option value="uvtt">.uvtt — same, Universal VTT name</option>
+          <option value="png">PNG only — grid size in the file name</option>
+        </select>
+        <select id="bVttPpg" style="min-width:86px" title="Image pixels per grid square">
+          <option value="70">70 px/sq</option>
+          <option value="100">100 px/sq</option>
+          <option value="140" selected>140 px/sq</option>
+          <option value="200">200 px/sq</option>
+          <option value="256">256 px/sq</option>
+        </select>
+        <label class="row" style="gap:4px;cursor:pointer" title="Battle maps: show building interiors (floors, rooms, furniture) instead of roofs"><input type="checkbox" id="bVttRoofs" checked> <span class="mini">roofs off</span></label>
+        <button class="btn" id="bVttExport">⬇ Export for VTT</button>
+      </div>
+      <div class="mini" data-exp-lock="battlemaps" style="margin:2px 0 6px;padding:6px 9px;border:1px dashed #3a4a63;border-radius:8px;color:#9fb4d4;background:rgba(91,140,255,.06)">🔒 <b>🗺 Export for virtual tabletops</b> (map + grid + walls + doors, .dd2vtt) is part of the <b>Battle Maps Pack</b> — unlock it in <b>GLB&nbsp;Studio → ✨ Upgrades</b> (<a href="https://www.patreon.com/KsolDesigns" target="_blank" rel="noopener" style="color:var(--acc,#5b8cff)">Patreon</a>).</div>
+      <div class="mini" data-exp="battlemaps" style="margin:0 0 4px;color:var(--mut)">Universal VTT (.dd2vtt) imports into virtual tabletops that read that format (e.g. via a Universal Battlemap importer). Other product names are trademarks of their respective owners; KSOL Designs is not affiliated with them.</div>
       <div class="cfg">
         <div><label class="fld">Width</label><input type="number" id="bCols" value="8" min="2" max="96" style="width:100%"></div>
         <div><label class="fld">Height</label><input type="number" id="bRows" value="8" min="2" max="96" style="width:100%"></div>
@@ -1068,7 +1087,7 @@ import * as Tuck from './tuckbox-designer.js';
 
 const BGC = window.BGC, GAMES = window.BGC_GAMES;
 const TE = window.TileEngine, TLIB = window.TileLibrary;
-const APP_VERSION = 'v0.99';
+const APP_VERSION = 'v1.00';
 const CREDITS = `<b>Ksol Designs</b> — Paul A.T. Ramey<br>www.ksoldesigns.com<br>Built with GLB Studio · Tabletop<br><span class="ver">${APP_VERSION}</span>`;
 // ---- Board credit: a small "KSOL Designs" mark on the board for the FREE build. Owning ANY content pack
 // (TTier expansion) unlocks removing it (⚙ Settings toggle, or click the credit). ----
@@ -3635,8 +3654,8 @@ function bRender(){
   }
   bPlaceNorthArrow();                                              // compass at the NW corner so orientation is clear at a glance
   bRenderDraw();                                                   // freeform drawn roads/streams/walls + connector dots
-  bBattleProps();                                                  // BATTLE scale: trees/boulders spanning squares
   bRenderStructures();                                             // BATTLE scale: explorable settlement buildings (roof-poppable)
+  bBattleProps();                                                  // BATTLE scale: trees/boulders spanning squares (after buildings → kept off their roofs)
   bRenderProps();                                                  // placed trees/houses/castles (3D or 2D) + minis
   bRenderSubdiv();                                                  // finer-grid overlays on subdivided cells
   bRenderGridLines();                                               // 5-ft grid overlay (cell outlines) when toggled on
@@ -3656,6 +3675,8 @@ function bFlatDecal(cx,cz,size,color,square,rot){
   const m=new THREE.Mesh(geo, new THREE.MeshBasicMaterial({color,transparent:true,opacity:0.96,depthWrite:false}));
   m.position.set(cx, TILE_TOP+0.045, cz); if(rot) m.rotation.y=rot; m.renderOrder=5; builderGroup.add(m); return m;
 }
+// is scene point w within r (plus a canopy) of a battle building? → no big tree dropped on a roof
+function bNearStruct(w, r){ const x=w.x+bld.off.x, z=w.z+bld.off.z; for(const st of (bld.structures||[])){ const dx=Math.max(st.x0-x,0,x-st.x1), dz=Math.max(st.z0-z,0,z-st.z1); if(Math.hypot(dx,dz)<r+0.6) return true; } return false; }
 function bBattleProps(){
   if(bld.scale!=='battle') return;
   const defs=bDefs(); const flat=!!bld.boardFlat;   // 2D board mode → draw flat top-down decals instead of 3D props
@@ -3674,7 +3695,7 @@ function bBattleProps(){
       g.traverse(o=>o.userData.cell=c); builderGroup.add(g); };
     // NOTE: village/city BUILDINGS are no longer dropped here — they're persistent, clickable, roof-poppable
     // structures owned by bBuildStructures()/bRenderStructures(). bBattleProps only handles nature now.
-    if(bm==='forest'){ const pine = bResolveVariant(pl,def,c)===2; if(rr()<0.72) drop(pine?'pine':'tree'); }
+    if(bm==='forest' && !bNearStruct(w, 0.9*CS)){ const pine = bResolveVariant(pl,def,c)===2; if(rr()<0.72) drop(pine?'pine':'tree'); }
     else if(bm==='orchard'){ drop('tree'); }
     else if(bm==='mountains'||bm==='rocks'){ if(rr()<0.7) drop('boulder'); }
   }
@@ -3698,67 +3719,218 @@ const MODERN_BLDG_SPEC={ towers:{lot:400,floors:[6,10],wall:0x5f7486,roof:0x4a4d
   factory:{lot:400,floors:[2,2],wall:0x8a9096,roof:0x6d7176}, warehouse:{lot:400,floors:[1,1],wall:0xb9bcc0,roof:0x6d7176}, hotel:{lot:400,floors:[5,8],wall:0xf3e6d0,roof:0x9aa0a6},
   station:{lot:400,floors:[1,1],wall:0x9c5a44,roof:0x3c424c}, depot:{lot:400,floors:[1,1],wall:0xd9dde2,roof:0x55585c}, farmstead:{lot:400,floors:[2,2],wall:0xa8322a,roof:0x4a4d52} };
 const _mSpec=(f)=>MODERN_BLDG_SPEC[String(f||'').replace(/\d$/,'')];
+/* ---- BATTLE-SCALE BUILDINGS that make sense on a 5-ft grid (v1.00) ----
+   Building cells are packed into RECTANGLES sized like real buildings (a cottage 2×3…4×5 squares = 10×15…20×25 ft,
+   a town house up to 5×6, modern blocks bigger), with their outer walls ON the grid lines, never over a street or
+   the curtain wall. Big footprints are split into ROOMS (BSP on grid lines, rooms ≥ 2 squares) with a doorway in
+   every partition; the front door faces the street. Floors get a material (planks / flagstone / tile / concrete)
+   and a little furniture; multi-storey buildings get stairs. bStructLayout() is the ONE source of wall + door
+   geometry — the 3D/2D renderer AND the 🗺 VTT export both read it, so exported walls match the picture. */
+const STRUCT_SIZES={ keep:{w:[2,8],d:[2,8],floor:'flag',floors:3,wallTh:0.32,wall:0x9d998f,roof:0x5b5e63}, village:{w:[2,4],d:[3,5],detached:1,floor:'planks'}, city:{w:[3,5],d:[3,6],floor:'mixed'},
+  towers:{w:[5,9],d:[5,9],floor:'tile'}, apartments:{w:[4,7],d:[5,8],floor:'planks'}, shops:{w:[3,5],d:[4,6],floor:'tile'},
+  homes:{w:[4,6],d:[5,7],detached:1,floor:'planks'}, school:{w:[6,9],d:[6,10],floor:'tile'}, church:{w:[4,6],d:[6,9],detached:1,floor:'flag'},
+  factory:{w:[6,11],d:[6,11],floor:'concrete'}, warehouse:{w:[5,10],d:[6,11],floor:'concrete'}, hotel:{w:[5,8],d:[5,9],floor:'carpet'},
+  station:{w:[4,7],d:[7,11],floor:'tile'}, depot:{w:[4,7],d:[4,8],floor:'concrete'}, farmstead:{w:[4,6],d:[4,6],detached:1,floor:'planks'} };
+function bStructIdx(){ const hex=bld.grid==='hex';                       // index space: (c,w) = column,row; hex = offset columns
+  return { hex, to:(q,r)=>({c:q, w:hex? r+Math.floor(q/2) : r}), from:(c,w)=>({q:c, r:hex? w-Math.floor(c/2) : w}) }; }
+function bStructRectW(c0,c1,w0,w1){ const g=bGridObj(), I=bStructIdx(); const X=(c)=>g.world(I.from(c,0)).x;
+  if(!I.hex) return { x0:X(c0)-0.5, x1:X(c1)+0.5, z0:g.world(I.from(0,w0)).z-0.5, z1:g.world(I.from(0,w1)).z+0.5 };
+  const Z=(w)=>0.8660254*w;                                                // hex: the rectangle inside both column parities
+  return { x0:X(c0)-0.375, x1:X(c1)+0.375, z0:Z(w0), z1:Z(w1)+0.4330127 }; }
 function bBuildStructures(){
   bld.structures=[];
   if(bld.scale!=='battle') return;
-  const defs=bDefs(), g=bGridObj();
-  const isBldg=(k)=>{ const pl=bld.board.get(k); if(!pl) return false; const d=defs[pl.defId]; if(!d) return false;
+  const defs=bDefs(), g=bGridObj(), I=bStructIdx(), CS=bCellSize();
+  // curtain / town walls (drawn strokes): no building within ~¾ square of one, so a wall-walk lane stays clear
+  const wallSegs=[]; for(const s of bld.draw) if(s.type==='wall' && s.pts) for(let i=1;i<s.pts.length;i++) wallSegs.push([s.pts[i-1],s.pts[i]]);
+  const nearWall=(x,z)=>{ for(const [a,b] of wallSegs){ const dx=b[0]-a[0], dz=b[1]-a[1], L=dx*dx+dz*dz||1; let t=((x-a[0])*dx+(z-a[1])*dz)/L; t=Math.max(0,Math.min(1,t));
+      if(Math.hypot(a[0]+t*dx-x, a[1]+t*dz-z) < 0.72*CS) return true; } return false; };
+  const typeOf=new Map();                                                  // cell key → building type (or absent)
+  for(const [k,pl] of bld.board){ const d=defs[pl.defId]; if(!d) continue;
     const modernB = MODERN_BLDG.test(d.feature||'');
-    if(d.biome!=='city' && d.biome!=='village' && !modernB) return false;
-    if(/^keep/.test(d.feature||'')) return false;                                    // the keep (any size) is its own model
-    if(d.edges && d.edges.some(e=>e.path===TE.PATH.ROAD||e.path===TE.PATH.RIVER||e.path===TE.PATH.TRAIL)) return false;   // street/waterway cell
-    return true; };
+    if(d.biome!=='city' && d.biome!=='village' && !modernB) continue;
+    const keepC=/^keep/.test(d.feature||'');                                 // the castle KEEP (anchor + keepyard) = one big stone building
+    if(d.edges && d.edges.some(e=>e.path===TE.PATH.ROAD||e.path===TE.PATH.RIVER||e.path===TE.PATH.TRAIL||e.path===TE.PATH.RAIL)) continue;   // street / waterway / track
+    const [q,r]=k.split(',').map(Number), w=g.world({q,r}); if(nearWall(w.x,w.z)) continue;
+    typeOf.set(k, keepC ? 'keep' : modernB ? String(d.feature).replace(/\d$/,'') : d.biome); }
+  const street=(k)=>{ const pl=bld.board.get(k), d=pl&&defs[pl.defId]; return !!(d && d.edges && d.edges.some(e=>e.path===TE.PATH.ROAD||e.path===TE.PATH.TRAIL)); };
+  const kIdx=(c,w)=>{ const p=I.from(c,w); return p.q+','+p.r; };
   const claimed=new Set();
-  for(const [k,pl] of bld.board){ if(claimed.has(k) || !isBldg(k)) continue;
-    const [q,r]=k.split(',').map(Number); const biome=defs[pl.defId].biome;
-    const feat=defs[pl.defId].feature, spec=_mSpec(feat);
-    const lot=[k]; claimed.add(k); const maxLot = spec ? spec.lot : biome==='city' ? 4 : 2; const frontier=[{q,r}];
-    while(lot.length<maxLot && frontier.length){ const cur=frontier.shift();
-      for(let d=0; d<g.N; d++){ if(lot.length>=maxLot) break; const nc=g.step(cur,d), nk=TE.keyOf(nc);
-        if(claimed.has(nk)||!isBldg(nk)) continue; if(spec){ const nd=defs[bld.board.get(nk).defId]; if(_mSpec(nd.feature)!==spec) continue; }   // a modern lot keeps to one building type
-        lot.push(nk); claimed.add(nk); frontier.push(nc); } }
-    const pts=lot.map(kk=>{ const [qq,rr2]=kk.split(',').map(Number); return g.world({q:qq,r:rr2}); });
-    let mnx=1e9,mxx=-1e9,mnz=1e9,mxz=-1e9; for(const p of pts){ mnx=Math.min(mnx,p.x);mxx=Math.max(mxx,p.x);mnz=Math.min(mnz,p.z);mxz=Math.max(mxz,p.z); }
-    // inset the building well inside its cells so the town/city RING WALL (which runs along the cell edges,
-    // ~0.43-0.5 out with ~0.12 half-thickness) never clips into a building — leaves a clear wall gap + streets.
-    const CS=bCellSize(), half=0.28*CS;
-    const floors = spec ? spec.floors[0]+Math.floor(bStructHash(k,3)*(spec.floors[1]-spec.floors[0]+1)) : biome==='city' ? (bStructHash(k,3)<0.4?3:2) : 1;
-    bld.structures.push({ cells:lot, x0:mnx-half, x1:mxx+half, z0:mnz-half, z1:mxz+half,
-      biome, floors, roofOn:true, activeFloor:0, door:Math.floor(bStructHash(k,5)*4), modern:spec||null });
+  const cells=[...typeOf.keys()].map(k=>{ const [q,r]=k.split(',').map(Number); return {k, ...I.to(q,r)}; }).sort((a,b)=>(a.w-b.w)||(a.c-b.c));
+  for(const cell of cells){ if(claimed.has(cell.k)) continue; const type=typeOf.get(cell.k), S=STRUCT_SIZES[type]||STRUCT_SIZES.city;
+    const h=(s)=>bStructHash(cell.k,s), pick=(lo,hi,s)=>lo+Math.floor(h(s)*(hi-lo+1));
+    let Wt=pick(S.w[0],S.w[1],11), Dt=pick(S.d[0],S.d[1],12); if(h(13)<0.5){ const t=Wt; Wt=Dt; Dt=t; }   // either orientation
+    const free=(c,w)=>{ const k=kIdx(c,w); return typeOf.get(k)===type && !claimed.has(k); };
+    let maxW=Math.max(Wt,Dt), target=Wt*Dt; let wc=0, dr=0, bestSc=-1e9;
+    { const comp=new Set([cell.k]), st2=[cell.k];                             // an isolated RECTANGULAR plot (the generator's) → one building, whole
+      while(st2.length && comp.size<=200){ const k=st2.pop(), [q,r]=k.split(',').map(Number); for(let d=0; d<g.N; d++){ const n=g.step({q,r},d), nk=n.q+','+n.r; if(!comp.has(nk) && typeOf.get(nk)===type && !claimed.has(nk)){ comp.add(nk); st2.push(nk); } } }
+      let mc=1e9,xc=-1e9,mw=1e9,xw=-1e9; for(const k of comp){ const [q,r]=k.split(',').map(Number), p=I.to(q,r); mc=Math.min(mc,p.c); xc=Math.max(xc,p.c); mw=Math.min(mw,p.w); xw=Math.max(xw,p.w); }
+      const cw=xc-mc+1, cd=xw-mw+1, lim=Math.max(S.w[1],S.d[1])+1;
+      if(comp.size===cw*cd && mc===cell.c && mw===cell.w && Math.min(cw,cd)>=2 && Math.max(cw,cd)<=lim){ maxW=Math.max(cw,cd); target=cw*cd; } }
+    let run=0; while(run<maxW && free(cell.c+run, cell.w)) run++;               // widest first row
+    for(let ww=2; ww<=run; ww++){ let hgt=1; while(hgt<maxW){ let ok=true; for(let i=0;i<ww;i++) if(!free(cell.c+i, cell.w+hgt)){ ok=false; break; } if(!ok) break; hgt++; }
+      for(let hd=2; hd<=hgt; hd++){ const area=ww*hd, asp=Math.max(ww,hd)/Math.min(ww,hd); if(area>target+2 || asp>2.6) continue;
+        const sc=area - Math.abs(area-target)*0.5 - asp*0.8 + (hd===hgt||ww===run?0.6:0);   // fill toward the target, prefer tidy shapes that use the block edge
+        if(sc>bestSc){ bestSc=sc; wc=ww; dr=hd; } } }
+    if(wc<2 || dr<2){ claimed.add(cell.k); continue; }                      // a 1-square sliver stays a yard / alley
+    const c0=cell.c, c1=cell.c+wc-1, w0=cell.w, w1=cell.w+dr-1;
+    const lot=[]; for(let c=c0;c<=c1;c++) for(let w=w0;w<=w1;w++){ const k=kIdx(c,w); claimed.add(k); lot.push(k); }
+    if(S.detached) for(let c=c0-1;c<=c1+1;c++) for(let w=w0-1;w<=w1+1;w++) claimed.add(kIdx(c,w));   // detached: keep a yard all round
+    const R=bStructRectW(c0,c1,w0,w1);
+    // FRONT DOOR: the side with the most street (then open ground) outside it; door centred on the best cell run
+    const sides=[ {s:0, cells:[...Array(wc)].map((_,i)=>({c:c0+i,w:w0, o:[c0+i,w0-1]}))}, {s:1, cells:[...Array(dr)].map((_,i)=>({c:c1,w:w0+i, o:[c1+1,w0+i]}))},
+                  {s:2, cells:[...Array(wc)].map((_,i)=>({c:c0+i,w:w1, o:[c0+i,w1+1]}))}, {s:3, cells:[...Array(dr)].map((_,i)=>({c:c0,w:w0+i, o:[c0-1,w0+i]}))} ];
+    let best=null;
+    for(const sd of sides){ const sc=sd.cells.map(x=>{ const ok=kIdx(x.o[0],x.o[1]); if(!bld.board.has(ok)) return 0; if(street(ok)) return 3; return typeOf.has(ok)?0:1; });
+      const tot=sc.reduce((a,b)=>a+b,0)+h(20+sd.s)*0.5, top=Math.max(...sc); const good=sd.cells.filter((_,i)=>sc[i]===top);
+      if(!best || tot>best.tot) best={tot, s:sd.s, cell:good[Math.floor(good.length/2)]}; }
+    const dw=g.world(I.from(best.cell.c,best.cell.w));
+    const door={ side:best.s, at: (best.s===0||best.s===2) ? dw.x : dw.z };
+    // ROOMS: split on grid lines while a room is big (each part ≥ 2 squares); every partition gets a doorway
+    const xs=[], zs=[]; for(let c=c0+2;c<=c1-1;c++) xs.push(bStructRectW(c,c,w0,w1).x0);
+    for(let w=w0+2;w<=w1-1;w++) zs.push(I.hex ? 0.8660254*w-0.2165 : bStructRectW(c0,c1,w,w).z0);
+    const rooms=[], inner=[]; let salt=30;
+    const open = type==='church'||type==='warehouse'||type==='station';     // one big hall
+    const split=(rm, depth)=>{ const rw=(rm.x1-rm.x0)/CS, rd=(rm.z1-rm.z0)/CS, area=rw*rd;
+      const mx=(I.hex?1.4*0.75:1.99)*CS, mz=(I.hex?1.4*0.87:1.99)*CS;
+      const candX=xs.filter(x=>x-rm.x0>=mx && rm.x1-x>=mx), candZ=zs.filter(z=>z-rm.z0>=mz && rm.z1-z>=mz), can=candX.length||candZ.length;
+      const want = !open && can && depth<4 && ((area>=16 || Math.max(rw,rd)>=6) || (depth===0 && area>=9 && h(salt+1)<0.6));
+      if(!want){ rooms.push(rm); return; }
+      const alongX = candX.length && (!candZ.length || rw>rd || (rw===rd && h(salt+2)<0.5));
+      const list=alongX?candX:candZ, cut=list[Math.min(list.length-1, Math.floor(list.length*(0.3+0.4*h(salt+3))))]; salt+=7;
+      // doorway at a square centre along the new partition, away from its ends when it can be
+      const a0=alongX?rm.z0:rm.x0, a1=alongX?rm.z1:rm.x1, step=(I.hex?(alongX?0.8660254:0.75):1)*CS, n=Math.max(1,Math.floor((a1-a0)/step+1e-6));
+      const i=n>=3?1+Math.floor(h(salt)*(n-2)):Math.floor(h(salt)*n), at=a0+(i+0.5)*step;
+      inner.push(alongX ? {a:[cut,rm.z0], b:[cut,rm.z1], door:at} : {a:[rm.x0,cut], b:[rm.x1,cut], door:at});
+      if(alongX){ split({x0:rm.x0,z0:rm.z0,x1:cut,z1:rm.z1},depth+1); split({x0:cut,z0:rm.z0,x1:rm.x1,z1:rm.z1},depth+1); }
+      else { split({x0:rm.x0,z0:rm.z0,x1:rm.x1,z1:cut},depth+1); split({x0:rm.x0,z0:cut,x1:rm.x1,z1:rm.z1},depth+1); } };
+    split({x0:R.x0,z0:R.z0,x1:R.x1,z1:R.z1},0);
+    // the room with the front door first (the hall / shop floor / kitchen)
+    const dx=(door.side===0||door.side===2)?door.at:(door.side===1?R.x1:R.x0), dz=(door.side===1||door.side===3)?door.at:(door.side===0?R.z0:R.z1);
+    rooms.sort((a,b)=>(Math.hypot((a.x0+a.x1)/2-dx,(a.z0+a.z1)/2-dz))-(Math.hypot((b.x0+b.x1)/2-dx,(b.z0+b.z1)/2-dz)));
+    const spec=_mSpec(type)||null, biome=(spec||type==='keep')?'city':type;
+    const floors = S.floors || (spec ? spec.floors[0]+Math.floor(h(3)*(spec.floors[1]-spec.floors[0]+1)) : biome==='city' ? (h(3)<0.4?3:2) : 1);
+    let floorMat=S.floor; if(floorMat==='mixed') floorMat = h(4)<0.5?'planks':'flag';
+    bld.structures.push({ cells:lot, x0:R.x0, x1:R.x1, z0:R.z0, z1:R.z1, rooms, inner, door, type, floorMat, wallTh:S.wallTh||0.15,
+      biome, floors, roofOn:true, activeFloor:0, modern:spec || (S.wall ? {wall:S.wall, roof:S.roof} : null) });
   }
 }
+// ONE source of truth for a building's walls + doorways on storey `f` (board-world coords, wall CENTRE-lines).
+// walls: [x1,z1,x2,z2]  doors: [x1,z1,x2,z2] (the doorway opening; the front door only on the ground floor)
+function bStructLayout(st, f){ f=f||0; const CS=bCellSize(), th=(st.wallTh||0.15)*CS, i=th/2, gh=0.36*CS;
+  const X0=st.x0+i, X1=st.x1-i, Z0=st.z0+i, Z1=st.z1-i, walls=[], doors=[];
+  const seg=(ax,az,bx,bz,at)=>{ const alongX=Math.abs(bz-az)<1e-9;         // horizontal (runs along x) vs vertical
+    if(at==null){ walls.push([ax,az,bx,bz]); return; }
+    if(alongX){ const lo=Math.min(ax,bx), hi=Math.max(ax,bx), d0=Math.max(lo,at-gh), d1=Math.min(hi,at+gh);
+      if(d0-lo>1e-3) walls.push([lo,az,d0,az]); if(hi-d1>1e-3) walls.push([d1,az,hi,az]); doors.push([d0,az,d1,az]); }
+    else { const lo=Math.min(az,bz), hi=Math.max(az,bz), d0=Math.max(lo,at-gh), d1=Math.min(hi,at+gh);
+      if(d0-lo>1e-3) walls.push([ax,lo,ax,d0]); if(hi-d1>1e-3) walls.push([ax,d1,ax,hi]); doors.push([ax,d0,ax,d1]); } };
+  const dd = (f===0 && st.door) ? st.door : null, D=(s)=>dd&&dd.side===s?dd.at:null;
+  seg(X0,Z0,X1,Z0,D(0)); seg(X1,Z0,X1,Z1,D(1)); seg(X0,Z1,X1,Z1,D(2)); seg(X0,Z0,X0,Z1,D(3));
+  for(const w of (st.inner||[])){ const cl=(v,a,b)=>Math.min(Math.max(v,a),b);
+    seg(cl(w.a[0],X0,X1), cl(w.a[1],Z0,Z1), cl(w.b[0],X0,X1), cl(w.b[1],Z0,Z1), w.door); }
+  return {walls, doors}; }
+/* floor materials — one canvas tile per SQUARE, repeated across the floor (grid-aligned, reads at 5-ft scale) */
+const _floorTex={};
+function bFloorTex(kind){ if(_floorTex[kind]) return _floorTex[kind]; const S=128, cv=document.createElement('canvas'); cv.width=cv.height=S; const x=cv.getContext('2d');
+  let a=kind.length*977+13; const rnd=()=>{ a=(a*1103515245+12345)&0x7fffffff; return a/0x7fffffff; };
+  if(kind==='planks'){ for(let i=0;i<4;i++){ const y=i*32, b=120+rnd()*40|0; x.fillStyle=`rgb(${b},${b*0.72|0},${b*0.45|0})`; x.fillRect(0,y,S,32);
+      x.fillStyle='rgba(0,0,0,.35)'; x.fillRect(0,y,S,2); x.fillRect((rnd()*S)|0,y,2,32);
+      for(let n=0;n<6;n++){ x.fillStyle='rgba(60,35,15,.18)'; x.fillRect(rnd()*S, y+4+rnd()*24, 20+rnd()*40, 1.5); } } }
+  else if(kind==='flag'){ x.fillStyle='#8a8478'; x.fillRect(0,0,S,S);
+    for(const [px,py,pw,ph] of [[0,0,70,58],[70,0,58,58],[0,58,52,70],[52,58,76,70]]){ const b=130+rnd()*35|0; x.fillStyle=`rgb(${b},${b-6},${b-16})`; x.fillRect(px+2,py+2,pw-4,ph-4);
+      x.fillStyle='rgba(0,0,0,.08)'; for(let n=0;n<8;n++) x.fillRect(px+4+rnd()*(pw-12), py+4+rnd()*(ph-12), 5, 3); } }
+  else if(kind==='tile'){ for(let i=0;i<4;i++) for(let j=0;j<4;j++){ x.fillStyle=(i+j)%2?'#d9d5cc':'#c9c3b6'; x.fillRect(i*32,j*32,32,32); }
+    x.strokeStyle='rgba(0,0,0,.18)'; x.lineWidth=1.5; for(let i=0;i<=4;i++){ x.beginPath(); x.moveTo(i*32,0); x.lineTo(i*32,S); x.moveTo(0,i*32); x.lineTo(S,i*32); x.stroke(); } }
+  else if(kind==='carpet'){ x.fillStyle='#7a2f35'; x.fillRect(0,0,S,S); x.strokeStyle='rgba(230,190,110,.35)'; x.lineWidth=3; x.strokeRect(10,10,S-20,S-20);
+    for(let n=0;n<500;n++){ x.fillStyle=`rgba(0,0,0,${rnd()*0.12})`; x.fillRect(rnd()*S,rnd()*S,2,2); } }
+  else { x.fillStyle='#9d9d98'; x.fillRect(0,0,S,S); for(let n=0;n<900;n++){ const v=rnd()*40-20|0; x.fillStyle=`rgba(${120+v},${120+v},${116+v},.35)`; x.fillRect(rnd()*S,rnd()*S,2,2); }
+    x.strokeStyle='rgba(0,0,0,.2)'; x.lineWidth=2; x.strokeRect(0,0,S,S); }
+  const t=new THREE.CanvasTexture(cv); t.wrapS=t.wrapT=THREE.RepeatWrapping; if(THREE.SRGBColorSpace) t.colorSpace=THREE.SRGBColorSpace; t.anisotropy=4;
+  return (_floorTex[kind]=t); }
+// deterministic furniture per room (board-world coords): [{kind, x,z, w,d}] — never against a wall that has a doorway
+function bStructFurniture(st){ if(st._furn) return st._furn; const CS=bCellSize(), out=[]; const L=bStructLayout(st,0);
+  const dmid=L.doors.map(d=>[(d[0]+d[2])/2,(d[1]+d[3])/2]), tol=0.2*CS;
+  const hasDoor=(rm,side)=>dmid.some(([x,z])=> side===0? Math.abs(z-rm.z0)<tol && x>rm.x0-0.1 && x<rm.x1+0.1 : side===2? Math.abs(z-rm.z1)<tol && x>rm.x0-0.1 && x<rm.x1+0.1
+                                            : side===1? Math.abs(x-rm.x1)<tol && z>rm.z0-0.1 && z<rm.z1+0.1 : Math.abs(x-rm.x0)<tol && z>rm.z0-0.1 && z<rm.z1+0.1);
+  const key=st.cells[0], hh=(s)=>bStructHash(key,s); let s=60;
+  const gap=0.1*CS, hit=(a)=>out.some(b=>Math.abs(a.x-b.x)<(a.w+b.w)/2+(a.pad||0)+(b.pad||0)+gap && Math.abs(a.z-b.z)<(a.d+b.d)/2+(a.pad||0)+(b.pad||0)+gap);   // pad = stools round a table
+  const put=(it)=>{ if(hit(it)) return false; out.push(it); return true; };
+  const against=(rm,side,w,d,kind)=>{ const m=0.16*CS, t0=hh(s++);           // an item w long (along the wall) × d deep (out from it)
+    for(let k=0;k<5;k++){ const t=(t0+k*0.37)%1;
+      if((side===0||side===2 ? rm.z1-rm.z0 : rm.x1-rm.x0) < d+2*m) return false;   // must fit the room depth too
+      if(side===0||side===2){ if(rm.x1-rm.x0<w+2*m) return false; if(put({kind, x:rm.x0+m+w/2+(rm.x1-rm.x0-w-2*m)*t, z: side===0?rm.z0+m+d/2:rm.z1-m-d/2, w, d})) return true; }
+      else { if(rm.z1-rm.z0<w+2*m) return false; if(put({kind, x: side===3?rm.x0+m+d/2:rm.x1-m-d/2, z:rm.z0+m+w/2+(rm.z1-rm.z0-w-2*m)*t, w:d, d:w})) return true; } }
+    return false; };
+  const inRoom=(rm,kind,w,d)=>{ const m=0.45*CS; for(const [fx,fz] of [[0.5,0.5],[0.35,0.5],[0.65,0.5],[0.5,0.35],[0.5,0.65],[0.3,0.3],[0.7,0.7]]){
+      const x=rm.x0+(rm.x1-rm.x0)*fx, z=rm.z0+(rm.z1-rm.z0)*fz; if(x-w/2<rm.x0+m||x+w/2>rm.x1-m||z-d/2<rm.z0+m||z+d/2>rm.z1-m) continue;
+      if(put({kind,x,z,w,d,pad:kind==='table'?0.28*CS:0})) return true; } return false; };
+  const t=st.type;
+  st.rooms.forEach((rm,ri)=>{ const free=[0,1,2,3].filter(sd=>!hasDoor(rm,sd)).sort((a,b)=>hh(s+a)-hh(s+b)); s+=4; const cx=(rm.x0+rm.x1)/2, cz=(rm.z0+rm.z1)/2;
+    const rw=rm.x1-rm.x0, rd=rm.z1-rm.z0, big=Math.min(rw,rd)>=2.5*CS;
+    if(ri===0 && st.floors>1 && free.length) against(rm, free.shift(), 1.7*CS, 0.8*CS, 'stairs');
+    if(t==='church'){ const rows=[]; for(let z=rm.z0+1.0*CS; z<rm.z1-1.6*CS; z+=0.9*CS) rows.push(z);
+      for(const z of rows){ out.push({kind:'pew',x:cx-rw*0.24,z,w:rw*0.3,d:0.3*CS}); out.push({kind:'pew',x:cx+rw*0.24,z,w:rw*0.3,d:0.3*CS}); }
+      out.push({kind:'altar',x:cx,z:(st.door.side===2?rm.z0+0.7*CS:rm.z1-0.7*CS),w:1.2*CS,d:0.5*CS}); return; }
+    if(t==='school'){ for(let x=rm.x0+0.8*CS; x<rm.x1-0.6*CS; x+=CS) for(let z=rm.z0+0.9*CS; z<rm.z1-0.6*CS; z+=CS) out.push({kind:'desk',x,z,w:0.55*CS,d:0.4*CS}); return; }
+    if(t==='factory'||t==='warehouse'||t==='depot'){ const n=2+Math.floor(hh(s++)*4); for(let i=0;i<n;i++) put({kind:'crate', x:rm.x0+0.6*CS+(rw-1.2*CS)*hh(s++), z:rm.z0+0.6*CS+(rd-1.2*CS)*hh(s++), w:0.7*CS, d:0.7*CS}); return; }
+    if(t==='shops'||t==='station'){ if(free.length) against(rm, free.shift(), Math.min(rw,rd)*0.7, 0.45*CS, 'counter'); return; }
+    // homes / town houses / cottages / apartments / hotel rooms
+    const bedroom = st.rooms.length>1 ? ri>0 : false;
+    if(t==='village' && ri===0 && free.length) against(rm, free.shift(), 1.0*CS, 0.45*CS, 'hearth');
+    if((bedroom || st.rooms.length===1) && free.length) against(rm, free.shift(), 0.8*CS, 1.5*CS, 'bed');
+    if(!bedroom || big) inRoom(rm,'table',(rw>rd?1.0:0.6)*CS,(rw>rd?0.6:1.0)*CS);   // table + stools need a clear ring
+    if(big && free.length) against(rm, free.shift(), 1.0*CS, 0.45*CS, 'chest');
+  });
+  return (st._furn=out); }
+const FURN_STYLE={ table:[0x8a5a33,0.34], bed:[0x6b4424,0.2], hearth:[0x6f6a66,0.3], chest:[0x6b4424,0.26], stairs:[0x8a7a60,0.04], pew:[0x7a4f2c,0.22],
+  altar:[0xe9e3d3,0.4], desk:[0xb08a5a,0.3], crate:[0xa47b45,0.45], counter:[0x6d5238,0.38] };
 function bMakeStructure(st, idx){
   const g=new THREE.Group(); const CS=bCellSize();
-  const floorH=0.85*CS, th=0.1*CS;
-  const x0=st.x0-bld.off.x, x1=st.x1-bld.off.x, z0=st.z0-bld.off.z, z1=st.z1-bld.off.z;
+  const floorH=0.85*CS, th=(st.wallTh||0.15)*CS, ox=bld.off.x, oz=bld.off.z;
+  const x0=st.x0-ox, x1=st.x1-ox, z0=st.z0-oz, z1=st.z1-oz;
   const w=x1-x0, d=z1-z0, cx=(x0+x1)/2, cz=(z0+z1)/2;
-  const wallCol=st.modern?st.modern.wall:st.biome==='city'?0xc2b49a:0xcdbca0, floorCol=st.modern?0x7a7d82:0x6b5842, activeCol=st.modern?0x9aa0a6:0x8a7457, roofCol=st.modern?st.modern.roof:0x7a3b30;
+  const wallCol=st.modern?st.modern.wall:st.biome==='city'?0xc2b49a:0xcdbca0, roofCol=st.modern?st.modern.roof:0x7a3b30;
   const M=(col,ro)=> new THREE.MeshStandardMaterial({color:col, roughness:ro==null?0.85:ro});
   const N=Math.max(1, st.floors||1);
   // roof ON → draw the whole exterior (all N storeys of wall + roof). roof OFF → draw only up TO activeFloor,
   // open on top, with a floor slab at each level so you look down INTO the active floor.
   const topFloor = st.roofOn ? N : (Math.min(st.activeFloor||0, N-1)+1);   // # of wall storeys to draw
-  const wallH = topFloor*floorH;
-  const slab=(y, active)=>{ const s=new THREE.Mesh(new THREE.BoxGeometry(w,0.06,d), M(active?activeCol:floorCol,0.95)); s.position.set(cx, TILE_TOP+0.03+y, cz); s.userData.struct=idx; g.add(s); };
-  slab(0, !st.roofOn && (st.activeFloor||0)===0);
-  if(!st.roofOn){ for(let f=1; f<=(st.activeFloor||0) && f<N; f++) slab(f*floorH, f===(st.activeFloor||0)); }
+  const wallH = topFloor*floorH, act=Math.min(st.activeFloor||0, N-1);
+  const tex=bFloorTex(st.floorMat||'planks').clone(); tex.needsUpdate=true; tex.repeat.set(w/CS, d/CS);
+  const edgeM=M(0x5a4a3a);
+  const slab=(y, active)=>{ const s=new THREE.Mesh(new THREE.BoxGeometry(w,0.06,d), [edgeM,edgeM,new THREE.MeshStandardMaterial({map:tex, roughness:0.9, color:active?0xffffff:0x9a938a}),edgeM,edgeM,edgeM]);
+    s.position.set(cx, TILE_TOP+0.03+y, cz); s.receiveShadow=true; s.userData.struct=idx; g.add(s); };
+  slab(0, st.roofOn || act===0);
+  if(!st.roofOn){ for(let f=1; f<=act; f++) slab(f*floorH, f===act); }
   const wallMat=M(wallCol);
-  const seg=(sx,sz,sw,sd,y,h)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(sw,h,sd), wallMat); m.position.set(sx, TILE_TOP+y+h/2, sz); m.castShadow=true; m.userData.struct=idx; g.add(m); };
-  const gap=Math.min(w,d)*0.34, door=st.door, doorH=Math.min(floorH*0.78, wallH);   // doorway only on the ground storey
-  for(let s=0;s<4;s++){
-    const isNS=(s===0||s===2), coord = isNS ? (s===0?z0:z1) : (s===1?x1:x0);
-    if(door===s){
-      if(isNS){ const sw=(w-gap)/2; seg(x0+sw/2, coord, sw, th, 0, wallH); seg(x1-sw/2, coord, sw, th, 0, wallH);
-        if(wallH>doorH) seg(cx, coord, gap, th, doorH, wallH-doorH); }
-      else { const sd=(d-gap)/2; seg(coord, z0+sd/2, th, sd, 0, wallH); seg(coord, z1-sd/2, th, sd, 0, wallH);
-        if(wallH>doorH) seg(coord, cz, th, gap, doorH, wallH-doorH); }
-    } else { if(isNS) seg(cx, coord, w, th, 0, wallH); else seg(coord, cz, th, d, 0, wallH); }
-  }
+  const box=(ax,az,bx,bz,y,h,mat)=>{ const alongX=Math.abs(bz-az)<1e-9, L=Math.hypot(bx-ax,bz-az); if(L<1e-3||h<=1e-3) return;
+    const m=new THREE.Mesh(new THREE.BoxGeometry(alongX?L+th:th, h, alongX?th:L+th), mat); m.position.set((ax+bx)/2-ox, TILE_TOP+y+h/2, (az+bz)/2-oz);
+    m.castShadow=true; m.receiveShadow=true; m.userData.struct=idx; g.add(m); };
+  const doorH=floorH*0.78;
+  const capMat=M(0x2e2924,0.95), doorMat=M(0x7a4a22,0.8), capH=0.03*CS;
+  for(let f=0; f<topFloor; f++){ const L=bStructLayout(st,f), top=f===topFloor-1;
+    for(const s of L.walls){ box(s[0],s[1],s[2],s[3], f*floorH, floorH, wallMat); if(top && !st.roofOn) box(s[0],s[1],s[2],s[3], (f+1)*floorH, capH, capMat); }   // dark cap = crisp wall line top-down
+    for(const s of L.doors){ if(!(top && !st.roofOn)) box(s[0],s[1],s[2],s[3], f*floorH+doorH, floorH-doorH, wallMat);   // lintel over every doorway (not on the open top storey → the doorway reads from above)
+      if(!st.roofOn && f===act){ const ax=Math.abs(s[3]-s[1])<1e-9, L2=Math.hypot(s[2]-s[0],s[3]-s[1])-0.02*CS;   // the door itself: a plank leaf across the opening
+        const dl=new THREE.Mesh(new THREE.BoxGeometry(ax?L2:th*0.55, 0.05*CS, ax?th*0.55:L2), doorMat); dl.position.set((s[0]+s[2])/2-ox, TILE_TOP+f*floorH+0.09, (s[1]+s[3])/2-oz); dl.userData.struct=idx; g.add(dl); } } }
   // storey ledges (thin bands at each floor line) so a multi-storey building reads as having floors
-  if(N>1){ const ledgeMat=M(0x9c8e75,0.9); for(let f=1; f<topFloor; f++){ const l=new THREE.Mesh(new THREE.BoxGeometry(w+0.04*CS,0.05,d+0.04*CS), ledgeMat); l.position.set(cx, TILE_TOP+f*floorH, cz); l.userData.struct=idx; g.add(l); } }
-  if(st.modern){ const glass=M(0x2c3a48,0.2); for(let f=0; f<topFloor; f++) for(let s2=0;s2<4;s2++){ const isNS=(s2===0||s2===2), L2=(isNS?w:d)*0.8;   // window bands on every storey
+  if(N>1 && st.roofOn){ const ledgeMat=M(0x9c8e75,0.9); for(let f=1; f<topFloor; f++){ const l=new THREE.Mesh(new THREE.BoxGeometry(w+0.04*CS,0.05,d+0.04*CS), ledgeMat); l.position.set(cx, TILE_TOP+f*floorH, cz); l.userData.struct=idx; g.add(l); } }
+  if(st.modern && st.type!=='keep' && st.roofOn){ const glass=M(0x2c3a48,0.2); for(let f=0; f<topFloor; f++) for(let s2=0;s2<4;s2++){ const isNS=(s2===0||s2===2), L2=(isNS?w:d)*0.8;   // window bands on every storey
       const b=new THREE.Mesh(new THREE.BoxGeometry(isNS?L2:th*1.3, floorH*0.32, isNS?th*1.3:L2), glass);
       b.position.set(isNS?cx:(s2===1?x1:x0), TILE_TOP+f*floorH+floorH*0.55, isNS?(s2===0?z0:z1):cz); b.userData.struct=idx; g.add(b); } }
+  if(!st.roofOn){ const y0=act*floorH+0.06;                                // furniture on the floor you're looking into
+    for(const it of bStructFurniture(st)){ if(act>0 && !/^(stairs|bed|table|chest|desk|crate|counter)$/.test(it.kind)) continue;
+      const [col,hgt]=FURN_STYLE[it.kind]||[0x8a6a44,0.3], H=hgt*CS;
+      const m=new THREE.Mesh(new THREE.BoxGeometry(it.w, H, it.d), M(col,0.8)); m.position.set(it.x-ox, TILE_TOP+y0+H/2, it.z-oz); m.castShadow=true; m.receiveShadow=true; m.userData.struct=idx; g.add(m);
+      const long=it.d>it.w, add=(bw,bh,bd,col2,px,py,pz)=>{ const p=new THREE.Mesh(new THREE.BoxGeometry(bw,bh,bd), M(col2,0.9)); p.position.set(it.x-ox+px, TILE_TOP+y0+py, it.z-oz+pz); p.userData.struct=idx; g.add(p); };
+      if(it.kind==='bed'){ add(long?it.w*0.9:it.w*0.62, 0.05*CS, long?it.d*0.62:it.d*0.9, 0x5d7a9a, long?0:it.w*0.17, H+0.025*CS, long?it.d*0.17:0);   // blanket
+        add(long?it.w*0.75:it.w*0.2, 0.07*CS, long?it.d*0.2:it.d*0.75, 0xf2efe6, long?0:-it.w*0.32, H+0.035*CS, long?-it.d*0.32:0); }   // pillow
+      if(it.kind==='stairs'){ const n=7; for(let i=0;i<n;i++){ const hS=0.03*CS+i*0.045*CS;
+          add(long?it.w:it.w/n*0.86, hS, long?it.d/n*0.86:it.d, i%2?0xb5a58a:0xa4947a, long?0:-it.w/2+(i+0.5)*it.w/n, H+hS/2, long?-it.d/2+(i+0.5)*it.d/n:0); } }
+      if(it.kind==='hearth') add(it.w*0.6, 0.02*CS, it.d*0.5, 0xd2691e, 0, H+0.01*CS, 0);
+      if(it.kind==='table'){ for(const [sx,sz] of [[-1,0],[1,0],[0,-1],[0,1]]){ const c=new THREE.Mesh(new THREE.CylinderGeometry(0.11*CS,0.11*CS,0.2*CS,10), M(0x6b4424,0.8));
+          c.position.set(it.x-ox+sx*(it.w/2+0.16*CS), TILE_TOP+y0+0.1*CS, it.z-oz+sz*(it.d/2+0.16*CS)); c.castShadow=true; c.userData.struct=idx; g.add(c); } } } }
   if(st.roofOn){ const roof=new THREE.Mesh(new THREE.BoxGeometry(w+(st.modern?0.02:0.14)*CS, 0.1*CS, d+(st.modern?0.02:0.14)*CS), M(roofCol,0.8));
     roof.position.set(cx, TILE_TOP+wallH+0.06*CS, cz); roof.castShadow=true; roof.userData.struct=idx; g.add(roof); }
   return g;
@@ -3771,9 +3943,14 @@ function bRenderStructures(){
   bld.structures.forEach((st,i)=>{
     if(bld.boardFlat){ const cx=(st.x0+st.x1)/2-bld.off.x, cz=(st.z0+st.z1)/2-bld.off.z, w=st.x1-st.x0, d=st.z1-st.z0;
       const geo=new THREE.PlaneGeometry(w,d); geo.rotateX(-Math.PI/2);
-      const col=st.roofOn ? (st.biome==='city'?0xb9a06a:0xc79a5f) : 0x6b5842;
-      const m=new THREE.Mesh(geo, new THREE.MeshBasicMaterial({color:col, transparent:true, opacity:0.96, depthWrite:false}));
-      m.position.set(cx, TILE_TOP+0.05, cz); m.renderOrder=5; m.userData.struct=i; builderGroup.add(m); bld._structMeshes[i]=m; return; }
+      let mat; if(st.roofOn) mat=new THREE.MeshBasicMaterial({color:(st.biome==='city'?0xb9a06a:0xc79a5f), transparent:true, opacity:0.96, depthWrite:false});
+      else { const t=bFloorTex(st.floorMat||'planks').clone(); t.needsUpdate=true; const CS=bCellSize(); t.repeat.set(w/CS,d/CS); mat=new THREE.MeshBasicMaterial({map:t, transparent:true, opacity:0.98, depthWrite:false}); }
+      const m=new THREE.Mesh(geo, mat); const grp=new THREE.Group(); grp.add(m);
+      m.position.set(cx, TILE_TOP+0.05, cz); m.renderOrder=5; m.userData.struct=i;
+      if(!st.roofOn){ const CS=bCellSize(), th=(st.wallTh||0.15)*CS, wm=new THREE.MeshBasicMaterial({color:0x2a2622, transparent:true, opacity:1, depthWrite:false}); const L=bStructLayout(st,0);   // transparent → drawn AFTER the floor (renderOrder);   // walls as dark strips on the flat plan
+        for(const sg of L.walls){ const ax=Math.abs(sg[3]-sg[1])<1e-9, len=Math.hypot(sg[2]-sg[0],sg[3]-sg[1]); const pg=new THREE.PlaneGeometry(ax?len+th:th, ax?th:len+th); pg.rotateX(-Math.PI/2);
+          const wmsh=new THREE.Mesh(pg, wm); wmsh.position.set((sg[0]+sg[2])/2-bld.off.x, TILE_TOP+0.055, (sg[1]+sg[3])/2-bld.off.z); wmsh.renderOrder=6; wmsh.userData.struct=i; grp.add(wmsh); } }
+      builderGroup.add(grp); bld._structMeshes[i]=grp; return; }
     const grp=bMakeStructure(st,i); builderGroup.add(grp); bld._structMeshes[i]=grp;
   });
 }
@@ -4035,7 +4212,7 @@ function bPlanExtendCastle(newCells){
     if(over||!hit) continue; const w=g.world(a), sc=hit-0.02*Math.hypot(w.x-cx,w.z-cz); if(sc>bs){ bs=sc; best=a; } }
   if(!best) return false;
   const tmp=new Map(), reg=TE.regionCells(bld.grid, best, RW, RH);
-  const r=TE.generateSettlement(bld.grid, tmp, reg, bDefs(), {seed:1+Math.floor(Math.random()*9999), settlementType:'castle', moat:!!document.getElementById('bMoat')?.checked, outskirts:2, keepSize:bKeepSize()});
+  const r=TE.generateSettlement(bld.grid, tmp, reg, bDefs(), {seed:1+Math.floor(Math.random()*9999), settlementType:'castle', moat:!!document.getElementById('bMoat')?.checked, outskirts:2, keepSize:bKeepSize(), battle:bld.scale==='battle'});
   (bld.structPlans=bld.structPlans||[]).push(bStructFromResult({tiles:[...tmp].map(([k,v])=>[k,v]), draw:r.draw, w:cw, h:ch}));
   return true; }
 // sort cells seam-first (distance from the cells already on the board) — the order generateNextSection expects
@@ -4071,7 +4248,7 @@ function bBuildSettlePlan(type,w,h){                                      // gen
   const castle = type==='castle', OUT = castle ? 2 : 0;                    // castles get 2 rings of OUTSKIRTS (hamlets + fields outside the moat)
   const anchor=bAnchorCell(), cells=bSettleRegionCells(w+2*OUT,h+2*OUT,anchor), tmp=new Map();
   const moat=!!document.getElementById('bMoat')?.checked;
-  const r=TE.generateSettlement(bld.grid, tmp, cells, bDefs(), {seed:bld.seed, settlementType:type, moat, outskirts:OUT, keepSize:bKeepSize()});
+  const r=TE.generateSettlement(bld.grid, tmp, cells, bDefs(), {seed:bld.seed, settlementType:type, moat, outskirts:OUT, keepSize:bKeepSize(), battle:bld.scale==='battle'});
   const settleWalls = Array.isArray(r.draw)?r.draw:[];
   // Bake the surround (countryside terrain + the roads/rivers that carry the settlement's spokes out to the
   // island edge) ONCE, here, over the WHOLE plan region — NOT per-Extend. Previously bRevealSettlePlan re-ran
@@ -4247,7 +4424,7 @@ function bZoomIntoSettlement(type, cell){
   bld.cols=16; bld.rows=16; bld.q0=0; bld.r0=0; bld.seed=zseed%10000;
   setTileScale('battle'); bld.scale='battle';
   document.querySelectorAll('#bScaleSeg button').forEach(x=>x.classList.toggle('on', x.dataset.scale==='battle'));
-  const r=TE.generateSettlement(bld.grid, bld.board, bCells(), bDefs(), {seed:bld.seed, settlementType:type, moat:!!document.getElementById('bMoat')?.checked, keepSize:bKeepSize(), outskirts:type==='castle'?2:0});
+  const r=TE.generateSettlement(bld.grid, bld.board, bCells(), bDefs(), {seed:bld.seed, settlementType:type, moat:!!document.getElementById('bMoat')?.checked, keepSize:bKeepSize(), outskirts:type==='castle'?2:0, battle:true});
   _settlePlan=null; bld.structPlans=[];                                    // the overview's plans come back with ⤴ Back to map
   bld.draw=Array.isArray(r.draw)?r.draw:[]; bld.pen=[]; bld.props=[]; bld.selStroke=null; bld.selProp=null; bld.structKey='';
   bSyncBuilderUI(); bRender(); bFit(); bShowZoomBack(true);
@@ -4509,6 +4686,90 @@ async function bTgcExport(){
 document.getElementById('bTgcSel').onchange=(e)=> bTgcSelect(e.target.value);
 document.getElementById('bTgcCell').onchange=(e)=>{ bld.tgcCell=+e.target.value||1; bTgcFit(); bTgcInfo(); bRender(); bFit(); };
 document.getElementById('bTgcExport').onclick=bTgcExport;
+/* ================= 🗺 VIRTUAL-TABLETOP EXPORT (Universal VTT) =================
+   One file a VTT imports as a ready scene: the map image at a chosen px-per-square, the grid, WALLS (line-of-sight)
+   and DOORS. Format = Universal VTT (.dd2vtt / .uvtt, format 0.3) — the de-facto interchange format read by
+   Foundry (Universal Battlemap importer), Fantasy Grounds, Arkenforge, Owlbear extensions, etc. "PNG" = plain image
+   with the grid size in the filename for VTTs that only take an image.
+   Walls come straight from the DATA the renderer uses (never guessed from pixels):
+     · battle-scale buildings (bld.structures → bStructLayout: outer walls, interior partitions, doors)
+     · town / castle ring walls (tile edges whose path is WALL)
+     · walls drawn with the ✏ wall tool (bld.draw type 'wall')
+   Coordinates: UVTT points are in GRID UNITS from the image's top-left (x→right = +x, y→down = +z in the scene). */
+function bVttSegKey(a,b){ const f=v=>Math.round(v*1000); const p=[f(a[0])+','+f(a[1]), f(b[0])+','+f(b[1])].sort(); return p[0]+'|'+p[1]; }
+// every wall/door in BOARD-WORLD coords (x,z) — shared by the exporter + tests
+function bVttGeometry(){
+  const walls=[], doors=[], seen=new Set();
+  const addWall=(pts)=>{ if(pts.length<2) return; if(pts.length===2){ const k=bVttSegKey(pts[0],pts[1]); if(seen.has(k)) return; seen.add(k); } walls.push(pts); };
+  // 1) battle-scale buildings
+  for(const st of (bld.structures||[])){ const L=bStructLayout(st);
+    for(const w of L.walls) addWall([[w[0],w[1]],[w[2],w[3]]]);
+    for(const d of L.doors) doors.push(d); }
+  // 2) ring walls along tile edges (castle / walled town)
+  const defs=bDefs(), g=bGridObj(), cs=g.corners();
+  for(const [k,pl] of bld.board){ const def=defs[pl.defId]; if(!def||!def.edges) continue; const [q,r]=k.split(',').map(Number); const w=g.world({q,r});
+    def.edges.forEach((e,dir0)=>{ if(e.path!==TE.PATH.WALL) return;
+      const dir=((dir0 + (pl.rot||0)) % g.N + g.N) % g.N;                 // placed rotation turns the edges
+      const m=g.edgeMid(dir); const by=cs.map((c,i)=>({i,d:(c[0]-m[0])**2+(c[1]-m[1])**2})).sort((a,b)=>a.d-b.d);
+      const a=cs[by[0].i], b=cs[by[1].i]; addWall([[w.x+a[0],w.z+a[1]],[w.x+b[0],w.z+b[1]]]); }); }
+  // 3) hand-drawn wall strokes
+  for(const s of bld.draw) if(s.type==='wall' && s.pts && s.pts.length>=2) addWall(s.pts.map(p=>[p[0],p[1]]));
+  return {walls, doors};
+}
+async function bVttExport(opts){
+  opts=opts||{};
+  if(window.TTier && !TTier.has('battlemaps')){ bStatus('🗺 VTT export is part of the <b>Battle Maps Pack</b> — unlock it in GLB Studio → ✨ Upgrades.',true); return null; }
+  if(!bld.board.size){ bStatus('Generate or build a map first, then export.',true); return null; }
+  const fmt=opts.fmt||document.getElementById('bVttFmt').value||'dd2vtt';
+  let ppg=+(opts.ppg||document.getElementById('bVttPpg').value)||140;
+  const roofsOff = opts.roofsOff!=null ? !!opts.roofsOff : !!document.getElementById('bVttRoofs').checked;
+  bStatus('🗺 Rendering the map for your VTT…'); await new Promise(r=>setTimeout(r,30));
+  const saved=(bld.structures||[]).map(s=>({roofOn:s.roofOn, activeFloor:s.activeFloor}));
+  const savedTgc=bld.tgc; let out=null;
+  try{
+    if(roofsOff) (bld.structures||[]).forEach(s=>{ s.roofOn=false; s.activeFloor=0; });   // look down INTO the ground floor
+    bld._exporting=true; bRender();
+    const bb=bTgcSceneBBox(), unit=bCellSize();                   // 1 grid unit = one square (square) / centre-to-centre (hex)
+    let W=Math.round(bb.w/unit*ppg), H=Math.round(bb.h/unit*ppg); const MAXD=8192;
+    if(Math.max(W,H)>MAXD){ ppg=Math.floor(ppg*MAXD/Math.max(W,H)); W=Math.round(bb.w/unit*ppg); H=Math.round(bb.h/unit*ppg); }
+    const s=unit/ppg, x0=bb.cx-W*s/2, z0=bb.cz-H*s/2;             // scene-units per pixel + the image's top-left in the scene
+    bld.tgc='';                                                    // no print margins / bleed rules
+    const cv=document.createElement('canvas'); cv.width=W; cv.height=H; const cx=cv.getContext('2d'); const T=2048;
+    for(let ty=0; ty<H; ty+=T) for(let tx=0; tx<W; tx+=T){ const tw=Math.min(T,W-tx), th=Math.min(T,H-ty);   // tiled → any size, no GPU limit
+      const part=bTgcRenderRegion(x0+(tx+tw/2)*s, z0+(ty+th/2)*s, tw*s, th*s, tw, th); cx.drawImage(part, tx, ty); }
+    bld.tgc=savedTgc;
+    // scene coords → grid units. Board-world (data) coords are scene + bld.off.
+    const G=(x,z)=>({ x:+((x-bld.off.x-x0)/unit).toFixed(4), y:+((z-bld.off.z-z0)/unit).toFixed(4) });
+    const geo=bVttGeometry();
+    const los=geo.walls.map(pts=>pts.map(p=>G(p[0],p[1])));
+    const portals=geo.doors.map(d=>{ const a=G(d[0],d[1]), b=G(d[2],d[3]);
+      return { position:{x:+((a.x+b.x)/2).toFixed(4), y:+((a.y+b.y)/2).toFixed(4)}, bounds:[a,b], rotation:+Math.atan2(b.y-a.y,b.x-a.x).toFixed(4), closed:true, freestanding:false }; });
+    const gw=+(W/ppg).toFixed(4), gh=+(H/ppg).toFixed(4);
+    const base=`tabletop-${bld.scale==='battle'?'battlemap':'map'}-${bld.seed}_${Math.round(gw)}x${Math.round(gh)}`;
+    if(opts.returnOnly){ out={W,H,ppg,gw,gh,walls:los,portals,url:cv.toDataURL('image/png')}; }
+    else if(fmt==='png'){
+      bDownload(await bCanvasBlob(cv), `${base}_${ppg}px.png`);
+      bStatus(`🗺 Saved <b>${W}×${H}px</b> map — grid <b>${ppg} px per ${bld.grid==='hex'?'hex':'square'}</b> (${Math.round(gw)}×${Math.round(gh)}). Set that grid size in your VTT${bld.grid==='hex'?' (flat-top hex / “hex columns”)':''}. For walls + doors use <b>.dd2vtt</b>.`);
+    } else {
+      const bytes=await bCanvasBytes(cv); let bin=''; for(let i=0;i<bytes.length;i+=0x8000) bin+=String.fromCharCode.apply(null, bytes.subarray(i,i+0x8000));
+      const doc={ format:0.3, resolution:{ map_origin:{x:0,y:0}, map_size:{x:gw,y:gh}, pixels_per_grid:ppg },
+        line_of_sight:los, objects_line_of_sight:[], portals, environment:{ baked_lighting:true, ambient_light:'ffffffff' }, lights:[],
+        software:'KSOL Designs Tabletop '+APP_VERSION, grid:bld.grid, image:btoa(bin) };
+      bDownload(new Blob([JSON.stringify(doc)],{type:'application/json'}), `${base}.${fmt}`);
+      const mb=(bin.length*4/3/1048576).toFixed(1);
+      bStatus(`🗺 Exported <b>${base}.${fmt}</b> (${mb} MB) — ${W}×${H}px, <b>${ppg} px/${bld.grid==='hex'?'hex':'square'}</b>, <b>${los.length}</b> wall${los.length===1?'':'s'}, <b>${portals.length}</b> door${portals.length===1?'':'s'}.${bld.grid==='hex'?' Hex map: set a <b>flat-top hex</b> grid of '+ppg+' px in your VTT (the file format itself only describes square grids).':''}${bld.scale!=='battle'?' Tip: <b>⚔ Battle (5 ft)</b> maps export buildings with walls + doors.':''}`);
+    }
+  }catch(e){ bStatus('VTT export failed: '+(e&&e.message||e), true); console.error(e); }
+  bld.tgc=savedTgc; bld._exporting=false;
+  (bld.structures||[]).forEach((s,i)=>{ if(saved[i]){ s.roofOn=saved[i].roofOn; s.activeFloor=saved[i].activeFloor; } });
+  bRender();
+  return out;
+}
+document.getElementById('bVttExport').onclick=()=>bVttExport();
+window.__bVtt = (o)=>bVttExport(Object.assign({returnOnly:true},o||{}));
+window.__bVttGeo = ()=>bVttGeometry();
+window.__bGen = (theme,scale,cols,rows,seed)=>{ bld.theme=theme; if(scale){ setTileScale(scale); bld.scale=scale; } if(cols){ bld.cols=cols; bld.rows=rows||cols; } if(seed) bld.seed=seed; bld.structKey=''; bGenerateMap(); return {n:bld.structures.length, tiles:bld.board.size}; };
+window.__bZoom = (type)=>{ bZoomIntoSettlement(type||'town',{q:3,r:2}); return {n:bld.structures.length, tiles:bld.board.size}; };
 window.__bTgc={ TGC, sel:bTgcSelect, fit:bTgcFit, state:()=>({tgc:bld.tgc,grid:bld.grid,cols:bld.cols,rows:bld.rows,cell:bld.tgcCell,tiles:bld.board.size}),
   whole:(preview)=>{ const c=TGC[bld.tgc]; const sf=bld.boardFlat; bld._exporting=true; setTileFlat(true); bld.boardFlat=true; bRender(); const cv=TGC_HEXMAT[bld.tgc]?bTgcRenderHexMat(c,(bld.tgcCenters&&bld.tgcCenters[0])||bHexMatCenter()):bTgcRenderWhole(c); bld._exporting=false; setTileFlat(sf); bld.boardFlat=sf; bRender(); return preview?cv.toDataURL('image/png'):{w:cv.width,h:cv.height}; },
   tile:(idx)=>{ const c=TGC[bld.tgc]; const keys=[...bld.board.keys()]; const k=keys[Math.min(idx||0,keys.length-1)]||keys[Math.floor(keys.length/2)]; const [q,r]=k.split(',').map(Number); const sf=bld.boardFlat; bld._exporting=true; setTileFlat(true); bld.boardFlat=true; bRender(); const cv=bTgcRenderTile({q,r},c); bld._exporting=false; setTileFlat(sf); bld.boardFlat=sf; bRender(); return {w:cv.width,h:cv.height,url:cv.toDataURL('image/png')}; } };
@@ -4641,7 +4902,7 @@ function bHexMatRefill(){
   const explicit = (bld.extTerrain && bld.extTerrain!=='match') || (bld.extFeature && bld.extFeature!=='bare');
   const priorStrokes = bPrior(bld.draw);   // BOTH endpoints (+ width) so roads/streams carry across the unit seam
   if(!explicit){
-    if(SETTLE_THEMES[theme]){ const r=TE.generateSettlement(bld.grid, bld.board, bFillCells(), bDefs(), {seed:bld.seed, settlementType:theme, moat:!!document.getElementById('bMoat')?.checked, keepSize:bKeepSize()});   // carry the MOAT toggle into the extend regen (was dropped → moat vanished on Extend)
+    if(SETTLE_THEMES[theme]){ const r=TE.generateSettlement(bld.grid, bld.board, bFillCells(), bDefs(), {seed:bld.seed, settlementType:theme, moat:!!document.getElementById('bMoat')?.checked, keepSize:bKeepSize(), battle:bld.scale==='battle'});   // carry the MOAT toggle into the extend regen (was dropped → moat vanished on Extend)
       bld.draw=Array.isArray(r.draw)?r.draw:[]; bld.props=[]; bld.selStroke=null; return; }
     if(theme.startsWith('biome:')){                                      // single-biome fill (no roads/rivers → nothing to dead-end)
       TE.generateBiomeFill(bld.grid, bld.board, cells, bDefs(), {seed:1+Math.floor(Math.random()*9999), biome:theme.slice(6), append:true}); return; }
