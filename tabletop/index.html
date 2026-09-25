@@ -406,6 +406,11 @@
           <option value="modern:coastal" data-exp="modern">🏖 Coastal — beach town, marina, pier, lighthouse</option>
           </optgroup>
           <option value="__modernlock" data-exp-lock="modern" disabled>🔒 Modern Pack — City · Suburbs · Rural</option>
+          <optgroup label="⚔ Dungeons (5-ft battle maps)" data-exp="battlemaps">
+          <option value="dungeon" data-exp="battlemaps">🗝 Dungeon — rooms, corridors, doors, torches</option>
+          <option value="cave" data-exp="battlemaps">🪨 Cave — caverns, pools, crystals, a camp</option>
+          </optgroup>
+          <option value="__dungeonlock" data-exp-lock="battlemaps" disabled>🔒 Battle Maps Pack — Dungeons · Caves</option>
           <optgroup label="Settlement (whole map)">
           <option value="castle">🏰 Castle</option>
           <option value="town">🏘 Town</option>
@@ -1062,6 +1067,7 @@
 <script src="tile-library.js"></script>
 <script src="map-generator.js"></script>
 <script src="modern-generator.js"></script>
+<script src="dungeon-gen.js"></script>
 <script src="games/chess-gamedef.js"></script>
 <script src="games/checkers-gamedef.js"></script>
 <script src="games/sternhalma-gamedef.js"></script>
@@ -1087,7 +1093,7 @@ import * as Tuck from './tuckbox-designer.js';
 
 const BGC = window.BGC, GAMES = window.BGC_GAMES;
 const TE = window.TileEngine, TLIB = window.TileLibrary;
-const APP_VERSION = 'v1.00';
+const APP_VERSION = 'v1.10';
 const CREDITS = `<b>Ksol Designs</b> — Paul A.T. Ramey<br>www.ksoldesigns.com<br>Built with GLB Studio · Tabletop<br><span class="ver">${APP_VERSION}</span>`;
 // ---- Board credit: a small "KSOL Designs" mark on the board for the FREE build. Owning ANY content pack
 // (TTier expansion) unlocks removing it (⚙ Settings toggle, or click the credit). ----
@@ -3532,6 +3538,7 @@ function bSnapshot(){ return {
   // Extend can't finish it (Paul, v0.91: "undid a couple of extensions … the castle did not get recreated correctly")
   settlePlan:bClonePlan(_settlePlan), structPlans:(bld.structPlans||[]).slice(), modern:bld.modern?{...bld.modern}:null,
   sheetsX:bld.sheetsX, sheetsY:bld.sheetsY, sheetCX:bld.sheetCX, sheetCZ:bld.sheetCZ, tgcCenters:(bld.tgcCenters||[]).map(c=>({...c})), selUnit:bld.selUnit,
+  dungeon:bld.dungeon||null,   // immutable once generated → shared by reference
   baseMap:bld.baseMap };   // by reference — its texture is immutable, kept alive by the snapshot
 }
 function bClonePlan(P){ return P ? {...P, outer:new Map(P.outer||[]), outerDraw:(P.outerDraw||[]).slice(), outerProps:(P.outerProps||[]).slice()} : null; }
@@ -3568,7 +3575,7 @@ function bUndo(){ if(!_undo.length){ bStatus('Nothing to undo'); return; } const
   bld.props=JSON.parse(JSON.stringify(s.props));
   bld.subdiv=new Map([...s.subdiv].map(([k,v])=>[k,{...v}]));
   bld.subpaint=new Map([...(s.subpaint||new Map())].map(([k,v])=>[k,{...v}]));
-  bld.baseMap=s.baseMap; bld.selStroke=null; bld.selProp=null; bld.pen=[];
+  bld.baseMap=s.baseMap; bld.selStroke=null; bld.selProp=null; bld.pen=[]; bld.dungeon=s.dungeon||null; bld.structKey='';
   bRestorePlans(s);
   bSyncBuilderUI(); bRender(); bFit();
   bStatus(`Undo — ${_undo.length} step${_undo.length===1?'':'s'} of history left`);
@@ -3654,6 +3661,7 @@ function bRender(){
   }
   bPlaceNorthArrow();                                              // compass at the NW corner so orientation is clear at a glance
   bRenderDraw();                                                   // freeform drawn roads/streams/walls + connector dots
+  bRenderDungeon();                                                // ⚔ dungeon / cave layer (rock, floors, doors, dressing)
   bRenderStructures();                                             // BATTLE scale: explorable settlement buildings (roof-poppable)
   bBattleProps();                                                  // BATTLE scale: trees/boulders spanning squares (after buildings → kept off their roofs)
   bRenderProps();                                                  // placed trees/houses/castles (3D or 2D) + minis
@@ -3678,7 +3686,7 @@ function bFlatDecal(cx,cz,size,color,square,rot){
 // is scene point w within r (plus a canopy) of a battle building? → no big tree dropped on a roof
 function bNearStruct(w, r){ const x=w.x+bld.off.x, z=w.z+bld.off.z; for(const st of (bld.structures||[])){ const dx=Math.max(st.x0-x,0,x-st.x1), dz=Math.max(st.z0-z,0,z-st.z1); if(Math.hypot(dx,dz)<r+0.6) return true; } return false; }
 function bBattleProps(){
-  if(bld.scale!=='battle') return;
+  if(bld.scale!=='battle' || bld.dungeon) return;
   const defs=bDefs(); const flat=!!bld.boardFlat;   // 2D board mode → draw flat top-down decals instead of 3D props
   // battle props are modelled in absolute world units tuned for a 1.0-unit SQUARE tile. Hex tiles are smaller
   // and packed tighter (~0.87 across, 0.75 vertical), so an unscaled prop covers ~25-30% more cells and reads
@@ -3854,37 +3862,134 @@ function bStructFurniture(st){ if(st._furn) return st._furn; const CS=bCellSize(
   const hasDoor=(rm,side)=>dmid.some(([x,z])=> side===0? Math.abs(z-rm.z0)<tol && x>rm.x0-0.1 && x<rm.x1+0.1 : side===2? Math.abs(z-rm.z1)<tol && x>rm.x0-0.1 && x<rm.x1+0.1
                                             : side===1? Math.abs(x-rm.x1)<tol && z>rm.z0-0.1 && z<rm.z1+0.1 : Math.abs(x-rm.x0)<tol && z>rm.z0-0.1 && z<rm.z1+0.1);
   const key=st.cells[0], hh=(s)=>bStructHash(key,s); let s=60;
-  const gap=0.1*CS, hit=(a)=>out.some(b=>Math.abs(a.x-b.x)<(a.w+b.w)/2+(a.pad||0)+(b.pad||0)+gap && Math.abs(a.z-b.z)<(a.d+b.d)/2+(a.pad||0)+(b.pad||0)+gap);   // pad = stools round a table
+  const gap=0.1*CS, hit=(a)=>out.some(b=>!b.flat && Math.abs(a.x-b.x)<(a.w+b.w)/2+(a.pad||0)+(b.pad||0)+gap && Math.abs(a.z-b.z)<(a.d+b.d)/2+(a.pad||0)+(b.pad||0)+gap);   // pad = stools round a table; flat rugs never block
   const put=(it)=>{ if(hit(it)) return false; out.push(it); return true; };
-  const against=(rm,side,w,d,kind)=>{ const m=0.16*CS, t0=hh(s++);           // an item w long (along the wall) × d deep (out from it)
+  const against=(rm,side,w,d,kind,floor)=>{ const m=(kind==='fireplace'||kind==='shelf'||kind==='wardrobe'||kind==='torch')?0.02*CS:0.16*CS, t0=hh(s++);   // an item w long (along the wall) × d deep (out from it)
     for(let k=0;k<5;k++){ const t=(t0+k*0.37)%1;
       if((side===0||side===2 ? rm.z1-rm.z0 : rm.x1-rm.x0) < d+2*m) return false;   // must fit the room depth too
-      if(side===0||side===2){ if(rm.x1-rm.x0<w+2*m) return false; if(put({kind, x:rm.x0+m+w/2+(rm.x1-rm.x0-w-2*m)*t, z: side===0?rm.z0+m+d/2:rm.z1-m-d/2, w, d})) return true; }
-      else { if(rm.z1-rm.z0<w+2*m) return false; if(put({kind, x: side===3?rm.x0+m+d/2:rm.x1-m-d/2, z:rm.z0+m+w/2+(rm.z1-rm.z0-w-2*m)*t, w:d, d:w})) return true; } }
+      const it = (side===0||side===2) ? (rm.x1-rm.x0<w+2*m ? null : {kind, x:rm.x0+m+w/2+(rm.x1-rm.x0-w-2*m)*t, z: side===0?rm.z0+m+d/2:rm.z1-m-d/2, w, d, face:side})
+                                      : (rm.z1-rm.z0<w+2*m ? null : {kind, x: side===3?rm.x0+m+d/2:rm.x1-m-d/2, z:rm.z0+m+w/2+(rm.z1-rm.z0-w-2*m)*t, w:d, d:w, face:side});
+      if(!it) return false; if(floor!=null) it.floor=floor; if(put(it)) return true; }
     return false; };
   const inRoom=(rm,kind,w,d)=>{ const m=0.45*CS; for(const [fx,fz] of [[0.5,0.5],[0.35,0.5],[0.65,0.5],[0.5,0.35],[0.5,0.65],[0.3,0.3],[0.7,0.7]]){
       const x=rm.x0+(rm.x1-rm.x0)*fx, z=rm.z0+(rm.z1-rm.z0)*fz; if(x-w/2<rm.x0+m||x+w/2>rm.x1-m||z-d/2<rm.z0+m||z+d/2>rm.z1-m) continue;
-      if(put({kind,x,z,w,d,pad:kind==='table'?0.28*CS:0})) return true; } return false; };
+      if(put({kind,x,z,w,d,pad:kind==='table'?0.28*CS:0})) return {x,z}; } return null; };
+  const scatter=(rm,kind,n,w,d)=>{ for(let i=0;i<n;i++){ const x=rm.x0+0.4*CS+(rm.x1-rm.x0-0.8*CS)*hh(s++), z=rm.z0+0.4*CS+(rm.z1-rm.z0-0.8*CS)*hh(s++); put({kind,x,z,w,d}); } };
   const t=st.type;
   st.rooms.forEach((rm,ri)=>{ const free=[0,1,2,3].filter(sd=>!hasDoor(rm,sd)).sort((a,b)=>hh(s+a)-hh(s+b)); s+=4; const cx=(rm.x0+rm.x1)/2, cz=(rm.z0+rm.z1)/2;
     const rw=rm.x1-rm.x0, rd=rm.z1-rm.z0, big=Math.min(rw,rd)>=2.5*CS;
     if(ri===0 && st.floors>1 && free.length) against(rm, free.shift(), 1.7*CS, 0.8*CS, 'stairs');
     if(t==='church'){ const rows=[]; for(let z=rm.z0+1.0*CS; z<rm.z1-1.6*CS; z+=0.9*CS) rows.push(z);
       for(const z of rows){ out.push({kind:'pew',x:cx-rw*0.24,z,w:rw*0.3,d:0.3*CS}); out.push({kind:'pew',x:cx+rw*0.24,z,w:rw*0.3,d:0.3*CS}); }
-      out.push({kind:'altar',x:cx,z:(st.door.side===2?rm.z0+0.7*CS:rm.z1-0.7*CS),w:1.2*CS,d:0.5*CS}); return; }
+      const az=(st.door.side===2?rm.z0+0.7*CS:rm.z1-0.7*CS); out.push({kind:'altar',x:cx,z:az,w:1.2*CS,d:0.5*CS});
+      out.push({kind:'candles',x:cx-0.8*CS,z:az,w:0.3*CS,d:0.3*CS}); out.push({kind:'candles',x:cx+0.8*CS,z:az,w:0.3*CS,d:0.3*CS}); return; }
+    if(t==='keep'){ if(ri===0){ const tb=inRoom(rm,'table',(rw>rd?2.2:0.8)*CS,(rw>rd?0.8:2.2)*CS); if(tb) out.push({kind:'rug',x:tb.x,z:tb.z,w:(rw>rd?3.0:1.7)*CS,d:(rw>rd?1.7:3.0)*CS,flat:1}); }
+      if(free.length) against(rm, free.shift(), 1.2*CS, 0.5*CS, 'fireplace');
+      if(ri>0 && free.length) against(rm, free.shift(), 0.8*CS, 1.5*CS, 'bed');
+      if(free.length) against(rm, free.shift(), 1.2*CS, 0.35*CS, big?'weaponrack':'shelf');
+      for(const sd of free.slice(0,2)) against(rm, sd, 0.2*CS, 0.2*CS, 'torch'); return; }
     if(t==='school'){ for(let x=rm.x0+0.8*CS; x<rm.x1-0.6*CS; x+=CS) for(let z=rm.z0+0.9*CS; z<rm.z1-0.6*CS; z+=CS) out.push({kind:'desk',x,z,w:0.55*CS,d:0.4*CS}); return; }
-    if(t==='factory'||t==='warehouse'||t==='depot'){ const n=2+Math.floor(hh(s++)*4); for(let i=0;i<n;i++) put({kind:'crate', x:rm.x0+0.6*CS+(rw-1.2*CS)*hh(s++), z:rm.z0+0.6*CS+(rd-1.2*CS)*hh(s++), w:0.7*CS, d:0.7*CS}); return; }
-    if(t==='shops'||t==='station'){ if(free.length) against(rm, free.shift(), Math.min(rw,rd)*0.7, 0.45*CS, 'counter'); return; }
+    if(t==='factory'||t==='warehouse'||t==='depot'){ scatter(rm,'crate',2+Math.floor(hh(s++)*3),0.7*CS,0.7*CS); scatter(rm,'barrel',1+Math.floor(hh(s++)*3),0.45*CS,0.45*CS); return; }
+    if(t==='shops'||t==='station'){ if(free.length) against(rm, free.shift(), Math.min(rw,rd)*0.7, 0.45*CS, 'counter'); if(free.length) against(rm, free.shift(), 1.4*CS, 0.35*CS, 'shelf'); scatter(rm,'barrel',1+Math.floor(hh(s++)*2),0.42*CS,0.42*CS); return; }
     // homes / town houses / cottages / apartments / hotel rooms
-    const bedroom = st.rooms.length>1 ? ri>0 : false;
-    if(t==='village' && ri===0 && free.length) against(rm, free.shift(), 1.0*CS, 0.45*CS, 'hearth');
+    const bedroom = st.rooms.length>1 ? ri>0 : false, oldWorld = t==='village'||t==='city';
+    if(!bedroom && free.length) against(rm, free.shift(), 1.0*CS, oldWorld?0.45*CS:0.4*CS, oldWorld?'fireplace':'counter');
     if((bedroom || st.rooms.length===1) && free.length) against(rm, free.shift(), 0.8*CS, 1.5*CS, 'bed');
-    if(!bedroom || big) inRoom(rm,'table',(rw>rd?1.0:0.6)*CS,(rw>rd?0.6:1.0)*CS);   // table + stools need a clear ring
-    if(big && free.length) against(rm, free.shift(), 1.0*CS, 0.45*CS, 'chest');
+    if(!bedroom || big){ const tb=inRoom(rm,'table',(rw>rd?1.0:0.6)*CS,(rw>rd?0.6:1.0)*CS); if(tb && hh(s++)<0.7) out.push({kind:'rug',x:tb.x,z:tb.z,w:(rw>rd?1.9:1.5)*CS,d:(rw>rd?1.5:1.9)*CS,flat:1}); }
+    if(bedroom && free.length) against(rm, free.shift(), 0.9*CS, 0.4*CS, oldWorld?'chest':'wardrobe');
+    else if(big && free.length) against(rm, free.shift(), 1.1*CS, 0.3*CS, 'shelf');
+    if(!bedroom && oldWorld && hh(s++)<0.6){ const c=[[rm.x0+0.35*CS,rm.z0+0.35*CS],[rm.x1-0.35*CS,rm.z0+0.35*CS],[rm.x0+0.35*CS,rm.z1-0.35*CS],[rm.x1-0.35*CS,rm.z1-0.35*CS]][Math.floor(hh(s++)*4)]; put({kind:'barrel',x:c[0],z:c[1],w:0.4*CS,d:0.4*CS}); }
   });
   return (st._furn=out); }
-const FURN_STYLE={ table:[0x8a5a33,0.34], bed:[0x6b4424,0.2], hearth:[0x6f6a66,0.3], chest:[0x6b4424,0.26], stairs:[0x8a7a60,0.04], pew:[0x7a4f2c,0.22],
-  altar:[0xe9e3d3,0.4], desk:[0xb08a5a,0.3], crate:[0xa47b45,0.45], counter:[0x6d5238,0.38] };
+
+/* ---- FEATURE LIBRARY: one mesh builder for every piece of furniture / dungeon dressing (houses, keeps, dungeons, caves).
+   it = {kind, x,z (board-world centre), w (x-extent), d (z-extent), face? (wall it backs onto: 0=-z 1=+x 2=+z 3=-x)}.
+   Items that give light carry FEATURE_LIGHT → a warm glow in the picture + a light source in the 🗺 VTT export. ---- */
+const FEATURE_LIGHT={ fireplace:{range:5,color:'ffcc8855'}, torch:{range:4,color:'ffffb060'}, brazier:{range:6,color:'ffffa040'}, campfire:{range:6,color:'ffffa040'},
+  candles:{range:2,color:'ffffe0a0'}, crystals:{range:3,color:'ff88ddff'}, mushrooms:{range:2,color:'ff99ff99'} };
+const _fx={};   // cached materials / textures
+const fxMat=(key,make)=>_fx[key]||(_fx[key]=make());
+const fxStd=(col,ro,me)=>fxMat('s'+col+'_'+ro+'_'+(me||0),()=>new THREE.MeshStandardMaterial({color:col,roughness:ro==null?0.85:ro,metalness:me||0}));
+const fxGlowTex=()=>fxMat('glowT',()=>{ const c=document.createElement('canvas'); c.width=c.height=128; const x=c.getContext('2d'); const g=x.createRadialGradient(64,64,0,64,64,64);
+  g.addColorStop(0,'rgba(255,255,255,1)'); g.addColorStop(0.35,'rgba(255,255,255,.45)'); g.addColorStop(1,'rgba(255,255,255,0)'); x.fillStyle=g; x.fillRect(0,0,128,128); return new THREE.CanvasTexture(c); });
+function fxCanvasTex(key,w,h,draw,rep){ return fxMat('t'+key,()=>{ const c=document.createElement('canvas'); c.width=w; c.height=h; draw(c.getContext('2d'),w,h);
+  const t=new THREE.CanvasTexture(c); if(THREE.SRGBColorSpace) t.colorSpace=THREE.SRGBColorSpace; if(rep){ t.wrapS=t.wrapT=THREE.RepeatWrapping; } t.anisotropy=4; return t; }); }
+const fxRugTex=(v)=>fxCanvasTex('rug'+v,128,96,(x,W,H)=>{ const pal=[['#7a2630','#d9b25c','#2b3f6b'],['#2b4a6b','#e0cfa0','#7a2630'],['#4f5b2a','#d9c28a','#6b3a22']][v%3];
+  x.fillStyle=pal[0]; x.fillRect(0,0,W,H); x.strokeStyle=pal[1]; x.lineWidth=5; x.strokeRect(6,6,W-12,H-12); x.lineWidth=2; x.strokeRect(14,14,W-28,H-28);
+  x.fillStyle=pal[2]; x.beginPath(); x.moveTo(W/2,22); x.lineTo(W-30,H/2); x.lineTo(W/2,H-22); x.lineTo(30,H/2); x.closePath(); x.fill();
+  x.fillStyle=pal[1]; x.beginPath(); x.arc(W/2,H/2,8,0,6.3); x.fill(); for(let i=0;i<600;i++){ x.fillStyle=`rgba(0,0,0,${Math.random()*0.08})`; x.fillRect(Math.random()*W,Math.random()*H,2,2); } });
+const fxBooksTex=()=>fxCanvasTex('books',128,32,(x,W,H)=>{ let px=0; const cols=['#7a2630','#2b4a6b','#4f6b2a','#8a6a2a','#5a3a6b','#b08a4a','#3a5a5a']; while(px<W){ const bw=5+Math.random()*7; x.fillStyle=cols[(Math.random()*cols.length)|0]; x.fillRect(px,2+Math.random()*6,bw-1,H); px+=bw; } });
+const fxCrateTex=()=>fxCanvasTex('crate',64,64,(x,W,H)=>{ x.fillStyle='#a47b45'; x.fillRect(0,0,W,H); x.strokeStyle='#6b4a24'; x.lineWidth=5; x.strokeRect(3,3,W-6,H-6); x.beginPath(); x.moveTo(4,4); x.lineTo(W-4,H-4); x.stroke();
+  x.strokeStyle='rgba(60,35,15,.35)'; x.lineWidth=1; for(let i=12;i<W;i+=12){ x.beginPath(); x.moveTo(0,i); x.lineTo(W,i); x.stroke(); } });
+const fxStoneTex=()=>fxCanvasTex('slabstone',64,64,(x,W,H)=>{ x.fillStyle='#8d8981'; x.fillRect(0,0,W,H); for(let i=0;i<260;i++){ const v=110+Math.random()*50|0; x.fillStyle=`rgba(${v},${v},${v-6},.35)`; x.fillRect(Math.random()*W,Math.random()*H,3,3); } x.strokeStyle='rgba(0,0,0,.25)'; x.strokeRect(1,1,W-2,H-2); });
+function bFeatureMesh(it){ const CS=bCellSize(), g=new THREE.Group(), k=it.kind, w=it.w, d=it.d, long=d>w, L=Math.max(w,d), S=Math.min(w,d);
+  const box=(bw,bh,bd,mat,px,py,pz,shadow)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(bw,bh,bd), mat); m.position.set(px||0,py,pz||0); if(shadow!==false){ m.castShadow=true; m.receiveShadow=true; } g.add(m); return m; };
+  const cyl=(rt,rb,h,mat,px,py,pz,seg)=>{ const m=new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,seg||12), mat); m.position.set(px||0,py,pz||0); m.castShadow=true; m.receiveShadow=true; g.add(m); return m; };
+  const flame=(px,py,pz,s)=>{ const o=fxMat('flO',()=>new THREE.MeshBasicMaterial({color:0xff7a1a})), i=fxMat('flI',()=>new THREE.MeshBasicMaterial({color:0xffe27a}));
+    const a=new THREE.Mesh(new THREE.ConeGeometry(0.09*s,0.26*s,8), o); a.position.set(px,py+0.13*s,pz); g.add(a); const b=new THREE.Mesh(new THREE.ConeGeometry(0.05*s,0.16*s,8), i); b.position.set(px,py+0.1*s,pz); g.add(b); };
+  const wood=fxStd(0x7a4f2c,0.85), dark=fxStd(0x4e3320,0.9), stone=fxStd(0x8d8981,0.95), iron=fxStd(0x3a3a3e,0.6,0.5);
+  // local axes: "along" = the long side; for wall items the back faces the wall
+  const AX=(a,b)=>long?[b,a]:[a,b];   // returns [xOffset,zOffset] for (alongOffset, acrossOffset)
+  const back = it.face==null ? 0 : (it.face===0||it.face===3 ? -1 : 1);   // which way the wall is along the "across" axis
+  if(k==='table'){ const H=0.34*CS; box(w,0.05*CS,d,wood,0,H); for(const [sx,sz] of [[-1,-1],[1,-1],[-1,1],[1,1]]) box(0.05*CS,H,0.05*CS,dark,sx*(w/2-0.06*CS),H/2,sz*(d/2-0.06*CS));
+    for(const [sx,sz] of [[-1,0],[1,0],[0,-1],[0,1]]) cyl(0.11*CS,0.11*CS,0.2*CS,dark,sx*(w/2+0.16*CS),0.1*CS,sz*(d/2+0.16*CS),10);
+    const plate=fxStd(0xe8e2d4,0.5), mug=fxStd(0x9a6a3a,0.7); cyl(0.08*CS,0.08*CS,0.01*CS,plate,-w*0.2,H+0.03*CS,-d*0.15,14); cyl(0.08*CS,0.08*CS,0.01*CS,plate,w*0.2,H+0.03*CS,d*0.15,14); cyl(0.03*CS,0.03*CS,0.07*CS,mug,0,H+0.06*CS,0,8);
+    cyl(0.06*CS,0.06*CS,0.03*CS,fxStd(0xc8a060,0.6),w*0.25,H+0.04*CS,-d*0.2,10); }
+  else if(k==='bed'){ const H=0.2*CS; box(w,H,d,dark,0,H/2); const [bx,bz]=AX(0,0); box(long?w*0.9:w*0.62,0.05*CS,long?d*0.62:d*0.9,fxStd(0x5d7a9a,0.9),long?0:w*0.17,H+0.025*CS,long?d*0.17:0);
+    box(long?w*0.75:w*0.2,0.07*CS,long?d*0.2:d*0.75,fxStd(0xf2efe6,0.9),long?0:-w*0.32,H+0.035*CS,long?-d*0.32:0);
+    box(long?w:0.06*CS,0.34*CS,long?0.06*CS:d,dark,long?0:-w/2+0.03*CS,0.17*CS,long?-d/2+0.03*CS:0); }
+  else if(k==='chest'){ const H=0.26*CS; box(w,H,d,fxStd(0x6b4424,0.8),0,H/2); box(w*1.02,0.04*CS,d*0.18,fxStd(0xc9a24a,0.4,0.6),0,H*0.75); box(w*0.12,0.06*CS,d*1.02,fxStd(0xc9a24a,0.4,0.6),0,H*0.6); }
+  else if(k==='stairs'){ const n=7; for(let i=0;i<n;i++){ const hS=0.05*CS+i*0.08*CS; box(long?w:w/n*0.92, hS, long?d/n*0.92:d, fxStd(i%2?0xb5a58a:0xa4947a,0.9), long?0:-w/2+(i+0.5)*w/n, hS/2, long?-d/2+(i+0.5)*d/n:0); } }
+  else if(k==='hearth'||k==='fireplace'){ const H=0.34*CS, bw=L, bd=S; const [ax,az]=AX(bw,bd);
+    box(long?bd:bw, H, long?bw:bd, stone, 0, H/2, 0); const [ix,iz]=AX(bw*0.6,bd*0.55); box(long?iz:ix, 0.03*CS, long?ix:iz, fxStd(0x2a1a10,1), 0, H+0.016*CS, 0, false);
+    const lg=fxStd(0x5a3a1e,0.9); for(let i=-1;i<=1;i+=2){ const l=new THREE.Mesh(new THREE.CylinderGeometry(0.035*CS,0.035*CS,bw*0.4,6), lg); l.rotation.z=Math.PI/2; if(long) l.rotation.set(Math.PI/2,0,0); l.position.set(long?i*0.04*CS:0,H+0.05*CS,long?0:i*0.04*CS); g.add(l); }
+    for(const [fx,fz,fs] of [[0,0,0.75],[-0.07,0.02,0.5],[0.07,-0.02,0.55]]){ const [px,pz]=long?[fz*CS,fx*CS]:[fx*CS,fz*CS]; flame(px,H+0.04*CS,pz,CS*fs); } }
+  else if(k==='counter'){ const H=0.38*CS; box(w,H,d,fxStd(0x6d5238,0.8),0,H/2); box(w*1.02,0.04*CS,d*1.05,fxStd(0x9a7a52,0.6),0,H+0.02*CS); }
+  else if(k==='desk'){ const H=0.3*CS; box(w,0.04*CS,d,fxStd(0xb08a5a,0.7),0,H); box(w*0.9,H,0.04*CS,dark,0,H/2,d*0.4); cyl(0.09*CS,0.09*CS,0.18*CS,dark,0,0.09*CS,d/2+0.16*CS,8); }
+  else if(k==='pew'){ const H=0.22*CS; box(w,0.05*CS,d,wood,0,H); box(w,0.3*CS,0.04*CS,wood,0,0.26*CS,d/2); box(w*0.98,H,d*0.1,dark,0,H/2,-d*0.3); }
+  else if(k==='altar'){ const H=0.4*CS; box(w,H,d,fxStd(0xe9e3d3,0.8),0,H/2); box(w*1.06,0.04*CS,d*1.1,fxStd(0x7a2630,0.8),0,H+0.02*CS); box(0.06*CS,0.3*CS,0.06*CS,fxStd(0xc9a24a,0.35,0.7),0,H+0.17*CS); box(0.2*CS,0.05*CS,0.06*CS,fxStd(0xc9a24a,0.35,0.7),0,H+0.24*CS); }
+  else if(k==='candles'){ for(const [px,pz] of [[-0.06,0],[0.06,0.04],[0,-0.06]]){ cyl(0.025*CS,0.025*CS,0.14*CS,fxStd(0xf2ead0,0.8),px*CS,0.07*CS,pz*CS,8); flame(px*CS,0.14*CS,pz*CS,CS*0.35); } cyl(0.14*CS,0.16*CS,0.03*CS,iron,0,0.015*CS,0,12); }
+  else if(k==='crate'){ const t=fxCrateTex(); const m=fxMat('crateM',()=>new THREE.MeshStandardMaterial({map:t,roughness:0.85})); box(w,S*0.9,d,m,0,S*0.45); }
+  else if(k==='barrel'){ const r=S/2; const b=cyl(r*0.92,r*0.92,r*2.2,fxStd(0x7a5230,0.85),0,r*1.1,0,14); const ring=fxStd(0x3a3a3e,0.5,0.5);
+    for(const y of [0.25,1.1,1.95]) cyl(r*0.96,r*0.96,0.03*CS,ring,0,r*y,0,14); cyl(r*0.88,r*0.88,0.01*CS,fxStd(0x5a3a1e,0.9),0,r*2.2+0.005*CS,0,14); }
+  else if(k==='shelf'||k==='bookshelf'){ const H=0.7*CS; box(w,H,d,dark,0,H/2); const bt=fxBooksTex(); const bm=fxMat('booksM',()=>new THREE.MeshStandardMaterial({map:bt,roughness:0.8}));
+    box(long?d*0.7:w*0.94,0.03*CS,long?d*0.94:d*0.7,bm,0,H+0.016*CS); }
+  else if(k==='wardrobe'){ const H=0.75*CS; box(w,H,d,fxStd(0x5e3e24,0.8),0,H/2); box(long?w*1.02:0.02*CS,H*0.9,long?0.02*CS:d*1.02,fxStd(0x3a2616,0.9),0,H*0.5,0); }
+  else if(k==='weaponrack'){ const H=0.5*CS; box(w,0.06*CS,d,dark,0,H); for(let i=0;i<5;i++){ const a=(i-2)/5*L; const sp=new THREE.Mesh(new THREE.CylinderGeometry(0.015*CS,0.015*CS,0.7*CS,6), fxStd(0x9a9aa0,0.4,0.7)); sp.position.set(long?0:a,0.35*CS,long?a:0); sp.castShadow=true; g.add(sp); } }
+  else if(k==='torch'){ const [ox,oz]=AX(0,back*0.02*CS); box(0.05*CS,0.2*CS,0.05*CS,iron,ox,0.55*CS,oz); flame(ox,0.64*CS,oz,CS*0.8); }
+  else if(k==='brazier'){ cyl(0.26*CS,0.14*CS,0.14*CS,iron,0,0.5*CS,0,12); for(let i=0;i<3;i++){ const a=i*2.094; box(0.035*CS,0.44*CS,0.035*CS,iron,Math.cos(a)*0.15*CS,0.22*CS,Math.sin(a)*0.15*CS); }
+    cyl(0.22*CS,0.22*CS,0.02*CS,fxStd(0xff7a1a,1),0,0.575*CS,0,12); flame(0,0.58*CS,0,CS*1.4); }
+  else if(k==='campfire'){ for(let i=0;i<8;i++){ const a=i*0.785; cyl(0.06*CS,0.07*CS,0.08*CS,stone,Math.cos(a)*0.3*CS,0.04*CS,Math.sin(a)*0.3*CS,7); }
+    const lg=fxStd(0x5a3a1e,0.9); for(let i=0;i<3;i++){ const l=new THREE.Mesh(new THREE.CylinderGeometry(0.035*CS,0.035*CS,0.42*CS,6), lg); l.rotation.set(Math.PI/2,i*1.05,0); l.rotation.order='YXZ'; l.rotation.y=i*1.05; l.position.y=0.05*CS; g.add(l); }
+    flame(0,0.06*CS,0,CS*1.5); }
+  else if(k==='bedroll'){ box(w,0.05*CS,d,fxStd(0x6b5a3a,0.95),0,0.025*CS); box(long?w*0.9:w*0.25,0.07*CS,long?d*0.25:d*0.9,fxStd(0x4a5a3a,0.95),long?0:-w*0.34,0.05*CS,long?-d*0.34:0); }
+  else if(k==='sarcophagus'){ const H=0.4*CS; box(w,H,d,stone,0,H/2); box(w*1.05,0.06*CS,d*1.05,fxStd(0x9a968d,0.9),0,H+0.03*CS); box(long?w*0.35:w*0.5,0.05*CS,long?d*0.5:d*0.35,fxStd(0x7d7970,0.9),0,H+0.08*CS); }
+  else if(k==='statue'){ box(w,0.18*CS,d,stone,0,0.09*CS); cyl(S*0.18,S*0.22,0.6*CS,fxStd(0xa9a59c,0.8),0,0.48*CS,0,10); const hd=new THREE.Mesh(new THREE.SphereGeometry(S*0.16,10,8), fxStd(0xa9a59c,0.8)); hd.position.y=0.86*CS; hd.castShadow=true; g.add(hd); }
+  else if(k==='cauldron'){ cyl(S*0.42,S*0.3,0.3*CS,iron,0,0.18*CS,0,14); cyl(S*0.38,S*0.38,0.01*CS,fxStd(0x4a7a3a,0.3),0,0.33*CS,0,14); }
+  else if(k==='well'){ cyl(S*0.5,S*0.5,0.3*CS,stone,0,0.15*CS,0,16); cyl(S*0.36,S*0.36,0.01*CS,fxStd(0x1a3550,0.2),0,0.305*CS,0,16); }
+  else if(k==='crystals'){ const cm=fxMat('cry',()=>new THREE.MeshStandardMaterial({color:0x7fd8ff,emissive:0x2aa8ff,emissiveIntensity:0.9,roughness:0.2,transparent:true,opacity:0.92}));
+    for(let i=0;i<5;i++){ const h=(0.25+((i*37)%10)/20)*CS, a=i*1.26; const c=new THREE.Mesh(new THREE.ConeGeometry(0.07*CS,h,5), cm); c.position.set(Math.cos(a)*0.12*CS*(i?1:0),h/2,Math.sin(a)*0.12*CS*(i?1:0)); c.rotation.set((i?0.3:0)*Math.cos(a),0,(i?0.3:0)*Math.sin(a)); g.add(c); } }
+  else if(k==='mushrooms'){ const st2=fxStd(0xe8e0c8,0.8), cap=fxMat('mush',()=>new THREE.MeshStandardMaterial({color:0x9cff9c,emissive:0x2a9a3a,emissiveIntensity:0.8,roughness:0.5}));
+    for(let i=0;i<6;i++){ const a=i*1.05, r=(i?0.13:0)*CS, h=(0.08+(i%3)*0.05)*CS; cyl(0.02*CS,0.025*CS,h,st2,Math.cos(a)*r,h/2,Math.sin(a)*r,6); const c=new THREE.Mesh(new THREE.SphereGeometry(0.06*CS,8,6,0,6.3,0,1.6), cap); c.position.set(Math.cos(a)*r,h,Math.sin(a)*r); g.add(c); } }
+  else if(k==='bones'){ const bm=fxStd(0xe6dfcc,0.9); for(let i=0;i<4;i++){ const b=new THREE.Mesh(new THREE.CylinderGeometry(0.015*CS,0.015*CS,0.22*CS,5), bm); b.rotation.set(Math.PI/2,0,i*0.9); b.rotation.order='ZXY'; b.position.set((i-1.5)*0.05*CS,0.015*CS,((i*7)%3-1)*0.05*CS); g.add(b); }
+    const sk=new THREE.Mesh(new THREE.SphereGeometry(0.06*CS,8,6), bm); sk.position.set(0.1*CS,0.05*CS,0.05*CS); g.add(sk); }
+  else if(k==='rubble'){ for(let i=0;i<7;i++){ const s=(0.06+((i*13)%7)/60)*CS; const r=new THREE.Mesh(new THREE.DodecahedronGeometry(s,0), fxStd(0x7d786f,1)); r.position.set(((i*29)%9-4)/9*w*0.8,s*0.6,((i*17)%9-4)/9*d*0.8); r.rotation.set(i,i*2,i*3); r.castShadow=true; g.add(r); } }
+  else if(k==='rug'){ const t=fxRugTex(Math.round(Math.abs(it.x*7+it.z*13))); const m=fxMat('rugM'+t.uuid,()=>new THREE.MeshStandardMaterial({map:t,roughness:1})); const r=new THREE.Mesh(new THREE.PlaneGeometry(long?d:w,long?w:d), m);
+    r.rotation.x=-Math.PI/2; if(long) r.rotation.z=Math.PI/2; r.position.y=0.006; r.receiveShadow=true; g.add(r); }
+  else { const H=0.3*CS; box(w,H,d,fxStd(0x8a6a44,0.8),0,H/2); }
+  const Lt=FEATURE_LIGHT[k]; if(Lt){ const col=new THREE.Color('#'+Lt.color.slice(2)); const gm=new THREE.MeshBasicMaterial({map:fxGlowTex(),color:col,transparent:true,opacity:0.55,blending:THREE.AdditiveBlending,depthWrite:false});
+    const R=Math.min(Lt.range,5)*0.42*CS; const gl=new THREE.Mesh(new THREE.PlaneGeometry(R*2,R*2), gm); gl.rotation.x=-Math.PI/2; gl.position.y=0.012; gl.renderOrder=4; g.add(gl); }   // warm pool of light on the floor
+  return g; }
+
+/* roof covering textures (canvas, repeat along the slope) */
+const fxRoofTex=(kind)=>fxCanvasTex('roof'+kind,128,128,(x,W,H)=>{
+  if(kind==='thatch'){ x.fillStyle='#b8995a'; x.fillRect(0,0,W,H); for(let i=0;i<900;i++){ const v=150+Math.random()*60|0; x.strokeStyle=`rgba(${v},${v*0.8|0},${v*0.45|0},.55)`; x.lineWidth=1; const px=Math.random()*W, py=Math.random()*H; x.beginPath(); x.moveTo(px,py); x.lineTo(px+(Math.random()-0.5)*3,py+10); x.stroke(); }
+    for(let r=0;r<4;r++){ x.fillStyle='rgba(60,40,15,.25)'; x.fillRect(0,r*32+28,W,3); } }
+  else { const base = kind==='slate'?'#5d6470':kind==='shingle'?'#6b4a32':'#a8492f', rows=8;
+    x.fillStyle=base; x.fillRect(0,0,W,H);
+    for(let r=0;r<rows;r++){ const y=r*H/rows, off=(r%2)*8; for(let c=-1;c<9;c++){ const v=(Math.random()-0.5)*26;
+        x.fillStyle=`rgba(${v>0?255:0},${v>0?255:0},${v>0?255:0},${Math.abs(v)/200})`; x.fillRect(c*16+off+1,y+1,14,H/rows-2); }
+      x.fillStyle='rgba(0,0,0,.35)'; x.fillRect(0,y+H/rows-2,W,2); for(let c=0;c<9;c++){ x.fillRect(c*16+off,y,1.5,H/rows); } } } }, true);
 function bMakeStructure(st, idx){
   const g=new THREE.Group(); const CS=bCellSize();
   const floorH=0.85*CS, th=(st.wallTh||0.15)*CS, ox=bld.off.x, oz=bld.off.z;
@@ -3892,7 +3997,7 @@ function bMakeStructure(st, idx){
   const w=x1-x0, d=z1-z0, cx=(x0+x1)/2, cz=(z0+z1)/2;
   const wallCol=st.modern?st.modern.wall:st.biome==='city'?0xc2b49a:0xcdbca0, roofCol=st.modern?st.modern.roof:0x7a3b30;
   const M=(col,ro)=> new THREE.MeshStandardMaterial({color:col, roughness:ro==null?0.85:ro});
-  const N=Math.max(1, st.floors||1);
+  const N=Math.max(1, st.floors||1), hh=(s)=>bStructHash(st.cells[0],s);
   // roof ON → draw the whole exterior (all N storeys of wall + roof). roof OFF → draw only up TO activeFloor,
   // open on top, with a floor slab at each level so you look down INTO the active floor.
   const topFloor = st.roofOn ? N : (Math.min(st.activeFloor||0, N-1)+1);   // # of wall storeys to draw
@@ -3906,33 +4011,60 @@ function bMakeStructure(st, idx){
   const wallMat=M(wallCol);
   const box=(ax,az,bx,bz,y,h,mat)=>{ const alongX=Math.abs(bz-az)<1e-9, L=Math.hypot(bx-ax,bz-az); if(L<1e-3||h<=1e-3) return;
     const m=new THREE.Mesh(new THREE.BoxGeometry(alongX?L+th:th, h, alongX?th:L+th), mat); m.position.set((ax+bx)/2-ox, TILE_TOP+y+h/2, (az+bz)/2-oz);
-    m.castShadow=true; m.receiveShadow=true; m.userData.struct=idx; g.add(m); };
+    m.castShadow=true; m.receiveShadow=true; m.userData.struct=idx; g.add(m); return m; };
   const doorH=floorH*0.78;
   const capMat=M(0x2e2924,0.95), doorMat=M(0x7a4a22,0.8), capH=0.03*CS;
+  const X0=st.x0+th/2, X1=st.x1-th/2, Z0=st.z0+th/2, Z1=st.z1-th/2, onOuter=(s)=> (Math.abs(s[1]-Z0)<1e-6&&Math.abs(s[3]-Z0)<1e-6) || (Math.abs(s[1]-Z1)<1e-6&&Math.abs(s[3]-Z1)<1e-6) || (Math.abs(s[0]-X0)<1e-6&&Math.abs(s[2]-X0)<1e-6) || (Math.abs(s[0]-X1)<1e-6&&Math.abs(s[2]-X1)<1e-6);
+  const oldWorld = !st.modern || st.type==='keep', timber = st.type==='village', glassM=M(0x27313c,0.25), sillM=M(0xd8d0bc,0.9), beamM=M(0x4a3222,0.9);
+  const shutM=M([0x3f6b4a,0x2f4f7a,0x7a3b30,0x5a4a3a][Math.floor(hh(71)*4)],0.8);
   for(let f=0; f<topFloor; f++){ const L=bStructLayout(st,f), top=f===topFloor-1;
-    for(const s of L.walls){ box(s[0],s[1],s[2],s[3], f*floorH, floorH, wallMat); if(top && !st.roofOn) box(s[0],s[1],s[2],s[3], (f+1)*floorH, capH, capMat); }   // dark cap = crisp wall line top-down
+    for(const s of L.walls){ box(s[0],s[1],s[2],s[3], f*floorH, floorH, wallMat); if(top && !st.roofOn) box(s[0],s[1],s[2],s[3], (f+1)*floorH, capH, capMat);   // dark cap = crisp wall line top-down
+      if(!onOuter(s)) continue;
+      // WINDOWS on outer walls (every ~1.4 squares, clear of the wall ends) + shutters / sill; half-timber beams on cottages
+      const ax=Math.abs(s[3]-s[1])<1e-9, a0=ax?s[0]:s[1], a1=ax?s[2]:s[3], len=a1-a0, nx=ax?0:(Math.abs(s[0]-X1)<1e-6?1:-1), nz=ax?(Math.abs(s[1]-Z1)<1e-6?1:-1):0;
+      if(st.type!=='warehouse' && !(st.modern && st.type!=='keep')){ const n=Math.floor((len-0.3*CS)/(1.4*CS));
+        for(let i=0;i<n;i++){ const a=a0+len*(i+1)/(n+1), px=ax?a:s[0], pz=ax?s[1]:a, ww=(st.type==='keep'?0.18:0.34)*CS, wh=floorH*(st.type==='keep'?0.3:0.36), wy=f*floorH+floorH*0.42;
+          const gw=new THREE.Mesh(new THREE.BoxGeometry(ax?ww:th*1.06, wh, ax?th*1.06:ww), glassM); gw.position.set(px-ox, TILE_TOP+wy+wh/2, pz-oz); gw.userData.struct=idx; g.add(gw);
+          const sl=new THREE.Mesh(new THREE.BoxGeometry(ax?ww*1.2:th*1.3, 0.03*CS, ax?th*1.3:ww*1.2), sillM); sl.position.set(px-ox, TILE_TOP+wy, pz-oz); sl.userData.struct=idx; g.add(sl);
+          if(oldWorld && st.type!=='keep') for(const sd of [-1,1]){ const sh=new THREE.Mesh(new THREE.BoxGeometry(ax?ww*0.5:0.015*CS, wh, ax?0.015*CS:ww*0.5), shutM);
+            sh.position.set(px-ox+(ax?sd*ww*0.78:nx*(th/2+0.01*CS)), TILE_TOP+wy+wh/2, pz-oz+(ax?nz*(th/2+0.01*CS):sd*ww*0.78)); sh.userData.struct=idx; g.add(sh); } } }
+      if(timber){ const bt=0.035*CS, off=th/2+0.006*CS; const beam=(bw,bh,bd,px,py,pz)=>{ const b=new THREE.Mesh(new THREE.BoxGeometry(bw,bh,bd), beamM); b.position.set(px-ox,TILE_TOP+py,pz-oz); b.userData.struct=idx; g.add(b); };
+        const mx=ax?(a0+a1)/2:s[0]+nx*off, mz=ax?s[1]+nz*off:(a0+a1)/2;
+        for(const y of [f*floorH+0.02*CS, (f+1)*floorH-0.02*CS]) beam(ax?len+th:bt, bt, ax?bt:len+th, mx, y, mz);
+        const nP=Math.max(1,Math.round(len/CS)); for(let i=0;i<=nP;i++){ const a=a0+len*i/nP; beam(ax?bt:bt, floorH, ax?bt:bt, ax?a:mx, f*floorH+floorH/2, ax?mz:a); } } }
     for(const s of L.doors){ if(!(top && !st.roofOn)) box(s[0],s[1],s[2],s[3], f*floorH+doorH, floorH-doorH, wallMat);   // lintel over every doorway (not on the open top storey → the doorway reads from above)
-      if(!st.roofOn && f===act){ const ax=Math.abs(s[3]-s[1])<1e-9, L2=Math.hypot(s[2]-s[0],s[3]-s[1])-0.02*CS;   // the door itself: a plank leaf across the opening
-        const dl=new THREE.Mesh(new THREE.BoxGeometry(ax?L2:th*0.55, 0.05*CS, ax?th*0.55:L2), doorMat); dl.position.set((s[0]+s[2])/2-ox, TILE_TOP+f*floorH+0.09, (s[1]+s[3])/2-oz); dl.userData.struct=idx; g.add(dl); } } }
+      const ax=Math.abs(s[3]-s[1])<1e-9, L2=Math.hypot(s[2]-s[0],s[3]-s[1])-0.02*CS;
+      if(!st.roofOn && f===act){ const dl=new THREE.Mesh(new THREE.BoxGeometry(ax?L2:th*0.55, 0.05*CS, ax?th*0.55:L2), doorMat); dl.position.set((s[0]+s[2])/2-ox, TILE_TOP+f*floorH+0.09, (s[1]+s[3])/2-oz); dl.userData.struct=idx; g.add(dl); }   // the door leaf, top-down
+      else if(st.roofOn && f===0 && onOuter([s[0],s[1],s[2],s[3]])){ const dl=new THREE.Mesh(new THREE.BoxGeometry(ax?L2:th*0.5, doorH, ax?th*0.5:L2), doorMat); dl.position.set((s[0]+s[2])/2-ox, TILE_TOP+doorH/2, (s[1]+s[3])/2-oz); dl.castShadow=true; dl.userData.struct=idx; g.add(dl); } } }   // closed front door, 3D
   // storey ledges (thin bands at each floor line) so a multi-storey building reads as having floors
   if(N>1 && st.roofOn){ const ledgeMat=M(0x9c8e75,0.9); for(let f=1; f<topFloor; f++){ const l=new THREE.Mesh(new THREE.BoxGeometry(w+0.04*CS,0.05,d+0.04*CS), ledgeMat); l.position.set(cx, TILE_TOP+f*floorH, cz); l.userData.struct=idx; g.add(l); } }
   if(st.modern && st.type!=='keep' && st.roofOn){ const glass=M(0x2c3a48,0.2); for(let f=0; f<topFloor; f++) for(let s2=0;s2<4;s2++){ const isNS=(s2===0||s2===2), L2=(isNS?w:d)*0.8;   // window bands on every storey
       const b=new THREE.Mesh(new THREE.BoxGeometry(isNS?L2:th*1.3, floorH*0.32, isNS?th*1.3:L2), glass);
       b.position.set(isNS?cx:(s2===1?x1:x0), TILE_TOP+f*floorH+floorH*0.55, isNS?(s2===0?z0:z1):cz); b.userData.struct=idx; g.add(b); } }
   if(!st.roofOn){ const y0=act*floorH+0.06;                                // furniture on the floor you're looking into
-    for(const it of bStructFurniture(st)){ if(act>0 && !/^(stairs|bed|table|chest|desk|crate|counter)$/.test(it.kind)) continue;
-      const [col,hgt]=FURN_STYLE[it.kind]||[0x8a6a44,0.3], H=hgt*CS;
-      const m=new THREE.Mesh(new THREE.BoxGeometry(it.w, H, it.d), M(col,0.8)); m.position.set(it.x-ox, TILE_TOP+y0+H/2, it.z-oz); m.castShadow=true; m.receiveShadow=true; m.userData.struct=idx; g.add(m);
-      const long=it.d>it.w, add=(bw,bh,bd,col2,px,py,pz)=>{ const p=new THREE.Mesh(new THREE.BoxGeometry(bw,bh,bd), M(col2,0.9)); p.position.set(it.x-ox+px, TILE_TOP+y0+py, it.z-oz+pz); p.userData.struct=idx; g.add(p); };
-      if(it.kind==='bed'){ add(long?it.w*0.9:it.w*0.62, 0.05*CS, long?it.d*0.62:it.d*0.9, 0x5d7a9a, long?0:it.w*0.17, H+0.025*CS, long?it.d*0.17:0);   // blanket
-        add(long?it.w*0.75:it.w*0.2, 0.07*CS, long?it.d*0.2:it.d*0.75, 0xf2efe6, long?0:-it.w*0.32, H+0.035*CS, long?-it.d*0.32:0); }   // pillow
-      if(it.kind==='stairs'){ const n=7; for(let i=0;i<n;i++){ const hS=0.03*CS+i*0.045*CS;
-          add(long?it.w:it.w/n*0.86, hS, long?it.d/n*0.86:it.d, i%2?0xb5a58a:0xa4947a, long?0:-it.w/2+(i+0.5)*it.w/n, H+hS/2, long?-it.d/2+(i+0.5)*it.d/n:0); } }
-      if(it.kind==='hearth') add(it.w*0.6, 0.02*CS, it.d*0.5, 0xd2691e, 0, H+0.01*CS, 0);
-      if(it.kind==='table'){ for(const [sx,sz] of [[-1,0],[1,0],[0,-1],[0,1]]){ const c=new THREE.Mesh(new THREE.CylinderGeometry(0.11*CS,0.11*CS,0.2*CS,10), M(0x6b4424,0.8));
-          c.position.set(it.x-ox+sx*(it.w/2+0.16*CS), TILE_TOP+y0+0.1*CS, it.z-oz+sz*(it.d/2+0.16*CS)); c.castShadow=true; c.userData.struct=idx; g.add(c); } } } }
-  if(st.roofOn){ const roof=new THREE.Mesh(new THREE.BoxGeometry(w+(st.modern?0.02:0.14)*CS, 0.1*CS, d+(st.modern?0.02:0.14)*CS), M(roofCol,0.8));
-    roof.position.set(cx, TILE_TOP+wallH+0.06*CS, cz); roof.castShadow=true; roof.userData.struct=idx; g.add(roof); }
+    for(const it of bStructFurniture(st)){ if(act>0 && !/^(stairs|bed|table|chest|desk|crate|counter|rug|shelf|wardrobe|barrel|torch)$/.test(it.kind)) continue;
+      const fm=bFeatureMesh(it); fm.position.set(it.x-ox, TILE_TOP+y0, it.z-oz); fm.traverse(o=>o.userData.struct=idx); g.add(fm); } }
+  if(st.roofOn){ const topY=TILE_TOP+wallH;
+    if(st.modern && st.type!=='keep'){ const roof=new THREE.Mesh(new THREE.BoxGeometry(w+0.02*CS, 0.1*CS, d+0.02*CS), M(roofCol,0.8));   // modern: flat roof + parapet + rooftop plant
+      roof.position.set(cx, topY+0.05*CS, cz); roof.castShadow=true; roof.userData.struct=idx; g.add(roof);
+      const pm=M(0x8f9296,0.8); for(const [px,pz,pw,pd] of [[cx,z0,w,0.08*CS],[cx,z1,w,0.08*CS],[x0,cz,0.08*CS,d],[x1,cz,0.08*CS,d]]){ const p=new THREE.Mesh(new THREE.BoxGeometry(pw,0.12*CS,pd),pm); p.position.set(px,topY+0.16*CS,pz); p.userData.struct=idx; g.add(p); }
+      const u=new THREE.Mesh(new THREE.BoxGeometry(Math.min(w,d)*0.25,0.18*CS,Math.min(w,d)*0.2),pm); u.position.set(cx+w*0.2,topY+0.19*CS,cz-d*0.15); u.castShadow=true; u.userData.struct=idx; g.add(u); }
+    else if(st.type==='keep'){ const roof=new THREE.Mesh(new THREE.BoxGeometry(w, 0.08*CS, d), M(0x6d6a64,0.95)); roof.position.set(cx, topY+0.04*CS, cz); roof.userData.struct=idx; g.add(roof);   // flat stone roof ringed with battlements
+      const mm=M(0x9d998f,0.9), mh=0.28*CS, mw=0.3*CS; for(const [ax2,len,px,pz] of [[1,w,cx,z0+th/2],[1,w,cx,z1-th/2],[0,d,x0+th/2,cz],[0,d,x1-th/2,cz]]){ const n=Math.max(2,Math.floor(len/(mw*2)));
+        for(let i=0;i<n;i++){ const a=-len/2+(i+0.5)*len/n; const m=new THREE.Mesh(new THREE.BoxGeometry(ax2?mw:th,mh,ax2?th:mw), mm); m.position.set(px+(ax2?a:0), topY+0.08*CS+mh/2, pz+(ax2?0:a)); m.castShadow=true; m.userData.struct=idx; g.add(m); } } }
+    else {                                                                 // pitched GABLE roof along the long side: thatch / shingle / tile / slate
+      const kind = st.type==='village' ? (hh(72)<0.55?'thatch':'shingle') : (hh(72)<0.6?'tile':'slate'), ov=0.14*CS, alongX=w>=d, span=(alongX?d:w)+2*ov, run=(alongX?w:d)+2*ov;
+      const pitch=kind==='thatch'?0.78:0.62, rise=span/2*Math.tan(pitch), slope=Math.hypot(span/2,rise), rt=kind==='thatch'?0.1*CS:0.04*CS;
+      const rtex=fxRoofTex(kind).clone(); rtex.needsUpdate=true; rtex.repeat.set(run/CS*1.2, slope/CS*1.2);
+      const rm=new THREE.MeshStandardMaterial({map:rtex, roughness:0.95}), sideM=M(kind==='thatch'?0x8a7040:0x4a3a2e,0.95);
+      for(const sd of [-1,1]){ const sl=new THREE.Mesh(new THREE.BoxGeometry(alongX?run:slope, rt, alongX?slope:run), [sideM,sideM,rm,sideM,sideM,sideM]);
+        sl.position.set(cx+(alongX?0:sd*span/4), topY+rise/2, cz+(alongX?sd*span/4:0)); if(alongX) sl.rotation.x=sd*pitch; else sl.rotation.z=-sd*pitch;
+        sl.castShadow=true; sl.receiveShadow=true; sl.userData.struct=idx; g.add(sl); }
+      const tri=new THREE.Shape(); tri.moveTo(-span/2+ov,0); tri.lineTo(span/2-ov,0); tri.lineTo(0,rise*(span/2-ov)/(span/2)); tri.closePath();   // gable-end wall triangles
+      for(const sd of [-1,1]){ const gm=new THREE.Mesh(new THREE.ShapeGeometry(tri), new THREE.MeshStandardMaterial({color:wallCol,roughness:0.9,side:THREE.DoubleSide}));
+        if(alongX){ gm.rotation.y=Math.PI/2; gm.position.set(cx+sd*(w/2-0.002), topY, cz); } else gm.position.set(cx, topY, cz+sd*(d/2-0.002));
+        gm.userData.struct=idx; g.add(gm); }
+      if(oldWorld && hh(73)<0.8){ const ch=new THREE.Mesh(new THREE.BoxGeometry(0.28*CS,rise+0.35*CS,0.28*CS), M(0x7d7064,1)); ch.position.set(cx+(alongX?w*0.28:span*0.18), topY+(rise+0.35*CS)/2, cz+(alongX?span*0.18:d*0.28)); ch.castShadow=true; ch.userData.struct=idx; g.add(ch); } } }
   return g;
 }
 function bRenderStructures(){
@@ -4345,6 +4477,8 @@ function bRevealSettlePlan(){                                             // fil
     .concat((P.outerProps||[]).map(p=>({...p, rot:p.rot||0})));
   return revealed.size; }
 function bGenerateMap(){ bPushUndo();
+  if(bld.theme==='dungeon'||bld.theme==='cave'){ bGenerateDungeon(bld.theme); return; }
+  bld.dungeon=null;                                                     // any other map replaces a dungeon
   if(!SETTLE_THEMES[bld.theme]) _settlePlan=null;                        // a non-settlement generate clears any planned settlement
   // On the SMALL flower/invader mats, a named terrain theme fills as its base biome (clean + consistent across
   // units) instead of the full map generator — whose rivers/rocks/forest ratios are tuned for a big map and jam
@@ -4421,6 +4555,7 @@ function bClickSettlement(ev){
 }
 function bZoomIntoSettlement(type, cell){
   _zoomBack = { snap:bSnapshot(), scale:bld.scale, flat:bld.boardFlat };     // remember the overview to return to
+  bld.dungeon=null;
   const zseed = (((bld.seed>>>0)*2654435761) ^ ((cell.q*73856)>>>0) ^ ((cell.r*19349)>>>0)) >>> 0;
   bld.cols=16; bld.rows=16; bld.q0=0; bld.r0=0; bld.seed=zseed%10000;
   setTileScale('battle'); bld.scale='battle';
@@ -4436,7 +4571,7 @@ function bZoomOut(){ if(!_zoomBack) return; const z=_zoomBack, s=z.snap; _zoomBa
   bld.board=new Map([...s.board].map(([k,v])=>[k,{...v}]));
   bld.zones=new Map(s.zones); bld.draw=JSON.parse(JSON.stringify(s.draw)); bld.props=JSON.parse(JSON.stringify(s.props));
   bld.subdiv=new Map([...s.subdiv].map(([k,v])=>[k,{...v}])); bld.subpaint=new Map([...(s.subpaint||new Map())].map(([k,v])=>[k,{...v}]));
-  bld.baseMap=s.baseMap; bld.selStroke=null; bld.selProp=null; bld.pen=[]; bld.structKey=''; bRestorePlans(s);
+  bld.baseMap=s.baseMap; bld.selStroke=null; bld.selProp=null; bld.pen=[]; bld.structKey=''; bld.dungeon=s.dungeon||null; bRestorePlans(s);
   setTileScale(z.scale); bld.scale=z.scale;
   document.querySelectorAll('#bScaleSeg button').forEach(x=>x.classList.toggle('on', x.dataset.scale===z.scale));
   bSyncBuilderUI(); bRender(); bFit(); bShowZoomBack(false);
@@ -4687,6 +4822,95 @@ async function bTgcExport(){
 document.getElementById('bTgcSel').onchange=(e)=> bTgcSelect(e.target.value);
 document.getElementById('bTgcCell').onchange=(e)=>{ bld.tgcCell=+e.target.value||1; bTgcFit(); bTgcInfo(); bRender(); bFit(); };
 document.getElementById('bTgcExport').onclick=bTgcExport;
+/* ================= ⚔ DUNGEONS & CAVES (5-ft battle scale, Battle Maps Pack) =================
+   dungeon-gen.js makes the layout (floor grid, wall loops, doors, rooms, dressing) in grid units; here it becomes
+   3D rock (extruded from the SAME wall loops), a textured floor, cave pools, doors and furniture — and the 🗺 VTT
+   export reads the same loops/doors/lights. bld.dungeon = { …layout, q0, r0 } (the map's top-left cell). */
+function bDungeonBW(u,v){ const D=bld.dungeon; return [D.q0-0.5+u, D.r0-0.5+v]; }   // grid units → board-world (square grid, 1 unit = 1 cell)
+function bGenerateDungeon(kind){
+  if(window.TTier && !TTier.has('battlemaps')){ bStatus('🔒 Dungeons &amp; caves are part of the <b>Battle Maps Pack</b> — unlock it in GLB Studio → ✨ Upgrades.',true); return; }
+  if(TGC_HEXMAT[bld.tgc]){ bStatus('Dungeons need a square board — pick a square print size (or Screen only) first.',true); return; }
+  if(bld.grid!=='square'){ bld.grid='square'; document.querySelectorAll('#bGridSeg button,#bMapGridSeg button').forEach(x=>x.classList.toggle('on',x.dataset.grid==='square')); bBuildPalette(); }
+  setTileScale('battle'); bld.scale='battle'; document.querySelectorAll('#bScaleSeg button').forEach(x=>x.classList.toggle('on', x.dataset.scale==='battle'));
+  bld.cols=Math.max(12,Math.min(64,bld.cols|0)); bld.rows=Math.max(10,Math.min(64,bld.rows|0)); if(!TGC[bld.tgc]){ bld.q0=0; bld.r0=0; }
+  document.getElementById('bCols').value=bld.cols; document.getElementById('bRows').value=bld.rows;
+  const D=DungeonGen.generate({kind, cols:bld.cols, rows:bld.rows, seed:bld.seed});
+  bld.board.clear(); bld.zones.clear(); bld.subdiv.clear(); bld.subpaint.clear();
+  const defs=bDefs(), id=TE.registerGen(defs,'square','dirt',[0,0,0,0],undefined);
+  for(const c of bCells()) bld.board.set(TE.keyOf(c),{defId:id,rot:0});
+  bld.dungeon={...D, q0:bld.q0, r0:bld.r0};
+  bld.draw=[]; bld.pen=[]; bld.props=[]; bld.structPlans=[]; bld.modern=null; _settlePlan=null; bld.structKey=''; bld.selStroke=null; bld.selProp=null;
+  bRender(); bFit();
+  const lights=D.features.filter(f=>FEATURE_LIGHT[f.kind]).length;
+  bStatus(kind==='cave' ? `Generated a <b>cave</b> #${bld.seed} (${bld.cols}×${bld.rows} squares) — ${D.waterLoops.length} pool${D.waterLoops.length===1?'':'s'}, ${lights} light source${lights===1?'':'s'} · <b>🗺 Export for VTT</b> gives walls + lights`
+    : `Generated a <b>dungeon</b> #${bld.seed} (${bld.cols}×${bld.rows} squares) — ${D.rooms.length} rooms (${[...new Set(D.rooms.map(r=>r.type))].join(', ')}), ${D.doors.filter(d=>!d.open).length} doors, ${lights} lights · <b>🗺 Export for VTT</b> gives walls, doors + lights`);
+}
+const _dgTex={};
+function bDungeonTex(kind){ if(_dgTex[kind]) return _dgTex[kind]; const S=128, cv=document.createElement('canvas'); cv.width=cv.height=S; const x=cv.getContext('2d');
+  let a=kind.length*131+7; const rnd=()=>{ a=(a*1103515245+12345)&0x7fffffff; return a/0x7fffffff; };
+  if(kind==='rocktop'){ x.fillStyle='#26231f'; x.fillRect(0,0,S,S); for(let i=0;i<1400;i++){ const v=28+rnd()*40|0; x.fillStyle=`rgba(${v},${v-2},${v-5},.6)`; x.fillRect(rnd()*S,rnd()*S,2+rnd()*3,2+rnd()*3); }
+    x.strokeStyle='rgba(0,0,0,.45)'; x.lineWidth=1.2; for(let i=0;i<7;i++){ x.beginPath(); let px=rnd()*S, py=rnd()*S; x.moveTo(px,py); for(let j=0;j<4;j++){ px+=(rnd()-0.5)*40; py+=(rnd()-0.5)*40; x.lineTo(px,py); } x.stroke(); } }
+  else if(kind==='masonry'){ x.fillStyle='#6d665c'; x.fillRect(0,0,S,S); for(let r=0;r<8;r++){ const off=(r%2)*16; for(let c=-1;c<5;c++){ const v=95+rnd()*35|0; x.fillStyle=`rgb(${v},${v-5},${v-12})`; x.fillRect(c*32+off+1,r*16+1,30,14); } } }
+  else if(kind==='caveside'){ x.fillStyle='#5a534a'; x.fillRect(0,0,S,S); for(let i=0;i<900;i++){ const v=70+rnd()*50|0; x.fillStyle=`rgba(${v},${v-4},${v-10},.55)`; x.fillRect(rnd()*S,rnd()*S,3+rnd()*6,2+rnd()*3); } }
+  else if(kind==='cavefloor'){ x.fillStyle='#7a7064'; x.fillRect(0,0,S,S); for(let i=0;i<1600;i++){ const v=95+rnd()*45|0; x.fillStyle=`rgba(${v},${v-8},${v-18},.45)`; x.fillRect(rnd()*S,rnd()*S,2+rnd()*3,2+rnd()*3); }
+    for(let i=0;i<14;i++){ x.fillStyle='rgba(60,54,46,.55)'; x.beginPath(); x.ellipse(rnd()*S,rnd()*S,3+rnd()*5,2+rnd()*4,rnd()*3,0,6.3); x.fill(); } }
+  const t=new THREE.CanvasTexture(cv); t.wrapS=t.wrapT=THREE.RepeatWrapping; if(THREE.SRGBColorSpace) t.colorSpace=THREE.SRGBColorSpace; t.anisotropy=4; return (_dgTex[kind]=t); }
+// loops → nested shapes by containment depth (winding-independent): even depth = floor boundary, odd = rock island
+function bDungeonShapes(loops){
+  const V=(p)=>{ const [x,z]=bDungeonBW(p.x,p.y); return new THREE.Vector2(x-bld.off.x, -(z-bld.off.z)); };
+  const polys=loops.map(l=>l.map(V));
+  const inside=(pt,poly)=>{ let c=false; for(let i=0,j=poly.length-1;i<poly.length;j=i++){ const a=poly[i], b=poly[j]; if(((a.y>pt.y)!==(b.y>pt.y)) && pt.x<(b.x-a.x)*(pt.y-a.y)/((b.y-a.y)||1e-12)+a.x) c=!c; } return c; };
+  const probe=(poly)=>{ for(let i=0;i<poly.length;i++){ const a=poly[i], b=poly[(i+1)%poly.length], mx=(a.x+b.x)/2, my=(a.y+b.y)/2, dx=b.x-a.x, dy=b.y-a.y, L=Math.hypot(dx,dy)||1;
+      for(const s of [1,-1]){ const p=new THREE.Vector2(mx-dy/L*0.02*s, my+dx/L*0.02*s); if(inside(p,poly)) return p; } } return poly[0]; };
+  const depth=polys.map((p,i)=>{ const pt=probe(p); let d=0; polys.forEach((q,j)=>{ if(i!==j && inside(pt,q)) d++; }); return d; });
+  const parent=polys.map((p,i)=>{ const pt=probe(p); let best=-1; polys.forEach((q,j)=>{ if(i!==j && depth[j]===depth[i]-1 && inside(pt,q)) best=j; }); return best; });
+  // explicit winding (outer clockwise, holes counter-clockwise): ExtrudeGeometry only fixes holes when it flips the outer ring
+  const cw=(q)=>THREE.ShapeUtils.isClockWise(q)?q:q.slice().reverse(), ccw=(q)=>THREE.ShapeUtils.isClockWise(q)?q.slice().reverse():q;
+  const mk=(i)=>{ const s=new THREE.Shape(cw(polys[i])); polys.forEach((q,j)=>{ if(parent[j]===i) s.holes.push(new THREE.Path(ccw(q))); }); return s; };
+  const floor=[], rock=[]; polys.forEach((q,i)=>{ (depth[i]%2===0?floor:rock).push(mk(i)); });
+  const D=bld.dungeon, rect=[V({x:0,y:0}),V({x:D.cols,y:0}),V({x:D.cols,y:D.rows}),V({x:0,y:D.rows})], outer=new THREE.Shape(cw(rect));
+  polys.forEach((q,i)=>{ if(depth[i]===0) outer.holes.push(new THREE.Path(ccw(q))); }); rock.push(outer);
+  return {floor, rock}; }
+function bRenderDungeon(){ const D=bld.dungeon; if(!D) return; const flat=!!bld.boardFlat, cave=D.kind==='cave', top=TILE_TOP+0.03;
+  const grp=new THREE.Group(); grp.name='dungeon';
+  const {floor, rock}=bDungeonShapes(D.walls);
+  const ft=cave?bDungeonTex('cavefloor'):bFloorTex('flag'); ft.repeat.set(1,1);
+  const fm=new THREE.Mesh(new THREE.ShapeGeometry(floor), new THREE.MeshStandardMaterial({map:ft, roughness:0.95})); fm.rotation.x=-Math.PI/2; fm.position.y=top; fm.receiveShadow=true; grp.add(fm);
+  const capT=bDungeonTex('rocktop'), sideT=bDungeonTex(cave?'caveside':'masonry');
+  if(flat){ const rm=new THREE.Mesh(new THREE.ShapeGeometry(rock), new THREE.MeshStandardMaterial({map:capT, roughness:1})); rm.rotation.x=-Math.PI/2; rm.position.y=top+0.02; grp.add(rm); }
+  else { const H=0.9; const g=new THREE.ExtrudeGeometry(rock,{depth:H, bevelEnabled:false, curveSegments:1}); g.rotateX(-Math.PI/2);
+    const rm=new THREE.Mesh(g,[new THREE.MeshStandardMaterial({map:capT, roughness:1}), new THREE.MeshStandardMaterial({map:sideT, roughness:0.95})]); rm.position.y=top; rm.castShadow=true; rm.receiveShadow=true; grp.add(rm); }
+  if(D.waterLoops && D.waterLoops.length){ const V=(p)=>{ const [x,z]=bDungeonBW(p.x,p.y); return new THREE.Vector2(x-bld.off.x, -(z-bld.off.z)); };
+    const ws=D.waterLoops.map(l=>new THREE.Shape(l.map(V))); const wm=new THREE.Mesh(new THREE.ShapeGeometry(ws), new THREE.MeshStandardMaterial({color:0x2c5f7a, roughness:0.15, metalness:0.2, transparent:true, opacity:0.88}));
+    wm.rotation.x=-Math.PI/2; wm.position.y=top+0.012; grp.add(wm); }
+  // doors: a plank leaf across the opening (open archways get just the stone posts)
+  const leafM=new THREE.MeshStandardMaterial({color:0x6b4424, roughness:0.8}), postM=new THREE.MeshStandardMaterial({color:0x8d8981, roughness:0.95}), bandM=new THREE.MeshStandardMaterial({color:0x3a3a3e, roughness:0.5, metalness:0.5});
+  for(const d of D.doors){ const [ax,az]=bDungeonBW(d.x1,d.y1), [bx,bz]=bDungeonBW(d.x2,d.y2), alongX=Math.abs(az-bz)<1e-6, cx=(ax+bx)/2-bld.off.x, cz=(az+bz)/2-bld.off.z, L=Math.hypot(bx-ax,bz-az);
+    for(const s of [-1,1]){ const p=new THREE.Mesh(new THREE.BoxGeometry(alongX?0.14:0.24, flat?0.05:0.9, alongX?0.24:0.14), postM); p.position.set(cx+(alongX?s*(L/2-0.07):0), top+(flat?0.03:0.45), cz+(alongX?0:s*(L/2-0.07))); p.castShadow=true; grp.add(p); }
+    if(!d.open){ const h=flat?0.04:0.72; const l=new THREE.Mesh(new THREE.BoxGeometry(alongX?L-0.26:0.1, h, alongX?0.1:L-0.26), leafM); l.position.set(cx, top+h/2, cz); l.castShadow=true; grp.add(l);
+      if(!flat) for(const y of [0.2,0.55]){ const b=new THREE.Mesh(new THREE.BoxGeometry(alongX?L-0.28:0.12,0.04,alongX?0.12:L-0.28), bandM); b.position.set(cx, top+y, cz); grp.add(b); } } }
+  for(const f of D.features){ const [x,z]=bDungeonBW(f.x,f.y); const it={...f, x, z}; const m=bFeatureMesh(it); m.position.set(x-bld.off.x, top, z-bld.off.z); grp.add(m); }
+  builderGroup.add(grp); }
+// EXTEND a dungeon / cave: the existing layout stays exactly as it is; DungeonGen.extend fills a 12-square strip on that
+// side with new rooms (wired to the nearest old rooms through proper doors) or new caverns that flow across the seam.
+function bExtendDungeon(dir){ const E=12, D=bld.dungeon; bPushUndo();
+  let newCells;
+  if(dir==='E'){ newCells=bCellsRange(bld.q0+bld.cols, bld.q0+bld.cols+E, bld.r0, bld.r0+bld.rows); bld.cols+=E; }
+  else if(dir==='W'){ newCells=bCellsRange(bld.q0-E, bld.q0, bld.r0, bld.r0+bld.rows); bld.q0-=E; bld.cols+=E; }
+  else if(dir==='S'){ newCells=bCellsRange(bld.q0, bld.q0+bld.cols, bld.r0+bld.rows, bld.r0+bld.rows+E); bld.rows+=E; }
+  else { newCells=bCellsRange(bld.q0, bld.q0+bld.cols, bld.r0-E, bld.r0); bld.r0-=E; bld.rows+=E; }
+  const id=TE.registerGen(bDefs(),'square','dirt',[0,0,0,0],undefined); for(const c of newCells) bld.board.set(TE.keyOf(c),{defId:id,rot:0});
+  const D2=DungeonGen.extend(D, dir, E, 1+Math.floor(Math.random()*999999));
+  bld.dungeon={...D2, q0:bld.q0, r0:bld.r0}; bld.structKey='';
+  document.getElementById('bCols').value=bld.cols; document.getElementById('bRows').value=bld.rows; bRender(); bFit();
+  const side=({E:'east',W:'west',N:'north',S:'south'})[dir], nl=D2.features.filter(f=>FEATURE_LIGHT[f.kind]).length-D.features.filter(f=>FEATURE_LIGHT[f.kind]).length;
+  bStatus(D2.kind==='cave' ? `Extended the cave <b>${side}</b> — now ${bld.cols}×${bld.rows} squares, new caverns joined to the old ones${nl>0?`, +${nl} light source${nl===1?'':'s'}`:''}. Extend again (◀▶▲▼) to keep exploring.`
+    : `Extended the dungeon <b>${side}</b> — now ${bld.cols}×${bld.rows} squares, <b>+${D2.newRooms}</b> room${D2.newRooms===1?'':'s'} (${D2.rooms.length} total, ${D2.doors.filter(d=>!d.open).length} doors). Extend again (◀▶▲▼) to keep delving.`); }
+// every light source on the map (dungeon dressing + house fireplaces/torches/candles) in board-world coords
+function bLightSources(){ const L=[], add=(kind,x,z)=>{ const f=FEATURE_LIGHT[kind]; if(f) L.push({x,z,range:f.range,color:f.color,kind}); };
+  if(bld.dungeon) for(const f of bld.dungeon.features){ const [x,z]=bDungeonBW(f.x,f.y); add(f.kind,x,z); }
+  for(const st of (bld.structures||[])) for(const it of bStructFurniture(st)) add(it.kind,it.x,it.z);
+  return L; }
 /* ================= 🗺 VIRTUAL-TABLETOP EXPORT (Universal VTT) =================
    One file a VTT imports as a ready scene: the map image at a chosen px-per-square, the grid, WALLS (line-of-sight)
    and DOORS. Format = Universal VTT (.dd2vtt / .uvtt, format 0.3) — the de-facto interchange format read by
@@ -4713,6 +4937,9 @@ function bVttGeometry(){
       const dir=((dir0 + (pl.rot||0)) % g.N + g.N) % g.N;                 // placed rotation turns the edges
       const m=g.edgeMid(dir); const by=cs.map((c,i)=>({i,d:(c[0]-m[0])**2+(c[1]-m[1])**2})).sort((a,b)=>a.d-b.d);
       const a=cs[by[0].i], b=cs[by[1].i]; addWall([[w.x+a[0],w.z+a[1]],[w.x+b[0],w.z+b[1]]]); }); }
+  // 2b) dungeon / cave walls (closed loops) + closed doors (open archways are just gaps)
+  if(bld.dungeon){ const D=bld.dungeon; for(const l of D.walls){ const pts=l.map(p=>bDungeonBW(p.x,p.y)); pts.push(pts[0]); walls.push(pts); }
+    for(const d of D.doors) if(!d.open){ const a=bDungeonBW(d.x1,d.y1), b=bDungeonBW(d.x2,d.y2); doors.push([a[0],a[1],b[0],b[1]]); } }
   // 3) hand-drawn wall strokes
   for(const s of bld.draw) if(s.type==='wall' && s.pts && s.pts.length>=2) addWall(s.pts.map(p=>[p[0],p[1]]));
   return {walls, doors};
@@ -4745,20 +4972,21 @@ async function bVttExport(opts){
     const los=geo.walls.map(pts=>pts.map(p=>G(p[0],p[1])));
     const portals=geo.doors.map(d=>{ const a=G(d[0],d[1]), b=G(d[2],d[3]);
       return { position:{x:+((a.x+b.x)/2).toFixed(4), y:+((a.y+b.y)/2).toFixed(4)}, bounds:[a,b], rotation:+Math.atan2(b.y-a.y,b.x-a.x).toFixed(4), closed:true, freestanding:false }; });
+    const lights=bLightSources().map(l=>({ position:G(l.x,l.y===undefined?l.z:l.z), range:l.range, intensity:1, color:l.color, shadows:true }));
     const gw=+(W/ppg).toFixed(4), gh=+(H/ppg).toFixed(4);
     const base=`tabletop-${bld.scale==='battle'?'battlemap':'map'}-${bld.seed}_${Math.round(gw)}x${Math.round(gh)}`;
-    if(opts.returnOnly){ out={W,H,ppg,gw,gh,walls:los,portals,url:cv.toDataURL('image/png')}; }
+    if(opts.returnOnly){ out={W,H,ppg,gw,gh,walls:los,portals,lights,url:cv.toDataURL('image/png')}; }
     else if(fmt==='png'){
       bDownload(await bCanvasBlob(cv), `${base}_${ppg}px.png`);
       bStatus(`🗺 Saved <b>${W}×${H}px</b> map — grid <b>${ppg} px per ${bld.grid==='hex'?'hex':'square'}</b> (${Math.round(gw)}×${Math.round(gh)}). Set that grid size in your VTT${bld.grid==='hex'?' (flat-top hex / “hex columns”)':''}. For walls + doors use <b>.dd2vtt</b>.`);
     } else {
       const bytes=await bCanvasBytes(cv); let bin=''; for(let i=0;i<bytes.length;i+=0x8000) bin+=String.fromCharCode.apply(null, bytes.subarray(i,i+0x8000));
       const doc={ format:0.3, resolution:{ map_origin:{x:0,y:0}, map_size:{x:gw,y:gh}, pixels_per_grid:ppg },
-        line_of_sight:los, objects_line_of_sight:[], portals, environment:{ baked_lighting:true, ambient_light:'ffffffff' }, lights:[],
+        line_of_sight:los, objects_line_of_sight:[], portals, environment:{ baked_lighting:true, ambient_light:'ffffffff' }, lights,
         software:'KSOL Designs Tabletop '+APP_VERSION, grid:bld.grid, image:btoa(bin) };
       bDownload(new Blob([JSON.stringify(doc)],{type:'application/json'}), `${base}.${fmt}`);
       const mb=(bin.length*4/3/1048576).toFixed(1);
-      bStatus(`🗺 Exported <b>${base}.${fmt}</b> (${mb} MB) — ${W}×${H}px, <b>${ppg} px/${bld.grid==='hex'?'hex':'square'}</b>, <b>${los.length}</b> wall${los.length===1?'':'s'}, <b>${portals.length}</b> door${portals.length===1?'':'s'}.${bld.grid==='hex'?' Hex map: set a <b>flat-top hex</b> grid of '+ppg+' px in your VTT (the file format itself only describes square grids).':''}${bld.scale!=='battle'?' Tip: <b>⚔ Battle (5 ft)</b> maps export buildings with walls + doors.':''}`);
+      bStatus(`🗺 Exported <b>${base}.${fmt}</b> (${mb} MB) — ${W}×${H}px, <b>${ppg} px/${bld.grid==='hex'?'hex':'square'}</b>, <b>${los.length}</b> wall${los.length===1?'':'s'}, <b>${portals.length}</b> door${portals.length===1?'':'s'}, <b>${lights.length}</b> light${lights.length===1?'':'s'}.${bld.grid==='hex'?' Hex map: set a <b>flat-top hex</b> grid of '+ppg+' px in your VTT (the file format itself only describes square grids).':''}${bld.scale!=='battle'?' Tip: <b>⚔ Battle (5 ft)</b> maps export buildings with walls + doors.':''}`);
     }
   }catch(e){ bStatus('VTT export failed: '+(e&&e.message||e), true); console.error(e); }
   bld.tgc=savedTgc; bld._exporting=false;
@@ -4770,13 +4998,48 @@ document.getElementById('bVttExport').onclick=()=>bVttExport();
 window.__bVtt = (o)=>bVttExport(Object.assign({returnOnly:true},o||{}));
 window.__bVttGeo = ()=>bVttGeometry();
 window.__bGen = (theme,scale,cols,rows,seed)=>{ bld.theme=theme; if(scale){ setTileScale(scale); bld.scale=scale; } if(cols){ bld.cols=cols; bld.rows=rows||cols; } if(seed) bld.seed=seed; bld.structKey=''; bGenerateMap(); return {n:bld.structures.length, tiles:bld.board.size}; };
+// 📸 PHOTO MODE (marketing / gallery renders): a clean frame straight from the 3D scene — no UI, ruler, north arrow
+// or edit aids — through its own camera, supersampled, with the sun's shadow box fitted to the framed area.
+// o = { w,h, az,el (deg), dist (× board size), fov, tx,tz (target offset, cells), ss (supersample), bg:[top,bottom] }
+window.__bShot = (o)=>{ o=o||{};
+  const W=o.w||1920, H=o.h||1080, ss=o.ss||2;
+  const inB=BUILD, savedRuler=bld.ruler; if(inB){ bld.ruler='off'; bld._exporting=true; bRender(); }
+  if(_northArrow) _northArrow.visible=false;
+  const bb=o.size?{cx:o.cx||0,cz:o.cz||0,w:o.size,h:o.size}:bTgcSceneBBox(), size=Math.max(bb.w,bb.h);   // game boards (chess, Ur…): pass size/cx/cz
+  const tgt=new THREE.Vector3(bb.cx+(o.tx||0), o.ty||0, bb.cz+(o.tz||0));
+  const az=(o.az==null?35:o.az)*Math.PI/180, el=(o.el==null?38:o.el)*Math.PI/180, R=(o.dist||1.1)*size;
+  const cam=new THREE.PerspectiveCamera(o.fov||35, W/H, 0.05, 600);
+  cam.position.set(tgt.x+R*Math.cos(el)*Math.sin(az), tgt.y+R*Math.sin(el), tgt.z+R*Math.cos(el)*Math.cos(az)); cam.lookAt(tgt);
+  // background: soft vertical gradient
+  const gc=document.createElement('canvas'); gc.width=2; gc.height=256; const gx=gc.getContext('2d'); const gr=gx.createLinearGradient(0,0,0,256);
+  const bg=o.bg||['#1b2433','#07090d']; gr.addColorStop(0,bg[0]); gr.addColorStop(1,bg[1]); gx.fillStyle=gr; gx.fillRect(0,0,2,256);
+  const bgt=new THREE.CanvasTexture(gc); if(THREE.SRGBColorSpace) bgt.colorSpace=THREE.SRGBColorSpace;
+  const savedBg=scene.background; scene.background=bgt;
+  const gp=builderGroup.getObjectByName('bGroundPlane'); const gpv=gp?gp.visible:true; if(gp) gp.visible=false;
+  // shadows over the whole framed board, high-res
+  const sc=sun.shadow.camera, savedSh={l:sc.left,r:sc.right,t:sc.top,b:sc.bottom,far:sc.far,pos:sun.position.clone(),tg:sun.target.position.clone(),ms:sun.shadow.mapSize.x};
+  const half=size*0.75+2; sc.left=-half; sc.right=half; sc.top=half; sc.bottom=-half; sc.far=half*6+60;
+  sun.target.position.copy(tgt); sun.position.set(tgt.x+size*0.45+6, size*0.9+12, tgt.z+size*0.45+6); sun.target.updateMatrixWorld(); sc.updateProjectionMatrix();
+  sun.shadow.mapSize.set(4096,4096); if(sun.shadow.map){ sun.shadow.map.dispose(); sun.shadow.map=null; }
+  const old=new THREE.Vector2(); renderer.getSize(old); const oldPR=renderer.getPixelRatio(); const savedClip=renderer.clippingPlanes; renderer.clippingPlanes=[];
+  renderer.setPixelRatio(1); renderer.setSize(W*ss,H*ss,false); renderer.render(scene,cam);
+  const cv=document.createElement('canvas'); cv.width=W; cv.height=H; const x=cv.getContext('2d'); x.imageSmoothingEnabled=true; x.imageSmoothingQuality='high';
+  x.drawImage(renderer.domElement,0,0,W*ss,H*ss,0,0,W,H); const url=cv.toDataURL('image/png');
+  renderer.setPixelRatio(oldPR); renderer.setSize(old.x,old.y,false); renderer.clippingPlanes=savedClip;
+  sc.left=savedSh.l; sc.right=savedSh.r; sc.top=savedSh.t; sc.bottom=savedSh.b; sc.far=savedSh.far; sun.position.copy(savedSh.pos); sun.target.position.copy(savedSh.tg); sun.target.updateMatrixWorld(); sc.updateProjectionMatrix();
+  sun.shadow.mapSize.set(savedSh.ms,savedSh.ms); if(sun.shadow.map){ sun.shadow.map.dispose(); sun.shadow.map=null; }
+  scene.background=savedBg; if(gp) gp.visible=gpv; if(inB){ bld.ruler=savedRuler; bld._exporting=false; bRender(); }
+  return url; };
+window.__loadRoleURL = async (k,url,name,scale)=>{ const u=new Uint8Array(await (await fetch(url)).arrayBuffer()); const ok=await applyLoadedModel(k,u,name); if(ok){ if(scale) roster[k].scale=scale; rebuildPieces(); } return ok; };   // gallery / test: load a GLB into a game role
 window.__bCellScreen = (q,r)=>{ const v=bWorld({q,r}).clone(); v.project(camera); const rc=renderer.domElement.getBoundingClientRect(); return {x:rc.left+(v.x+1)/2*rc.width, y:rc.top+(1-v.y)/2*rc.height}; };
+window.__bDungeon = ()=>bld.dungeon ? {kind:bld.dungeon.kind, rooms:bld.dungeon.rooms.length, doors:bld.dungeon.doors.length, walls:bld.dungeon.walls.length, features:bld.dungeon.features.length, lights:bLightSources().length} : null;
 window.__bZoom = (type)=>{ bZoomIntoSettlement(type||'town',{q:3,r:2}); return {n:bld.structures.length, tiles:bld.board.size}; };
 window.__bTgc={ TGC, sel:bTgcSelect, fit:bTgcFit, state:()=>({tgc:bld.tgc,grid:bld.grid,cols:bld.cols,rows:bld.rows,cell:bld.tgcCell,tiles:bld.board.size}),
   whole:(preview)=>{ const c=TGC[bld.tgc]; const sf=bld.boardFlat; bld._exporting=true; setTileFlat(true); bld.boardFlat=true; bRender(); const cv=TGC_HEXMAT[bld.tgc]?bTgcRenderHexMat(c,(bld.tgcCenters&&bld.tgcCenters[0])||bHexMatCenter()):bTgcRenderWhole(c); bld._exporting=false; setTileFlat(sf); bld.boardFlat=sf; bRender(); return preview?cv.toDataURL('image/png'):{w:cv.width,h:cv.height}; },
   tile:(idx)=>{ const c=TGC[bld.tgc]; const keys=[...bld.board.keys()]; const k=keys[Math.min(idx||0,keys.length-1)]||keys[Math.floor(keys.length/2)]; const [q,r]=k.split(',').map(Number); const sf=bld.boardFlat; bld._exporting=true; setTileFlat(true); bld.boardFlat=true; bRender(); const cv=bTgcRenderTile({q,r},c); bld._exporting=false; setTileFlat(sf); bld.boardFlat=sf; bRender(); return {w:cv.width,h:cv.height,url:cv.toDataURL('image/png')}; } };
 /* extend the map in a direction: add a new block of cells that MATCHES the terrain at the seam then drifts */
 function bGenerateNextSection(dir){
+  if(bld.dungeon){ bExtendDungeon(dir); return; }                        // ⚔ dungeons / caves grow by a 12-square strip of new rooms / caverns
   if(bld.baseMap){ bStatus('Extend works on generated/built maps — remove the base map first.',true); return; }
   if(!bld.board.size){ bStatus('Generate or build a map first, then extend it.',true); return; }
   if(TGC_HEXMAT[bld.tgc]){ bExtendHexMat(dir); return; }   // flower/invader → add another whole interlocking unit
@@ -4946,8 +5209,9 @@ function bRenderHexMatGhosts(){ if(!TGC_HEXMAT[bld.tgc] || bld._exporting) retur
     for(let i=0;i<=6;i++){ const a=i*Math.PI/3; hp.push(new THREE.Vector3(w.x+0.85*Math.cos(a), TILE_TOP+0.07, w.z+0.85*Math.sin(a))); }
     const rim=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(hp), new THREE.LineBasicMaterial({color:0x6fe0ff, transparent:true, opacity:0.55, depthTest:false})); rim.renderOrder=20; builderGroup.add(rim);
     const l=bMakeTickLabel('＋'); l.position.set(w.x, TILE_TOP+0.11, w.z); l.scale.set(0.85,0.42,1); l.renderOrder=32; builderGroup.add(l); } }
-function bClear(){ bPushUndo(); bld.board.clear(); bld.zones.clear(); bld.draw=[]; bld.pen=[]; bld.props=[]; bld.subdiv.clear(); bld.subpaint.clear(); bld.selStroke=null; bld.selProp=null; bld.q0=0; bld.r0=0; bld.tgcCenters=[]; bld.selUnit=0; bld.sheetsX=1; bld.sheetsY=1; bld.sheetCX=0; bld.sheetCZ=0; _settlePlan=null; bld.structPlans=[]; bld.modern=null; if(TGC[bld.tgc]&&TGC[bld.tgc].kind==='mat') bTgcFit(); bRender(); bStatus("Cleared"); }
+function bClear(){ bPushUndo(); bld.dungeon=null; bld.board.clear(); bld.zones.clear(); bld.draw=[]; bld.pen=[]; bld.props=[]; bld.subdiv.clear(); bld.subpaint.clear(); bld.selStroke=null; bld.selProp=null; bld.q0=0; bld.r0=0; bld.tgcCenters=[]; bld.selUnit=0; bld.sheetsX=1; bld.sheetsY=1; bld.sheetCX=0; bld.sheetCZ=0; _settlePlan=null; bld.structPlans=[]; bld.modern=null; if(TGC[bld.tgc]&&TGC[bld.tgc].kind==='mat') bTgcFit(); bRender(); bStatus("Cleared"); }
 function bSaveBoard(){ const data=TE.serializeBoard(bld.grid, bld.board, bld.zones, {cols:bld.cols,rows:bld.rows,seed:bld.seed,q0:bld.q0,r0:bld.r0}); data.draw=bld.draw; data.props=bld.props; data.season=bld.season; data.trees=bld.trees;
+  data.dungeon=bld.dungeon||null;                                         // ⚔ dungeon / cave layout (plain JSON)
   data.modern=bld.modern||null;                                           // Modern Pack street-grid state → Extend continues the grid after a reload
   data.structPlans=(bld.structPlans||[]).map(P=>({id:P.id, w:P.w, h:P.h, tiles:[...P.tiles], draw:P.draw}));   // an unfinished castle still completes after a reload
   data.subdiv=[...bld.subdiv].map(([k,s])=>{ const [q,r]=k.split(',').map(Number); return {q,r,mode:s.mode,n:s.n}; });
@@ -4962,7 +5226,7 @@ async function bLoadBoard(e){ const f=e.target.files[0]; if(!f) return;
     bld.subpaint=new Map(); if(Array.isArray(raw.subpaint)) for(const s of raw.subpaint) bld.subpaint.set(s.q+','+s.r, s.paint||{});
     TE.hydrateGenerated(bDefs(), bld.grid, bld.board);          // rebuild any generated map tiles the save referenced
     bld.structPlans=(Array.isArray(raw.structPlans)?raw.structPlans:[]).map(P=>({id:P.id, w:P.w, h:P.h, tiles:new Map(P.tiles), draw:P.draw||[]}));
-    for(const P of bld.structPlans) TE.hydrateGenerated(bDefs(), bld.grid, P.tiles); _settlePlan=null; bld.modern=raw.modern||null;
+    for(const P of bld.structPlans) TE.hydrateGenerated(bDefs(), bld.grid, P.tiles); _settlePlan=null; bld.modern=raw.modern||null; bld.dungeon=raw.dungeon||null; bld.structKey='';
     if(raw.season!==undefined){ bld.season=raw.season; const se=document.getElementById('bSeason'); if(se) se.value=String(bld.season); }
     if(raw.trees){ bld.trees=raw.trees; const tr=document.getElementById('bTrees'); if(tr) tr.value=bld.trees; }
     const m=r.meta||{}; if(m.cols) bld.cols=m.cols; if(m.rows) bld.rows=m.rows; if(m.seed) bld.seed=m.seed; bld.q0=m.q0||0; bld.r0=m.r0||0;

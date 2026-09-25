@@ -1668,7 +1668,7 @@ export function pathRibbonAlong(points, type, widthClass){
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos,3));
   g.setAttribute('uv', new THREE.Float32BufferAttribute(uv,2)); g.setIndex(idx);
   const tt=s.tex.clone(); tt.needsUpdate=true; tt.wrapT=THREE.RepeatWrapping;
-  const mo={ map:tt, transparent:true, depthTest:!!s.depth, depthWrite:false, side:THREE.DoubleSide };
+  const mo={ map:tt, transparent:true, depthTest:!!s.depth || _scale==='battle', depthWrite:false, side:THREE.DoubleSide };   // battle scale: tall buildings / trees must hide the road behind them
   if (s.blend==='multiply') mo.blending=THREE.MultiplyBlending;
   const m=new THREE.Mesh(g, new THREE.MeshBasicMaterial(mo)); m.renderOrder=s.ro; return m;
 }
