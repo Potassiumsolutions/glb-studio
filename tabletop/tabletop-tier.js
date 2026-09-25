@@ -11,6 +11,7 @@
                      & textures, extra Extend terrains, farmland
      · battlemaps  → Battle Maps Pack: Battle (D&D 5-ft) scale + real-world base maps
      · race        → Race games (Royal Game of Ur, …)
+     · scifi       → Sci-Fi Pack: starship / space-station battle maps (needs Battle Maps for the 5-ft scale)
      · modern      → Modern Pack: City / Suburbs / Rural map themes, asphalt streets, railways,
                      modern buildings (towers, homes, schools, farms, wind farms …)
 
@@ -27,7 +28,7 @@
    ============================================================================ */
 (function (root) {
   'use strict';
-  const ALL = ['terrain', 'battlemaps', 'race', 'modern'];
+  const ALL = ['terrain', 'battlemaps', 'race', 'modern', 'scifi'];
   const params = new URLSearchParams(location.search);
   let exp;
 
@@ -59,7 +60,7 @@
   root.TTier = {
     has, apply,
     list: () => [...exp],
-    LABELS: { terrain: 'Terrain Pack', battlemaps: 'Battle Maps Pack', race: 'Race Games', modern: 'Modern Pack' }
+    LABELS: { terrain: 'Terrain Pack', battlemaps: 'Battle Maps Pack', race: 'Race Games', modern: 'Modern Pack', scifi: 'Sci-Fi Pack' }
   };
 
   if (document.readyState !== 'loading') apply();

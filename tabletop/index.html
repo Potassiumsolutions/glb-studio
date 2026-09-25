@@ -382,6 +382,8 @@
         <label class="row" style="gap:4px;cursor:pointer" title="Battle maps: show building interiors (floors, rooms, furniture) instead of roofs"><input type="checkbox" id="bVttRoofs" checked> <span class="mini">roofs off</span></label>
         <select id="bVttFloor" style="display:none" title="Which storey of the buildings to export"><option value="0">Ground floor</option></select>
         <label class="row" id="bVttAllWrap" style="gap:4px;cursor:pointer;display:none" title="One file per dungeon level, all the same size and grid-aligned, in a ZIP"><input type="checkbox" id="bVttAll" checked> <span class="mini" id="bVttAllTxt">all levels</span></label>
+        <label class="row" style="gap:4px;cursor:pointer" title="Export your minis as separate VTT token images (+ their positions) — the map image comes out without them"><input type="checkbox" id="bVttTok"> <span class="mini">+ tokens</span></label>
+        <select id="bVttTokStyle" title="Token style"><option value="top">🪙 top-down</option><option value="portrait">🪙 portrait</option></select>
         <button class="btn" id="bVttExport">⬇ Export for VTT</button>
       </div>
       <div class="row wrap" id="bDgRow" style="display:none;align-items:center;margin:2px 0 4px">
@@ -389,7 +391,7 @@
         <button class="btn sec" id="bDgUp" title="Go up a level">▲ Level</button>
         <span class="mini" id="bDgWhich" style="min-width:74px;text-align:center;color:var(--txt);font-weight:600">Level 1 / 1</span>
         <button class="btn" id="bDgDown" title="Go down a level — or generate a new one linked by stairs, a well, a trapdoor or a sinkhole">⬇ Dig deeper</button>
-        <select id="bDigKind" title="What the next level down is"><option value="dungeon">🗝 Dungeon</option><option value="cave">🪨 Cave</option><option value="mine">⛏ Mine</option><option value="sewer">🕳 Sewer</option><option value="temple">🏛 Temple</option><option value="icecave">🧊 Ice cave</option><option value="lavacave">🌋 Lava cave</option></select>
+        <select id="bDigKind" title="What the next level down is"><option value="dungeon">🗝 Dungeon</option><option value="cave">🪨 Cave</option><option value="mine">⛏ Mine</option><option value="sewer">🕳 Sewer</option><option value="temple">🏛 Temple</option><option value="icecave">🧊 Ice cave</option><option value="lavacave">🌋 Lava cave</option><option value="scifi" data-exp="scifi">🚀 Starship deck</option></select>
       </div>
       <div class="row wrap" id="bDgExtRow" style="display:none;align-items:center;margin:0 0 4px">
         <label class="fld" style="margin:0" title="What the ◀▶▲▼ Extend buttons add to a dungeon / cave">Extend as</label>
@@ -442,6 +444,7 @@
           <option value="temple" data-exp="battlemaps">🏛 Temple — a symmetric nave, chapels, ossuary</option>
           <option value="icecave" data-exp="battlemaps">🧊 Ice cave — frozen pools, ice spikes, crystals</option>
           <option value="lavacave" data-exp="battlemaps">🌋 Lava cave — glowing lava lakes, vents, obsidian</option>
+          <option value="scifi" data-exp="scifi">🚀 Starship / station — Sci-Fi Pack</option>
           </optgroup>
           <option value="__dungeonlock" data-exp-lock="battlemaps" disabled>🔒 Battle Maps Pack — Dungeons · Caves</option>
           <optgroup label="Settlement (whole map)">
@@ -1126,7 +1129,7 @@ import * as Tuck from './tuckbox-designer.js';
 
 const BGC = window.BGC, GAMES = window.BGC_GAMES;
 const TE = window.TileEngine, TLIB = window.TileLibrary;
-const APP_VERSION = 'v1.25';
+const APP_VERSION = 'v1.27';
 const CREDITS = `<b>Ksol Designs</b> — Paul A.T. Ramey<br>www.ksoldesigns.com<br>Built with GLB Studio · Tabletop<br><span class="ver">${APP_VERSION}</span>`;
 // ---- Board credit: a small "KSOL Designs" mark on the board for the FREE build. Owning ANY content pack
 // (TTier expansion) unlocks removing it (⚙ Settings toggle, or click the credit). ----
@@ -3052,6 +3055,63 @@ function bOpenPropMenu(i, sx, sy){ const pr=bld.props[i]; if(!pr) return; bld.se
 /* ---- MINI EDIT MENU: double-click a mini → assign any appropriate GLB Studio model to it (size/rotate), or
    restore it to the default token. The model is stored on pr.model={src,name}; bMakeMini renders it on the disc. ---- */
 let _miniLibSrc='lib';
+/* ---- 🧍 POSES + 🪙 TOKENS (v1.26): your GLB Studio characters stand in a real pose (a frame of a library motion,
+   retargeted like the game pieces) instead of the rig's T-pose — on the board AND as VTT token images. ---- */
+const AUTO_POSES=['ra_biped_idle_260_100_100','ra_quad_idle_260_100_100','ra_dragon_dragon_idle_500_100_100','ra_pegasus_peg_idle_500_100_100','ra_giraffe_gir_idle_500_100_100',
+  'ra_reptile_rep_idle_500_100_100','ra_elephant_eleph_sway_420_100_100','ra_birdperched_idle_320_100_100','ra_snake_snake_idle_400_100_100'];
+function bPoseScore(bs, id){ const m=LIB&&LIB.byId[id], sk=m&&LIB.skeletons[m.sig]; if(!sk||!sk.boneNames) return 0; let hit=0; sk.boneNames.forEach(b=>{ if(bs.has(b)) hit++; }); return hit/sk.boneNames.length; }
+async function bAutoPose(model){ await loadLibrary(); const bs=boneSet(model); if(!bs.size) return null;
+  for(const id of AUTO_POSES) if(bPoseScore(bs,id)>=0.9) return id;
+  let best=null, sc=0; for(const m of (LIB.motions||[])){ if(m.type!=='idle' && m.type!=='stay') continue; const v=bPoseScore(bs,m.id); if(v>sc){ sc=v; best=m.id; } } return sc>=0.9?best:null; }
+async function bApplyPose(model, poseId){ let id=poseId==='auto' ? await bAutoPose(model) : poseId; if(!id) return null; const m=await getLibClip(id); if(!m) return null;
+  const clip=retargetClip(m, captureBind(model), rootBoneName(model), true), mx=new THREE.AnimationMixer(model), a=mx.clipAction(clip); a.play(); mx.setTime(clip.duration*0.3);
+  model.updateMatrixWorld(true); model.traverse(o=>{ if(o.isSkinnedMesh && o.skeleton) o.skeleton.update(); }); return id; }
+async function bMiniPoseUI(el, pr){ const wrap=el.querySelector('#mmPoseWrap'), sel=el.querySelector('#mmPose'); if(!wrap||!sel) return;
+  if(!pr.model || !pr.model.src){ wrap.style.display='none'; return; }
+  const src=pr.model.src, key='glb:'+src.type+':'+(src.pack||'')+':'+(src.cat||'')+':'+src.ref, proto=await glbProto(key, glbFetcherFor(src)); await loadLibrary();
+  if(!proto || !boneSet(proto).size){ wrap.style.display='none'; return; }
+  const groups=compatMotions(proto,['stay','idle']); sel.innerHTML='<option value="auto">Auto — standing</option><option value="rest">As rigged (T-pose)</option>';
+  for(const cat of Object.keys(groups).sort()){ const og=document.createElement('optgroup'); og.label=cat; for(const m of groups[cat]){ if(m.score<0.9) continue; const o=document.createElement('option'); o.value=m.id; o.textContent=m.name; og.appendChild(o); } if(og.children.length) sel.appendChild(og); }
+  sel.value=pr.model.pose||'auto'; if(sel.value!==(pr.model.pose||'auto')) sel.value='auto'; wrap.style.display='';
+  sel.onchange=()=>{ bPushUndo(); pr.model.pose=sel.value; bRender(); bStatus(`Pose → <b>${sel.options[sel.selectedIndex].textContent}</b>`); }; }
+// render one character to a transparent image: 'top' = straight down (the usual battle-map token) · 'portrait' = head + shoulders
+let _tokR=null;
+async function bTokenModelImage(src, pose, style, px){ const key='glb:'+src.type+':'+(src.pack||'')+':'+(src.cat||'')+':'+src.ref, proto=await glbProto(key, glbFetcherFor(src)); if(!proto) return null;
+  let inst; try{ inst=skeletonClone(proto); }catch(e){ inst=proto.clone(true); } if(pose!=='rest'){ try{ await bApplyPose(inst, pose||'auto'); }catch(e){} }
+  inst.updateMatrixWorld(true); inst.traverse(o=>{ if(o.isSkinnedMesh && o.skeleton){ o.skeleton.update(); o.computeBoundingBox(); } if(o.isMesh) o.frustumCulled=false; });
+  let box=new THREE.Box3().setFromObject(inst); const size=new THREE.Vector3(), ctr=new THREE.Vector3(); box.getSize(size);   // normalise to ~1 unit tall (some rigs are mm-scale, some 100×)
+  const nrm=1/Math.max(size.x,size.y,size.z,1e-6); inst.scale.multiplyScalar(nrm); inst.updateMatrixWorld(true); inst.traverse(o=>{ if(o.isSkinnedMesh && o.skeleton){ o.skeleton.update(); o.computeBoundingBox(); } });
+  box=new THREE.Box3().setFromObject(inst); box.getSize(size); box.getCenter(ctr); const H=Math.max(size.y,1e-3);
+  const sc=new THREE.Scene(); sc.add(new THREE.HemisphereLight(0xffffff,0x3a3a44,1.25)); const d=new THREE.DirectionalLight(0xffffff,1.7); d.position.set(ctr.x+H*0.6, box.max.y+H*2, ctr.z+H*1.2); d.target.position.copy(ctr); sc.add(d); sc.add(d.target); sc.add(inst);
+  let cam; if(style==='portrait'){ const hy=box.max.y-H*0.17, half=H*0.24; cam=new THREE.PerspectiveCamera(28,1,0.01,100); const dist=half/Math.tan(14*Math.PI/180); cam.position.set(ctr.x, hy+H*0.05, ctr.z+dist); cam.lookAt(ctr.x, hy, ctr.z); }
+  else { const half=Math.max(size.x,size.z,H*0.35)/2*1.06; cam=new THREE.OrthographicCamera(-half,half,half,-half,0.01,H*10+10); cam.position.set(ctr.x, box.max.y+H*2, ctr.z); cam.up.set(0,0,-1); cam.lookAt(ctr.x, box.min.y, ctr.z); }
+  if(!_tokR){ _tokR=new THREE.WebGLRenderer({antialias:true, alpha:true, preserveDrawingBuffer:true}); }
+  _tokR.outputColorSpace=renderer.outputColorSpace; _tokR.toneMapping=renderer.toneMapping; _tokR.toneMappingExposure=renderer.toneMappingExposure;
+  _tokR.setPixelRatio(1); _tokR.setSize(px,px,false); _tokR.setClearColor(0x000000,0); _tokR.render(sc,cam);
+  const out=document.createElement('canvas'); out.width=out.height=px; out.getContext('2d').drawImage(_tokR.domElement,0,0); return out; }
+async function bRenderToken(pr, o){ o=o||{}; const size=o.size||512, team=MINI_TEAMS[pr.team]||MINI_TEAMS.gray, col='#'+new THREE.Color(team.c).getHexString();
+  const cv=document.createElement('canvas'); cv.width=cv.height=size; const x=cv.getContext('2d'), c=size/2, R=size*0.46;
+  const bg=x.createRadialGradient(c,c*0.8,R*0.1,c,c,R); bg.addColorStop(0,'rgba(255,255,255,0.28)'); bg.addColorStop(1,col+'aa');
+  x.beginPath(); x.arc(c,c,R,0,Math.PI*2); x.fillStyle='rgba(20,22,26,0.85)'; x.fill(); x.fillStyle=bg; x.fill();
+  let drew=false; if(pr.model && pr.model.src){ const img=await bTokenModelImage(pr.model.src, pr.model.pose||'auto', o.style||'top', size*2);
+    if(img){ x.save(); x.beginPath(); x.arc(c,c,R*0.96,0,Math.PI*2); x.clip(); const m=o.style==='portrait'?1:0.9; x.drawImage(img, c-R*m, c-R*m, 2*R*m, 2*R*m); x.restore(); drew=true; } }
+  if(!drew){ x.fillStyle='#ffffff'; x.font=`bold ${Math.round(size*0.3)}px system-ui,Arial,sans-serif`; x.textAlign='center'; x.textBaseline='middle'; x.lineWidth=size*0.03; x.strokeStyle='rgba(0,0,0,.5)'; const t=o.label||team.name.charAt(0); x.strokeText(t,c,c+size*0.02); x.fillText(t,c,c+size*0.02); }
+  x.beginPath(); x.arc(c,c,R,0,Math.PI*2); x.lineWidth=size*0.055; x.strokeStyle=col; x.stroke();
+  x.beginPath(); x.arc(c,c,R+size*0.027,0,Math.PI*2); x.lineWidth=size*0.012; x.strokeStyle='rgba(0,0,0,.75)'; x.stroke();
+  return cv; }
+// every mini → tokens/<name>.png + tokens/tokens.json (positions in grid squares from the map image's top-left, like the walls)
+async function bTokenFiles(toGrid, style){ const files=[], list=[], cnt={};
+  for(const pr of bld.props.filter(p=>p.kind==='mini')){ const team=MINI_TEAMS[pr.team]||MINI_TEAMS.gray; cnt[pr.team]=(cnt[pr.team]||0)+1; const k=cnt[pr.team];
+    const label=team.name.charAt(0)+k, nm=((pr.model?pr.model.name:team.name)+'-'+k).replace(/[^\w\-]+/g,'-'), file='tokens/'+(pr.team||'gray')+'_'+nm+'.png';
+    const cv=await bRenderToken(pr,{size:512, style, label}); files.push({name:file, data:await bCanvasBytes(cv)});
+    const g=toGrid?toGrid(pr.x,pr.z):null; list.push({name:(pr.model?pr.model.name:team.name)+' '+k, side:team.name, file, x:g?g.x:null, y:g?g.y:null, size:+((pr.scale||1)).toFixed(2)}); }
+  if(list.length) files.push({name:'tokens/tokens.json', data:new TextEncoder().encode(JSON.stringify({note:'x, y = token centre in grid squares from the map image top-left (same units as the walls). size = squares across.', tokens:list},null,1))});
+  return files; }
+const bTokOn=()=>{ const c=document.getElementById('bVttTok'); return !!(c && c.checked && bld.props.some(p=>p.kind==='mini')); };
+const bTokStyle=()=>((document.getElementById('bVttTokStyle')||{}).value||'top');
+window.__bTokDbg=async(src)=>{ const key='glb:'+src.type+':'+(src.pack||'')+':'+(src.cat||'')+':'+src.ref, proto=await glbProto(key, glbFetcherFor(src)); if(!proto) return 'noproto'; const inst=skeletonClone(proto); inst.updateMatrixWorld(true); const info=[]; inst.traverse(o=>{ if(o.isSkinnedMesh&&o.skeleton){ o.skeleton.update(); o.computeBoundingBox(); } if(o.isMesh){ const b=new THREE.Box3().setFromObject(o); info.push({n:o.name, skinned:!!o.isSkinnedMesh, min:b.min.toArray().map(v=>+v.toFixed(2)), max:b.max.toArray().map(v=>+v.toFixed(2)), mat:[].concat(o.material).map(m=>m.type+':'+m.transparent+':'+m.opacity+':'+m.side).join('|')}); } }); const B=new THREE.Box3().setFromObject(inst); return {box:[B.min.toArray(),B.max.toArray()], meshes:info, scale:inst.scale.toArray()}; };
+window.__bToken=async(i,style)=>{ const pr=bld.props.filter(p=>p.kind==='mini')[i||0]; if(!pr) return null; const cv=await bRenderToken(pr,{size:512,style}); return cv.toDataURL('image/png'); };
+window.__bMiniSet=(o)=>{ const pr=bld.props.filter(p=>p.kind==='mini')[o.i||0]; if(!pr) return null; if(o.model!==undefined) pr.model=o.model; if(o.pose) pr.model.pose=o.pose; bRender(); return pr; };
 function bOpenMiniMenu(i, sx, sy){ const pr=bld.props[i]; if(!pr) return; bld.selProp=i;
   if(!_propMenuEl){ _propMenuEl=document.createElement('div'); _propMenuEl.id='bPropMenu'; document.body.appendChild(_propMenuEl); }
   const el=_propMenuEl, team=(MINI_TEAMS[pr.team]||MINI_TEAMS.gray).name;
@@ -3060,6 +3120,8 @@ function bOpenMiniMenu(i, sx, sy){ const pr=bld.props[i]; if(!pr) return; bld.se
     <div class="mmTabs" id="mmTabs"><button data-s="lib">🧍 Characters</button><button data-s="pack">📦 Packs</button><button data-s="scene">🌳 Scene</button><button data-s="held">⚔ Items</button></div>
     <div class="mmList" id="mmList"><span class="mini" style="opacity:.7">Loading…</span></div>
     <button class="pmAlt" id="mmDefault">↺ Restore to default token</button>
+    <div id="mmPoseWrap" style="display:none"><label class="pmL">Pose</label><select id="mmPose" style="width:100%"></select></div>
+    <div class="pmRow" data-exp="battlemaps"><button class="pmAlt" id="mmToken" title="Save this mini as a round VTT token image (transparent PNG)">🪙 Save token</button><select id="mmTokStyle" title="Token style"><option value="top">top-down</option><option value="portrait">portrait</option></select></div>
     <label class="pmL">Size <span id="pmSv"></span></label><input id="pmScale" type="range" min="0.3" max="3" step="0.05">
     <label class="pmL">Rotate <span id="pmRv"></span></label><input id="pmRot" type="range" min="0" max="360" step="5">
     <div class="pmRow"><button class="pmDel" id="pmDelete">🗑 Delete mini</button></div>`;
@@ -3075,7 +3137,11 @@ function bOpenMiniMenu(i, sx, sy){ const pr=bld.props[i]; if(!pr) return; bld.se
   $('#pmDelete').onclick=()=>{ bPushUndo(); bld.props.splice(i,1); bld.selProp=null; bClosePropMenu(); bRender(); bStatus('Deleted mini'); };
   $('.pmX').onclick=bClosePropMenu;
   el.querySelectorAll('#mmTabs button').forEach(b=> b.onclick=()=>{ _miniLibSrc=b.dataset.s; bMiniLibList(el,pr); });
-  bMiniLibList(el,pr); bMakeValuesEditable(el); bRender();
+  bMiniLibList(el,pr); bMakeValuesEditable(el); bRender(); bMiniPoseUI(el,pr);
+  $('#mmToken').onclick=async()=>{ if(window.TTier && !TTier.has('battlemaps')){ bStatus('🪙 Tokens are part of the <b>Battle Maps Pack</b>.',true); return; }
+    bStatus('🪙 Rendering the token…'); const cv=await bRenderToken(pr,{size:512, style:$('#mmTokStyle').value}); const nm=((pr.model?pr.model.name:team)+'_'+(pr.team||'gray')).replace(/[^\w\-]+/g,'-');
+    bDownload(await bCanvasBlob(cv), nm+'_token.png'); bStatus(`🪙 Saved <b>${nm}_token.png</b> (512×512, transparent) — drop it on your VTT as a token.`); };
+  if(window.TTier) TTier.apply && TTier.apply();
 }
 async function bMiniLibList(el,pr){
   el.querySelectorAll('#mmTabs button').forEach(b=>b.classList.toggle('on', b.dataset.s===_miniLibSrc));
@@ -3085,7 +3151,7 @@ async function bMiniLibList(el,pr){
   if(!entries.length){ list.innerHTML='<span class="mini" style="opacity:.7">'+(_miniLibSrc==='lib'?'Your Meshy models show here when Tabletop runs inside GLB Studio.':_miniLibSrc==='pack'?'No imported packs — import them in GLB Stitcher.':'None available.')+'</span>'; return; }
   list.innerHTML='';
   for(const e of entries){ const b=document.createElement('button'); b.className='mmItem'+((pr.model&&JSON.stringify(pr.model.src)===JSON.stringify(e.src))?' on':''); b.textContent=e.label;
-    b.onclick=()=>{ bPushUndo(); pr.model={src:e.src,name:e.label}; list.querySelectorAll('.mmItem').forEach(x=>x.classList.remove('on')); b.classList.add('on');
+    b.onclick=()=>{ bPushUndo(); pr.model={src:e.src,name:e.label}; list.querySelectorAll('.mmItem').forEach(x=>x.classList.remove('on')); b.classList.add('on'); bMiniPoseUI(el,pr);
       const cur=el.querySelector('#mmCur'); if(cur) cur.textContent='· '+e.label; bRender(); bStatus(`Mini model → <b>${e.label}</b>`); };
     list.appendChild(b); }
 }
@@ -3123,7 +3189,7 @@ function bMakeMini(pr){ const g=new THREE.Group(); const team=MINI_TEAMS[pr.team
   disc.position.y=TILE_TOP+0.03; disc.castShadow=true; g.add(disc);
   const ring=new THREE.Mesh(new THREE.TorusGeometry(0.37,0.035,10,26), new THREE.MeshStandardMaterial({color:0x14161a,roughness:0.7})); ring.rotation.x=Math.PI/2; ring.position.y=TILE_TOP+0.055; g.add(ring);
   if(pr.model && pr.model.src){                                      // a GLB Studio model stands on the team disc (double-click the mini to choose)
-    const fit=pr.model.src.fit||1; const m=bMakeGLBProp(pr.model.src, 0.72/fit); g.add(m);
+    const fit=pr.model.src.fit||1; const m=bMakeGLBProp(pr.model.src, 0.72/fit, pr.model.pose||'auto'); g.add(m);
   } else {                                                           // default token: body + collar + head
     const body=new THREE.Mesh(new THREE.CylinderGeometry(0.13,0.24,0.52,18), bodyMat); body.position.y=TILE_TOP+0.06+0.26; body.castShadow=true; g.add(body);
     const collar=new THREE.Mesh(new THREE.TorusGeometry(0.1,0.03,8,16), new THREE.MeshStandardMaterial({color:0xf3f3f6,roughness:0.6})); collar.rotation.x=Math.PI/2; collar.position.y=TILE_TOP+0.06+0.5; g.add(collar);
@@ -3298,12 +3364,16 @@ function glbFetcherFor(src){
   return ()=>Promise.reject(new Error('bad src'));
 }
 // a placeholder-then-swap GLB prop group: cloned, auto-fit (centred X/Z, feet on tile top, scaled to src.fit span)
-function bMakeGLBProp(src, scaleMul){ const g=new THREE.Group(); scaleMul=scaleMul||1;
+const _glbPending=new Set();   // in-flight model swaps (exports wait for them so models are in the picture)
+async function bGlbSettled(){ for(let t=0;t<20 && _glbPending.size;t++) await Promise.allSettled([..._glbPending]); }
+function bMakeGLBProp(src, scaleMul, pose){ const g=new THREE.Group(); scaleMul=scaleMul||1;
   const ph=new THREE.Mesh(new THREE.CylinderGeometry(0.13,0.15,0.28,8), new THREE.MeshStandardMaterial({color:0x4f8cff,transparent:true,opacity:0.5}));
   ph.position.y=TILE_TOP+0.15; g.add(ph);
   const key='glb:'+src.type+':'+(src.pack||'')+':'+(src.cat||'')+':'+src.ref;
-  glbProto(key, glbFetcherFor(src)).then(proto=>{ g.remove(ph); if(!proto) return;
+  const job=glbProto(key, glbFetcherFor(src)).then(async proto=>{ if(!proto){ g.remove(ph); return; }
     let inst; try{ inst=skeletonClone(proto); }catch(e){ inst=proto.clone(true); }
+    if(pose && pose!=='rest'){ try{ await bApplyPose(inst, pose); }catch(e){ console.warn('pose failed', e); } }   // 🧍 stand it in a natural pose (not the T-pose)
+    g.remove(ph);
     // RIGGED models: measure the mesh as the SKELETON poses it — a rig's armature often carries a scale, so the raw
     // geometry box can be 3–4× too small (Man sample: measured 1.5 cells, drew 5.6) and characters came out giant
     inst.updateMatrixWorld(true); inst.traverse(o=>{ if(o.isSkinnedMesh && o.skeleton){ o.skeleton.update(); o.computeBoundingBox(); } });
@@ -3315,7 +3385,8 @@ function bMakeGLBProp(src, scaleMul){ const g=new THREE.Group(); scaleMul=scaleM
     inst.position.set(-ctr.x, TILE_TOP - box.min.y, -ctr.z);
     inst.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.frustumCulled=false; } });
     g.add(inst);
-  });
+  }); _glbPending.add(job); job.finally(()=>_glbPending.delete(job));
+
   g.scale.setScalar(scaleMul); return g;
 }
 // model entries for a library source tab → [{label, src}] (shared by the prop palette + the mini model picker)
@@ -3391,7 +3462,7 @@ function bSeatProp(pr, g){ if((pr.mode||'3d')==='2d'){ g.position.y=(pr.h||0)*bP
   g.position.y = base + (pr.h||0)*bPropLiftUnit() + g.userData.baseOff; }
 function bRenderProps(){ bld._propMeshes=[];                        // keep group refs so a live drag moves one mesh w/o a full rebuild
   bld._surfCands = builderGroup.children.filter(o=>o.name!=='traffic' && !o.isLine && !o.isPoints && !o.isSprite);   // what a prop can rest on (earlier props join below)
-  bld.props.forEach((pr,i)=>{ const eff=(pr.scale||1)*bPropMul(pr); const g = pr.kind==='mini' ? bMakeMini(pr) : pr.kind==='glb' ? bMakeGLBProp(pr.src, eff) : makeProp(pr.kind, pr.mode||'3d', eff);
+  bld.props.forEach((pr,i)=>{ if(pr.kind==='mini' && bld._noMinis) return; const eff=(pr.scale||1)*bPropMul(pr); const g = pr.kind==='mini' ? bMakeMini(pr) : pr.kind==='glb' ? bMakeGLBProp(pr.src, eff) : makeProp(pr.kind, pr.mode||'3d', eff);
     bApplyShade(g, pr.tint, pr.bright);
     g.position.set(pr.x-bld.off.x, 0, pr.z-bld.off.z); g.rotation.y=pr.rot||0; bSeatProp(pr, g); builderGroup.add(g); bld._propMeshes[i]=g; bld._surfCands.push(g); });
   bld._selRing=null;
@@ -4029,7 +4100,7 @@ function bStructUpperFurniture(st, f){ const CS=bCellSize(), out=[], L=bStructLa
 /* ---- FEATURE LIBRARY: one mesh builder for every piece of furniture / dungeon dressing (houses, keeps, dungeons, caves).
    it = {kind, x,z (board-world centre), w (x-extent), d (z-extent), face? (wall it backs onto: 0=-z 1=+x 2=+z 3=-x)}.
    Items that give light carry FEATURE_LIGHT → a warm glow in the picture + a light source in the 🗺 VTT export. ---- */
-const FEATURE_LIGHT={ lantern:{range:4,color:'ffffd89a'}, lavalight:{range:7,color:'ffff5a1a'}, fireplace:{range:5,color:'ffcc8855'}, torch:{range:4,color:'ffffb060'}, brazier:{range:6,color:'ffffa040'}, campfire:{range:6,color:'ffffa040'},
+const FEATURE_LIGHT={ lightpanel:{range:5,color:'ffcdeeff'}, reactorcore:{range:7,color:'ff5fd4ff'}, lantern:{range:4,color:'ffffd89a'}, lavalight:{range:7,color:'ffff5a1a'}, fireplace:{range:5,color:'ffcc8855'}, torch:{range:4,color:'ffffb060'}, brazier:{range:6,color:'ffffa040'}, campfire:{range:6,color:'ffffa040'},
   candles:{range:2,color:'ffffe0a0'}, crystals:{range:3,color:'ff88ddff'}, mushrooms:{range:2,color:'ff99ff99'} };
 const _fx={};   // cached materials / textures
 const fxMat=(key,make)=>_fx[key]||(_fx[key]=make());
@@ -4046,6 +4117,7 @@ const fxBooksTex=()=>fxCanvasTex('books',128,32,(x,W,H)=>{ let px=0; const cols=
 const fxCrateTex=()=>fxCanvasTex('crate',64,64,(x,W,H)=>{ x.fillStyle='#a47b45'; x.fillRect(0,0,W,H); x.strokeStyle='#6b4a24'; x.lineWidth=5; x.strokeRect(3,3,W-6,H-6); x.beginPath(); x.moveTo(4,4); x.lineTo(W-4,H-4); x.stroke();
   x.strokeStyle='rgba(60,35,15,.35)'; x.lineWidth=1; for(let i=12;i<W;i+=12){ x.beginPath(); x.moveTo(0,i); x.lineTo(W,i); x.stroke(); } });
 const fxStoneTex=()=>fxCanvasTex('slabstone',64,64,(x,W,H)=>{ x.fillStyle='#8d8981'; x.fillRect(0,0,W,H); for(let i=0;i<260;i++){ const v=110+Math.random()*50|0; x.fillStyle=`rgba(${v},${v},${v-6},.35)`; x.fillRect(Math.random()*W,Math.random()*H,3,3); } x.strokeStyle='rgba(0,0,0,.25)'; x.strokeRect(1,1,W-2,H-2); });
+let _fxStyle=null;   // the dungeon style being drawn (a ship's stairs are steel)
 function bFeatureMesh(it){ const CS=bCellSize(), g=new THREE.Group(), k=it.kind, w=it.w, d=it.d, long=d>w, L=Math.max(w,d), S=Math.min(w,d);
   const box=(bw,bh,bd,mat,px,py,pz,shadow)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(bw,bh,bd), mat); m.position.set(px||0,py,pz||0); if(shadow!==false){ m.castShadow=true; m.receiveShadow=true; } g.add(m); return m; };
   const cyl=(rt,rb,h,mat,px,py,pz,seg)=>{ const m=new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,seg||12), mat); m.position.set(px||0,py,pz||0); m.castShadow=true; m.receiveShadow=true; g.add(m); return m; };
@@ -4063,7 +4135,7 @@ function bFeatureMesh(it){ const CS=bCellSize(), g=new THREE.Group(), k=it.kind,
     box(long?w*0.75:w*0.2,0.07*CS,long?d*0.2:d*0.75,fxStd(0xf2efe6,0.9),long?0:-w*0.32,H+0.035*CS,long?-d*0.32:0);
     box(long?w:0.06*CS,0.34*CS,long?0.06*CS:d,dark,long?0:-w/2+0.03*CS,0.17*CS,long?-d/2+0.03*CS:0); }
   else if(k==='chest'){ const H=0.26*CS; box(w,H,d,fxStd(0x6b4424,0.8),0,H/2); box(w*1.02,0.04*CS,d*0.18,fxStd(0xc9a24a,0.4,0.6),0,H*0.75); box(w*0.12,0.06*CS,d*1.02,fxStd(0xc9a24a,0.4,0.6),0,H*0.6); }
-  else if(k==='stairs'){ const n=7; for(let i=0;i<n;i++){ const hS=0.05*CS+i*0.08*CS; box(long?w:w/n*0.92, hS, long?d/n*0.92:d, fxStd(i%2?0xb5a58a:0xa4947a,0.9), long?0:-w/2+(i+0.5)*w/n, hS/2, long?-d/2+(i+0.5)*d/n:0); } }
+  else if(k==='stairs'){ const n=7; for(let i=0;i<n;i++){ const hS=0.05*CS+i*0.08*CS; box(long?w:w/n*0.92, hS, long?d/n*0.92:d, _fxStyle==='scifi'?fxStd(i%2?0x7d8793:0x6a737e,0.4,0.6):fxStd(i%2?0xb5a58a:0xa4947a,0.9), long?0:-w/2+(i+0.5)*w/n, hS/2, long?-d/2+(i+0.5)*d/n:0); } }
   else if(k==='hearth'||k==='fireplace'){ const H=0.34*CS, bw=L, bd=S; const [ax,az]=AX(bw,bd);
     box(long?bd:bw, H, long?bw:bd, stone, 0, H/2, 0); const [ix,iz]=AX(bw*0.6,bd*0.55); box(long?iz:ix, 0.03*CS, long?ix:iz, fxStd(0x2a1a10,1), 0, H+0.016*CS, 0, false);
     const lg=fxStd(0x5a3a1e,0.9); for(let i=-1;i<=1;i+=2){ const l=new THREE.Mesh(new THREE.CylinderGeometry(0.035*CS,0.035*CS,bw*0.4,6), lg); l.rotation.z=Math.PI/2; if(long) l.rotation.set(Math.PI/2,0,0); l.position.set(long?i*0.04*CS:0,H+0.05*CS,long?0:i*0.04*CS); g.add(l); }
@@ -4152,6 +4224,27 @@ function bFeatureMesh(it){ const CS=bCellSize(), g=new THREE.Group(), k=it.kind,
     const hm=fxMat('ventGlow',()=>new THREE.MeshBasicMaterial({color:0xff5a1a})); const hc=new THREE.Mesh(new THREE.CircleGeometry(0.1*CS,12), hm); hc.rotation.x=-Math.PI/2; hc.position.y=0.01; g.add(hc);
     const sm=fxMat('steamM',()=>new THREE.MeshStandardMaterial({color:0xe8e8e8,transparent:true,opacity:0.28,depthWrite:false})); for(let i=0;i<4;i++){ const p=new THREE.Mesh(new THREE.SphereGeometry((0.1+i*0.05)*CS,10,8), sm); p.position.set(Math.sin(i*1.7)*0.05*CS,(0.2+i*0.22)*CS,Math.cos(i*1.3)*0.05*CS); g.add(p); } }
   else if(k==='obsidian'){ const om=fxStd(0x141218,0.12,0.4); for(let i=0;i<5;i++){ const h=(0.2+((i*37)%10)/25)*CS, a=i*1.26; const c=new THREE.Mesh(new THREE.ConeGeometry(0.09*CS,h,4), om); c.position.set(Math.cos(a)*0.13*CS*(i?1:0),h/2,Math.sin(a)*0.13*CS*(i?1:0)); c.rotation.set((i?0.3:0)*Math.sin(a),a,(i?0.3:0)*Math.cos(a)); c.castShadow=true; g.add(c); } }
+  else if(k==='console'){ const H=0.34*CS, sm=fxStd(0x3c434c,0.4,0.5); box(w,H,d,sm,0,H/2); const [ox,oz]=AX(0,back*S*0.2); const scr=fxMat('conScr',()=>new THREE.MeshStandardMaterial({color:0x5fd4ff,emissive:0x2a9ad0,emissiveIntensity:1.0}));
+    const p=box(long?S*0.12:w*0.9,0.28*CS,long?d*0.9:S*0.12,sm,ox,H+0.14*CS,oz); const sc2=box(long?S*0.02:w*0.8,0.2*CS,long?d*0.8:S*0.02,scr,ox-(long?back*S*0.07:0),H+0.15*CS,oz-(long?0:back*S*0.07),false);
+    box(w*0.8,0.015*CS,d*0.5,fxMat('conKeys',()=>new THREE.MeshStandardMaterial({color:0xffb347,emissive:0x8a4a10,emissiveIntensity:0.8})),0,H+0.01*CS,0,false); }
+  else if(k==='captainchair'){ const cm=fxStd(0x2e3440,0.5,0.4); cyl(0.08*CS,0.14*CS,0.22*CS,fxStd(0x5a626c,0.4,0.6),0,0.11*CS,0,10); box(0.55*CS,0.1*CS,0.5*CS,cm,0,0.27*CS,0); box(0.55*CS,0.5*CS,0.08*CS,cm,0,0.5*CS,-0.22*CS); for(const sd of [-1,1]) box(0.08*CS,0.12*CS,0.4*CS,cm,sd*0.3*CS,0.36*CS,0); }
+  else if(k==='reactorcore'){ const rm=fxMat('reactorM',()=>new THREE.MeshStandardMaterial({color:0x7fe3ff,emissive:0x1f9fe0,emissiveIntensity:1.6,transparent:true,opacity:0.9}));
+    cyl(S*0.46,S*0.5,0.16*CS,fxStd(0x4a525c,0.4,0.6),0,0.08*CS,0,20); cyl(S*0.26,S*0.26,1.0*CS,rm,0,0.66*CS,0,20); for(const y of [0.35,0.7,1.05]) cyl(S*0.32,S*0.32,0.06*CS,fxStd(0x3a414a,0.4,0.6),0,y*CS,0,20); cyl(S*0.4,S*0.36,0.12*CS,fxStd(0x4a525c,0.4,0.6),0,1.2*CS,0,20); }
+  else if(k==='cryopod'){ box(w,0.28*CS,d,fxStd(0xc9d1d9,0.35,0.4),0,0.14*CS); const lid=new THREE.Mesh(new THREE.CylinderGeometry(S*0.42,S*0.42,L*0.92,16,1,false,0,Math.PI), fxMat('cryoGlass',()=>new THREE.MeshStandardMaterial({color:0xbfefff,emissive:0x2a7fa0,emissiveIntensity:0.5,transparent:true,opacity:0.55})));
+    lid.rotation[long?'x':'z']=Math.PI/2; if(!long) lid.rotation.y=Math.PI/2; lid.position.y=0.28*CS; g.add(lid); }
+  else if(k==='medbed'){ box(w,0.3*CS,d,fxStd(0xdfe4ea,0.4),0,0.15*CS); const [px,pz]=AX(-L*0.34,0); box(long?w*0.8:w*0.2,0.06*CS,long?d*0.2:d*0.8,fxStd(0xf6f7f8,0.8),px,0.33*CS,pz); const [sx,sz]=AX(L*0.52,0); box(long?w*0.5:0.1*CS,0.5*CS,long?0.1*CS:d*0.5,fxStd(0x3c434c,0.4,0.5),sx,0.25*CS,sz); }
+  else if(k==='container'){ const cc=[0x9a4b32,0x3d6f8f,0x6b7d3a,0xc08a2e][Math.abs(Math.round(it.x*3+it.y*7+(it.z||0)*5))%4]; box(w,0.75*CS,d,fxStd(cc,0.6,0.3),0,0.375*CS); for(let i=0;i<6;i++){ const a=(i+0.5)/6-0.5, [px,pz]=AX(a*L*0.96,0); box(long?w*1.02:0.03*CS,0.7*CS,long?0.03*CS:d*1.02,fxStd(cc,0.7,0.3),px,0.375*CS,pz); } }
+  else if(k==='hydro'){ box(w,0.3*CS,d,fxStd(0xb8c2cc,0.4,0.4),0,0.15*CS); box(w*0.92,0.02*CS,d*0.8,fxStd(0x4a3a2a,1),0,0.31*CS,0,false); const lf=fxStd(0x5fae4a,0.8); for(let i=0;i<8;i++){ const a=(i+0.5)/8-0.5, [px,pz]=AX(a*L*0.9,0); const b=new THREE.Mesh(new THREE.SphereGeometry(0.1*CS,7,5), lf); b.position.set(px,0.38*CS,pz); g.add(b); }
+    box(w,0.02*CS,d*0.3,fxMat('growLight',()=>new THREE.MeshBasicMaterial({color:0xe07aff})),0,0.8*CS,0,false); }
+  else if(k==='airlockdoor'){ const [ox,oz]=AX(0,back*S*0.3); box(long?S*0.2:w,0.9*CS,long?d:S*0.2,fxStd(0x7d8793,0.4,0.6),ox,0.45*CS,oz); for(let i=0;i<5;i++){ const a=(i+0.5)/5-0.5, [px,pz]=AX(a*L,0); box(long?S*0.22:0.08*CS,0.9*CS,long?0.08*CS:S*0.22,fxStd(i%2?0x1c1c1c:0xf2c21a,0.6),ox+(long?0:px),0.45*CS,oz+(long?pz:0)); } }
+  else if(k==='lightpanel'){ const [ox,oz]=AX(0,back*0.03*CS); box(0.28*CS,0.07*CS,0.28*CS,fxMat('panelM',()=>new THREE.MeshStandardMaterial({color:0xe8f7ff,emissive:0xbfe9ff,emissiveIntensity:1.1})),ox,0.7*CS,oz); }
+  else if(k==='lift'){ const hole=fxMat('holeM',()=>new THREE.MeshBasicMaterial({color:0x050404})); const hp=new THREE.Mesh(new THREE.PlaneGeometry(w*0.9,d*0.9),hole); hp.rotation.x=-Math.PI/2; hp.position.y=0.008; g.add(hp);
+    const rim=fxMat('liftRim',()=>new THREE.MeshStandardMaterial({color:0xf2c21a,emissive:0x6a5000,emissiveIntensity:0.5})); for(const [bw,bd,px,pz] of [[w,0.06*CS,0,-d/2],[w,0.06*CS,0,d/2],[0.06*CS,d,-w/2,0],[0.06*CS,d,w/2,0]]) box(bw,0.04*CS,bd,rim,px,0.02*CS,pz,false); }
+  else if(k==='liftpad'){ cyl(S*0.46,S*0.48,0.05*CS,fxStd(0x5b636d,0.4,0.6),0,0.025*CS,0,24); const rg=new THREE.Mesh(new THREE.RingGeometry(S*0.34,S*0.4,24), fxMat('padRing',()=>new THREE.MeshBasicMaterial({color:0x5fd4ff}))); rg.rotation.x=-Math.PI/2; rg.position.y=0.055*CS; g.add(rg); }
+  else if(k==='hatch'){ const hole=fxMat('holeM',()=>new THREE.MeshBasicMaterial({color:0x050404})); const hp=new THREE.Mesh(new THREE.PlaneGeometry(w*0.7,d*0.7),hole); hp.rotation.x=-Math.PI/2; hp.position.y=0.008; g.add(hp);
+    for(let i=0;i<4;i++){ const a=i*Math.PI/2; box(i%2?0.06*CS:w,0.03*CS,i%2?d:0.06*CS,fxStd(i%2?0x1c1c1c:0xf2c21a,0.6),Math.sin(a)*w*0.4,0.015*CS,Math.cos(a)*d*0.4,false); }
+    const lid=new THREE.Mesh(new THREE.BoxGeometry(w*0.7,0.04*CS,d*0.7), fxStd(0x6a737e,0.4,0.6)); lid.position.set(0,d*0.35*Math.sin(1.2)+0.02*CS,-d*0.35-d*0.35*Math.cos(1.2)); lid.rotation.x=-1.2; g.add(lid); }
+  else if(k==='ladder'){ const lm=fxStd(0x8c96a3,0.4,0.6); for(const sd of [-1,1]) box(0.04*CS,1.1*CS,0.04*CS,lm,sd*0.18*CS,0.55*CS,0); for(let i=1;i<6;i++) box(0.36*CS,0.03*CS,0.03*CS,lm,0,i*0.19*CS,0); }
   else if(k==='lavalight'){ /* glow only — the lava pool itself is the light */ }
   else { const H=0.3*CS; box(w,H,d,fxStd(0x8a6a44,0.8),0,H/2); }
   const Lt=FEATURE_LIGHT[k]; if(Lt){ const col=new THREE.Color('#'+Lt.color.slice(2)); const gm=new THREE.MeshBasicMaterial({map:fxGlowTex(),color:col,transparent:true,opacity:0.55,blending:THREE.AdditiveBlending,depthWrite:false});
@@ -5008,10 +5101,12 @@ document.getElementById('bTgcExport').onclick=bTgcExport;
 function bDungeonBW(u,v){ const D=bld.dungeon; return [D.q0-0.5+u, D.r0-0.5+v]; }   // grid units → board-world (square grid, 1 unit = 1 cell)
 // 🎨 dungeon / cave themes (v1.25): kind = the engine (rooms+corridors / caverns), style = the look + dressing
 const DG_THEMES={ dungeon:{kind:'dungeon', name:'dungeon'}, cave:{kind:'cave', name:'cave'}, mine:{kind:'dungeon', style:'mine', name:'mine'}, sewer:{kind:'dungeon', style:'sewer', name:'sewer'},
-  temple:{kind:'dungeon', style:'temple', name:'temple'}, icecave:{kind:'cave', style:'ice', name:'ice cave'}, lavacave:{kind:'cave', style:'lava', name:'lava cave'} };
+  temple:{kind:'dungeon', style:'temple', name:'temple'}, icecave:{kind:'cave', style:'ice', name:'ice cave'}, lavacave:{kind:'cave', style:'lava', name:'lava cave'},
+  scifi:{kind:'dungeon', style:'scifi', name:'starship', pack:'scifi'} };   // 🚀 Sci-Fi Pack (its own unlock)
 const dgThemeOf=(D)=>{ if(!D) return 'dungeon'; for(const k in DG_THEMES){ const t=DG_THEMES[k]; if(t.kind===D.kind && (t.style||null)===(D.style||null)) return k; } return D.kind; };
 const dgName=(D)=>(DG_THEMES[dgThemeOf(D)]||{}).name||(D&&D.kind)||'dungeon';
 function bGenerateDungeon(theme){ const TT=DG_THEMES[theme]||{kind:theme}, kind=TT.kind;
+  if(TT.pack && window.TTier && !TTier.has(TT.pack)){ bStatus(`🔒 ${DungeonGen.words.cap(TT.name)} maps are part of the <b>${(TTier.LABELS||{})[TT.pack]||TT.pack}</b> — unlock it in GLB Studio → ✨ Upgrades.`,true); return; }
   if(window.TTier && !TTier.has('battlemaps')){ bStatus('🔒 Dungeons &amp; caves are part of the <b>Battle Maps Pack</b> — unlock it in GLB Studio → ✨ Upgrades.',true); return; }
   if(TGC_HEXMAT[bld.tgc]){ bStatus('Dungeons need a square board — pick a square print size (or Screen only) first.',true); return; }
   if(bld.grid!=='square'){ bld.grid='square'; document.querySelectorAll('#bGridSeg button,#bMapGridSeg button').forEach(x=>x.classList.toggle('on',x.dataset.grid==='square')); bBuildPalette(); }
@@ -5042,6 +5137,10 @@ function bDungeonTex(kind){ if(_dgTex[kind]) return _dgTex[kind]; const S=128, c
     for(let i=0;i<22;i++){ x.fillStyle='rgba(40,34,28,.6)'; x.beginPath(); x.arc(rnd()*S,rnd()*S,1+rnd()*2.5,0,6.3); x.fill(); } }
   else if(kind==='brickfloor'||kind==='brickwall'){ const wall=kind==='brickwall'; x.fillStyle=wall?'#3e3a33':'#34382f'; x.fillRect(0,0,S,S); for(let r=0;r<8;r++){ const off=(r%2)*16; for(let c=-1;c<5;c++){ const v=(wall?88:74)+rnd()*26|0; x.fillStyle=`rgb(${v},${v*0.72|0},${v*0.58|0})`; x.fillRect(c*32+off+1,r*16+1,30,14); } }
     x.fillStyle='rgba(40,70,40,.22)'; for(let i=0;i<30;i++) x.fillRect(rnd()*S,rnd()*S,4+rnd()*12,2+rnd()*6); }
+  else if(kind==='deckplate'){ x.fillStyle='#5b636d'; x.fillRect(0,0,S,S); for(const [px,py] of [[0,0],[64,0],[0,64],[64,64]]){ const v=88+rnd()*16|0; x.fillStyle=`rgb(${v},${v+6},${v+14})`; x.fillRect(px+2,py+2,60,60);
+      x.fillStyle='rgba(255,255,255,.08)'; for(let i=0;i<10;i++) x.fillRect(px+6+i*5,py+8,2,46); x.fillStyle='#3d434a'; for(const [rx,ry] of [[6,6],[56,6],[6,56],[56,56]]){ x.beginPath(); x.arc(px+rx,py+ry,2.2,0,6.3); x.fill(); } } }
+  else if(kind==='bulkhead'){ x.fillStyle='#8a929c'; x.fillRect(0,0,S,S); for(let c=0;c<2;c++){ x.fillStyle='#9aa3ad'; x.fillRect(c*64+3,4,58,120); x.fillStyle='rgba(0,0,0,.25)'; x.fillRect(c*64+3,60,58,3); } x.fillStyle='#5fd4ff'; x.fillRect(0,26,S,3); x.fillStyle='rgba(95,212,255,.25)'; x.fillRect(0,22,S,11); }
+  else if(kind==='hull'){ x.fillStyle='#1c2128'; x.fillRect(0,0,S,S); x.strokeStyle='rgba(120,140,160,.25)'; x.lineWidth=1; for(let i=0;i<=4;i++){ x.beginPath(); x.moveTo(i*32,0); x.lineTo(i*32,S); x.moveTo(0,i*32); x.lineTo(S,i*32); x.stroke(); } }
   else if(kind==='sewerwater'){ x.fillStyle='#26302a'; x.fillRect(0,0,S,S); for(let i=0;i<60;i++){ x.strokeStyle='rgba('+(70+rnd()*40|0)+','+(85+rnd()*40|0)+',60,.35)'; x.lineWidth=1+rnd()*1.5; x.beginPath(); const px=rnd()*S, py=rnd()*S; x.moveTo(px,py); x.quadraticCurveTo(px+10+rnd()*20,py+(rnd()-0.5)*6,px+25+rnd()*30,py+(rnd()-0.5)*4); x.stroke(); }
     for(let i=0;i<14;i++){ x.fillStyle='rgba(120,110,70,.35)'; x.beginPath(); x.arc(rnd()*S,rnd()*S,1+rnd()*2,0,6.3); x.fill(); } }
   else if(kind==='marble'){ x.fillStyle='#d9d4c9'; x.fillRect(0,0,S,S); x.strokeStyle='rgba(120,110,100,.35)'; x.lineWidth=1; for(let i=0;i<6;i++){ x.beginPath(); let px=rnd()*S, py=rnd()*S; x.moveTo(px,py); for(let j=0;j<6;j++){ px+=(rnd()-0.5)*40; py+=(rnd()-0.3)*30; x.lineTo(px,py); } x.stroke(); }
@@ -5055,7 +5154,7 @@ function bDungeonTex(kind){ if(_dgTex[kind]) return _dgTex[kind]; const S=128, c
     if(kind==='basalt'){ x.strokeStyle='rgba(255,90,20,.55)'; x.lineWidth=1.2; for(let i=0;i<5;i++){ x.beginPath(); let px=rnd()*S, py=rnd()*S; x.moveTo(px,py); for(let j=0;j<4;j++){ px+=(rnd()-0.5)*36; py+=(rnd()-0.5)*36; x.lineTo(px,py); } x.stroke(); } } }
   const t=new THREE.CanvasTexture(cv); t.wrapS=t.wrapT=THREE.RepeatWrapping; if(THREE.SRGBColorSpace) t.colorSpace=THREE.SRGBColorSpace; t.anisotropy=4; return (_dgTex[kind]=t); }
 // per-style look: floor / wall side / rock top textures + the pool material
-const DG_LOOK={ mine:{floor:'minefloor', side:'caveside', top:'rocktop'}, sewer:{floor:'brickfloor', side:'brickwall', top:'rocktop'}, temple:{floor:'marble', side:'templewall', top:'rocktop'},
+const DG_LOOK={ mine:{floor:'minefloor', side:'caveside', top:'rocktop'}, sewer:{floor:'brickfloor', side:'brickwall', top:'rocktop'}, temple:{floor:'marble', side:'templewall', top:'rocktop'}, scifi:{floor:'deckplate', side:'bulkhead', top:'hull'},
   ice:{floor:'icefloor', side:'iceside', top:'snowtop'}, lava:{floor:'basalt', side:'basaltside', top:'ashtop'} };
 function bPoolMat(style){ return style==='lava' ? fxMat('lavaM',()=>new THREE.MeshStandardMaterial({color:0xff6a1a, emissive:0xff3a00, emissiveIntensity:1.3, roughness:0.6}))
   : style==='ice' ? fxMat('iceM',()=>new THREE.MeshStandardMaterial({color:0x7fc4e4, roughness:0.04, metalness:0.25, transparent:true, opacity:0.9}))
@@ -5090,7 +5189,9 @@ function bRenderDungeon(){ const D=bld.dungeon; if(!D) return; const flat=!!bld.
     const ws=D.waterLoops.map(l=>new THREE.Shape(l.map(V))); const wm=new THREE.Mesh(new THREE.ShapeGeometry(ws), bPoolMat(D.style));
     wm.rotation.x=-Math.PI/2; wm.position.y=top+0.012; grp.add(wm); }
   // doors: a plank leaf across the opening (open archways get just the stone posts)
-  const leafM=new THREE.MeshStandardMaterial({color:0x6b4424, roughness:0.8}), postM=new THREE.MeshStandardMaterial({color:0x8d8981, roughness:0.95}), bandM=new THREE.MeshStandardMaterial({color:0x3a3a3e, roughness:0.5, metalness:0.5});
+  const ship=D.style==='scifi', leafM=new THREE.MeshStandardMaterial(ship?{color:0x8c96a3, roughness:0.35, metalness:0.6}:{color:0x6b4424, roughness:0.8}), postM=new THREE.MeshStandardMaterial(ship?{color:0x4a525c, roughness:0.4, metalness:0.5}:{color:0x8d8981, roughness:0.95}),
+    bandM=new THREE.MeshStandardMaterial(ship?{color:0x5fd4ff, emissive:0x2a9ad0, emissiveIntensity:0.9}:{color:0x3a3a3e, roughness:0.5, metalness:0.5});
+  _fxStyle=D.style||null;
   const lockM=new THREE.MeshStandardMaterial({color:0xd4a53a, roughness:0.4, metalness:0.6}), slabM=new THREE.MeshStandardMaterial({map:sideT, roughness:0.95}), capM2=new THREE.MeshStandardMaterial({map:capT, roughness:1});
   for(const d of D.doors){ const [ax,az]=bDungeonBW(d.x1,d.y1), [bx,bz]=bDungeonBW(d.x2,d.y2), alongX=Math.abs(az-bz)<1e-6, cx=(ax+bx)/2-bld.off.x, cz=(az+bz)/2-bld.off.z, L=Math.hypot(bx-ax,bz-az);
     if(d.secret){ const h=flat?0.03:0.9, sl=new THREE.Mesh(new THREE.BoxGeometry(alongX?L:0.3, h, alongX?0.3:L), flat?capM2:[slabM,slabM,capM2,capM2,slabM,slabM]); sl.position.set(cx, top+h/2+(flat?0.02:0), cz); sl.castShadow=true; grp.add(sl); continue; }   // SECRET: looks like wall
@@ -5105,7 +5206,7 @@ function bRenderDungeon(){ const D=bld.dungeon; if(!D) return; const flat=!!bld.
     if(f.link && !bld._exporting){ const lv=(bld.dungeonLevel||0)+1, n=(bld.dungeonLevels||[]).length;   // ▲ / ▼ where this way up / down leads (never in an exported image)
       const txt = f.link==='down' ? (lv<n ? `▼ Level ${lv+1}` : '▼ (dig deeper)') : (lv>1 ? `▲ Level ${lv-1}` : '▲ Surface');
       const l=bDgLabel(txt, f.link==='down'?'#ffcf7a':'#9fe0ff'); l.position.set(x-bld.off.x, top+(bld.boardFlat?0.4:1.5), z-bld.off.z); grp.add(l); } });
-  builderGroup.add(grp); }
+  _fxStyle=null; builderGroup.add(grp); }
 // EXTEND a dungeon / cave: the existing layout stays exactly as it is; DungeonGen.extend fills a 12-square strip on that
 // side with new rooms (wired to the nearest old rooms through proper doors) or new caverns that flow across the seam.
 function bExtendDungeon(dir){ const E=12, D=bld.dungeon; bPushUndo();
@@ -5136,7 +5237,9 @@ function bSwitchLevel(i, quiet){ const L=bld.dungeonLevels||[]; if(i<0||i>=L.len
   bRender(); bStatus(`🗝 Level <b>${i+1}</b> of ${L.length} — a <b>${dgName(bld.dungeon)}</b>. The ▲ / ▼ markers show where each way up / down leads (screen only).`); }
 function bDigDeeper(){ const L=bld.dungeonLevels||[], i=bld.dungeonLevel||0; if(!bld.dungeon) return;
   if(i<L.length-1){ bSwitchLevel(i+1); return; }
-  bPushUndo(); const seed=1+Math.floor(Math.random()*999999), th=document.getElementById('bDigKind').value||dgThemeOf(bld.dungeon), TT=DG_THEMES[th]||{kind:bld.dungeon.kind}, kind=TT.kind;
+  const th=document.getElementById('bDigKind').value||dgThemeOf(bld.dungeon), TT=DG_THEMES[th]||{kind:bld.dungeon.kind}, kind=TT.kind;
+  if(TT.pack && window.TTier && !TTier.has(TT.pack)){ bStatus(`🔒 That level type is part of the <b>${(TTier.LABELS||{})[TT.pack]||TT.pack}</b>.`,true); return; }
+  bPushUndo(); const seed=1+Math.floor(Math.random()*999999);
   const above=DungeonGen.ensureDown(bld.dungeon, seed); const added=above!==bld.dungeon;
   const here={...above, q0:bld.q0, r0:bld.r0}; L[i]=here;
   const D2=DungeonGen.generate({kind, style:TT.style, cols:bld.cols, rows:bld.rows, seed:seed+17, arrivals:DungeonGen.arrivalsFrom(here)});
@@ -5250,8 +5353,9 @@ window.__bGmKey=()=>bGmKey();
 const EDIT_ADD={ chest:[0.9,0.6], table:[1.4,0.8], barrel:[0.55,0.55], crate:[0.8,0.8], statue:[0.9,0.9], altar:[1.3,0.6], sarcophagus:[0.8,1.8], bed:[0.8,1.5],
   bookshelf:[1.8,0.35], weaponrack:[1.2,0.35], cauldron:[0.8,0.8], brazier:[0.8,0.8], torch:[0.3,0.3], candles:[0.3,0.3], campfire:[0.9,0.9], bedroll:[0.6,1.5],
   bones:[0.6,0.6], rubble:[0.8,0.8], crystals:[0.7,0.7], mushrooms:[0.6,0.6], plant:[0.4,0.4], sofa:[1.4,0.6], officedesk:[0.7,0.45], labbench:[1.6,0.6], tank:[0.55,0.55], lockers:[1.2,0.4], pew:[1.5,0.45], wardrobe:[1,0.5], font:[0.9,0.9],
+  console:[1.2,0.6], captainchair:[0.9,0.9], container:[1.6,0.9], cryopod:[0.9,1.7], medbed:[0.9,1.7], hydro:[1.6,0.7], lightpanel:[0.3,0.3],
   minecart:[0.9,1.3], ore:[0.8,0.8], lantern:[0.3,0.3], toolrack:[1.2,0.35], powder:[0.55,0.55], drain:[0.6,0.6], valve:[1.2,0.6], icespike:[0.6,0.6], vent:[0.6,0.6], obsidian:[0.7,0.7] };
-const EDIT_ADD_NAME={ minecart:'mine cart', ore:'ore', toolrack:'tool rack', powder:'powder keg', drain:'floor drain', valve:'valve wheel', font:'stone font', icespike:'ice spikes', vent:'steam vent', obsidian:'obsidian', weaponrack:'weapon rack', crystals:'glowing crystals', mushrooms:'glowing mushrooms', bones:'pile of bones', rubble:'rubble', candles:'candles' };
+const EDIT_ADD_NAME={ console:'control console', captainchair:"captain's chair", container:'cargo container', cryopod:'cryo pod', medbed:'medical bed', hydro:'hydroponic tray', lightpanel:'light panel', minecart:'mine cart', ore:'ore', toolrack:'tool rack', powder:'powder keg', drain:'floor drain', valve:'valve wheel', font:'stone font', icespike:'ice spikes', vent:'steam vent', obsidian:'obsidian', weaponrack:'weapon rack', crystals:'glowing crystals', mushrooms:'glowing mushrooms', bones:'pile of bones', rubble:'rubble', candles:'candles' };
 const DOOR_CYCLE={closed:'locked', locked:'secret', secret:'open', open:'closed'}, DOOR_NAME={closed:'closed door', locked:'locked door', secret:'secret door', open:'open archway'};
 const EDIT_HELP={ door:'🚪 <b>Doors</b> — click a door to cycle <b>closed → locked → secret → archway</b>; click a doorway in a room wall or a narrow passage to add one. A secret door looks like wall (and reaches your VTT as a wall) — you see an <b>S</b>. Buildings: click one to open its roof first.',
   furn:'🪑 <b>Furniture</b> — drag to move (whole squares) · click to select, then <b>R</b> rotates / <b>Delete</b> removes · pick an item in <b>➕ add</b> and click the floor to place it. Stairs, wells and pits stay put so the levels line up.',
@@ -5419,6 +5523,7 @@ async function bVttExport(opts){
     if(floor) (bld.structures||[]).forEach(s=>{ if((s.floors||1)>floor){ s.roofOn=false; s.activeFloor=floor; } else { s.roofOn=true; s.activeFloor=0; } });   // upper floor: open the buildings that reach it, roof the rest
     else if(roofsOff) (bld.structures||[]).forEach(s=>{ s.roofOn=false; s.activeFloor=0; });   // look down INTO the ground floor
     bld._exporting=true; bld._gmCopy=keyNums; bRender();
+    await bGlbSettled();                                           // characters / GLB props finish loading before the shot
     const bb=bTgcSceneBBox(), unit=bCellSize();                   // 1 grid unit = one square (square) / centre-to-centre (hex)
     let W=Math.round(bb.w/unit*ppg), H=Math.round(bb.h/unit*ppg); const MAXD=8192;
     if(Math.max(W,H)>MAXD){ ppg=Math.floor(ppg*MAXD/Math.max(W,H)); W=Math.round(bb.w/unit*ppg); H=Math.round(bb.h/unit*ppg); }
@@ -5440,7 +5545,7 @@ async function bVttExport(opts){
     const gw=+(W/ppg).toFixed(4), gh=+(H/ppg).toFixed(4);
     const base=`tabletop-${bld.scale==='battle'?'battlemap':'map'}-${bld.seed}_${Math.round(gw)}x${Math.round(gh)}${floor?'_floor-'+(floor+1):''}${keyNums?'_gm':''}`;
     if(opts.returnOnly){ out={W,H,ppg,gw,gh,walls:los,portals,lights,url:cv.toDataURL('image/png')}; }
-    else if(opts.collect && fmt==='png'){ out={name:`${base}_${ppg}px.png`, data:await bCanvasBytes(cv), W,H,ppg}; }
+    else if(opts.collect && fmt==='png'){ out={name:`${base}_${ppg}px.png`, data:await bCanvasBytes(cv), W,H,ppg, toGrid:G}; }
     else if(fmt==='png'){
       bDownload(await bCanvasBlob(cv), `${base}_${ppg}px.png`);
       bStatus(`🗺 Saved <b>${W}×${H}px</b> map — grid <b>${ppg} px per ${bld.grid==='hex'?'hex':'square'}</b> (${Math.round(gw)}×${Math.round(gh)}). Set that grid size in your VTT${bld.grid==='hex'?' (flat-top hex / “hex columns”)':''}. For walls + doors use <b>.dd2vtt</b>.`);
@@ -5451,7 +5556,7 @@ async function bVttExport(opts){
         software:'KSOL Designs Tabletop '+APP_VERSION, grid:bld.grid, image:btoa(bin) };
       if(bld.dungeon && (bld.dungeonLevels||[]).length>1) doc.level=(bld.dungeonLevel||0)+1;
       if(floor) doc.floor=floor+1;
-      if(opts.collect){ out={name:`${base}.${fmt}`, data:new TextEncoder().encode(JSON.stringify(doc)), W,H,ppg}; } else {
+      if(opts.collect){ out={name:`${base}.${fmt}`, data:new TextEncoder().encode(JSON.stringify(doc)), W,H,ppg, toGrid:G}; } else {
       bDownload(new Blob([JSON.stringify(doc)],{type:'application/json'}), `${base}.${fmt}`);
       const mb=(bin.length*4/3/1048576).toFixed(1);
       bStatus(`🗺 Exported <b>${base}.${fmt}</b> (${mb} MB) — ${W}×${H}px, <b>${ppg} px/${bld.grid==='hex'?'hex':'square'}</b>, <b>${los.length}</b> wall${los.length===1?'':'s'}, <b>${portals.length}</b> door${portals.length===1?'':'s'}, <b>${lights.length}</b> light${lights.length===1?'':'s'}.${bld.grid==='hex'?' Hex map: set a <b>flat-top hex</b> grid of '+ppg+' px in your VTT (the file format itself only describes square grids).':''}${bld.scale!=='battle'?' Tip: <b>⚔ Battle (5 ft)</b> maps export buildings with walls + doors.':''}`); }
@@ -5465,10 +5570,18 @@ async function bVttExport(opts){
 document.getElementById('bVttExport').onclick=()=>{ const all=document.getElementById('bVttAll').checked;
   if(all && (bld.dungeonLevels||[]).length>1) return bVttExportLevels();
   if(all && !bld.dungeon && document.getElementById('bVttFloor').style.display!=='none') return bVttExportFloors();
+  if(bTokOn()) return bVttExportTokens();
   return bVttExport(); };
+// 🪙 one map + every mini as a token image, zipped (the map is rendered WITHOUT the minis)
+async function bVttExportTokens(){ bld._noMinis=true; let r=null; try{ r=await bVttExport({collect:true}); }finally{ bld._noMinis=false; } if(!r){ bRender(); return; }
+  bStatus('🪙 Rendering tokens…'); const toks=await bTokenFiles(r.toGrid, bTokStyle()); const n=toks.length-1;
+  const zip=bZip([{name:r.name, data:r.data}, ...toks]), name=r.name.replace(/\.(dd2vtt|uvtt|png)$/,'')+'_with-tokens.zip'; bDownload(new Blob([zip],{type:'application/zip'}), name); bRender();
+  bStatus(`🗺 Exported <b>${name}</b> — the map (${r.W}×${r.H}px, ${r.ppg} px/square, no minis baked in) + <b>${n}</b> token${n===1?'':'s'} (512px transparent PNGs) + tokens.json with where each one stands.`); }
 // every storey of a multi-floor town as its own aligned file, zipped: floor-1 (ground), floor-2, …
 async function bVttExportFloors(){ const maxF=Math.max(1,...(bld.structures||[]).map(s=>s.floors||1)), files=[]; let last=null;
-  for(let f=0;f<maxF;f++){ const r=await bVttExport({collect:true, floor:f}); if(!r) return; files.push({name:`floor-${f+1}_${r.name}`, data:r.data}); last=r; }
+  const tok=bTokOn(); if(tok) bld._noMinis=true;
+  for(let f=0;f<maxF;f++){ const r=await bVttExport({collect:true, floor:f}); if(!r){ bld._noMinis=false; return; } files.push({name:`floor-${f+1}_${r.name}`, data:r.data}); last=r; }
+  bld._noMinis=false; if(tok) files.push(...await bTokenFiles(last.toGrid, bTokStyle()));
   const zip=bZip(files), name=`tabletop-battlemap-${bld.seed}_${maxF}-floors.zip`; bDownload(new Blob([zip],{type:'application/zip'}), name);
   bStatus(`🗺 Exported <b>${name}</b> — <b>${maxF} floors</b>, each ${last.W}×${last.H}px at ${last.ppg} px/square, same size and grid; stairs sit on the same square on every floor. Buildings shorter than a floor show their roof on it.`); }
 document.getElementById('bDgUp').onclick=()=>bSwitchLevel((bld.dungeonLevel||0)-1);
@@ -5476,8 +5589,9 @@ document.getElementById('bDgDown').onclick=()=>bDigDeeper();
 document.getElementById('bDgExtMode').onchange=()=>bDgUI();
 // every dungeon level as its own aligned file, zipped: level-1_…, level-2_… (VTT scenes line up square for square)
 async function bVttExportLevels(){ const L=bld.dungeonLevels, cur=bld.dungeonLevel||0, files=[]; let last=null;
-  for(let i=0;i<L.length;i++){ bSwitchLevel(i,true); const r=await bVttExport({collect:true}); if(!r){ bSwitchLevel(cur,true); bRender(); return; } files.push({name:`level-${i+1}_${r.name}`, data:r.data}); last=r; }
-  bSwitchLevel(cur,true); bRender();
+  const tok=bTokOn(); if(tok) bld._noMinis=true;
+  for(let i=0;i<L.length;i++){ bSwitchLevel(i,true); const r=await bVttExport({collect:true}); if(!r){ bld._noMinis=false; bSwitchLevel(cur,true); bRender(); return; } files.push({name:`level-${i+1}_${r.name}`, data:r.data}); last=r; }
+  bld._noMinis=false; bSwitchLevel(cur,true); bRender(); if(tok) files.push(...await bTokenFiles(last.toGrid, bTokStyle()));
   const zip=bZip(files), name=`tabletop-dungeon-${bld.seed}_${L.length}-levels.zip`; bDownload(new Blob([zip],{type:'application/zip'}), name);
   bStatus(`🗺 Exported <b>${name}</b> — <b>${L.length} levels</b>, each ${last.W}×${last.H}px at ${last.ppg} px/square, same size and grid so the stairs, wells and pits line up between scenes.`); }
 window.__bVtt = (o)=>bVttExport(Object.assign({returnOnly:true},o||{}));

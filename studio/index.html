@@ -228,6 +228,7 @@
     battlemaps: { icon:'⚔', name:'Battle Maps Pack', blurb:'Battle (D&D 5-ft) scale with real buildings (rooms, doors, furniture), one-click VTT export (map + grid + walls + doors), plus real-world satellite / relief / night / antique base maps.' },
     race:       { icon:'🏁', name:'Race Games',       blurb:'Roll-and-move race games on the tabletop (Derby Loop — with more to come).' },
     modern:     { icon:'🏙', name:'Modern Pack',      blurb:'Modern maps: City, Suburbs and Rural themes — asphalt street grids, railways, downtown towers, homes, schools, parks, farms and wind farms.' },
+    scifi:      { icon:'🚀', name:'Sci-Fi Pack',      blurb:'Starship and space-station battle maps: a symmetric ship with bridge, reactor, engineering, med bay, labs, hydroponics, brig and cargo holds — sliding doors, lifts between decks, room key, edit mode and VTT export (needs the Battle Maps Pack).' },
   };
   const ttExp = ()=>{ try{ return new Set(JSON.parse(localStorage.getItem('studio.tabletop.exp')||'[]').filter(id=>EXPANSIONS[id])); }catch(e){ return new Set(); } };
   const ttSave = s => localStorage.setItem('studio.tabletop.exp', JSON.stringify([...s]));
