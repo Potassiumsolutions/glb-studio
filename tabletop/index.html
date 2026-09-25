@@ -380,7 +380,16 @@
           <option value="256">256 px/sq</option>
         </select>
         <label class="row" style="gap:4px;cursor:pointer" title="Battle maps: show building interiors (floors, rooms, furniture) instead of roofs"><input type="checkbox" id="bVttRoofs" checked> <span class="mini">roofs off</span></label>
+        <select id="bVttFloor" style="display:none" title="Which storey of the buildings to export"><option value="0">Ground floor</option></select>
+        <label class="row" id="bVttAllWrap" style="gap:4px;cursor:pointer;display:none" title="One file per dungeon level, all the same size and grid-aligned, in a ZIP"><input type="checkbox" id="bVttAll" checked> <span class="mini" id="bVttAllTxt">all levels</span></label>
         <button class="btn" id="bVttExport">⬇ Export for VTT</button>
+      </div>
+      <div class="row wrap" id="bDgRow" style="display:none;align-items:center;margin:2px 0 4px">
+        <label class="fld" style="margin:0">🗝 Dungeon</label>
+        <button class="btn sec" id="bDgUp" title="Go up a level">▲ Level</button>
+        <span class="mini" id="bDgWhich" style="min-width:74px;text-align:center;color:var(--txt);font-weight:600">Level 1 / 1</span>
+        <button class="btn" id="bDgDown" title="Go down a level — or generate a new one linked by stairs, a well, a trapdoor or a sinkhole">⬇ Dig deeper</button>
+        <select id="bDigKind" title="What the next level down is"><option value="dungeon">🗝 Dungeon</option><option value="cave">🪨 Cave</option></select>
       </div>
       <div class="mini" data-exp-lock="battlemaps" style="margin:2px 0 6px;padding:6px 9px;border:1px dashed #3a4a63;border-radius:8px;color:#9fb4d4;background:rgba(91,140,255,.06)">🔒 <b>🗺 Export for virtual tabletops</b> (map + grid + walls + doors, .dd2vtt) is part of the <b>Battle Maps Pack</b> — unlock it in <b>GLB&nbsp;Studio → ✨ Upgrades</b> (<a href="https://www.patreon.com/KsolDesigns" target="_blank" rel="noopener" style="color:var(--acc,#5b8cff)">Patreon</a>).</div>
       <div class="mini" data-exp="battlemaps" style="margin:0 0 4px;color:var(--mut)">Universal VTT (.dd2vtt) imports into virtual tabletops that read that format (e.g. via a Universal Battlemap importer). Other product names are trademarks of their respective owners; KSOL Designs is not affiliated with them.</div>
@@ -1093,7 +1102,7 @@ import * as Tuck from './tuckbox-designer.js';
 
 const BGC = window.BGC, GAMES = window.BGC_GAMES;
 const TE = window.TileEngine, TLIB = window.TileLibrary;
-const APP_VERSION = 'v1.10';
+const APP_VERSION = 'v1.20';
 const CREDITS = `<b>Ksol Designs</b> — Paul A.T. Ramey<br>www.ksoldesigns.com<br>Built with GLB Studio · Tabletop<br><span class="ver">${APP_VERSION}</span>`;
 // ---- Board credit: a small "KSOL Designs" mark on the board for the FREE build. Owning ANY content pack
 // (TTier expansion) unlocks removing it (⚙ Settings toggle, or click the credit). ----
@@ -3538,7 +3547,7 @@ function bSnapshot(){ return {
   // Extend can't finish it (Paul, v0.91: "undid a couple of extensions … the castle did not get recreated correctly")
   settlePlan:bClonePlan(_settlePlan), structPlans:(bld.structPlans||[]).slice(), modern:bld.modern?{...bld.modern}:null,
   sheetsX:bld.sheetsX, sheetsY:bld.sheetsY, sheetCX:bld.sheetCX, sheetCZ:bld.sheetCZ, tgcCenters:(bld.tgcCenters||[]).map(c=>({...c})), selUnit:bld.selUnit,
-  dungeon:bld.dungeon||null,   // immutable once generated → shared by reference
+  dungeon:bld.dungeon||null, dungeonLevels:(bld.dungeonLevels||[]).slice(), dungeonLevel:bld.dungeonLevel||0,   // levels are immutable once generated → shared by reference
   baseMap:bld.baseMap };   // by reference — its texture is immutable, kept alive by the snapshot
 }
 function bClonePlan(P){ return P ? {...P, outer:new Map(P.outer||[]), outerDraw:(P.outerDraw||[]).slice(), outerProps:(P.outerProps||[]).slice()} : null; }
@@ -3575,7 +3584,7 @@ function bUndo(){ if(!_undo.length){ bStatus('Nothing to undo'); return; } const
   bld.props=JSON.parse(JSON.stringify(s.props));
   bld.subdiv=new Map([...s.subdiv].map(([k,v])=>[k,{...v}]));
   bld.subpaint=new Map([...(s.subpaint||new Map())].map(([k,v])=>[k,{...v}]));
-  bld.baseMap=s.baseMap; bld.selStroke=null; bld.selProp=null; bld.pen=[]; bld.dungeon=s.dungeon||null; bld.structKey='';
+  bld.baseMap=s.baseMap; bld.selStroke=null; bld.selProp=null; bld.pen=[]; bRestoreDungeon(s); bld.structKey='';
   bRestorePlans(s);
   bSyncBuilderUI(); bRender(); bFit();
   bStatus(`Undo — ${_undo.length} step${_undo.length===1?'':'s'} of history left`);
@@ -3662,7 +3671,7 @@ function bRender(){
   bPlaceNorthArrow();                                              // compass at the NW corner so orientation is clear at a glance
   bRenderDraw();                                                   // freeform drawn roads/streams/walls + connector dots
   bRenderDungeon();                                                // ⚔ dungeon / cave layer (rock, floors, doors, dressing)
-  bRenderStructures();                                             // BATTLE scale: explorable settlement buildings (roof-poppable)
+  bRenderStructures(); bDgUI();                                     // + the dungeon level bar / building floor picker                                             // BATTLE scale: explorable settlement buildings (roof-poppable)
   bBattleProps();                                                  // BATTLE scale: trees/boulders spanning squares (after buildings → kept off their roofs)
   bRenderProps();                                                  // placed trees/houses/castles (3D or 2D) + minis
   bRenderSubdiv();                                                  // finer-grid overlays on subdivided cells
@@ -3857,7 +3866,10 @@ function bFloorTex(kind){ if(_floorTex[kind]) return _floorTex[kind]; const S=12
   const t=new THREE.CanvasTexture(cv); t.wrapS=t.wrapT=THREE.RepeatWrapping; if(THREE.SRGBColorSpace) t.colorSpace=THREE.SRGBColorSpace; t.anisotropy=4;
   return (_floorTex[kind]=t); }
 // deterministic furniture per room (board-world coords): [{kind, x,z, w,d}] — never against a wall that has a doorway
-function bStructFurniture(st){ if(st._furn) return st._furn; const CS=bCellSize(), out=[]; const L=bStructLayout(st,0);
+// furniture for storey f (0 = ground). Upper floors get their OWN rooms' contents; the stairs sit on the same square on every floor.
+function bStructFurniture(st, f){ f=f||0; st._furn=st._furn&&!Array.isArray(st._furn)?st._furn:{}; if(st._furn[f]) return st._furn[f];
+  if(f>0) return (st._furn[f]=bStructUpperFurniture(st,f));
+  const CS=bCellSize(), out=[]; const L=bStructLayout(st,0);
   const dmid=L.doors.map(d=>[(d[0]+d[2])/2,(d[1]+d[3])/2]), tol=0.2*CS;
   const hasDoor=(rm,side)=>dmid.some(([x,z])=> side===0? Math.abs(z-rm.z0)<tol && x>rm.x0-0.1 && x<rm.x1+0.1 : side===2? Math.abs(z-rm.z1)<tol && x>rm.x0-0.1 && x<rm.x1+0.1
                                             : side===1? Math.abs(x-rm.x1)<tol && z>rm.z0-0.1 && z<rm.z1+0.1 : Math.abs(x-rm.x0)<tol && z>rm.z0-0.1 && z<rm.z1+0.1);
@@ -3900,7 +3912,45 @@ function bStructFurniture(st){ if(st._furn) return st._furn; const CS=bCellSize(
     else if(big && free.length) against(rm, free.shift(), 1.1*CS, 0.3*CS, 'shelf');
     if(!bedroom && oldWorld && hh(s++)<0.6){ const c=[[rm.x0+0.35*CS,rm.z0+0.35*CS],[rm.x1-0.35*CS,rm.z0+0.35*CS],[rm.x0+0.35*CS,rm.z1-0.35*CS],[rm.x1-0.35*CS,rm.z1-0.35*CS]][Math.floor(hh(s++)*4)]; put({kind:'barrel',x:c[0],z:c[1],w:0.4*CS,d:0.4*CS}); }
   });
-  return (st._furn=out); }
+  return (st._furn[0]=out); }
+function bStructUpperFurniture(st, f){ const CS=bCellSize(), out=[], L=bStructLayout(st,f), top=f===(st.floors||1)-1;
+  const dmid=L.doors.map(d=>[(d[0]+d[2])/2,(d[1]+d[3])/2]), tol=0.2*CS;
+  const hasDoor=(rm,side)=>dmid.some(([x,z])=> side===0? Math.abs(z-rm.z0)<tol && x>rm.x0-0.1 && x<rm.x1+0.1 : side===2? Math.abs(z-rm.z1)<tol && x>rm.x0-0.1 && x<rm.x1+0.1
+                                            : side===1? Math.abs(x-rm.x1)<tol && z>rm.z0-0.1 && z<rm.z1+0.1 : Math.abs(x-rm.x0)<tol && z>rm.z0-0.1 && z<rm.z1+0.1);
+  const key=st.cells[0], hh=(s2)=>bStructHash(key,s2+f*97); let s=160;
+  const gap=0.1*CS, hit=(a)=>out.some(b=>!b.flat && Math.abs(a.x-b.x)<(a.w+b.w)/2+(a.pad||0)+(b.pad||0)+gap && Math.abs(a.z-b.z)<(a.d+b.d)/2+(a.pad||0)+(b.pad||0)+gap);
+  const put=(it)=>{ if(hit(it)) return false; out.push(it); return true; };
+  const against=(rm,side,w,d,kind)=>{ const m=(kind==='fireplace'||kind==='shelf'||kind==='bookshelf'||kind==='wardrobe'||kind==='torch')?0.02*CS:0.16*CS, t0=hh(s++);
+    for(let k=0;k<5;k++){ const t=(t0+k*0.37)%1; if((side===0||side===2 ? rm.z1-rm.z0 : rm.x1-rm.x0) < d+2*m) return false;
+      const it=(side===0||side===2) ? (rm.x1-rm.x0<w+2*m ? null : {kind, x:rm.x0+m+w/2+(rm.x1-rm.x0-w-2*m)*t, z: side===0?rm.z0+m+d/2:rm.z1-m-d/2, w, d, face:side})
+                                    : (rm.z1-rm.z0<w+2*m ? null : {kind, x: side===3?rm.x0+m+d/2:rm.x1-m-d/2, z:rm.z0+m+w/2+(rm.z1-rm.z0-w-2*m)*t, w:d, d:w, face:side});
+      if(!it) return false; if(put(it)) return true; } return false; };
+  const inRoom=(rm,kind,w,d)=>{ const m=0.45*CS; for(const [fx,fz] of [[0.5,0.5],[0.35,0.5],[0.65,0.5],[0.5,0.35],[0.5,0.65],[0.3,0.3],[0.7,0.7]]){
+      const x=rm.x0+(rm.x1-rm.x0)*fx, z=rm.z0+(rm.z1-rm.z0)*fz; if(x-w/2<rm.x0+m||x+w/2>rm.x1-m||z-d/2<rm.z0+m||z+d/2>rm.z1-m) continue;
+      if(put({kind,x,z,w,d,pad:kind==='table'?0.28*CS:0})) return {x,z}; } return null; };
+  const scatter=(rm,kind,n,w,d)=>{ for(let i=0;i<n;i++){ put({kind,x:rm.x0+0.4*CS+(rm.x1-rm.x0-0.8*CS)*hh(s++),z:rm.z0+0.4*CS+(rm.z1-rm.z0-0.8*CS)*hh(s++),w,d}); } };
+  // the stairwell: same square as the ground floor's stairs (up AND down on middle floors, arriving on the top one)
+  const gs=bStructFurniture(st,0).find(i=>i.kind==='stairs'); if(gs) out.push({...gs, link: top?'down':'both'});
+  const t=st.type, bedroomish = t==='city'||t==='village'||t==='homes'||t==='apartments'||t==='hotel'||t==='farmstead'||t==='keep'&&top;
+  st.rooms.forEach((rm,ri)=>{ const free=[0,1,2,3].filter(sd=>!hasDoor(rm,sd)).sort((a,b)=>hh(s+a)-hh(s+b)); s+=4;
+    const rw=rm.x1-rm.x0, rd=rm.z1-rm.z0, big=Math.min(rw,rd)>=2.5*CS;
+    if(t==='keep' && !top){ for(let i=0;i<3 && free.length;i++) against(rm, free[i%free.length], 0.8*CS, 1.5*CS, 'bed');   // keep, middle floors: barracks
+      if(free.length) against(rm, free[free.length-1], 1.2*CS, 0.35*CS, 'weaponrack'); scatter(rm,'chest',1,0.9*CS,0.6*CS); if(free.length) against(rm, free[0], 0.2*CS, 0.2*CS, 'torch'); return; }
+    if(t==='keep'){ const tb=inRoom(rm,'desk',1.0*CS,0.6*CS); if(tb) out.push({kind:'rug',x:tb.x,z:tb.z,w:2.0*CS,d:1.6*CS,flat:1});   // keep, top floor: the lord's quarters
+      if(free.length) against(rm, free.shift(), 1.2*CS, 0.5*CS, 'fireplace'); if(free.length) against(rm, free.shift(), 0.9*CS, 1.6*CS, 'bed'); if(free.length) against(rm, free.shift(), 1.4*CS, 0.35*CS, 'bookshelf'); scatter(rm,'chest',1,0.9*CS,0.6*CS); return; }
+    if(t==='factory'||t==='warehouse'||t==='depot'){ scatter(rm,'crate',2+Math.floor(hh(s++)*3),0.7*CS,0.7*CS); scatter(rm,'barrel',1+Math.floor(hh(s++)*2),0.45*CS,0.45*CS); return; }
+    if(t==='towers'||t==='school'||t==='station'||t==='church'){ for(let x=rm.x0+0.8*CS; x<rm.x1-0.6*CS; x+=1.3*CS) for(let z=rm.z0+0.9*CS; z<rm.z1-0.6*CS; z+=1.3*CS) put({kind:'desk',x,z,w:0.7*CS,d:0.45*CS});   // offices / classrooms
+      if(free.length) against(rm, free.shift(), 1.3*CS, 0.35*CS, 'shelf'); return; }
+    if(t==='shops'){ if(ri===0){ scatter(rm,'crate',2,0.7*CS,0.7*CS); if(free.length) against(rm, free.shift(), 1.3*CS, 0.35*CS, 'shelf'); return; } }   // stockroom over the shop
+    // bedrooms (+ a study when there are several rooms up here)
+    const study = st.rooms.length>1 && ri===st.rooms.length-1 && hh(s++)<0.6;
+    if(study){ const tb=inRoom(rm,'desk',0.9*CS,0.55*CS); if(free.length) against(rm, free.shift(), 1.3*CS, 0.35*CS, 'bookshelf'); if(tb && hh(s++)<0.6) out.push({kind:'rug',x:tb.x,z:tb.z,w:1.6*CS,d:1.3*CS,flat:1}); return; }
+    if(free.length) against(rm, free.shift(), 0.8*CS, 1.5*CS, 'bed');
+    if(big && free.length) against(rm, free.shift(), 0.8*CS, 1.5*CS, 'bed');
+    if(free.length) against(rm, free.shift(), 0.9*CS, 0.4*CS, (t==='city'||t==='village'||t==='farmstead')?'chest':'wardrobe');
+    if(hh(s++)<0.65){ const c=[(rm.x0+rm.x1)/2,(rm.z0+rm.z1)/2]; out.push({kind:'rug',x:c[0],z:c[1],w:Math.min(1.6*CS,rw-0.6*CS),d:Math.min(1.3*CS,rd-0.6*CS),flat:1}); }
+  });
+  return out; }
 
 /* ---- FEATURE LIBRARY: one mesh builder for every piece of furniture / dungeon dressing (houses, keeps, dungeons, caves).
    it = {kind, x,z (board-world centre), w (x-extent), d (z-extent), face? (wall it backs onto: 0=-z 1=+x 2=+z 3=-x)}.
@@ -3976,6 +4026,14 @@ function bFeatureMesh(it){ const CS=bCellSize(), g=new THREE.Group(), k=it.kind,
   else if(k==='rubble'){ for(let i=0;i<7;i++){ const s=(0.06+((i*13)%7)/60)*CS; const r=new THREE.Mesh(new THREE.DodecahedronGeometry(s,0), fxStd(0x7d786f,1)); r.position.set(((i*29)%9-4)/9*w*0.8,s*0.6,((i*17)%9-4)/9*d*0.8); r.rotation.set(i,i*2,i*3); r.castShadow=true; g.add(r); } }
   else if(k==='rug'){ const t=fxRugTex(Math.round(Math.abs(it.x*7+it.z*13))); const m=fxMat('rugM'+t.uuid,()=>new THREE.MeshStandardMaterial({map:t,roughness:1})); const r=new THREE.Mesh(new THREE.PlaneGeometry(long?d:w,long?w:d), m);
     r.rotation.x=-Math.PI/2; if(long) r.rotation.z=Math.PI/2; r.position.y=0.006; r.receiveShadow=true; g.add(r); }
+  else if(k==='pit'){ const hole=fxMat('holeM',()=>new THREE.MeshBasicMaterial({color:0x050404})); const hp=new THREE.Mesh(new THREE.PlaneGeometry(w*0.8,d*0.8),hole); hp.rotation.x=-Math.PI/2; hp.position.y=0.008; g.add(hp);   // trapdoor pit: dark hole in a plank frame, the lid flipped open
+    const fr=fxStd(0x5e3e24,0.85), t=0.08*CS; box(w,0.05*CS,t,fr,0,0.025*CS,-d/2+t/2); box(w,0.05*CS,t,fr,0,0.025*CS,d/2-t/2); box(t,0.05*CS,d,fr,-w/2+t/2,0.025*CS,0); box(t,0.05*CS,d,fr,w/2-t/2,0.025*CS,0);
+    const lid=new THREE.Mesh(new THREE.BoxGeometry(w*0.8,0.04*CS,d*0.8), fxStd(0x7a4f2c,0.85)); lid.position.set(0,d*0.4*Math.sin(1.2)+0.02*CS,-d/2-d*0.4*Math.cos(1.2)+0.02*CS); lid.rotation.x=-1.2; lid.castShadow=true; g.add(lid); }
+  else if(k==='sinkhole'){ const hole=fxMat('holeM',()=>new THREE.MeshBasicMaterial({color:0x050404})); const hp=new THREE.Mesh(new THREE.CircleGeometry(S*0.42,20),hole); hp.rotation.x=-Math.PI/2; hp.position.y=0.008; g.add(hp);
+    const rim=new THREE.Mesh(new THREE.RingGeometry(S*0.42,S*0.55,20), fxStd(0x3a342d,1)); rim.rotation.x=-Math.PI/2; rim.position.y=0.006; g.add(rim);
+    for(let i=0;i<9;i++){ const a=i*0.7, s2=(0.07+((i*13)%5)/60)*CS; const rk=new THREE.Mesh(new THREE.DodecahedronGeometry(s2,0), fxStd(0x6d675e,1)); rk.position.set(Math.cos(a)*S*0.52,s2*0.5,Math.sin(a)*S*0.52); rk.rotation.set(i,i*2,i); rk.castShadow=true; g.add(rk); } }
+  else if(k==='splash'){ const pool=new THREE.Mesh(new THREE.CircleGeometry(S*0.45,20), fxMat('splashM',()=>new THREE.MeshStandardMaterial({color:0x2c5f7a,roughness:0.15,metalness:0.2,transparent:true,opacity:0.9})));   // where a well-drop lands: a shallow pool + a few stones
+    pool.rotation.x=-Math.PI/2; pool.position.y=0.01; g.add(pool); for(let i=0;i<5;i++){ const a=i*1.3+0.4, s2=0.07*CS; const rk=new THREE.Mesh(new THREE.DodecahedronGeometry(s2,0), fxStd(0x7d786f,1)); rk.position.set(Math.cos(a)*S*0.5,s2*0.4,Math.sin(a)*S*0.5); g.add(rk); } }
   else { const H=0.3*CS; box(w,H,d,fxStd(0x8a6a44,0.8),0,H/2); }
   const Lt=FEATURE_LIGHT[k]; if(Lt){ const col=new THREE.Color('#'+Lt.color.slice(2)); const gm=new THREE.MeshBasicMaterial({map:fxGlowTex(),color:col,transparent:true,opacity:0.55,blending:THREE.AdditiveBlending,depthWrite:false});
     const R=Math.min(Lt.range,5)*0.42*CS; const gl=new THREE.Mesh(new THREE.PlaneGeometry(R*2,R*2), gm); gl.rotation.x=-Math.PI/2; gl.position.y=0.012; gl.renderOrder=4; g.add(gl); }   // warm pool of light on the floor
@@ -4042,7 +4100,7 @@ function bMakeStructure(st, idx){
       const b=new THREE.Mesh(new THREE.BoxGeometry(isNS?L2:th*1.3, floorH*0.32, isNS?th*1.3:L2), glass);
       b.position.set(isNS?cx:(s2===1?x1:x0), TILE_TOP+f*floorH+floorH*0.55, isNS?(s2===0?z0:z1):cz); b.userData.struct=idx; g.add(b); } }
   if(!st.roofOn){ const y0=act*floorH+0.06;                                // furniture on the floor you're looking into
-    for(const it of bStructFurniture(st)){ if(act>0 && !/^(stairs|bed|table|chest|desk|crate|counter|rug|shelf|wardrobe|barrel|torch)$/.test(it.kind)) continue;
+    for(const it of bStructFurniture(st, act)){
       const fm=bFeatureMesh(it); fm.position.set(it.x-ox, TILE_TOP+y0, it.z-oz); fm.traverse(o=>o.userData.struct=idx); g.add(fm); } }
   if(st.roofOn){ const topY=TILE_TOP+wallH;
     if(st.modern && st.type!=='keep'){ const roof=new THREE.Mesh(new THREE.BoxGeometry(w+0.02*CS, 0.1*CS, d+0.02*CS), M(roofCol,0.8));   // modern: flat roof + parapet + rooftop plant
@@ -4478,7 +4536,7 @@ function bRevealSettlePlan(){                                             // fil
   return revealed.size; }
 function bGenerateMap(){ bPushUndo();
   if(bld.theme==='dungeon'||bld.theme==='cave'){ bGenerateDungeon(bld.theme); return; }
-  bld.dungeon=null;                                                     // any other map replaces a dungeon
+  bld.dungeon=null; bld.dungeonLevels=[]; bld.dungeonLevel=0;           // any other map replaces a dungeon
   if(!SETTLE_THEMES[bld.theme]) _settlePlan=null;                        // a non-settlement generate clears any planned settlement
   // On the SMALL flower/invader mats, a named terrain theme fills as its base biome (clean + consistent across
   // units) instead of the full map generator — whose rivers/rocks/forest ratios are tuned for a big map and jam
@@ -4555,7 +4613,7 @@ function bClickSettlement(ev){
 }
 function bZoomIntoSettlement(type, cell){
   _zoomBack = { snap:bSnapshot(), scale:bld.scale, flat:bld.boardFlat };     // remember the overview to return to
-  bld.dungeon=null;
+  bld.dungeon=null; bld.dungeonLevels=[]; bld.dungeonLevel=0;
   const zseed = (((bld.seed>>>0)*2654435761) ^ ((cell.q*73856)>>>0) ^ ((cell.r*19349)>>>0)) >>> 0;
   bld.cols=16; bld.rows=16; bld.q0=0; bld.r0=0; bld.seed=zseed%10000;
   setTileScale('battle'); bld.scale='battle';
@@ -4571,7 +4629,7 @@ function bZoomOut(){ if(!_zoomBack) return; const z=_zoomBack, s=z.snap; _zoomBa
   bld.board=new Map([...s.board].map(([k,v])=>[k,{...v}]));
   bld.zones=new Map(s.zones); bld.draw=JSON.parse(JSON.stringify(s.draw)); bld.props=JSON.parse(JSON.stringify(s.props));
   bld.subdiv=new Map([...s.subdiv].map(([k,v])=>[k,{...v}])); bld.subpaint=new Map([...(s.subpaint||new Map())].map(([k,v])=>[k,{...v}]));
-  bld.baseMap=s.baseMap; bld.selStroke=null; bld.selProp=null; bld.pen=[]; bld.structKey=''; bld.dungeon=s.dungeon||null; bRestorePlans(s);
+  bld.baseMap=s.baseMap; bld.selStroke=null; bld.selProp=null; bld.pen=[]; bld.structKey=''; bRestoreDungeon(s); bRestorePlans(s);
   setTileScale(z.scale); bld.scale=z.scale;
   document.querySelectorAll('#bScaleSeg button').forEach(x=>x.classList.toggle('on', x.dataset.scale===z.scale));
   bSyncBuilderUI(); bRender(); bFit(); bShowZoomBack(false);
@@ -4838,7 +4896,7 @@ function bGenerateDungeon(kind){
   bld.board.clear(); bld.zones.clear(); bld.subdiv.clear(); bld.subpaint.clear();
   const defs=bDefs(), id=TE.registerGen(defs,'square','dirt',[0,0,0,0],undefined);
   for(const c of bCells()) bld.board.set(TE.keyOf(c),{defId:id,rot:0});
-  bld.dungeon={...D, q0:bld.q0, r0:bld.r0};
+  bld.dungeon={...D, q0:bld.q0, r0:bld.r0}; bld.dungeonLevels=[bld.dungeon]; bld.dungeonLevel=0;
   bld.draw=[]; bld.pen=[]; bld.props=[]; bld.structPlans=[]; bld.modern=null; _settlePlan=null; bld.structKey=''; bld.selStroke=null; bld.selProp=null;
   bRender(); bFit();
   const lights=D.features.filter(f=>FEATURE_LIGHT[f.kind]).length;
@@ -4889,7 +4947,10 @@ function bRenderDungeon(){ const D=bld.dungeon; if(!D) return; const flat=!!bld.
     for(const s of [-1,1]){ const p=new THREE.Mesh(new THREE.BoxGeometry(alongX?0.14:0.24, flat?0.05:0.9, alongX?0.24:0.14), postM); p.position.set(cx+(alongX?s*(L/2-0.07):0), top+(flat?0.03:0.45), cz+(alongX?0:s*(L/2-0.07))); p.castShadow=true; grp.add(p); }
     if(!d.open){ const h=flat?0.04:0.72; const l=new THREE.Mesh(new THREE.BoxGeometry(alongX?L-0.26:0.1, h, alongX?0.1:L-0.26), leafM); l.position.set(cx, top+h/2, cz); l.castShadow=true; grp.add(l);
       if(!flat) for(const y of [0.2,0.55]){ const b=new THREE.Mesh(new THREE.BoxGeometry(alongX?L-0.28:0.12,0.04,alongX?0.12:L-0.28), bandM); b.position.set(cx, top+y, cz); grp.add(b); } } }
-  for(const f of D.features){ const [x,z]=bDungeonBW(f.x,f.y); const it={...f, x, z}; const m=bFeatureMesh(it); m.position.set(x-bld.off.x, top, z-bld.off.z); grp.add(m); }
+  for(const f of D.features){ const [x,z]=bDungeonBW(f.x,f.y); const it={...f, x, z}; const m=bFeatureMesh(it); m.position.set(x-bld.off.x, top, z-bld.off.z); grp.add(m);
+    if(f.link && !bld._exporting){ const lv=(bld.dungeonLevel||0)+1, n=(bld.dungeonLevels||[]).length;   // ▲ / ▼ where this way up / down leads (never in an exported image)
+      const txt = f.link==='down' ? (lv<n ? `▼ Level ${lv+1}` : '▼ (dig deeper)') : (lv>1 ? `▲ Level ${lv-1}` : '▲ Surface');
+      const l=bDgLabel(txt, f.link==='down'?'#ffcf7a':'#9fe0ff'); l.position.set(x-bld.off.x, top+(bld.boardFlat?0.4:1.5), z-bld.off.z); grp.add(l); } }
   builderGroup.add(grp); }
 // EXTEND a dungeon / cave: the existing layout stays exactly as it is; DungeonGen.extend fills a 12-square strip on that
 // side with new rooms (wired to the nearest old rooms through proper doors) or new caverns that flow across the seam.
@@ -4902,14 +4963,45 @@ function bExtendDungeon(dir){ const E=12, D=bld.dungeon; bPushUndo();
   const id=TE.registerGen(bDefs(),'square','dirt',[0,0,0,0],undefined); for(const c of newCells) bld.board.set(TE.keyOf(c),{defId:id,rot:0});
   const D2=DungeonGen.extend(D, dir, E, 1+Math.floor(Math.random()*999999));
   bld.dungeon={...D2, q0:bld.q0, r0:bld.r0}; bld.structKey='';
+  // every other level of the stack grows by the same strip of SOLID ROCK → all levels keep one aligned footprint
+  bld.dungeonLevels=(bld.dungeonLevels&&bld.dungeonLevels.length?bld.dungeonLevels:[D]).map((L,i)=> i===(bld.dungeonLevel||0) ? bld.dungeon : {...DungeonGen.pad(L,dir,E), q0:bld.q0, r0:bld.r0});
   document.getElementById('bCols').value=bld.cols; document.getElementById('bRows').value=bld.rows; bRender(); bFit();
   const side=({E:'east',W:'west',N:'north',S:'south'})[dir], nl=D2.features.filter(f=>FEATURE_LIGHT[f.kind]).length-D.features.filter(f=>FEATURE_LIGHT[f.kind]).length;
   bStatus(D2.kind==='cave' ? `Extended the cave <b>${side}</b> — now ${bld.cols}×${bld.rows} squares, new caverns joined to the old ones${nl>0?`, +${nl} light source${nl===1?'':'s'}`:''}. Extend again (◀▶▲▼) to keep exploring.`
     : `Extended the dungeon <b>${side}</b> — now ${bld.cols}×${bld.rows} squares, <b>+${D2.newRooms}</b> room${D2.newRooms===1?'':'s'} (${D2.rooms.length} total, ${D2.doors.filter(d=>!d.open).length} doors). Extend again (◀▶▲▼) to keep delving.`); }
+/* ---- ⬇ DUNGEON LEVELS: a stack of aligned levels (same footprint). Ways down (stairs in the lair, a well, a trapdoor pit,
+   a cave sinkhole) land on the SAME square of the level below; bld.dungeon is always the level being shown. ---- */
+function bRestoreDungeon(s){ bld.dungeonLevels = (s.dungeonLevels&&s.dungeonLevels.length) ? s.dungeonLevels.slice() : (s.dungeon?[s.dungeon]:[]);
+  bld.dungeonLevel = Math.min(s.dungeonLevel||0, Math.max(0,bld.dungeonLevels.length-1)); bld.dungeon = bld.dungeonLevels[bld.dungeonLevel]||null; }
+function bSwitchLevel(i, quiet){ const L=bld.dungeonLevels||[]; if(i<0||i>=L.length) return; bld.dungeonLevel=i; bld.dungeon=L[i]; bld.structKey=''; if(quiet) return;
+  bRender(); bStatus(`🗝 Level <b>${i+1}</b> of ${L.length} — a <b>${bld.dungeon.kind}</b>. The ▲ / ▼ markers show where each way up / down leads (screen only).`); }
+function bDigDeeper(){ const L=bld.dungeonLevels||[], i=bld.dungeonLevel||0; if(!bld.dungeon) return;
+  if(i<L.length-1){ bSwitchLevel(i+1); return; }
+  bPushUndo(); const seed=1+Math.floor(Math.random()*999999), kind=document.getElementById('bDigKind').value||bld.dungeon.kind;
+  const above=DungeonGen.ensureDown(bld.dungeon, seed); const added=above!==bld.dungeon;
+  const here={...above, q0:bld.q0, r0:bld.r0}; L[i]=here;
+  const D2=DungeonGen.generate({kind, cols:bld.cols, rows:bld.rows, seed:seed+17, arrivals:DungeonGen.arrivalsFrom(here)});
+  L.push({...D2, q0:bld.q0, r0:bld.r0}); bld.dungeonLevels=L; bSwitchLevel(L.length-1, true); bRender();
+  const downs=here.features.filter(f=>f.link==='down').map(f=>({stairs:'stairs',well:'a well',pit:'a trapdoor pit',sinkhole:'a sinkhole'})[f.kind]||f.kind);
+  bStatus(`⬇ Dug down to <b>Level ${L.length}</b> — a <b>${kind}</b>. It connects to Level ${L.length-1} by ${downs.join(', ')}${added?' (a new way down was added above)':''}; every landing is on the same square. <b>▲ Level</b> to go back up.`); }
+function bDgLabel(text, col){ const cv=document.createElement('canvas'); cv.width=256; cv.height=64; const x=cv.getContext('2d');
+  x.font='bold 34px system-ui,Arial'; x.textAlign='center'; x.textBaseline='middle'; x.lineWidth=7; x.strokeStyle='rgba(8,11,16,0.92)'; x.strokeText(text,128,32); x.fillStyle=col||'#ffe9b0'; x.fillText(text,128,32);
+  const tex=new THREE.CanvasTexture(cv); const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex, transparent:true, depthTest:false})); sp.scale.set(2.2,0.55,1); sp.renderOrder=40; return sp; }
+function bFloorUI(){ const sel=document.getElementById('bVttFloor'); if(!sel) return; const maxF=bld.dungeon?1:Math.max(1,...(bld.structures||[]).map(s=>s.floors||1));
+  if(maxF<=1){ sel.style.display='none'; sel.value='0'; if(!bld.dungeon) document.getElementById('bVttAllWrap').style.display='none'; return; }
+  if(sel.options.length!==maxF){ const v=sel.value; sel.innerHTML=''; for(let f=0;f<maxF;f++){ const o=document.createElement('option'); o.value=f; o.textContent=f?`Floor ${f+1}`:'Ground floor'; sel.appendChild(o); } sel.value=Math.min(+v||0,maxF-1); }
+  sel.style.display=''; document.getElementById('bVttAllWrap').style.display=''; document.getElementById('bVttAllTxt').textContent='all floors'; }
+function bDgUI(){ bFloorUI(); const row=document.getElementById('bDgRow'); if(!row) return; const on=!!bld.dungeon; row.style.display=on?'':'none'; if(!on) return;
+  document.getElementById('bVttAllTxt').textContent='all levels';
+  const L=bld.dungeonLevels||[bld.dungeon], i=bld.dungeonLevel||0;
+  document.getElementById('bDgWhich').textContent=`Level ${i+1} / ${L.length}`;
+  document.getElementById('bDgUp').disabled = i===0; document.getElementById('bDgDown').textContent = i<L.length-1 ? '▼ Level' : '⬇ Dig deeper';
+  document.getElementById('bDigKind').style.display = i<L.length-1 ? 'none' : '';
+  const all=document.getElementById('bVttAllWrap'); if(all) all.style.display = L.length>1 ? '' : 'none'; }
 // every light source on the map (dungeon dressing + house fireplaces/torches/candles) in board-world coords
-function bLightSources(){ const L=[], add=(kind,x,z)=>{ const f=FEATURE_LIGHT[kind]; if(f) L.push({x,z,range:f.range,color:f.color,kind}); };
-  if(bld.dungeon) for(const f of bld.dungeon.features){ const [x,z]=bDungeonBW(f.x,f.y); add(f.kind,x,z); }
-  for(const st of (bld.structures||[])) for(const it of bStructFurniture(st)) add(it.kind,it.x,it.z);
+function bLightSources(floor){ floor=floor||0; const L=[], add=(kind,x,z)=>{ const f=FEATURE_LIGHT[kind]; if(f) L.push({x,z,range:f.range,color:f.color,kind}); };
+  if(bld.dungeon && !floor) for(const f of bld.dungeon.features){ const [x,z]=bDungeonBW(f.x,f.y); add(f.kind,x,z); }
+  for(const st of (bld.structures||[])) if((st.floors||1)>floor) for(const it of bStructFurniture(st,floor)) add(it.kind,it.x,it.z);
   return L; }
 /* ================= 🗺 VIRTUAL-TABLETOP EXPORT (Universal VTT) =================
    One file a VTT imports as a ready scene: the map image at a chosen px-per-square, the grid, WALLS (line-of-sight)
@@ -4923,13 +5015,14 @@ function bLightSources(){ const L=[], add=(kind,x,z)=>{ const f=FEATURE_LIGHT[ki
    Coordinates: UVTT points are in GRID UNITS from the image's top-left (x→right = +x, y→down = +z in the scene). */
 function bVttSegKey(a,b){ const f=v=>Math.round(v*1000); const p=[f(a[0])+','+f(a[1]), f(b[0])+','+f(b[1])].sort(); return p[0]+'|'+p[1]; }
 // every wall/door in BOARD-WORLD coords (x,z) — shared by the exporter + tests
-function bVttGeometry(){
+function bVttGeometry(floor){ floor=floor||0;
   const walls=[], doors=[], seen=new Set();
   const addWall=(pts)=>{ if(pts.length<2) return; if(pts.length===2){ const k=bVttSegKey(pts[0],pts[1]); if(seen.has(k)) return; seen.add(k); } walls.push(pts); };
   // 1) battle-scale buildings
-  for(const st of (bld.structures||[])){ const L=bStructLayout(st);
+  for(const st of (bld.structures||[])){ if((st.floors||1)<=floor) continue; const L=bStructLayout(st,floor);
     for(const w of L.walls) addWall([[w[0],w[1]],[w[2],w[3]]]);
     for(const d of L.doors) doors.push(d); }
+  if(floor) return {walls, doors};                                       // upper floors: only the buildings' own storeys
   // 2) ring walls along tile edges (castle / walled town)
   const defs=bDefs(), g=bGridObj(), cs=g.corners();
   for(const [k,pl] of bld.board){ const def=defs[pl.defId]; if(!def||!def.edges) continue; const [q,r]=k.split(',').map(Number); const w=g.world({q,r});
@@ -4951,11 +5044,13 @@ async function bVttExport(opts){
   const fmt=opts.fmt||document.getElementById('bVttFmt').value||'dd2vtt';
   let ppg=+(opts.ppg||document.getElementById('bVttPpg').value)||140;
   const roofsOff = opts.roofsOff!=null ? !!opts.roofsOff : !!document.getElementById('bVttRoofs').checked;
+  const floor = opts.floor!=null ? opts.floor : (+document.getElementById('bVttFloor').value||0);   // storey to export (0 = ground)
   bStatus('🗺 Rendering the map for your VTT…'); await new Promise(r=>setTimeout(r,30));
   const saved=(bld.structures||[]).map(s=>({roofOn:s.roofOn, activeFloor:s.activeFloor}));
   const savedTgc=bld.tgc; let out=null;
   try{
-    if(roofsOff) (bld.structures||[]).forEach(s=>{ s.roofOn=false; s.activeFloor=0; });   // look down INTO the ground floor
+    if(floor) (bld.structures||[]).forEach(s=>{ if((s.floors||1)>floor){ s.roofOn=false; s.activeFloor=floor; } else { s.roofOn=true; s.activeFloor=0; } });   // upper floor: open the buildings that reach it, roof the rest
+    else if(roofsOff) (bld.structures||[]).forEach(s=>{ s.roofOn=false; s.activeFloor=0; });   // look down INTO the ground floor
     bld._exporting=true; bRender();
     const bb=bTgcSceneBBox(), unit=bCellSize();                   // 1 grid unit = one square (square) / centre-to-centre (hex)
     let W=Math.round(bb.w/unit*ppg), H=Math.round(bb.h/unit*ppg); const MAXD=8192;
@@ -4968,14 +5063,15 @@ async function bVttExport(opts){
     bld.tgc=savedTgc;
     // scene coords → grid units. Board-world (data) coords are scene + bld.off.
     const G=(x,z)=>({ x:+((x-bld.off.x-x0)/unit).toFixed(4), y:+((z-bld.off.z-z0)/unit).toFixed(4) });
-    const geo=bVttGeometry();
+    const geo=bVttGeometry(floor);
     const los=geo.walls.map(pts=>pts.map(p=>G(p[0],p[1])));
     const portals=geo.doors.map(d=>{ const a=G(d[0],d[1]), b=G(d[2],d[3]);
       return { position:{x:+((a.x+b.x)/2).toFixed(4), y:+((a.y+b.y)/2).toFixed(4)}, bounds:[a,b], rotation:+Math.atan2(b.y-a.y,b.x-a.x).toFixed(4), closed:true, freestanding:false }; });
-    const lights=bLightSources().map(l=>({ position:G(l.x,l.y===undefined?l.z:l.z), range:l.range, intensity:1, color:l.color, shadows:true }));
+    const lights=bLightSources(floor).map(l=>({ position:G(l.x,l.y===undefined?l.z:l.z), range:l.range, intensity:1, color:l.color, shadows:true }));
     const gw=+(W/ppg).toFixed(4), gh=+(H/ppg).toFixed(4);
-    const base=`tabletop-${bld.scale==='battle'?'battlemap':'map'}-${bld.seed}_${Math.round(gw)}x${Math.round(gh)}`;
+    const base=`tabletop-${bld.scale==='battle'?'battlemap':'map'}-${bld.seed}_${Math.round(gw)}x${Math.round(gh)}${floor?'_floor-'+(floor+1):''}`;
     if(opts.returnOnly){ out={W,H,ppg,gw,gh,walls:los,portals,lights,url:cv.toDataURL('image/png')}; }
+    else if(opts.collect && fmt==='png'){ out={name:`${base}_${ppg}px.png`, data:await bCanvasBytes(cv), W,H,ppg}; }
     else if(fmt==='png'){
       bDownload(await bCanvasBlob(cv), `${base}_${ppg}px.png`);
       bStatus(`🗺 Saved <b>${W}×${H}px</b> map — grid <b>${ppg} px per ${bld.grid==='hex'?'hex':'square'}</b> (${Math.round(gw)}×${Math.round(gh)}). Set that grid size in your VTT${bld.grid==='hex'?' (flat-top hex / “hex columns”)':''}. For walls + doors use <b>.dd2vtt</b>.`);
@@ -4984,9 +5080,12 @@ async function bVttExport(opts){
       const doc={ format:0.3, resolution:{ map_origin:{x:0,y:0}, map_size:{x:gw,y:gh}, pixels_per_grid:ppg },
         line_of_sight:los, objects_line_of_sight:[], portals, environment:{ baked_lighting:true, ambient_light:'ffffffff' }, lights,
         software:'KSOL Designs Tabletop '+APP_VERSION, grid:bld.grid, image:btoa(bin) };
+      if(bld.dungeon && (bld.dungeonLevels||[]).length>1) doc.level=(bld.dungeonLevel||0)+1;
+      if(floor) doc.floor=floor+1;
+      if(opts.collect){ out={name:`${base}.${fmt}`, data:new TextEncoder().encode(JSON.stringify(doc)), W,H,ppg}; } else {
       bDownload(new Blob([JSON.stringify(doc)],{type:'application/json'}), `${base}.${fmt}`);
       const mb=(bin.length*4/3/1048576).toFixed(1);
-      bStatus(`🗺 Exported <b>${base}.${fmt}</b> (${mb} MB) — ${W}×${H}px, <b>${ppg} px/${bld.grid==='hex'?'hex':'square'}</b>, <b>${los.length}</b> wall${los.length===1?'':'s'}, <b>${portals.length}</b> door${portals.length===1?'':'s'}, <b>${lights.length}</b> light${lights.length===1?'':'s'}.${bld.grid==='hex'?' Hex map: set a <b>flat-top hex</b> grid of '+ppg+' px in your VTT (the file format itself only describes square grids).':''}${bld.scale!=='battle'?' Tip: <b>⚔ Battle (5 ft)</b> maps export buildings with walls + doors.':''}`);
+      bStatus(`🗺 Exported <b>${base}.${fmt}</b> (${mb} MB) — ${W}×${H}px, <b>${ppg} px/${bld.grid==='hex'?'hex':'square'}</b>, <b>${los.length}</b> wall${los.length===1?'':'s'}, <b>${portals.length}</b> door${portals.length===1?'':'s'}, <b>${lights.length}</b> light${lights.length===1?'':'s'}.${bld.grid==='hex'?' Hex map: set a <b>flat-top hex</b> grid of '+ppg+' px in your VTT (the file format itself only describes square grids).':''}${bld.scale!=='battle'?' Tip: <b>⚔ Battle (5 ft)</b> maps export buildings with walls + doors.':''}`); }
     }
   }catch(e){ bStatus('VTT export failed: '+(e&&e.message||e), true); console.error(e); }
   bld.tgc=savedTgc; bld._exporting=false;
@@ -4994,7 +5093,23 @@ async function bVttExport(opts){
   bRender();
   return out;
 }
-document.getElementById('bVttExport').onclick=()=>bVttExport();
+document.getElementById('bVttExport').onclick=()=>{ const all=document.getElementById('bVttAll').checked;
+  if(all && (bld.dungeonLevels||[]).length>1) return bVttExportLevels();
+  if(all && !bld.dungeon && document.getElementById('bVttFloor').style.display!=='none') return bVttExportFloors();
+  return bVttExport(); };
+// every storey of a multi-floor town as its own aligned file, zipped: floor-1 (ground), floor-2, …
+async function bVttExportFloors(){ const maxF=Math.max(1,...(bld.structures||[]).map(s=>s.floors||1)), files=[]; let last=null;
+  for(let f=0;f<maxF;f++){ const r=await bVttExport({collect:true, floor:f}); if(!r) return; files.push({name:`floor-${f+1}_${r.name}`, data:r.data}); last=r; }
+  const zip=bZip(files), name=`tabletop-battlemap-${bld.seed}_${maxF}-floors.zip`; bDownload(new Blob([zip],{type:'application/zip'}), name);
+  bStatus(`🗺 Exported <b>${name}</b> — <b>${maxF} floors</b>, each ${last.W}×${last.H}px at ${last.ppg} px/square, same size and grid; stairs sit on the same square on every floor. Buildings shorter than a floor show their roof on it.`); }
+document.getElementById('bDgUp').onclick=()=>bSwitchLevel((bld.dungeonLevel||0)-1);
+document.getElementById('bDgDown').onclick=()=>bDigDeeper();
+// every dungeon level as its own aligned file, zipped: level-1_…, level-2_… (VTT scenes line up square for square)
+async function bVttExportLevels(){ const L=bld.dungeonLevels, cur=bld.dungeonLevel||0, files=[]; let last=null;
+  for(let i=0;i<L.length;i++){ bSwitchLevel(i,true); const r=await bVttExport({collect:true}); if(!r){ bSwitchLevel(cur,true); bRender(); return; } files.push({name:`level-${i+1}_${r.name}`, data:r.data}); last=r; }
+  bSwitchLevel(cur,true); bRender();
+  const zip=bZip(files), name=`tabletop-dungeon-${bld.seed}_${L.length}-levels.zip`; bDownload(new Blob([zip],{type:'application/zip'}), name);
+  bStatus(`🗺 Exported <b>${name}</b> — <b>${L.length} levels</b>, each ${last.W}×${last.H}px at ${last.ppg} px/square, same size and grid so the stairs, wells and pits line up between scenes.`); }
 window.__bVtt = (o)=>bVttExport(Object.assign({returnOnly:true},o||{}));
 window.__bVttGeo = ()=>bVttGeometry();
 window.__bGen = (theme,scale,cols,rows,seed)=>{ bld.theme=theme; if(scale){ setTileScale(scale); bld.scale=scale; } if(cols){ bld.cols=cols; bld.rows=rows||cols; } if(seed) bld.seed=seed; bld.structKey=''; bGenerateMap(); return {n:bld.structures.length, tiles:bld.board.size}; };
@@ -5032,7 +5147,7 @@ window.__bShot = (o)=>{ o=o||{};
   return url; };
 window.__loadRoleURL = async (k,url,name,scale)=>{ const u=new Uint8Array(await (await fetch(url)).arrayBuffer()); const ok=await applyLoadedModel(k,u,name); if(ok){ if(scale) roster[k].scale=scale; rebuildPieces(); } return ok; };   // gallery / test: load a GLB into a game role
 window.__bCellScreen = (q,r)=>{ const v=bWorld({q,r}).clone(); v.project(camera); const rc=renderer.domElement.getBoundingClientRect(); return {x:rc.left+(v.x+1)/2*rc.width, y:rc.top+(1-v.y)/2*rc.height}; };
-window.__bDungeon = ()=>bld.dungeon ? {kind:bld.dungeon.kind, rooms:bld.dungeon.rooms.length, doors:bld.dungeon.doors.length, walls:bld.dungeon.walls.length, features:bld.dungeon.features.length, lights:bLightSources().length} : null;
+window.__bDungeon = ()=>bld.dungeon ? {markers:(()=>{ const g=builderGroup.getObjectByName('dungeon'); let n=0; if(g) g.traverse(o=>{ if(o.isSprite) n++; }); return n; })(), kind:bld.dungeon.kind, rooms:bld.dungeon.rooms.length, doors:bld.dungeon.doors.length, walls:bld.dungeon.walls.length, features:bld.dungeon.features.length, lights:bLightSources().length} : null;
 window.__bZoom = (type)=>{ bZoomIntoSettlement(type||'town',{q:3,r:2}); return {n:bld.structures.length, tiles:bld.board.size}; };
 window.__bTgc={ TGC, sel:bTgcSelect, fit:bTgcFit, state:()=>({tgc:bld.tgc,grid:bld.grid,cols:bld.cols,rows:bld.rows,cell:bld.tgcCell,tiles:bld.board.size}),
   whole:(preview)=>{ const c=TGC[bld.tgc]; const sf=bld.boardFlat; bld._exporting=true; setTileFlat(true); bld.boardFlat=true; bRender(); const cv=TGC_HEXMAT[bld.tgc]?bTgcRenderHexMat(c,(bld.tgcCenters&&bld.tgcCenters[0])||bHexMatCenter()):bTgcRenderWhole(c); bld._exporting=false; setTileFlat(sf); bld.boardFlat=sf; bRender(); return preview?cv.toDataURL('image/png'):{w:cv.width,h:cv.height}; },
@@ -5209,9 +5324,9 @@ function bRenderHexMatGhosts(){ if(!TGC_HEXMAT[bld.tgc] || bld._exporting) retur
     for(let i=0;i<=6;i++){ const a=i*Math.PI/3; hp.push(new THREE.Vector3(w.x+0.85*Math.cos(a), TILE_TOP+0.07, w.z+0.85*Math.sin(a))); }
     const rim=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(hp), new THREE.LineBasicMaterial({color:0x6fe0ff, transparent:true, opacity:0.55, depthTest:false})); rim.renderOrder=20; builderGroup.add(rim);
     const l=bMakeTickLabel('＋'); l.position.set(w.x, TILE_TOP+0.11, w.z); l.scale.set(0.85,0.42,1); l.renderOrder=32; builderGroup.add(l); } }
-function bClear(){ bPushUndo(); bld.dungeon=null; bld.board.clear(); bld.zones.clear(); bld.draw=[]; bld.pen=[]; bld.props=[]; bld.subdiv.clear(); bld.subpaint.clear(); bld.selStroke=null; bld.selProp=null; bld.q0=0; bld.r0=0; bld.tgcCenters=[]; bld.selUnit=0; bld.sheetsX=1; bld.sheetsY=1; bld.sheetCX=0; bld.sheetCZ=0; _settlePlan=null; bld.structPlans=[]; bld.modern=null; if(TGC[bld.tgc]&&TGC[bld.tgc].kind==='mat') bTgcFit(); bRender(); bStatus("Cleared"); }
+function bClear(){ bPushUndo(); bld.dungeon=null; bld.dungeonLevels=[]; bld.dungeonLevel=0; bld.board.clear(); bld.zones.clear(); bld.draw=[]; bld.pen=[]; bld.props=[]; bld.subdiv.clear(); bld.subpaint.clear(); bld.selStroke=null; bld.selProp=null; bld.q0=0; bld.r0=0; bld.tgcCenters=[]; bld.selUnit=0; bld.sheetsX=1; bld.sheetsY=1; bld.sheetCX=0; bld.sheetCZ=0; _settlePlan=null; bld.structPlans=[]; bld.modern=null; if(TGC[bld.tgc]&&TGC[bld.tgc].kind==='mat') bTgcFit(); bRender(); bStatus("Cleared"); }
 function bSaveBoard(){ const data=TE.serializeBoard(bld.grid, bld.board, bld.zones, {cols:bld.cols,rows:bld.rows,seed:bld.seed,q0:bld.q0,r0:bld.r0}); data.draw=bld.draw; data.props=bld.props; data.season=bld.season; data.trees=bld.trees;
-  data.dungeon=bld.dungeon||null;                                         // ⚔ dungeon / cave layout (plain JSON)
+  data.dungeon=bld.dungeon||null; data.dungeonLevels=bld.dungeonLevels||[]; data.dungeonLevel=bld.dungeonLevel||0;   // ⚔ dungeon / cave levels (plain JSON)
   data.modern=bld.modern||null;                                           // Modern Pack street-grid state → Extend continues the grid after a reload
   data.structPlans=(bld.structPlans||[]).map(P=>({id:P.id, w:P.w, h:P.h, tiles:[...P.tiles], draw:P.draw}));   // an unfinished castle still completes after a reload
   data.subdiv=[...bld.subdiv].map(([k,s])=>{ const [q,r]=k.split(',').map(Number); return {q,r,mode:s.mode,n:s.n}; });
@@ -5226,7 +5341,7 @@ async function bLoadBoard(e){ const f=e.target.files[0]; if(!f) return;
     bld.subpaint=new Map(); if(Array.isArray(raw.subpaint)) for(const s of raw.subpaint) bld.subpaint.set(s.q+','+s.r, s.paint||{});
     TE.hydrateGenerated(bDefs(), bld.grid, bld.board);          // rebuild any generated map tiles the save referenced
     bld.structPlans=(Array.isArray(raw.structPlans)?raw.structPlans:[]).map(P=>({id:P.id, w:P.w, h:P.h, tiles:new Map(P.tiles), draw:P.draw||[]}));
-    for(const P of bld.structPlans) TE.hydrateGenerated(bDefs(), bld.grid, P.tiles); _settlePlan=null; bld.modern=raw.modern||null; bld.dungeon=raw.dungeon||null; bld.structKey='';
+    for(const P of bld.structPlans) TE.hydrateGenerated(bDefs(), bld.grid, P.tiles); _settlePlan=null; bld.modern=raw.modern||null; bRestoreDungeon(raw); bld.structKey='';
     if(raw.season!==undefined){ bld.season=raw.season; const se=document.getElementById('bSeason'); if(se) se.value=String(bld.season); }
     if(raw.trees){ bld.trees=raw.trees; const tr=document.getElementById('bTrees'); if(tr) tr.value=bld.trees; }
     const m=r.meta||{}; if(m.cols) bld.cols=m.cols; if(m.rows) bld.rows=m.rows; if(m.seed) bld.seed=m.seed; bld.q0=m.q0||0; bld.r0=m.r0||0;

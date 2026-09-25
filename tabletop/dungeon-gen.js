@@ -68,11 +68,18 @@
   const ROOM_TYPES=['crypt','barracks','library','storeroom','shrine','hall','treasury','kitchen','guardroom'];
   // base (Extend): { floor, rooms, doors, features, region:{x0,y0,x1,y1} } already in the NEW grid's coords. The old
   // layout is kept exactly; new rooms go only inside `region` (the added strip) and are wired to the nearest old rooms.
-  function dungeon(cols, rows, seed, base){
+  function dungeon(cols, rows, seed, base, arrivals){ arrivals=arrivals||[];
     const r=rng32(seed), ri=(n)=>Math.floor(r()*n), W=cols, H=rows, floor=base?base.floor.slice():new Array(W*H).fill(0), roomAt=new Int16Array(W*H).fill(-1);
     const R=base?base.region:{x0:2,y0:2,x1:W-2,y1:H-2}, RW=R.x1-R.x0, RH=R.y1-R.y0;
     const rooms=base?base.rooms.map(o=>({...o,old:true})):[], nOld=rooms.length;
     const target=nOld+Math.max(base?1:3, Math.round(RW*RH/70)), small=W*H<520, G=small?2:3, maxS=small?4:5;
+    // ARRIVAL rooms first: a room around every landing spot from the level above (stairs arrive on the SAME square)
+    for(const a of arrivals){ const fx0=Math.floor(a.x-a.w/2+0.05), fx1=Math.floor(a.x+a.w/2-0.05), fy0=Math.floor(a.y-a.d/2+0.05), fy1=Math.floor(a.y+a.d/2-0.05);
+      const w=Math.max(fx1-fx0+3, 4+ri(3)), h=Math.max(fy1-fy0+3, 4+ri(2));
+      let x=fx0-1-ri(Math.max(1,w-(fx1-fx0+2))), y=fy0-1-ri(Math.max(1,h-(fy1-fy0+2)));
+      x=Math.max(2,Math.min(W-2-w,x)); y=Math.max(2,Math.min(H-2-h,y));
+      if(fx0<x||fx1>=x+w||fy0<y||fy1>=y+h){ x=Math.max(1,Math.min(fx0-1,W-1-w)); y=Math.max(1,Math.min(fy0-1,H-1-h)); }
+      rooms.push({x,y,w,h,arrival:1}); }
     for(let t=0;t<600 && rooms.length<target;t++){ const big=!base && rooms.length===1 && W>=20 && H>=16;
       const w=big?7+ri(4):3+ri(maxS), h=big?6+ri(3):3+ri(maxS-1); if(w>RW-1||h>RH-1) continue;
       const x=R.x0+ri(RW-w), y=R.y0+ri(RH-h); if(x<2||y<2||x+w>W-2||y+h>H-2) continue;
@@ -115,9 +122,13 @@
       if(d.side===0) newDoors.push({x1:d.ix,y1:d.iy,x2:d.ix+1,y2:d.iy,open}); else if(d.side===2) newDoors.push({x1:d.ix,y1:d.iy+1,x2:d.ix+1,y2:d.iy+1,open});
       else if(d.side===3) newDoors.push({x1:d.ix,y1:d.iy,x2:d.ix,y2:d.iy+1,open}); else newDoors.push({x1:d.ix+1,y1:d.iy,x2:d.ix+1,y2:d.iy+1,open}); }
     const doors=(base?base.doors:[]).concat(newDoors);
-    // unreachable rooms go back to rock (keeps the map honest)
-    const seen=new Uint8Array(W*H), st=[rooms[0].y*W+rooms[0].x]; seen[st[0]]=1;
-    while(st.length){ const k=st.pop(), x=k%W, y=(k/W)|0; for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){ const X=x+dx,Y=y+dy, K=Y*W+X; if(X<0||Y<0||X>=W||Y>=H||seen[K]||!floor[K]) continue; seen[K]=1; st.push(K); } }
+    // unreachable rooms go back to rock (keeps the map honest) — except ARRIVAL rooms, which get a passage dug to the rest
+    const seen=new Uint8Array(W*H), flood=(from)=>{ const st=[from]; seen[from]=1; while(st.length){ const k=st.pop(), x=k%W, y=(k/W)|0; for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){ const X=x+dx,Y=y+dy, K=Y*W+X; if(X<0||Y<0||X>=W||Y>=H||seen[K]||!floor[K]) continue; seen[K]=1; st.push(K); } } };
+    flood(rooms[0].y*W+rooms[0].x);
+    for(const o of rooms){ if(!o.arrival || seen[o.y*W+o.x]) continue;
+      const prev=new Int32Array(W*H).fill(-2), q=[]; for(let y=o.y;y<o.y+o.h;y++) for(let x=o.x;x<o.x+o.w;x++){ prev[y*W+x]=-1; q.push(y*W+x); }
+      let hit=-1; for(let h=0;h<q.length&&hit<0;h++){ const k=q[h], x=k%W, y=(k/W)|0; for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){ const X=x+dx,Y=y+dy,K=Y*W+X; if(X<1||Y<1||X>=W-1||Y>=H-1||prev[K]!==-2) continue; prev[K]=k; if(seen[K]){ hit=K; break; } q.push(K); } }
+      for(let k=hit;k>=0&&prev[k]!==-1;k=prev[k]) floor[k]=1; flood(o.y*W+o.x); }
     for(let k=0;k<W*H;k++) if(floor[k]&&!seen[k]) floor[k]=0;
     const live=rooms.map((o,i)=>seen[o.y*W+o.x]?i:-1).filter(i=>i>=0);
     const okC=(x,y)=>x>=0&&y>=0&&x<W&&y<H&&floor[y*W+x]&&seen[y*W+x];
@@ -128,11 +139,14 @@
     const liveNew=live.filter(i=>i>=nOld), hasLair=rooms.some(o=>o.old&&o.type==='lair');
     let far=liveNew[0]??live[0], fd=-1; for(const i of (base?liveNew:live)){ const o=rooms[i], dd=dist[Math.floor(cy(o))*W+Math.floor(cx(o))]; if(dd>fd){ fd=dd; far=i; } }
     const out=[]; for(const i of live){ const o=rooms[i]; if(o.old){ out.push({x:o.x,y:o.y,w:o.w,h:o.h,type:o.type}); continue; }
+      if(o.arrival && i!==live[0]){ out.push({x:o.x,y:o.y,w:o.w,h:o.h,type:ROOM_TYPES[ri(ROOM_TYPES.length)],fresh:1,arrival:1}); continue; }
       out.push({x:o.x,y:o.y,w:o.w,h:o.h, type: (!base && i===live[0])?'entrance' : (i===far && (!base || !hasLair))?'lair' : (o.w>=6&&o.h>=5 ? (r()<0.5?'hall':'crypt') : ROOM_TYPES[ri(ROOM_TYPES.length)]), fresh:1}); }
     // pillars: big halls / crypts get rows of 1-square stone columns (they're real walls for line of sight)
-    for(const o of out){ if(!o.fresh || !(o.type==='hall'||o.type==='crypt'||o.type==='lair') || o.w<6 || o.h<5) continue;
+    for(const o of out){ if(!o.fresh || o.arrival || !(o.type==='hall'||o.type==='crypt'||o.type==='lair') || o.w<6 || o.h<5) continue;
       for(let y=o.y+1;y<o.y+o.h-1;y+=2) for(let x=o.x+1;x<o.x+o.w-1;x+=Math.max(2,o.w-3)){ if(y===o.y+1||y>=o.y+o.h-2){ floor[y*W+x]=0; } } }
-    const features=(base?base.features:[]).concat(dungeonDressing(out.filter(o=>!base||o.fresh), doorsLive, floor, W, H, r, {allRooms:out, region:base?R:null, prior:base?base.features:[]}));
+    const arr=arrivals.map(a=>({...a, link:'up'}));
+    const features=(base?base.features:[]).concat(arr, dungeonDressing(out.filter(o=>!base||o.fresh), doorsLive, floor, W, H, r, {allRooms:out, region:base?R:null, prior:(base?base.features:[]).concat(arr), noEntranceStairs:arr.length>0}));
+    if(!base) drops(features, out, floor, W, H, r, 'dungeon');
     out.forEach(o=>{ delete o.fresh; });
     return { kind:'dungeon', cols, rows, res:1, floor, water:null, walls:gridLoops(floor,W,H), waterLoops:[], doors:doorsLive, rooms:out, features, newRooms:base?liveNew.length:out.length };
   }
@@ -140,20 +154,21 @@
   function dungeonDressing(rooms, doors, floor, W, H, r, opt){ opt=opt||{}; const allRooms=opt.allRooms||rooms, Rg=opt.region;
     const F=[], ri=(n)=>Math.floor(r()*n), isF=(x,y)=>x>=0&&y>=0&&x<W&&y<H&&floor[y*W+x]===1;
     const occ=new Set(), cellK=(x,y)=>Math.floor(x)+','+Math.floor(y);
-    for(const f of (opt.prior||[])) if(!f.flat) occ.add(cellK(f.x,f.y));   // Extend: never stack on what's already there
+    for(const f of (opt.prior||[])){ if(f.flat) continue; const m=f.link?1:0;   // Extend / landings: reserve the whole footprint (+1 square round a landing)
+      for(let y=Math.floor(f.y-f.d/2)-m;y<=Math.floor(f.y+f.d/2-0.01)+m;y++) for(let x=Math.floor(f.x-f.w/2)-m;x<=Math.floor(f.x+f.w/2-0.01)+m;x++) occ.add(x+','+y); }
     const doorNear=(x,y,rad)=>doors.some(d=>Math.hypot((d.x1+d.x2)/2-x,(d.y1+d.y2)/2-y)<rad);
     const put=(it)=>{ const cells=[]; for(let y=Math.floor(it.y-it.d/2+0.05);y<=Math.floor(it.y+it.d/2-0.05);y++) for(let x=Math.floor(it.x-it.w/2+0.05);x<=Math.floor(it.x+it.w/2-0.05);x++) cells.push([x,y]);
       if(cells.some(([x,y])=>!isF(x,y)||occ.has(x+','+y))) return false; if(doorNear(it.x,it.y,1.2)) return false; if(!it.flat) cells.forEach(([x,y])=>occ.add(x+','+y)); F.push(it); return true; };
     // against a wall of room o on side s (0 top,1 right,2 bottom,3 left); item length along the wall `len`, depth `dep`
     const wall=(o,s,len,dep,kind,tries)=>{ for(let t=0;t<(tries||6);t++){ const u=(o.w>=len+0.2 && (s===0||s===2)) ? o.x+len/2+r()*(o.w-len) : (o.h>=len+0.2 ? o.y+len/2+r()*(o.h-len) : null); if(u==null) return false;
         const it = s===0?{kind,x:u,y:o.y+dep/2+0.04,w:len,d:dep,face:0}: s===2?{kind,x:u,y:o.y+o.h-dep/2-0.04,w:len,d:dep,face:2}: s===3?{kind,x:o.x+dep/2+0.04,y:u,w:dep,d:len,face:3}:{kind,x:o.x+o.w-dep/2-0.04,y:u,w:dep,d:len,face:1};
-        if(put(it)) return true; } return false; };
+        if(put(it)) return it; } return null; };
     const mid=(o,kind,w,d)=>put({kind,x:o.x+o.w/2,y:o.y+o.h/2,w,d});
     const scatter=(o,kind,n,s)=>{ for(let i=0;i<n;i++){ put({kind,x:o.x+0.5+ri(o.w)+ (r()-0.5)*0.2,y:o.y+0.5+ri(o.h)+(r()-0.5)*0.2,w:s,d:s}); } };
     for(const o of rooms){ const sides=[0,1,2,3].sort(()=>r()-0.5);
       switch(o.type){
-        case 'entrance': wall(o,sides[0],1.7,0.9,'stairs'); scatter(o,'rubble',1,0.7); break;
-        case 'lair': wall(o,sides[0],1.7,0.9,'stairs'); mid(o,'statue',0.9,0.9); wall(o,sides[1],1,0.9,'chest'); scatter(o,'bones',3,0.6); put({kind:'brazier',x:o.x+1.5,y:o.y+1.5,w:0.8,d:0.8}); put({kind:'brazier',x:o.x+o.w-1.5,y:o.y+o.h-1.5,w:0.8,d:0.8}); break;
+        case 'entrance': if(!opt.noEntranceStairs){ const st=wall(o,sides[0],1.7,0.9,'stairs'); if(st) st.link='up'; } scatter(o,'rubble',1,0.7); break;
+        case 'lair': { const st=wall(o,sides[0],1.7,0.9,'stairs'); if(st) st.link='down'; } mid(o,'statue',0.9,0.9); wall(o,sides[1],1,0.9,'chest'); scatter(o,'bones',3,0.6); put({kind:'brazier',x:o.x+1.5,y:o.y+1.5,w:0.8,d:0.8}); put({kind:'brazier',x:o.x+o.w-1.5,y:o.y+o.h-1.5,w:0.8,d:0.8}); break;
         case 'crypt': for(let i=0;i<Math.min(4,Math.floor(o.w/2));i++) put({kind:'sarcophagus',x:o.x+1.5+i*2,y:o.y+o.h/2,w:0.8,d:1.8}); scatter(o,'bones',2,0.6); break;
         case 'barracks': for(let i=0;i<Math.max(2,Math.floor(o.w/1.5));i++) wall(o,i%2?0:2,0.8,1.5,'bed',3); wall(o,sides[1],1.2,0.35,'weaponrack'); wall(o,sides[2],1,0.8,'chest'); break;
         case 'library': for(const s of sides.slice(0,3)) wall(o,s,Math.min(2.4,(s%2?o.h:o.w)-1),0.35,'bookshelf'); mid(o,'table',1.4,0.8); break;
@@ -172,6 +187,29 @@
       if(((x*7+y*13)%23)===0){ const s=!isF(x,y-1)?0:!isF(x+1,y)?1:!isF(x,y+1)?2:!isF(x-1,y)?3:-1; if(s>=0 && put({kind:'torch',x:x+0.5+(s===1?0.34:s===3?-0.34:0),y:y+0.5+(s===2?0.34:s===0?-0.34:0),w:0.3,d:0.3,face:s})) n++; }
       else if(r()<0.02) put({kind:r()<0.5?'rubble':'bones',x:x+0.5,y:y+0.5,w:0.6,d:0.6}); }
     return F; }
+
+  // DROPS to the level below: a well in a room, a trapdoor pit in a passage (dungeon) / a sinkhole (cave). link:'down'
+  function drops(F, rooms, floor, W, H, r, kind, res, force){ res=res||1; const P=(p)=>force||r()<p; const cols=W/res, rows=H/res;
+    const occ=new Set(F.filter(f=>!f.flat).map(f=>Math.floor(f.x)+','+Math.floor(f.y)));
+    const cellFloor=(cx,cy)=>{ if(cx<1||cy<1||cx>=cols-1||cy>=rows-1) return false; for(let y=cy*res;y<cy*res+res;y++) for(let x=cx*res;x<cx*res+res;x++) if(!floor[y*W+x]) return false; return true; };
+    const inRoom=(x,y)=>rooms.some(o=>x>=o.x&&x<o.x+o.w&&y>=o.y&&y<o.y+o.h);
+    const far=(x,y)=>F.every(f=>!f.link || Math.hypot(f.x-x-0.5,f.y-y-0.5)>5);
+    const put=(it)=>{ const k=Math.floor(it.x)+','+Math.floor(it.y); if(occ.has(k)) return false; occ.add(k); F.push(it); return true; };
+    if(kind==='dungeon'){
+      if(P(0.55)){ const cand=rooms.filter(o=>o.type!=='entrance'&&o.type!=='lair'&&o.w*o.h>=12); for(let t=0;t<cand.length;t++){ const o=cand[Math.floor(r()*cand.length)], x=Math.floor(o.x+o.w/2), y=Math.floor(o.y+o.h/2); if(far(x,y) && put({kind:'well',x:x+0.5,y:y+0.5,w:0.9,d:0.9,link:'down'})) break; } }
+      if(P(0.55) && !(force && F.some(f=>f.link==='down'))){ for(let t=0;t<200;t++){ const x=1+Math.floor(r()*(cols-2)), y=1+Math.floor(r()*(rows-2)); if(cellFloor(x,y)&&!inRoom(x,y)&&far(x,y)&&put({kind:'pit',x:x+0.5,y:y+0.5,w:0.9,d:0.9,link:'down'})) break; } } }
+    else if(P(0.7)){ for(let t=0;t<300;t++){ const x=1+Math.floor(r()*(cols-2)), y=1+Math.floor(r()*(rows-2)); let open=true; for(let dy=-1;dy<=1&&open;dy++) for(let dx=-1;dx<=1;dx++) if(!cellFloor(x+dx,y+dy)){ open=false; break; }
+        if(open&&far(x,y)&&put({kind:'sinkhole',x:x+0.5,y:y+0.5,w:1.4,d:1.4,link:'down'})) break; } } }
+  // PAD a level with solid rock so every level of a stack keeps the same footprint when one of them is extended
+  function pad(D, dir, E){ const cols=D.cols+(dir==='E'||dir==='W'?E:0), rows=D.rows+(dir==='N'||dir==='S'?E:0), ox=dir==='W'?E:0, oy=dir==='N'?E:0, res=D.res, W=cols*res, OW=D.cols*res;
+    const floor=new Array(W*rows*res).fill(0), water=D.water?new Array(W*rows*res).fill(0):null;
+    for(let y=0;y<D.rows*res;y++) for(let x=0;x<OW;x++){ const k=(y+oy*res)*W+x+ox*res; floor[k]=D.floor[y*OW+x]; if(water) water[k]=D.water[y*OW+x]; }
+    const sh=(f)=>({...f,x:f.x+ox,y:f.y+oy}), rooms=D.rooms.map(o=>({...o,x:o.x+ox,y:o.y+oy})), doors=D.doors.map(d=>({...d,x1:d.x1+ox,x2:d.x2+ox,y1:d.y1+oy,y2:d.y2+oy}));
+    if(D.kind==='cave') return caveOut(cols,rows,res,floor,water||new Array(W*rows*res).fill(0),D.features.map(sh));
+    return { ...D, cols, rows, floor, walls:gridLoops(floor,W,rows), doors, rooms, features:D.features.map(sh) }; }
+  // the landing below each way down: stairs arrive on the same square; a well lands in a pool, a pit/sinkhole on rubble
+  function arrivalsFrom(D){ return D.features.filter(f=>f.link==='down').map(f=> f.kind==='stairs' ? {kind:'stairs',x:f.x,y:f.y,w:f.w,d:f.d,face:f.face}
+      : f.kind==='well' ? {kind:'splash',x:f.x,y:f.y,w:1.2,d:1.2} : {kind:'rubble',x:f.x,y:f.y,w:1.1,d:1.1}); }
 
   /* ---------- CAVE: cellular-automata caverns on a 3×-finer sub-grid ---------- */
   const N4=[[1,0],[-1,0],[0,1],[0,-1]];
@@ -194,10 +232,12 @@
   function caveDress(floor, water, cols, rows, res, r, R, prior, camp){ const W=cols*res;
     const cellFloor=(cx,cy)=>{ if(cx<0||cy<0||cx>=cols||cy>=rows) return false; for(let y=cy*res;y<cy*res+res;y++) for(let x=cx*res;x<cx*res+res;x++) if(!floor[y*W+x]||water[y*W+x]) return false; return true; };
     const open=(cx,cy)=>{ let n=0; for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++) if(cellFloor(cx+dx,cy+dy)) n++; return n; };
-    const occ=new Set((prior||[]).map(f=>Math.floor(f.x)+','+Math.floor(f.y))), F=[];
+    const occ=new Set(), F=[];   // prior items (landings, old dressing) reserve their WHOLE footprint (+1 square round a landing)
+    for(const f of (prior||[])){ const m=f.link?1:0; for(let y=Math.floor(f.y-f.d/2)-m;y<=Math.floor(f.y+f.d/2-0.01)+m;y++) for(let x=Math.floor(f.x-f.w/2)-m;x<=Math.floor(f.x+f.w/2-0.01)+m;x++) occ.add(x+','+y); }
+    const nearLink=(x,y)=>(prior||[]).some(f=>f.link && Math.hypot(f.x-x-0.5,f.y-y-0.5)<4);
     const put=(it)=>{ const k=Math.floor(it.x)+','+Math.floor(it.y); if(occ.has(k)||!cellFloor(Math.floor(it.x),Math.floor(it.y))) return false; occ.add(k); F.push(it); return true; };
     const inR=(x,y)=>x>=R.x0&&y>=R.y0&&x<R.x1&&y<R.y1;
-    if(camp){ let c=null; for(let y=Math.max(1,R.y0);y<Math.min(rows-1,R.y1);y++) for(let x=Math.max(1,R.x0);x<Math.min(cols-1,R.x1);x++){ if(open(x,y)===9 && (c==null || r()<0.08)) c={x,y}; }
+    if(camp){ let c=null; for(let y=Math.max(1,R.y0);y<Math.min(rows-1,R.y1);y++) for(let x=Math.max(1,R.x0);x<Math.min(cols-1,R.x1);x++){ if(open(x,y)===9 && !nearLink(x,y) && (c==null || r()<0.08)) c={x,y}; }
       if(c){ put({kind:'campfire',x:c.x+0.5,y:c.y+0.5,w:0.9,d:0.9}); for(const [dx,dy,w,d] of [[-1,0,0.6,1.5],[1,0,0.6,1.5],[0,1,1.5,0.6]]) if(cellFloor(c.x+dx,c.y+dy)) put({kind:'bedroll',x:c.x+dx+0.5,y:c.y+dy+0.5,w,d}); put({kind:'chest',x:c.x+0.5,y:c.y-0.5,w:0.9,d:0.6}); } }
     const edgeCells=[]; for(let y=R.y0;y<R.y1;y++) for(let x=R.x0;x<R.x1;x++) if(inR(x,y) && cellFloor(x,y) && open(x,y)<8) edgeCells.push({x,y});
     const pick=()=>edgeCells.splice(Math.floor(r()*edgeCells.length),1)[0], area=(R.x1-R.x0)*(R.y1-R.y0), k=Math.max(0.35,area/720);
@@ -211,20 +251,26 @@
     const walls=msLoops(blur(floor,W,H,1),W,H,0.5).map(l=>l.map(p=>({x:p.x/res,y:p.y/res})));
     const waterLoops=msLoops(blur(water,W,H,1),W,H,0.5).map(l=>l.map(p=>({x:p.x/res,y:p.y/res})));
     return { kind:'cave', cols, rows, res, floor, water, walls, waterLoops, doors:[], rooms:[], features }; }
-  function cave(cols, rows, seed){
+  function cave(cols, rows, seed, arrivals){ arrivals=arrivals||[];
     const res=3, W=cols*res, H=rows*res; let floor, tries=0, s=seed;
-    for(;;){ const r=rng32(s); let m=new Array(W*H); for(let y=0;y<H;y++) for(let x=0;x<W;x++) m[y*W+x] = (x<2||y<2||x>=W-2||y>=H-2) ? 0 : (r()<0.53?1:0);   // 1 = floor
-      m=caStep(m,W,H,(x,y)=>x>=2&&y>=2&&x<W-2&&y<H-2,6);
-      const {lab,size}=labels(m,W,H); let best=0; size.forEach((n,i)=>{ if(n>size[best]) best=i; });   // keep the largest open region
+    const fixed=new Uint8Array(W*H); for(const a of arrivals){ const cx=Math.floor(a.x*res), cy=Math.floor(a.y*res), R=Math.max(5,Math.ceil(Math.max(a.w,a.d)*res/2)+3);   // a guaranteed open chamber at every landing
+      for(let y=cy-R;y<=cy+R;y++) for(let x=cx-R;x<=cx+R;x++) if(x>=2&&y>=2&&x<W-2&&y<H-2&&Math.hypot(x-cx,y-cy)<=R) fixed[y*W+x]=1; }
+    for(;;){ const r=rng32(s); let m=new Array(W*H); for(let y=0;y<H;y++) for(let x=0;x<W;x++) m[y*W+x] = fixed[y*W+x] ? 1 : (x<2||y<2||x>=W-2||y>=H-2) ? 0 : (r()<0.53?1:0);   // 1 = floor
+      m=caStep(m,W,H,(x,y)=>x>=2&&y>=2&&x<W-2&&y<H-2&&!fixed[y*W+x],6);
+      let {lab,size}=labels(m,W,H); let best=0; size.forEach((n,i)=>{ if(n>size[best]) best=i; });   // keep the largest open region
+      if(arrivals.length){ const ak=(a)=>Math.floor(a.y*res)*W+Math.floor(a.x*res); best=lab[ak(arrivals[0])];   // …or, below another level, the one holding the landings
+        for(const a of arrivals.slice(1)){ const id=lab[ak(a)]; if(id!==best && id>=0){ tunnel(m,W,H,lab,id,best); ({lab,size}=labels(m,W,H)); best=lab[ak(arrivals[0])]; } } }
       for(let k=0;k<W*H;k++) m[k] = lab[k]===best ? 1 : 0;
       const frac=(size[best]||0)/(W*H); floor=m; if((frac>0.34 && frac<0.62) || ++tries>10) break; s=(s*48271+11)>>>0; }
     const r=rng32(seed^0x5bd1e995);
-    // an entrance tunnel from the cave to the nearest map edge
-    { let bx=0,by=0,bd=1e9; for(let y=0;y<H;y++) for(let x=0;x<W;x++){ if(!floor[y*W+x]) continue; const d=Math.min(x,y,W-1-x,H-1-y); if(d<bd){ bd=d; bx=x; by=y; } }
+    // an entrance tunnel from the cave to the nearest map edge (the top level only — deeper levels are reached from above)
+    if(!arrivals.length){ let bx=0,by=0,bd=1e9; for(let y=0;y<H;y++) for(let x=0;x<W;x++){ if(!floor[y*W+x]) continue; const d=Math.min(x,y,W-1-x,H-1-y); if(d<bd){ bd=d; bx=x; by=y; } }
       const dx = bx===Math.min(bx,by,W-1-bx,H-1-by)?-1 : (W-1-bx)===bd?1:0, dy = dx?0:(by===bd?-1:1);
       for(let t=0;t<=bd+1;t++){ const x=bx+dx*t, y=by+dy*t; for(let o=-1;o<=1;o++){ const X=x+(dy?o:0), Y=y+(dx?o:0); if(X>=0&&Y>=0&&X<W&&Y<H) floor[Y*W+X]=1; } } }
     const water=new Array(W*H).fill(0); pools(floor,water,W,H,r,1+Math.floor(r()*2),()=>true);
-    return caveOut(cols,rows,res,floor,water, caveDress(floor,water,cols,rows,res,r,{x0:0,y0:0,x1:cols,y1:rows},[],true)); }
+    const arr=arrivals.map(a=>({...a,link:'up'})); const F=arr.concat(caveDress(floor,water,cols,rows,res,r,{x0:0,y0:0,x1:cols,y1:rows},arr,true));
+    drops(F,[],floor,W,H,r,'cave',res);
+    return caveOut(cols,rows,res,floor,water,F); }
   // EXTEND a cave: the old cave is copied untouched; the new strip grows with the same rule (the old edge band may only
   // OPEN into it), stray pockets tunnel back to the main cave, and new pools / dressing go only in the new strip.
   function caveExtend(D, cols, rows, ox, oy, R, seed){
@@ -262,8 +308,14 @@
     let best=null; for(let t=0;t<6;t++){ const g=dungeon(cols,rows,(seed+t*7919)>>>0,base); if(!best||g.newRooms>best.newRooms) best=g; if(g.newRooms>=2) break; }
     return best; }
 
-  root.DungeonGen = { generate(o){ o=o||{}; const cols=Math.max(12,o.cols|0||30), rows=Math.max(10,o.rows|0||24), seed=(o.seed>>>0)||1;
-      if(o.kind==='cave') return cave(cols,rows,seed);
-      let best=null; for(let t=0;t<8;t++){ const g=dungeon(cols,rows,(seed+t*7919)>>>0); if(!best||g.rooms.length>best.rooms.length) best=g; if(g.rooms.length>=Math.min(4,Math.max(3,Math.round(cols*rows/120)))) return g; } return best; },   // retry a cramped layout
-    extend, gridLoops, msLoops };
+  root.DungeonGen = { generate(o){ o=o||{}; const cols=Math.max(12,o.cols|0||30), rows=Math.max(10,o.rows|0||24), seed=(o.seed>>>0)||1, arr=o.arrivals||[];
+      if(o.kind==='cave') return cave(cols,rows,seed,arr);
+      let best=null; for(let t=0;t<8;t++){ const g=dungeon(cols,rows,(seed+t*7919)>>>0,null,arr); if(!best||g.rooms.length>best.rooms.length) best=g; if(g.rooms.length>=Math.min(4,Math.max(3,Math.round(cols*rows/120)))) return g; } return best; },   // retry a cramped layout
+    extend, pad, arrivalsFrom, gridLoops, msLoops,
+    // make sure a level has a way DOWN (for ⬇ Dig deeper): a well / pit (dungeon) or a sinkhole (cave), else a plain pit anywhere open
+    ensureDown(D, seed){ if(D.features.some(f=>f.link==='down')) return D; const F=D.features.slice(), r=rng32(seed>>>0||1), W=D.cols*D.res, H=D.rows*D.res;
+      drops(F, D.rooms, D.floor, W, H, r, D.kind, D.res, true);
+      if(!F.some(f=>f.link==='down')){ for(let y=1;y<D.rows-1;y++){ for(let x=1;x<D.cols-1;x++){ let ok=true; for(let sy=0;sy<D.res&&ok;sy++) for(let sx=0;sx<D.res;sx++) if(!D.floor[(y*D.res+sy)*W+x*D.res+sx]){ ok=false; break; }
+            if(ok && !F.some(f=>Math.floor(f.x)===x&&Math.floor(f.y)===y)){ F.push({kind:D.kind==='cave'?'sinkhole':'pit',x:x+0.5,y:y+0.5,w:D.kind==='cave'?1.4:0.9,d:D.kind==='cave'?1.4:0.9,link:'down'}); y=D.rows; break; } } } }
+      return {...D, features:F}; } };
 })(typeof self!=='undefined' ? self : this);
