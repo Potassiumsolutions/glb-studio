@@ -4411,6 +4411,7 @@ function bClickSettlement(ev){
   const defs=bDefs(), pl=bld.board.get(TE.keyOf(hit.cell)); if(!pl) return false;
   const def=defs[pl.defId]; if(!def) return false;
   const bm=def.biome; if(bm!=='city' && bm!=='village') return false;  // only settlement cells zoom in
+  if(window.TTier && !TTier.has('battlemaps')){ bStatus('🔒 Zooming into a town, village or castle at <b>5-ft battle scale</b> is part of the <b>Battle Maps Pack</b> — unlock it in GLB Studio → ✨ Upgrades.', true); return true; }
   const g=bGridObj();
   const isKeep=(kk)=>{ const p=bld.board.get(kk), d=p&&defs[p.defId]; return !!(d && /^keep/.test(d.feature||'')); };
   let type = bm==='village' ? 'village' : 'town';
@@ -4769,6 +4770,7 @@ document.getElementById('bVttExport').onclick=()=>bVttExport();
 window.__bVtt = (o)=>bVttExport(Object.assign({returnOnly:true},o||{}));
 window.__bVttGeo = ()=>bVttGeometry();
 window.__bGen = (theme,scale,cols,rows,seed)=>{ bld.theme=theme; if(scale){ setTileScale(scale); bld.scale=scale; } if(cols){ bld.cols=cols; bld.rows=rows||cols; } if(seed) bld.seed=seed; bld.structKey=''; bGenerateMap(); return {n:bld.structures.length, tiles:bld.board.size}; };
+window.__bCellScreen = (q,r)=>{ const v=bWorld({q,r}).clone(); v.project(camera); const rc=renderer.domElement.getBoundingClientRect(); return {x:rc.left+(v.x+1)/2*rc.width, y:rc.top+(1-v.y)/2*rc.height}; };
 window.__bZoom = (type)=>{ bZoomIntoSettlement(type||'town',{q:3,r:2}); return {n:bld.structures.length, tiles:bld.board.size}; };
 window.__bTgc={ TGC, sel:bTgcSelect, fit:bTgcFit, state:()=>({tgc:bld.tgc,grid:bld.grid,cols:bld.cols,rows:bld.rows,cell:bld.tgcCell,tiles:bld.board.size}),
   whole:(preview)=>{ const c=TGC[bld.tgc]; const sf=bld.boardFlat; bld._exporting=true; setTileFlat(true); bld.boardFlat=true; bRender(); const cv=TGC_HEXMAT[bld.tgc]?bTgcRenderHexMat(c,(bld.tgcCenters&&bld.tgcCenters[0])||bHexMatCenter()):bTgcRenderWhole(c); bld._exporting=false; setTileFlat(sf); bld.boardFlat=sf; bRender(); return preview?cv.toDataURL('image/png'):{w:cv.width,h:cv.height}; },
