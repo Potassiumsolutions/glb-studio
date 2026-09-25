@@ -90,7 +90,7 @@
       const x=R.x0+ri(RW-w), y=R.y0+ri(RH-h); if(x<2||y<2||x+w>W-2||y+h>H-2||sealedRect(x,y,w,h)) continue;
       if(rooms.some(o=>x<o.x+o.w+G && x+w+G>o.x && y<o.y+o.h+G && y+h+G>o.y)) continue;
       rooms.push({x,y,w,h}); }
-    rooms.forEach((o,i)=>{ for(let y=o.y;y<o.y+o.h;y++) for(let x=o.x;x<o.x+o.w;x++){ floor[y*W+x]=1; roomAt[y*W+x]=i; } });
+    rooms.forEach((o,i)=>{ for(let y=o.y;y<o.y+o.h;y++) for(let x=o.x;x<o.x+o.w;x++){ if(!o.old) floor[y*W+x]=1; roomAt[y*W+x]=i; } });   // old rooms keep their exact floor (pillars stay rock)
     const cx=(o)=>o.x+o.w/2, cy=(o)=>o.y+o.h/2, dC=(a,b)=>Math.hypot(cx(rooms[a])-cx(rooms[b]),cy(rooms[a])-cy(rooms[b]));
     // connections: MST over the NEW rooms (+ a few loops); on Extend, also 1–2 links from new rooms to the nearest OLD rooms
     const fresh=[]; for(let i=nOld;i<rooms.length;i++) fresh.push(i);

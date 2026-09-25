@@ -1679,7 +1679,7 @@ export function pathPlate(type, radius){
   if (!s) return null;
   const jt=(type==='street'?streetPlainTex():s.tex).clone(); jt.needsUpdate=true;   // street crossings: plain asphalt (no painted lines through the junction)
   const plate=new THREE.Mesh(new THREE.CircleGeometry(radius || s.w*0.5, 18),   // = the road's HALF-width so the merge patch fills the junction WITHOUT bulging past the road edges as a visible disc
-    new THREE.MeshBasicMaterial({ map:jt, transparent:true, depthTest:!!s.depth, depthWrite:false,
+    new THREE.MeshBasicMaterial({ map:jt, transparent:true, depthTest:!!s.depth || _scale==='battle', depthWrite:false,
       blending: s.blend==='multiply' ? THREE.MultiplyBlending : THREE.NormalBlending }));
   plate.rotation.x=-Math.PI/2; plate.renderOrder=s.ro; return plate;
 }
