@@ -391,6 +391,13 @@
         <button class="btn" id="bDgDown" title="Go down a level — or generate a new one linked by stairs, a well, a trapdoor or a sinkhole">⬇ Dig deeper</button>
         <select id="bDigKind" title="What the next level down is"><option value="dungeon">🗝 Dungeon</option><option value="cave">🪨 Cave</option></select>
       </div>
+      <div class="row wrap" id="bDgExtRow" style="display:none;align-items:center;margin:0 0 4px">
+        <label class="fld" style="margin:0" title="What the ◀▶▲▼ Extend buttons add to a dungeon / cave">Extend as</label>
+        <select id="bDgExtMode"><option value="rooms">🏛 Rooms / caverns</option><option value="dead">🕳 Dead end</option></select>
+        <select id="bDgEnd" style="display:none" title="What waits at the end of the dead-end passage">
+          <option value="none">…that just ends</option><option value="stairs">⬇ ending in stairs down</option><option value="well">🪣 ending in a well</option>
+          <option value="pit">🕳 ending in a pit / sinkhole</option><option value="treasure">💰 ending in a treasure nook</option></select>
+      </div>
       <div class="mini" data-exp-lock="battlemaps" style="margin:2px 0 6px;padding:6px 9px;border:1px dashed #3a4a63;border-radius:8px;color:#9fb4d4;background:rgba(91,140,255,.06)">🔒 <b>🗺 Export for virtual tabletops</b> (map + grid + walls + doors, .dd2vtt) is part of the <b>Battle Maps Pack</b> — unlock it in <b>GLB&nbsp;Studio → ✨ Upgrades</b> (<a href="https://www.patreon.com/KsolDesigns" target="_blank" rel="noopener" style="color:var(--acc,#5b8cff)">Patreon</a>).</div>
       <div class="mini" data-exp="battlemaps" style="margin:0 0 4px;color:var(--mut)">Universal VTT (.dd2vtt) imports into virtual tabletops that read that format (e.g. via a Universal Battlemap importer). Other product names are trademarks of their respective owners; KSOL Designs is not affiliated with them.</div>
       <div class="cfg">
@@ -1102,7 +1109,7 @@ import * as Tuck from './tuckbox-designer.js';
 
 const BGC = window.BGC, GAMES = window.BGC_GAMES;
 const TE = window.TileEngine, TLIB = window.TileLibrary;
-const APP_VERSION = 'v1.20';
+const APP_VERSION = 'v1.21';
 const CREDITS = `<b>Ksol Designs</b> — Paul A.T. Ramey<br>www.ksoldesigns.com<br>Built with GLB Studio · Tabletop<br><span class="ver">${APP_VERSION}</span>`;
 // ---- Board credit: a small "KSOL Designs" mark on the board for the FREE build. Owning ANY content pack
 // (TTier expansion) unlocks removing it (⚙ Settings toggle, or click the credit). ----
@@ -4961,12 +4968,17 @@ function bExtendDungeon(dir){ const E=12, D=bld.dungeon; bPushUndo();
   else if(dir==='S'){ newCells=bCellsRange(bld.q0, bld.q0+bld.cols, bld.r0+bld.rows, bld.r0+bld.rows+E); bld.rows+=E; }
   else { newCells=bCellsRange(bld.q0, bld.q0+bld.cols, bld.r0-E, bld.r0); bld.r0-=E; bld.rows+=E; }
   const id=TE.registerGen(bDefs(),'square','dirt',[0,0,0,0],undefined); for(const c of newCells) bld.board.set(TE.keyOf(c),{defId:id,rot:0});
-  const D2=DungeonGen.extend(D, dir, E, 1+Math.floor(Math.random()*999999));
+  const dead=document.getElementById('bDgExtMode').value==='dead', endKind=document.getElementById('bDgEnd').value;
+  const D2=dead ? DungeonGen.deadEnd(D, dir, E, 1+Math.floor(Math.random()*999999), endKind) : DungeonGen.extend(D, dir, E, 1+Math.floor(Math.random()*999999));
   bld.dungeon={...D2, q0:bld.q0, r0:bld.r0}; bld.structKey='';
   // every other level of the stack grows by the same strip of SOLID ROCK → all levels keep one aligned footprint
   bld.dungeonLevels=(bld.dungeonLevels&&bld.dungeonLevels.length?bld.dungeonLevels:[D]).map((L,i)=> i===(bld.dungeonLevel||0) ? bld.dungeon : {...DungeonGen.pad(L,dir,E), q0:bld.q0, r0:bld.r0});
+  const landed=bSyncLandings();
   document.getElementById('bCols').value=bld.cols; document.getElementById('bRows').value=bld.rows; bRender(); bFit();
   const side=({E:'east',W:'west',N:'north',S:'south'})[dir], nl=D2.features.filter(f=>FEATURE_LIGHT[f.kind]).length-D.features.filter(f=>FEATURE_LIGHT[f.kind]).length;
+  if(dead){ const endTxt=({none:'that just ends',stairs:'ending in <b>stairs down</b>',well:'ending in a <b>well</b>',pit:'ending in a <b>'+(D2.kind==='cave'?'sinkhole':'trapdoor pit')+'</b>',treasure:'ending in a <b>treasure nook</b>'})[endKind];
+    bStatus(D2.deadEnd ? `Extended ${side} with a <b>dead-end passage</b> ${endTxt} — now ${bld.cols}×${bld.rows} squares. The passage is sealed: later extensions never break into it.${landed?` Its landing was added to <b>Level ${(bld.dungeonLevel||0)+2}</b> on the same square.`:(/stairs|well|pit/.test(endKind)?' <b>⬇ Dig deeper</b> makes the level it leads to.':'')}`
+      : `No room could reach ${side} for a dead end — the map grew by solid rock; try another side.`); return; }
   bStatus(D2.kind==='cave' ? `Extended the cave <b>${side}</b> — now ${bld.cols}×${bld.rows} squares, new caverns joined to the old ones${nl>0?`, +${nl} light source${nl===1?'':'s'}`:''}. Extend again (◀▶▲▼) to keep exploring.`
     : `Extended the dungeon <b>${side}</b> — now ${bld.cols}×${bld.rows} squares, <b>+${D2.newRooms}</b> room${D2.newRooms===1?'':'s'} (${D2.rooms.length} total, ${D2.doors.filter(d=>!d.open).length} doors). Extend again (◀▶▲▼) to keep delving.`); }
 /* ---- ⬇ DUNGEON LEVELS: a stack of aligned levels (same footprint). Ways down (stairs in the lair, a well, a trapdoor pit,
@@ -4991,13 +5003,21 @@ function bFloorUI(){ const sel=document.getElementById('bVttFloor'); if(!sel) re
   if(maxF<=1){ sel.style.display='none'; sel.value='0'; if(!bld.dungeon) document.getElementById('bVttAllWrap').style.display='none'; return; }
   if(sel.options.length!==maxF){ const v=sel.value; sel.innerHTML=''; for(let f=0;f<maxF;f++){ const o=document.createElement('option'); o.value=f; o.textContent=f?`Floor ${f+1}`:'Ground floor'; sel.appendChild(o); } sel.value=Math.min(+v||0,maxF-1); }
   sel.style.display=''; document.getElementById('bVttAllWrap').style.display=''; document.getElementById('bVttAllTxt').textContent='all floors'; }
-function bDgUI(){ bFloorUI(); const row=document.getElementById('bDgRow'); if(!row) return; const on=!!bld.dungeon; row.style.display=on?'':'none'; if(!on) return;
+function bDgUI(){ bFloorUI(); const row=document.getElementById('bDgRow'); if(!row) return; const on=!!bld.dungeon; row.style.display=on?'':'none';
+  const er=document.getElementById('bDgExtRow'); if(er){ er.style.display=on?'':'none'; document.getElementById('bDgEnd').style.display=document.getElementById('bDgExtMode').value==='dead'?'':'none'; }
+  if(!on) return;
   document.getElementById('bVttAllTxt').textContent='all levels';
   const L=bld.dungeonLevels||[bld.dungeon], i=bld.dungeonLevel||0;
   document.getElementById('bDgWhich').textContent=`Level ${i+1} / ${L.length}`;
   document.getElementById('bDgUp').disabled = i===0; document.getElementById('bDgDown').textContent = i<L.length-1 ? '▼ Level' : '⬇ Dig deeper';
   document.getElementById('bDigKind').style.display = i<L.length-1 ? 'none' : '';
   const all=document.getElementById('bVttAllWrap'); if(all) all.style.display = L.length>1 ? '' : 'none'; }
+// every way DOWN on level i has its landing on level i+1 (same square) — retrofit any that are missing (e.g. a dead end
+// ending in stairs added AFTER the level below was dug). Returns how many landings were added.
+function bSyncLandings(){ const L=bld.dungeonLevels||[]; let added=0;
+  for(let i=0;i<L.length-1;i++){ for(const a of DungeonGen.arrivalsFrom(L[i])){ const ups=L[i+1].features.filter(f=>f.link==='up');
+      if(!ups.some(u=>Math.abs(u.x-a.x)<1e-6&&Math.abs(u.y-a.y)<1e-6)){ L[i+1]={...DungeonGen.addArrival(L[i+1],a), q0:L[i+1].q0, r0:L[i+1].r0}; added++; } } }
+  bld.dungeon=L[bld.dungeonLevel||0]||bld.dungeon; return added; }
 // every light source on the map (dungeon dressing + house fireplaces/torches/candles) in board-world coords
 function bLightSources(floor){ floor=floor||0; const L=[], add=(kind,x,z)=>{ const f=FEATURE_LIGHT[kind]; if(f) L.push({x,z,range:f.range,color:f.color,kind}); };
   if(bld.dungeon && !floor) for(const f of bld.dungeon.features){ const [x,z]=bDungeonBW(f.x,f.y); add(f.kind,x,z); }
@@ -5104,6 +5124,7 @@ async function bVttExportFloors(){ const maxF=Math.max(1,...(bld.structures||[])
   bStatus(`🗺 Exported <b>${name}</b> — <b>${maxF} floors</b>, each ${last.W}×${last.H}px at ${last.ppg} px/square, same size and grid; stairs sit on the same square on every floor. Buildings shorter than a floor show their roof on it.`); }
 document.getElementById('bDgUp').onclick=()=>bSwitchLevel((bld.dungeonLevel||0)-1);
 document.getElementById('bDgDown').onclick=()=>bDigDeeper();
+document.getElementById('bDgExtMode').onchange=()=>bDgUI();
 // every dungeon level as its own aligned file, zipped: level-1_…, level-2_… (VTT scenes line up square for square)
 async function bVttExportLevels(){ const L=bld.dungeonLevels, cur=bld.dungeonLevel||0, files=[]; let last=null;
   for(let i=0;i<L.length;i++){ bSwitchLevel(i,true); const r=await bVttExport({collect:true}); if(!r){ bSwitchLevel(cur,true); bRender(); return; } files.push({name:`level-${i+1}_${r.name}`, data:r.data}); last=r; }

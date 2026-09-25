@@ -62,6 +62,10 @@
       for(let i=a+1;i<b;i++){ const d=Math.abs((B.x-A.x)*(A.y-pts[i].y)-(A.x-pts[i].x)*(B.y-A.y))/L; if(d>md){ md=d; mi=i; } }
       if(md>eps){ rec(a,mi,out); rec(mi,b,out); } else out.push(A); };
     const h=pts.length>>1, o=[]; rec(0,h,o); rec(h,pts.length-1,o); o.push(pts[pts.length-1]); return o; }
+  // SEALED cells (dead-end passages): [[x,y],…] in whole squares. Later extensions never place rooms on / route through / next to them.
+  function sealMask(sealed, cols, rows, res, margin){ res=res||1; margin=margin==null?1:margin; const W=cols*res, m=new Uint8Array(W*rows*res);
+    for(const [cx,cy] of (sealed||[])) for(let y=(cy-margin)*res;y<(cy+margin+1)*res;y++) for(let x=(cx-margin)*res;x<(cx+margin+1)*res;x++) if(x>=0&&y>=0&&x<W&&y<rows*res) m[y*W+x]=1; return m; }
+  const shiftSeal=(sealed,ox,oy)=>(sealed||[]).map(([x,y])=>[x+ox,y+oy]);
   const blur=(m,W,H,r)=>{ const o=new Array(W*H).fill(0); for(let y=0;y<H;y++) for(let x=0;x<W;x++){ let s=0,n=0; for(let dy=-r;dy<=r;dy++) for(let dx=-r;dx<=r;dx++){ const X=x+dx, Y=y+dy; n++; if(X>=0&&Y>=0&&X<W&&Y<H) s+=m[Y*W+X]; } o[y*W+x]=s/n; } return o; };
 
   /* ---------- DUNGEON: rooms + A* corridors + doors ---------- */
@@ -70,7 +74,8 @@
   // layout is kept exactly; new rooms go only inside `region` (the added strip) and are wired to the nearest old rooms.
   function dungeon(cols, rows, seed, base, arrivals){ arrivals=arrivals||[];
     const r=rng32(seed), ri=(n)=>Math.floor(r()*n), W=cols, H=rows, floor=base?base.floor.slice():new Array(W*H).fill(0), roomAt=new Int16Array(W*H).fill(-1);
-    const R=base?base.region:{x0:2,y0:2,x1:W-2,y1:H-2}, RW=R.x1-R.x0, RH=R.y1-R.y0;
+    const R=base?base.region:{x0:2,y0:2,x1:W-2,y1:H-2}, RW=R.x1-R.x0, RH=R.y1-R.y0, SEAL=base&&base.sealed&&base.sealed.length?sealMask(base.sealed,W,H,1,1):null;
+    const sealedRect=(x,y,w,h)=>{ if(!SEAL) return false; for(let yy=y-1;yy<y+h+1;yy++) for(let xx=x-1;xx<x+w+1;xx++) if(xx>=0&&yy>=0&&xx<W&&yy<H&&SEAL[yy*W+xx]) return true; return false; };
     const rooms=base?base.rooms.map(o=>({...o,old:true})):[], nOld=rooms.length;
     const target=nOld+Math.max(base?1:3, Math.round(RW*RH/70)), small=W*H<520, G=small?2:3, maxS=small?4:5;
     // ARRIVAL rooms first: a room around every landing spot from the level above (stairs arrive on the SAME square)
@@ -82,7 +87,7 @@
       rooms.push({x,y,w,h,arrival:1}); }
     for(let t=0;t<600 && rooms.length<target;t++){ const big=!base && rooms.length===1 && W>=20 && H>=16;
       const w=big?7+ri(4):3+ri(maxS), h=big?6+ri(3):3+ri(maxS-1); if(w>RW-1||h>RH-1) continue;
-      const x=R.x0+ri(RW-w), y=R.y0+ri(RH-h); if(x<2||y<2||x+w>W-2||y+h>H-2) continue;
+      const x=R.x0+ri(RW-w), y=R.y0+ri(RH-h); if(x<2||y<2||x+w>W-2||y+h>H-2||sealedRect(x,y,w,h)) continue;
       if(rooms.some(o=>x<o.x+o.w+G && x+w+G>o.x && y<o.y+o.h+G && y+h+G>o.y)) continue;
       rooms.push({x,y,w,h}); }
     rooms.forEach((o,i)=>{ for(let y=o.y;y<o.y+o.h;y++) for(let x=o.x;x<o.x+o.w;x++){ floor[y*W+x]=1; roomAt[y*W+x]=i; } });
@@ -94,7 +99,7 @@
       while(inT.size<fresh.length){ let best=null; for(const a of inT) for(const b of fresh){ if(inT.has(b)) continue; const d=dC(a,b); if(!best||d<best.d) best={a,b,d}; } inT.add(best.b); edges.push([best.a,best.b]); }
       const extra=Math.round(fresh.length*0.25); for(let t=0;t<extra*6 && edges.length<fresh.length-1+extra;t++){ const a=fresh[ri(fresh.length)], b=fresh[ri(fresh.length)]; if(a===b||edges.some(e=>(e[0]===a&&e[1]===b)||(e[0]===b&&e[1]===a))) continue;
         if(dC(a,b)<Math.min(W,H)*0.6) edges.push([a,b]); } }
-    if(base && fresh.length && nOld){ const pairs=[]; for(const a of fresh) for(let b=0;b<nOld;b++) pairs.push([a,b,dC(a,b)]); pairs.sort((p,q)=>p[2]-q[2]);
+    if(base && fresh.length && nOld){ const pairs=[]; for(const a of fresh) for(let b=0;b<nOld;b++) if(rooms[b].type!=='deadend') pairs.push([a,b,dC(a,b)]); pairs.sort((p,q)=>p[2]-q[2]);
       const links=Math.min(fresh.length>=3?2:1, pairs.length), usedNew=new Set(), usedOld=new Set(); for(const [a,b] of pairs){ if(edges.filter(e=>e.link).length>=links) break; if(usedNew.has(a)||usedOld.has(b)) continue; const e=[a,b]; e.link=1; edges.unshift(e); usedNew.add(a); usedOld.add(b); } }
     const nearRoom=(x,y)=>{ for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){ const X=x+dx,Y=y+dy; if(X>=0&&Y>=0&&X<W&&Y<H&&roomAt[Y*W+X]>=0) return true; } return false; };
     const doorCells=new Set(), newDoors=[], doorOf=new Map();   // key "x,y" of the corridor cell just outside a door
@@ -109,7 +114,7 @@
     const astar=(s,g)=>{ const K=(x,y)=>y*W+x, open=[[0,s.x,s.y]], gs=new Map([[K(s.x,s.y),0]]), prev=new Map();
       while(open.length){ open.sort((a,b)=>a[0]-b[0]); const [,x,y]=open.shift(); if(x===g.x&&y===g.y) break;
         for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){ const X=x+dx, Y=y+dy; if(X<1||Y<1||X>=W-1||Y>=H-1) continue; if(roomAt[K(X,Y)]>=0) continue;
-          const isEnd=(X===g.x&&Y===g.y)||doorCells.has(X+','+Y);
+          const isEnd=(X===g.x&&Y===g.y)||doorCells.has(X+','+Y); if(SEAL && SEAL[K(X,Y)] && !isEnd) continue;   // never through / beside a sealed dead end
           const c=(floor[K(X,Y)]?0.35:1)+(!isEnd && nearRoom(X,Y)?6:0)+(dx!==0&&prev.get(K(x,y))!=null&&(prev.get(K(x,y))%W)===x?0.4:0);   // prefer existing halls; mild straightness
           const ng=gs.get(K(x,y))+c; if(ng<(gs.get(K(X,Y))??1e9)){ gs.set(K(X,Y),ng); prev.set(K(X,Y),K(x,y)); open.push([ng+Math.abs(X-g.x)+Math.abs(Y-g.y),X,Y]); } } }
       if(!gs.has(K(g.x,g.y))) return null; const path=[]; let k=K(g.x,g.y); while(k!=null){ path.push(k); k=prev.get(k); } return path; };
@@ -148,7 +153,7 @@
     const features=(base?base.features:[]).concat(arr, dungeonDressing(out.filter(o=>!base||o.fresh), doorsLive, floor, W, H, r, {allRooms:out, region:base?R:null, prior:(base?base.features:[]).concat(arr), noEntranceStairs:arr.length>0}));
     if(!base) drops(features, out, floor, W, H, r, 'dungeon');
     out.forEach(o=>{ delete o.fresh; });
-    return { kind:'dungeon', cols, rows, res:1, floor, water:null, walls:gridLoops(floor,W,H), waterLoops:[], doors:doorsLive, rooms:out, features, newRooms:base?liveNew.length:out.length };
+    return { kind:'dungeon', cols, rows, res:1, floor, water:null, walls:gridLoops(floor,W,H), waterLoops:[], doors:doorsLive, rooms:out, features, sealed:base&&base.sealed?base.sealed:[], newRooms:base?liveNew.length:out.length };
   }
   // furniture / dressing per room type, kept clear of doorways; wall torches everywhere
   function dungeonDressing(rooms, doors, floor, W, H, r, opt){ opt=opt||{}; const allRooms=opt.allRooms||rooms, Rg=opt.region;
@@ -190,7 +195,7 @@
 
   // DROPS to the level below: a well in a room, a trapdoor pit in a passage (dungeon) / a sinkhole (cave). link:'down'
   function drops(F, rooms, floor, W, H, r, kind, res, force){ res=res||1; const P=(p)=>force||r()<p; const cols=W/res, rows=H/res;
-    const occ=new Set(F.filter(f=>!f.flat).map(f=>Math.floor(f.x)+','+Math.floor(f.y)));
+    const occ=new Set(); for(const f of F){ if(f.flat) continue; for(let y=Math.floor(f.y-f.d/2)-1;y<=Math.floor(f.y+f.d/2-0.01)+1;y++) for(let x=Math.floor(f.x-f.w/2)-1;x<=Math.floor(f.x+f.w/2-0.01)+1;x++) occ.add(x+','+y); }   // whole footprints + 1 square
     const cellFloor=(cx,cy)=>{ if(cx<1||cy<1||cx>=cols-1||cy>=rows-1) return false; for(let y=cy*res;y<cy*res+res;y++) for(let x=cx*res;x<cx*res+res;x++) if(!floor[y*W+x]) return false; return true; };
     const inRoom=(x,y)=>rooms.some(o=>x>=o.x&&x<o.x+o.w&&y>=o.y&&y<o.y+o.h);
     const far=(x,y)=>F.every(f=>!f.link || Math.hypot(f.x-x-0.5,f.y-y-0.5)>5);
@@ -205,8 +210,8 @@
     const floor=new Array(W*rows*res).fill(0), water=D.water?new Array(W*rows*res).fill(0):null;
     for(let y=0;y<D.rows*res;y++) for(let x=0;x<OW;x++){ const k=(y+oy*res)*W+x+ox*res; floor[k]=D.floor[y*OW+x]; if(water) water[k]=D.water[y*OW+x]; }
     const sh=(f)=>({...f,x:f.x+ox,y:f.y+oy}), rooms=D.rooms.map(o=>({...o,x:o.x+ox,y:o.y+oy})), doors=D.doors.map(d=>({...d,x1:d.x1+ox,x2:d.x2+ox,y1:d.y1+oy,y2:d.y2+oy}));
-    if(D.kind==='cave') return caveOut(cols,rows,res,floor,water||new Array(W*rows*res).fill(0),D.features.map(sh));
-    return { ...D, cols, rows, floor, walls:gridLoops(floor,W,rows), doors, rooms, features:D.features.map(sh) }; }
+    if(D.kind==='cave'){ const o=caveOut(cols,rows,res,floor,water||new Array(W*rows*res).fill(0),D.features.map(sh)); o.sealed=shiftSeal(D.sealed,ox,oy); return o; }
+    return { ...D, cols, rows, floor, walls:gridLoops(floor,W,rows), doors, rooms, features:D.features.map(sh), sealed:shiftSeal(D.sealed,ox,oy) }; }
   // the landing below each way down: stairs arrive on the same square; a well lands in a pool, a pit/sinkhole on rubble
   function arrivalsFrom(D){ return D.features.filter(f=>f.link==='down').map(f=> f.kind==='stairs' ? {kind:'stairs',x:f.x,y:f.y,w:f.w,d:f.d,face:f.face}
       : f.kind==='well' ? {kind:'splash',x:f.x,y:f.y,w:1.2,d:1.2} : {kind:'rubble',x:f.x,y:f.y,w:1.1,d:1.1}); }
@@ -221,8 +226,8 @@
     for(let k=0;k<W*H;k++){ if(!m[k]||lab[k]>=0) continue; const st=[k]; lab[k]=id; let cnt=0; while(st.length){ const c=st.pop(); cnt++; const x=c%W,y=(c/W)|0; for(const [dx,dy] of N4){ const X=x+dx,Y=y+dy,K=Y*W+X; if(X<0||Y<0||X>=W||Y>=H||!m[K]||lab[K]>=0) continue; lab[K]=id; st.push(K); } } size.push(cnt); id++; }
     return {lab,size}; }
   // carve a 3-wide tunnel from component `from` to the nearest cell of component `to` (BFS through rock)
-  function tunnel(m, W, H, lab, from, to){ const prev=new Int32Array(W*H).fill(-2), q=[]; for(let k=0;k<W*H;k++) if(lab[k]===from){ prev[k]=-1; q.push(k); }
-    let hit=-1; for(let h=0;h<q.length && hit<0;h++){ const k=q[h], x=k%W, y=(k/W)|0; for(const [dx,dy] of N4){ const X=x+dx,Y=y+dy,K=Y*W+X; if(X<2||Y<2||X>=W-2||Y>=H-2||prev[K]!==-2) continue; prev[K]=k; if(lab[K]===to){ hit=K; break; } q.push(K); } }
+  function tunnel(m, W, H, lab, from, to, block){ const prev=new Int32Array(W*H).fill(-2), q=[]; for(let k=0;k<W*H;k++) if(lab[k]===from){ prev[k]=-1; q.push(k); }
+    let hit=-1; for(let h=0;h<q.length && hit<0;h++){ const k=q[h], x=k%W, y=(k/W)|0; for(const [dx,dy] of N4){ const X=x+dx,Y=y+dy,K=Y*W+X; if(X<2||Y<2||X>=W-2||Y>=H-2||prev[K]!==-2||(block&&block[K]&&lab[K]!==to)) continue; prev[K]=k; if(lab[K]===to){ hit=K; break; } q.push(K); } }
     for(let k=hit;k>=0 && prev[k]!==-1;k=prev[k]){ const x=k%W, y=(k/W)|0; for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){ const X=x+dx,Y=y+dy; if(X>1&&Y>1&&X<W-2&&Y<H-2) m[Y*W+X]=1; } } return hit>=0; }
   function pools(floor, water, W, H, r, n, inR){ const fl=[]; for(let k=0;k<W*H;k++) if(floor[k] && inR(k%W,(k/W)|0)) fl.push(k); if(!fl.length) return;
     for(let p=0;p<n;p++){ const s0=fl[Math.floor(r()*fl.length)], want=40+Math.floor(r()*70), q=[s0], seen=new Set([s0]);
@@ -282,11 +287,13 @@
     const inside=(x,y)=>x>=2&&y>=2&&x<W-2&&y<H-2;
     for(let y=0;y<H;y++) for(let x=0;x<W;x++){ const k=y*W+x; if(inNew(x,y)) floor[k] = inside(x,y) && r()<0.53 ? 1 : 0;
       else if(nearSeam(x,y) && inside(x,y) && !floor[k] && r()<0.5) floor[k]=1; }   // old ROCK by the seam is re-rolled too → no straight ridge along the old map edge (old floor never changes)
-    let m=caStep(floor,W,H,(x,y)=>inside(x,y)&&nearSeam(x,y)&&!water[y*W+x],6,(x,y)=>!inNew(x,y));   // old cells: floor stays floor
+    const sealed=shiftSeal(D.sealed,ox,oy), SB=sealed.length?sealMask(sealed,cols,rows,res,1):null;
+    if(SB) for(let k=0;k<W*H;k++) if(SB[k] && inNew(k%W,(k/W)|0)) floor[k]=0;
+    let m=caStep(floor,W,H,(x,y)=>inside(x,y)&&nearSeam(x,y)&&!water[y*W+x]&&!(SB&&SB[y*W+x]),6,(x,y)=>!inNew(x,y));   // old cells: floor stays floor; sealed dead ends untouched
     // everything must hang off the ORIGINAL cave: tunnel big pockets back, drop small ones
     for(let pass=0;pass<6;pass++){ const {lab,size}=labels(m,W,H); let main=-1;
       for(let y=0;y<H && main<0;y++) for(let x=0;x<W;x++){ if(!inNew(x,y) && D.floor[(y-oy*res)*OW+(x-ox*res)] && m[y*W+x]){ main=lab[y*W+x]; break; } }
-      let changed=false; for(let id=0;id<size.length;id++){ if(id===main) continue; if(size[id]>=24){ if(tunnel(m,W,H,lab,id,main)){ changed=true; break; } } else { for(let k=0;k<W*H;k++) if(lab[k]===id) m[k]=0; } }
+      let changed=false; for(let id=0;id<size.length;id++){ if(id===main) continue; if(size[id]>=24){ if(tunnel(m,W,H,lab,id,main,SB)){ changed=true; break; } } else { for(let k=0;k<W*H;k++) if(lab[k]===id) m[k]=0; } }
       if(!changed) break; }
     { const {lab}=labels(m,W,H); let main=-1; for(let k=0;k<W*H && main<0;k++){ const x=k%W,y=(k/W)|0; if(m[k]&&!inNew(x,y)&&D.floor[(y-oy*res)*OW+(x-ox*res)]) main=lab[k]; }
       for(let k=0;k<W*H;k++) if(m[k] && lab[k]!==main){ const x=k%W,y=(k/W)|0; if(inNew(x,y)||!D.floor[(y-oy*res)*OW+(x-ox*res)]) m[k]=0; } }   // final sweep: no stray pockets
@@ -295,7 +302,7 @@
     if(!any){ const cxs=(sx0+sx1)>>1, cys=(sy0+sy1)>>1; for(let dy=-4;dy<=4;dy++) for(let dx=-4;dx<=4;dx++) if(inside(cxs+dx,cys+dy)) m[(cys+dy)*W+cxs+dx]=1; const {lab}=labels(m,W,H); let main=-1; for(let k=0;k<W*H && main<0;k++) if(m[k]&&!inNew(k%W,(k/W)|0)) main=lab[k]; tunnel(m,W,H,lab,lab[cys*W+cxs],main); }
     pools(m,water,W,H,r,r()<0.6?1:0,(x,y)=>inNew(x,y));
     const moved=D.features.map(f=>({...f,x:f.x+ox,y:f.y+oy}));
-    return caveOut(cols,rows,res,m,water, moved.concat(caveDress(m,water,cols,rows,res,r,R,moved, r()<0.35))); }
+    const out=caveOut(cols,rows,res,m,water, moved.concat(caveDress(m,water,cols,rows,res,r,R,moved, r()<0.35))); out.sealed=sealed; return out; }
 
   // EXTEND any layout by E squares toward dir (N/S/E/W). Old content keeps its place (shifted when growing W/N).
   function extend(D, dir, E, seed){ E=Math.max(6,E|0||12);
@@ -304,14 +311,86 @@
     if(D.kind==='cave') return caveExtend(D,cols,rows,ox,oy,R,seed);
     const floor=new Array(cols*rows).fill(0); for(let y=0;y<D.rows;y++) for(let x=0;x<D.cols;x++) floor[(y+oy)*cols+x+ox]=D.floor[y*D.cols+x];
     const base={ floor, rooms:D.rooms.map(o=>({...o,x:o.x+ox,y:o.y+oy})), doors:D.doors.map(d=>({...d,x1:d.x1+ox,x2:d.x2+ox,y1:d.y1+oy,y2:d.y2+oy})),
-      features:D.features.map(f=>({...f,x:f.x+ox,y:f.y+oy})), region:{x0:Math.max(2,R.x0), y0:Math.max(2,R.y0), x1:Math.min(cols-2,R.x1), y1:Math.min(rows-2,R.y1)} };
+      features:D.features.map(f=>({...f,x:f.x+ox,y:f.y+oy})), sealed:shiftSeal(D.sealed,ox,oy), region:{x0:Math.max(2,R.x0), y0:Math.max(2,R.y0), x1:Math.min(cols-2,R.x1), y1:Math.min(rows-2,R.y1)} };
     let best=null; for(let t=0;t<6;t++){ const g=dungeon(cols,rows,(seed+t*7919)>>>0,base); if(!best||g.newRooms>best.newRooms) best=g; if(g.newRooms>=2) break; }
     return best; }
+
+  /* DEAD END: extend by E squares toward dir, but add only ONE winding passage from the nearest room / cavern on that side
+     into the new strip, ending in a small chamber; the rest of the strip stays solid rock. end = 'none'|'stairs'|'well'|'pit'|'treasure'.
+     The passage + chamber are SEALED: later extensions never route through or beside them. */
+  function deadEnd(D, dir, E, seed, end){ E=Math.max(6,E|0||12); end=end||'none';
+    const cols=D.cols+(dir==='E'||dir==='W'?E:0), rows=D.rows+(dir==='N'||dir==='S'?E:0), ox=dir==='W'?E:0, oy=dir==='N'?E:0, r=rng32(seed>>>0||1);
+    const R = dir==='E'?{x0:D.cols,y0:0,x1:cols,y1:rows} : dir==='W'?{x0:0,y0:0,x1:E,y1:rows} : dir==='S'?{x0:0,y0:D.rows,x1:cols,y1:rows} : {x0:0,y0:0,x1:cols,y1:E};
+    const toward=(x,y)=> dir==='E'?x : dir==='W'?-x : dir==='S'?y : -y;
+    // the end chamber sits 35–55% into the strip (never at its far edge → the next extension can't touch it)
+    const depth=Math.floor(E*(0.35+0.2*r())), span=(dir==='E'||dir==='W')?rows:cols, lat=3+Math.floor(r()*Math.max(1,span-8));
+    const tx = dir==='E'?R.x0+depth : dir==='W'?R.x1-1-depth : lat, ty = dir==='S'?R.y0+depth : dir==='N'?R.y1-1-depth : lat;
+    const sealed=shiftSeal(D.sealed,ox,oy), F=D.features.map(f=>({...f,x:f.x+ox,y:f.y+oy}));
+    const endFeature=(cx,cy,chW,chH)=>{ const o=[];   // cx,cy = chamber centre (squares)
+      if(end==='stairs'){ const alongX=dir==='N'||dir==='S'; o.push({kind:'stairs', x:cx+(dir==='E'?chW/2-0.5:dir==='W'?-chW/2+0.5:0), y:cy+(dir==='S'?chH/2-0.5:dir==='N'?-chH/2+0.5:0), w:alongX?1.7:0.9, d:alongX?0.9:1.7, face:({E:1,W:3,S:2,N:0})[dir], link:'down'}); }
+      else if(end==='well') o.push({kind:'well',x:cx,y:cy,w:0.9,d:0.9,link:'down'});
+      else if(end==='pit') o.push({kind:D.kind==='cave'?'sinkhole':'pit',x:cx,y:cy,w:D.kind==='cave'?1.4:0.9,d:D.kind==='cave'?1.4:0.9,link:'down'});
+      else if(end==='treasure'){ o.push({kind:'chest',x:cx,y:cy,w:0.9,d:0.6}); o.push({kind:D.kind==='cave'?'crystals':'sarcophagus',x:cx+(dir==='E'||dir==='W'?0:1),y:cy+(dir==='E'||dir==='W'?1:0),w:D.kind==='cave'?0.7:0.8,d:D.kind==='cave'?0.7:1.6}); o.push({kind:'bones',x:cx-0.9,y:cy-0.9,w:0.6,d:0.6}); }
+      else o.push({kind:'bones',x:cx,y:cy,w:0.6,d:0.6},{kind:'rubble',x:cx+0.9,y:cy+0.6,w:0.8,d:0.8});
+      return o; };
+    if(D.kind==='cave'){ const res=D.res, W=cols*res, H=rows*res, OW=D.cols*res, floor=new Array(W*H).fill(0), water=new Array(W*H).fill(0);
+      for(let y=0;y<D.rows*res;y++) for(let x=0;x<OW;x++){ const k=(y+oy*res)*W+x+ox*res; floor[k]=D.floor[y*OW+x]; water[k]=D.water?D.water[y*OW+x]:0; }
+      const SB=sealed.length?sealMask(sealed,cols,rows,res,1):null;
+      let sx=-1, sy=-1, best=-1e9; for(let y=2;y<H-2;y++) for(let x=2;x<W-2;x++){ const k=y*W+x; if(!floor[k]||water[k]||(SB&&SB[k])) continue; const t=toward(x,y)+ (r()-0.5)*2; if(t>best){ best=t; sx=x; sy=y; } }
+      const gx=tx*res+1, gy=ty*res+1, carved=new Set(); const dig=(x,y,rad)=>{ for(let dy=-rad;dy<=rad;dy++) for(let dx=-rad;dx<=rad;dx++){ const X=x+dx,Y=y+dy; if(X>1&&Y>1&&X<W-2&&Y<H-2&&dx*dx+dy*dy<=rad*rad+1){ floor[Y*W+X]=1; carved.add(Math.floor(X/res)+','+Math.floor(Y/res)); } } };
+      let x=sx, y=sy; for(let step=0; step<4000 && Math.hypot(gx-x,gy-y)>2; step++){ const ang=Math.atan2(gy-y,gx-x)+(r()-0.5)*1.6; x=Math.round(x+Math.cos(ang)); y=Math.round(y+Math.sin(ang)); x=Math.max(3,Math.min(W-4,x)); y=Math.max(3,Math.min(H-4,y)); dig(x,y,1); }
+      dig(gx,gy,4);   // the end chamber
+      for(const k of carved){ const [cx,cy]=k.split(',').map(Number); if(!(cx>=R.x0&&cx<R.x1&&cy>=R.y0&&cy<R.y1)) continue; sealed.push([cx,cy]); }
+      const o=caveOut(cols,rows,res,floor,water,F.concat(endFeature(tx+0.5,ty+0.5,3,3))); o.sealed=sealed; o.deadEnd=true; return o; }
+    // dungeon: door on the nearest room's side facing the strip, a noisy A* passage, a small end chamber
+    const W=cols, H=rows, floor=new Array(W*H).fill(0); for(let y=0;y<D.rows;y++) for(let x=0;x<D.cols;x++) floor[(y+oy)*W+x+ox]=D.floor[y*D.cols+x];
+    const rooms=D.rooms.map(o=>({...o,x:o.x+ox,y:o.y+oy})), doors=D.doors.map(d=>({...d,x1:d.x1+ox,x2:d.x2+ox,y1:d.y1+oy,y2:d.y2+oy}));
+    const roomAt=new Int16Array(W*H).fill(-1); rooms.forEach((o,i)=>{ for(let y=o.y;y<o.y+o.h;y++) for(let x=o.x;x<o.x+o.w;x++) roomAt[y*W+x]=i; });
+    const SEAL=sealed.length?sealMask(sealed,W,H,1,1):null;
+    const cand=rooms.map((o,i)=>i).filter(i=>rooms[i].type!=='deadend').sort((a,b)=>toward(rooms[b].x+rooms[b].w/2,rooms[b].y+rooms[b].h/2)-toward(rooms[a].x+rooms[a].w/2,rooms[a].y+rooms[a].h/2));
+    const cw=3+Math.floor(r()*2), ch=3; let chx=Math.max(2,Math.min(W-2-cw, tx-Math.floor(cw/2))), chy=Math.max(2,Math.min(H-2-ch, ty-1));
+    for(const ai of cand.slice(0,3)){ const A=rooms[ai], side=({E:1,W:3,S:2,N:0})[dir], span=side===0||side===2?A.w:A.h; const t=span>=3?1+Math.floor(r()*(span-2)):Math.floor(r()*span);
+      const ix=side===1?A.x+A.w-1:side===3?A.x:A.x+t, iy=side===2?A.y+A.h-1:side===0?A.y:A.y+t, sx=ix+(side===1?1:side===3?-1:0), sy=iy+(side===2?1:side===0?-1:0);
+      if(sx<1||sy<1||sx>=W-1||sy>=H-1||(SEAL&&SEAL[sy*W+sx])) continue;
+      // goal: the chamber cell nearest the start; noisy costs make the passage wind
+      const inCh=(x,y)=>x>=chx&&x<chx+cw&&y>=chy&&y<chy+ch, noise=new Float32Array(W*H); for(let k=0;k<W*H;k++) noise[k]=r()*1.6;
+      const K=(x,y)=>y*W+x, open=[[0,sx,sy]], gs=new Map([[K(sx,sy),0]]), prev=new Map(); let goal=-1;
+      const nearFloor=(x,y)=>{ for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){ const X=x+dx,Y=y+dy; if(floor[Y*W+X]&&!(X===sx&&Y===sy)&&roomAt[Y*W+X]!==ai) return true; } return false; };
+      while(open.length){ open.sort((a,b)=>a[0]-b[0]); const [,x,y]=open.shift(); if(inCh(x,y)){ goal=K(x,y); break; }
+        for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){ const X=x+dx,Y=y+dy; if(X<2||Y<2||X>=W-2||Y>=H-2) continue; const k=K(X,Y);
+          if(roomAt[k]>=0 || (floor[k]&&!inCh(X,Y)) || (SEAL&&SEAL[k]) ) continue; if(!inCh(X,Y) && nearFloor(X,Y) && Math.abs(X-sx)+Math.abs(Y-sy)>1) continue;   // stays its own passage — never merges into others
+          const ng=gs.get(K(x,y))+1+noise[k]; if(ng<(gs.get(k)??1e9)){ gs.set(k,ng); prev.set(k,K(x,y)); open.push([ng+Math.abs(X-(chx+cw/2))+Math.abs(Y-(chy+1)),X,Y]); } } }
+      if(goal<0) continue;
+      for(let y=chy;y<chy+ch;y++) for(let x=chx;x<chx+cw;x++){ floor[y*W+x]=1; sealed.push([x,y]); }
+      for(let k=goal;k!=null;k=prev.get(k)){ floor[k]=1; sealed.push([k%W,(k/W)|0]); }
+      if(side===0) doors.push({x1:ix,y1:iy,x2:ix+1,y2:iy,open:r()<0.3}); else if(side===2) doors.push({x1:ix,y1:iy+1,x2:ix+1,y2:iy+1,open:r()<0.3});
+      else if(side===3) doors.push({x1:ix,y1:iy,x2:ix,y2:iy+1,open:r()<0.3}); else doors.push({x1:ix+1,y1:iy,x2:ix+1,y2:iy+1,open:r()<0.3});
+      rooms.push({x:chx,y:chy,w:cw,h:ch,type:'deadend'});
+      const path=[]; for(let k=goal;k!=null;k=prev.get(k)) path.push(k); const mid=path[Math.floor(path.length/2)], mx=mid%W, my=(mid/W)|0;   // one torch half way along
+      const fs2=!floor[(my-1)*W+mx]?0:!floor[my*W+mx+1]?1:!floor[(my+1)*W+mx]?2:!floor[my*W+mx-1]?3:-1;
+      if(fs2>=0) F.push({kind:'torch',x:mx+0.5+(fs2===1?0.34:fs2===3?-0.34:0),y:my+0.5+(fs2===2?0.34:fs2===0?-0.34:0),w:0.3,d:0.3,face:fs2});
+      return { kind:'dungeon', cols, rows, res:1, floor, water:null, walls:gridLoops(floor,W,H), waterLoops:[], doors, rooms, features:F.concat(endFeature(chx+cw/2,chy+ch/2,cw,ch)), sealed, newRooms:0, deadEnd:true }; }
+    // no room could reach the strip: just grow the map with rock
+    const o=pad(D,dir,E); o.deadEnd=false; return o; }
+  // RETROFIT a landing onto an EXISTING level (a new way down was added above it): open the footprint (+1 square) and dig
+  // the shortest passage from there to the level's nearest open floor; the landing arrives with link:'up'.
+  function addArrival(L, a){ const res=L.res, W=L.cols*res, H=L.rows*res, floor=L.floor.slice(), water=L.water?L.water.slice():null;
+    const x0=Math.max(1,Math.floor(a.x-a.w/2)-1), x1=Math.min(L.cols-2,Math.floor(a.x+a.w/2-0.01)+1), y0=Math.max(1,Math.floor(a.y-a.d/2)-1), y1=Math.min(L.rows-2,Math.floor(a.y+a.d/2-0.01)+1);
+    const pre=floor.slice(), mine=new Uint8Array(W*H);
+    for(let y=y0*res;y<(y1+1)*res;y++) for(let x=x0*res;x<(x1+1)*res;x++){ floor[y*W+x]=1; mine[y*W+x]=1; if(water) water[y*W+x]=0; }
+    // shortest dig from the opened area to the pre-existing floor
+    const prev=new Int32Array(W*H).fill(-2), q=[]; for(let k=0;k<W*H;k++) if(mine[k]){ prev[k]=-1; q.push(k); } let hit=-1;
+    if(!q.some(k=>{ const x=k%W,y=(k/W)|0; return [[1,0],[-1,0],[0,1],[0,-1]].some(([dx,dy])=>pre[(y+dy)*W+x+dx]&&!mine[(y+dy)*W+x+dx]); }))
+      for(let h=0;h<q.length&&hit<0;h++){ const k=q[h],x=k%W,y=(k/W)|0; for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){ const X=x+dx,Y=y+dy,K=Y*W+X; if(X<res||Y<res||X>=W-res||Y>=H-res||prev[K]!==-2) continue; prev[K]=k; if(pre[K]){ hit=K; break; } q.push(K); } }
+    for(let k=hit;k>=0&&prev[k]!==-1;k=prev[k]){ const x=k%W,y=(k/W)|0; for(let dy=0;dy<res;dy++) for(let dx=0;dx<res;dx++){ const X=x+dx-(res>1?1:0), Y=y+dy-(res>1?1:0); if(X>0&&Y>0&&X<W-1&&Y<H-1) floor[Y*W+X]=1; } }
+    const features=L.features.filter(f=>f.link || !(Math.abs(f.x-a.x)<(f.w+a.w)/2+0.5 && Math.abs(f.y-a.y)<(f.d+a.d)/2+0.5)).concat([{...a, link:'up'}]);
+    if(L.kind==='cave'){ const o=caveOut(L.cols,L.rows,res,floor,water||new Array(W*H).fill(0),features); o.sealed=L.sealed||[]; return {...L, ...o}; }
+    return { ...L, floor, walls:gridLoops(floor,W,H), features, rooms:L.rooms.concat([{x:x0,y:y0,w:x1-x0+1,h:y1-y0+1,type:'landing'}]) }; }
 
   root.DungeonGen = { generate(o){ o=o||{}; const cols=Math.max(12,o.cols|0||30), rows=Math.max(10,o.rows|0||24), seed=(o.seed>>>0)||1, arr=o.arrivals||[];
       if(o.kind==='cave') return cave(cols,rows,seed,arr);
       let best=null; for(let t=0;t<8;t++){ const g=dungeon(cols,rows,(seed+t*7919)>>>0,null,arr); if(!best||g.rooms.length>best.rooms.length) best=g; if(g.rooms.length>=Math.min(4,Math.max(3,Math.round(cols*rows/120)))) return g; } return best; },   // retry a cramped layout
-    extend, pad, arrivalsFrom, gridLoops, msLoops,
+    extend, deadEnd, addArrival, pad, arrivalsFrom, gridLoops, msLoops,
     // make sure a level has a way DOWN (for ⬇ Dig deeper): a well / pit (dungeon) or a sinkhole (cave), else a plain pit anywhere open
     ensureDown(D, seed){ if(D.features.some(f=>f.link==='down')) return D; const F=D.features.slice(), r=rng32(seed>>>0||1), W=D.cols*D.res, H=D.rows*D.res;
       drops(F, D.rooms, D.floor, W, H, r, D.kind, D.res, true);
