@@ -403,7 +403,8 @@
           <option value="biome:dirt">🟤 All Dirt</option>
           </optgroup>
         </select>
-        <label class="row" style="gap:4px;cursor:pointer"><input type="checkbox" id="bGenStream" checked> <span class="mini">💧 stream</span></label>
+        <label class="row" style="gap:4px;cursor:pointer" title="Narrow streams (springs in the mountains, lake outlets)"><input type="checkbox" id="bGenStream" checked> <span class="mini">💧 stream</span></label>
+        <label class="row" style="gap:4px;cursor:pointer" title="A wide river across the map. With 💧 stream on too, a stream joins it as a tributary and the river widens below the fork."><input type="checkbox" id="bGenRiver"> <span class="mini">🌊 river</span></label>
         <label class="row" style="gap:4px;cursor:pointer"><input type="checkbox" id="bGenRoad" checked> <span class="mini">🛣 road</span></label>
       </div>
       <div class="row wrap" id="bGenTownRow" style="align-items:center">
@@ -557,7 +558,7 @@
       <div id="bLibWrap" style="margin-top:8px">
         <label class="fld">📦 Studio library — real GLB models (trees, rocks, buildings, your Meshy characters, expansion packs). Pick one, click a cell to drop it, drag to move.</label>
         <div class="seg" id="bLibSrcSeg" style="flex-wrap:wrap">
-          <button data-src="scene" class="on">🌳 Scene</button><button data-src="held">⚔ Items</button><button data-src="lib">✦ My models</button><button data-src="pack">📦 Packs</button>
+          <button data-src="scene" class="on">🌳 Scene</button><button data-src="held">⚔ Items</button><button data-src="lib">🧍 Characters</button><button data-src="pack">📦 Packs</button>
         </div>
         <div class="row wrap" id="bLibList" style="max-height:200px;overflow:auto;margin-top:4px;gap:4px"></div>
       </div>
@@ -1067,7 +1068,7 @@ import * as Tuck from './tuckbox-designer.js';
 
 const BGC = window.BGC, GAMES = window.BGC_GAMES;
 const TE = window.TileEngine, TLIB = window.TileLibrary;
-const APP_VERSION = 'v0.98';
+const APP_VERSION = 'v0.99';
 const CREDITS = `<b>Ksol Designs</b> — Paul A.T. Ramey<br>www.ksoldesigns.com<br>Built with GLB Studio · Tabletop<br><span class="ver">${APP_VERSION}</span>`;
 // ---- Board credit: a small "KSOL Designs" mark on the board for the FREE build. Owning ANY content pack
 // (TTier expansion) unlocks removing it (⚙ Settings toggle, or click the credit). ----
@@ -2407,6 +2408,8 @@ const SAMPLE_CHARS = [
   { name:'Dog',          file:'Dog (quadruped).glb',  icon:'🐾' },
   { name:'Bird (perched)', file:'Bird - perched.glb', icon:'🐦' },
   { name:'Bird (flying)',  file:'Bird - in flight.glb', icon:'🕊' },
+  { name:'Man',          file:'Man (animated hands).glb',   icon:'🧔' },
+  { name:'Woman',        file:'Woman (animated hands).glb', icon:'👩' },
 ];
 const _sampleBytes = new Map();   // file -> Uint8Array (cache so re-picking a sample is instant)
 // The sample GLBs live beside the app but at a different relative path per deploy context
@@ -2414,7 +2417,7 @@ const _sampleBytes = new Map();   // file -> Uint8Array (cache so re-picking a s
 async function fetchSampleBytes(file){
   if(_sampleBytes.has(file)) return _sampleBytes.get(file);
   const enc = encodeURIComponent(file);
-  const bases = ['../samples/', STUDIO_ASSETS+'samples/', 'samples/'];
+  const bases = ['../samples/', STUDIO_ASSETS+'samples/', 'samples/', '../glb-studio/samples/'];
   let lastErr=null;
   for(const base of bases){
     try{ const r = await fetch(base+enc, {cache:'force-cache'}); if(!r.ok){ lastErr=new Error('HTTP '+r.status); continue; }
@@ -2745,7 +2748,7 @@ const bld = { grid:'square', cols:8, rows:8, seed:7, q0:0, r0:0, board:new Map()
               props:[], propKind:null, propGlb:null, dragProp:null, propMode:'3d', propScale:1, selProp:null, wallMode:'3d', variant:'auto', season:'auto', trees:'mixed', miniTeam:null, measA:null, measB:null, gridLines:false, structures:[], structKey:'',
               subdiv:new Map(), subN:2, subHexMode:'tri', subTool:false,
               subpaint:new Map(), subPaintOn:false, subPaint:'water',
-              theme:'mixed', genStream:true, genRoad:true, extTerrain:'match', extFeature:'bare', repaintOn:false, tgc:'', tgcCell:1, tgcCenters:[], tgcFillTheme:'', ruler:'on', selUnit:0, _exporting:false,
+              theme:'mixed', genStream:true, genRiver:false, genRoad:true, extTerrain:'match', extFeature:'bare', repaintOn:false, tgc:'', tgcCell:1, tgcCenters:[], tgcFillTheme:'', ruler:'on', selUnit:0, _exporting:false,
               sheetsX:1, sheetsY:1, sheetCX:0, sheetCZ:0 };   // rect hex/square mats tile into sheetsX×sheetsY printable sheets (Extend adds a sheet); sheetC* = field-centre offset for directional growth  // theme/stream/road drive ✨ Generate; extTerrain/extFeature drive ➕ Extend; repaintOn = click a tile to overwrite its variant; tgc = chosen The-Game-Crafter print component; ruler = show inch/cell dimension rulers; selUnit = which flower/invader unit is selected for directional Extend
   // subdiv = baseKey→{mode,n}; subpaint = baseKey→{subIndex:biome}; subPaintOn = paint-sub-cells mode
   // draw = freeform strokes {type,pts,mode?}; playMode=grid|drawn; selStroke=selected drawn line; baseMap={src,crop,shape,aspect,tex}; gridScale=grid density;
@@ -2993,7 +2996,7 @@ function bOpenMiniMenu(i, sx, sy){ const pr=bld.props[i]; if(!pr) return; bld.se
   const el=_propMenuEl, team=(MINI_TEAMS[pr.team]||MINI_TEAMS.gray).name;
   el.innerHTML = `<div class="pmHead"><b>✎ ${team} mini</b><span class="pmX">×</span></div>
     <label class="pmL">Model <span style="opacity:.7" id="mmCur"></span></label>
-    <div class="mmTabs" id="mmTabs"><button data-s="lib">✦ Mine</button><button data-s="pack">📦 Packs</button><button data-s="scene">🌳 Scene</button><button data-s="held">⚔ Items</button></div>
+    <div class="mmTabs" id="mmTabs"><button data-s="lib">🧍 Characters</button><button data-s="pack">📦 Packs</button><button data-s="scene">🌳 Scene</button><button data-s="held">⚔ Items</button></div>
     <div class="mmList" id="mmList"><span class="mini" style="opacity:.7">Loading…</span></div>
     <button class="pmAlt" id="mmDefault">↺ Restore to default token</button>
     <label class="pmL">Size <span id="pmSv"></span></label><input id="pmScale" type="range" min="0.3" max="3" step="0.05">
@@ -3227,6 +3230,7 @@ function _ttPackDB(){ return new Promise((res,rej)=>{ const q=indexedDB.open('gl
 async function ttPackGetAll(){ try{ const db=await _ttPackDB(); return await new Promise((res)=>{ const t=db.transaction('packs','readonly'); const r=t.objectStore('packs').getAll(); r.onsuccess=()=>res(r.result||[]); r.onerror=()=>res([]); }); }catch(e){ return []; } }
 function glbFetcherFor(src){
   if(src.type==='file') return ()=> fetch(STUDIO_ASSETS+src.ref).then(r=>{ if(!r.ok) throw new Error(r.status); return r.arrayBuffer(); });
+  if(src.type==='sample') return async ()=>{ const u=await fetchSampleBytes(src.ref); return u.buffer.slice(u.byteOffset, u.byteOffset+u.byteLength); };
   if(src.type==='lib')  return async ()=>{ await window.StudioLib.ready; const m=await window.StudioLib.getModel(src.ref); const b=m&&m.glb; if(!b) throw new Error('no model'); return b.arrayBuffer?await b.arrayBuffer():b; };
   if(src.type==='pack') return async ()=>{ const packs=await ttPackGetAll(); const P=packs.find(p=>p.id===src.pack); if(!P) throw new Error('no pack');
     const list=(src.cat==='char'?P.characters:src.cat==='prop'?P.props:P.sceneProps)||[]; const e=list.find(x=>(x.id||x.name||x.file)===src.ref); if(!e||!e.glb) throw new Error('no entry'); return b64ToBuf(e.glb); };
@@ -3239,8 +3243,13 @@ function bMakeGLBProp(src, scaleMul){ const g=new THREE.Group(); scaleMul=scaleM
   const key='glb:'+src.type+':'+(src.pack||'')+':'+(src.cat||'')+':'+src.ref;
   glbProto(key, glbFetcherFor(src)).then(proto=>{ g.remove(ph); if(!proto) return;
     let inst; try{ inst=skeletonClone(proto); }catch(e){ inst=proto.clone(true); }
+    // RIGGED models: measure the mesh as the SKELETON poses it — a rig's armature often carries a scale, so the raw
+    // geometry box can be 3–4× too small (Man sample: measured 1.5 cells, drew 5.6) and characters came out giant
+    inst.updateMatrixWorld(true); inst.traverse(o=>{ if(o.isSkinnedMesh && o.skeleton){ o.skeleton.update(); o.computeBoundingBox(); } });
     let box=new THREE.Box3().setFromObject(inst), size=new THREE.Vector3(); box.getSize(size);
-    const horiz=Math.max(size.x,size.z)||1, fit=(src.fit||1.5); inst.scale.setScalar(fit/horiz);
+    const isChar = src.type==='sample' || src.type==='lib' || src.cat==='char';                     // characters fit by their TALLEST side
+    const horiz=(isChar ? Math.max(size.x,size.y,size.z) : Math.max(size.x,size.z))||1, fit=(src.fit||1.5); inst.scale.setScalar(fit/horiz);
+    inst.updateMatrixWorld(true);
     box=new THREE.Box3().setFromObject(inst); const ctr=new THREE.Vector3(); box.getCenter(ctr);
     inst.position.set(-ctr.x, TILE_TOP - box.min.y, -ctr.z);
     inst.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.frustumCulled=false; } });
@@ -3252,7 +3261,8 @@ function bMakeGLBProp(src, scaleMul){ const g=new THREE.Group(); scaleMul=scaleM
 async function bLibEntries(srcTab){ const out=[];
   if(srcTab==='scene'){ for(const [id,name,em] of SCENE_PROPS) out.push({label:(em||'🌳')+' '+name, src:{type:'file',ref:'sceneprops/'+id+'.glb',fit:1.6}}); }
   else if(srcTab==='held'){ for(const [id,name,em] of HELD_PROPS) out.push({label:(em||'⚔')+' '+name, src:{type:'file',ref:'Props/'+id+'.glb',fit:0.7}}); }
-  else if(srcTab==='lib'){ if(!window.StudioLib) return out;
+  else if(srcTab==='lib'){ for(const c of SAMPLE_CHARS) out.push({label:c.icon+' '+c.name+' (sample)', src:{type:'sample',ref:c.file,fit:1.1}});
+    if(!window.StudioLib) return out;
     try{ await window.StudioLib.ready; const ms=await window.StudioLib.listModels(); for(const m of ms) out.push({label:'✦ '+(m.name||m.id), src:{type:'lib',ref:m.id,fit:1.1}}); }catch(e){} }
   else if(srcTab==='pack'){ const packs=await ttPackGetAll();
     for(const P of packs){ const pre=(P.em||'📦')+' ';
@@ -3269,9 +3279,14 @@ async function bBuildLibList(){ const el=document.getElementById('bLibList'); if
   const note=(t)=>{ el.innerHTML='<span class="mini" style="opacity:.8">'+t+'</span>'; };
   if(bLibSrc==='scene'){ for(const [id,name,em] of SCENE_PROPS) add((em||'🌳')+' '+name, {type:'file',ref:'sceneprops/'+id+'.glb',fit:1.6}); }
   else if(bLibSrc==='held'){ for(const [id,name,em] of HELD_PROPS) add((em||'⚔')+' '+name, {type:'file',ref:'Props/'+id+'.glb',fit:0.7}); }
-  else if(bLibSrc==='lib'){ if(!window.StudioLib) return note('Your Meshy models appear here when Tabletop runs inside GLB Studio.');
-    try{ await window.StudioLib.ready; const ms=await window.StudioLib.listModels(); if(!ms.length) return note('No models in your Studio library yet — rig one in GLB Studio.');
-      for(const m of ms) add('✦ '+(m.name||m.id), {type:'lib',ref:m.id,fit:1.1}); }catch(e){ note('Library unavailable.'); } }
+  else if(bLibSrc==='lib'){ const head=(t)=>{ const h=document.createElement('div'); h.className='mini'; h.style.cssText='width:100%;margin:4px 0 2px;font-weight:700'; h.textContent=t; el.appendChild(h); };
+    const tip=(t)=>{ const h=document.createElement('div'); h.className='mini'; h.style.cssText='width:100%;opacity:.75;margin:2px 0'; h.innerHTML=t; el.appendChild(h); };
+    head('Sample characters'); for(const c of SAMPLE_CHARS) add(c.icon+' '+c.name, {type:'sample',ref:c.file,fit:1.1});
+    head('✦ Your rigged models'); bAddGlbFileButton(el);
+    if(!window.StudioLib) return tip('Your own rigged characters appear here when Tabletop runs inside GLB Studio.');
+    try{ await window.StudioLib.ready; const ms=await window.StudioLib.listModels();
+      if(!ms.length) return tip('None yet — rig a character in GLB Studio (🧍 <b>Rig</b> → <b>⬇ Export rigged GLB</b> adds it here automatically), or add a rigged <b>.glb</b> file above.');
+      for(const m of ms) add('✦ '+(m.name||m.id), {type:'lib',ref:m.id,fit:1.1}); }catch(e){ tip('Library unavailable.'); } }
   else if(bLibSrc==='pack'){ const packs=await ttPackGetAll(); const rel=packs.filter(P=>(P.sceneProps&&P.sceneProps.length)||(P.props&&P.props.length)||(P.characters&&P.characters.length));
     if(!rel.length) return note('No expansion packs imported. Import packs in GLB Stitcher and their models appear here.');
     for(const P of rel){ const h=document.createElement('div'); h.className='mini'; h.style.cssText='width:100%;margin:4px 0 2px;font-weight:700'; h.textContent=(P.em||'📦')+' '+(P.name||P.id); el.appendChild(h);
@@ -3279,6 +3294,14 @@ async function bBuildLibList(){ const el=document.getElementById('bLibList'); if
       for(const pr of (P.props||[])) add((pr.em||'⚔')+' '+(pr.label||pr.name), {type:'pack',pack:P.id,cat:'prop',ref:(pr.name),fit:0.7});
       for(const ch of (P.characters||[])) add((ch.icon||'🧍')+' '+(ch.name||ch.file), {type:'pack',pack:P.id,cat:'char',ref:(ch.file||ch.name),fit:1.2}); } }
 }
+/* 📂 add a rigged .glb from disk → saved into the Studio library (so it stays listed), then picked for placing */
+function bAddGlbFileButton(el){ const b=document.createElement('button'); b.className='btn sec'; b.style.cssText='font-size:11px;width:100%;margin:2px 0 4px'; b.textContent='📂 Add a .glb file from your computer…';
+  b.onclick=()=>{ const inp=document.createElement('input'); inp.type='file'; inp.accept='.glb,.gltf';
+    inp.onchange=async ()=>{ const f=inp.files[0]; if(!f) return; const buf=await f.arrayBuffer(); const nm=f.name.replace(/\.(glb|gltf)$/i,'');
+      try{ if(window.StudioLib){ await window.StudioLib.ready; const id=await window.StudioLib.addModel({name:nm, skeleton:'', glb:buf}); bSelectGlbProp({type:'lib',ref:id,fit:1.1}, '✦ '+nm); }
+        else { bStatus('Could not save the model — open Tabletop inside GLB Studio.'); } }catch(e){ bStatus('Could not add that file: '+(e.message||e)); } };
+    inp.click(); };
+  el.appendChild(b); }
 function bSelectGlbProp(src,label){ const same=bld.propGlb && JSON.stringify(bld.propGlb.src)===JSON.stringify(src);
   bld.propGlb = same ? null : {src,name:label};
   if(bld.propGlb){ bld.propKind=null; bld.tool=null; bld.sel=null; bld.selStroke=null; if(bld.repaintOn)bRepaintOff(); if(bld.imgToolOn)bImageToolOff(); if(bld.subTool)bSubToolOff(); bBuildPalette(); bBuildPropTools(); bHover.visible=false; }
@@ -3511,6 +3534,7 @@ function bSyncBuilderUI(){
   const tSel=document.getElementById('bTheme'); if(tSel) tSel.value=bld.theme;
   const sChk=document.getElementById('bGenStream'); if(sChk) sChk.checked=bld.genStream;
   const rChk=document.getElementById('bGenRoad'); if(rChk) rChk.checked=bld.genRoad;
+  const rvChk=document.getElementById('bGenRiver'); if(rvChk) rvChk.checked=!!bld.genRiver;
   const etSel=document.getElementById('bExtTerrain'); if(etSel) etSel.value=bld.extTerrain;
   const efSel=document.getElementById('bExtFeature'); if(efSel) efSel.value=bld.extFeature;
   const seSel=document.getElementById('bSeason'); if(seSel) seSel.value=String(bld.season);
@@ -3562,7 +3586,7 @@ function bResolveVariant(pl, def, cell){
 }
 /* SNOW PLATEAUS (v0.91): snow cells that are part of / touch a mountain range render RAISED in 3D (on a rocky, frosted
    cliff skirt) so they read as high country up in the mountains. The flat 2D map + print export stay flat. */
-const SNOW_LIFT=0.3;
+const SNOW_LIFT=0.3, PLATEAU_LIFT=0.38;
 function bSnowLiftSet(defs){ const out=new Set(); if(bld.boardFlat || bld._exporting) return out;
   const g=bGridObj(), bio=(k)=>{ const p=bld.board.get(k), d=p&&!p.img&&defs[p.defId]; return d?d.biome:null; }, seen=new Set();
   for(const k of bld.board.keys()){ if(seen.has(k) || bio(k)!=='snow') continue;
@@ -3593,7 +3617,8 @@ function bRender(){
     if(pl){ const seedh=(bld.seed*131 + (c.q*73856+c.r*19349))>>>0;
       const grp=buildTileMesh(defs[pl.defId], bld.grid, seedh, bResolveVariant(pl, defs[pl.defId], c), pl.mass, pl.img?bImgTex(pl.img):null);
       grp.position.copy(w); grp.rotation.y=pl.rot*tileStepAngle(bld.grid);
-      if(snowUp.has(k)){ grp.position.y+=SNOW_LIFT; grp.add(liftSkirt(bld.grid, SNOW_LIFT)); }
+      const lift = (!bld.boardFlat && !bld._exporting && defs[pl.defId] && defs[pl.defId].feature==='plateau') ? PLATEAU_LIFT : snowUp.has(k) ? SNOW_LIFT : 0;   // high-mountain plateaus, snowfields
+      if(lift){ grp.position.y+=lift; grp.add(liftSkirt(bld.grid, lift)); }
       grp.traverse(o=>o.userData.cell=c); builderGroup.add(grp); bld.groups.set(k,grp);
     } else if(bHexShape){ /* flower/invader/hex-mat: outline the shape cells (so you SEE the shape before Generate); no plates elsewhere */
       if(bHexShape.has(k)){ const rimPts=bGridObj().corners().map(cn=>new THREE.Vector3(cn[0],0.05,-cn[1]));
@@ -4151,7 +4176,14 @@ function bGenerateMap(){ bPushUndo();
   if(TGC_HEXMAT[bld.tgc]){ bTgcFit(); bld.tgcCenters=[bHexMatCenter()]; bld.selUnit=0;
     eff = FLOWER_THEME_MAP[bld.theme] || bld.theme; bld.tgcFillTheme = eff; }
   if(eff && eff.startsWith('biome:')){                // single-biome base-terrain fill (desert tiles, all-forest flower mat, clean grassland, etc.)
-    const biome=eff.slice(6); bld.structPlans=[];
+    const biome=eff.slice(6); bld.structPlans=[]; bld.modern=null; _settlePlan=null;
+    const paths = !TGC_HEXMAT[bld.tgc] && biome!=='water' && (bld.genStream || bld.genRiver || bld.genRoad || biome==='mountains');
+    if(paths){                                         // a single biome WITH the chosen waterways / through-road (valleys & passes cut through mountains)
+      const r=TE.generateMap(bld.grid, bld.board, bFillCells(), bDefs(), {seed:bld.seed, fill:biome, stream:bld.genStream, river:!!bld.genRiver, road:bld.genRoad, farms:false, castle:false, wild:true, battle:bld.scale==='battle'});
+      bld.draw=Array.isArray(r.draw)?r.draw:[]; bld.pen=[]; bld.props=[]; bld.selStroke=null; bld.selProp=null; bRender(); bFit();
+      const bits=[r.rivers?(r.rivers+' stream/river reach'+(r.rivers===1?'':'es')):'', r.roads?'a through-road':'', biome==='mountains'?'raised plateaus':''].filter(Boolean).join(' · ');
+      bStatus(`Generated <b>${BIOME_FILL_NAMES[biome]||biome}</b> map <b>#${bld.seed}</b>${bits?' — '+bits:''} · untick 💧 / 🌊 / 🛣 for plain ${BIOME_FILL_NAMES[biome]||biome} tiles`); return;
+    }
     const r=TE.generateBiomeFill(bld.grid, bld.board, bFillCells(), bDefs(), {seed:bld.seed, biome});
     bld.draw=[]; bld.pen=[]; bld.props=[]; bld.selStroke=null; bld.selProp=null; if(TGC_HEXMAT[bld.tgc]) bTrimToHexMatShape(); bRender(); bFit();
     bStatus(`Filled the board with <b>${BIOME_FILL_NAMES[biome]||biome}</b> — ${r.placed} base tiles${TGC_HEXMAT[bld.tgc]?' · <b>Extend</b> (◀▶▲▼ or a ＋ slot) adds matching units':''}. Pick a 🖨 Print size + <b>Export</b>.`); return;
@@ -4170,7 +4202,7 @@ function bGenerateMap(){ bPushUndo();
   }
   if(String(bld.theme).indexOf('modern:')===0){                          // 🏙 MODERN PACK — city / suburbs / rural
     const theme=bld.theme.slice(7);
-    const r=TE.generateModernMap(bld.grid, bld.board, bFillCells(), bDefs(), {seed:bld.seed, theme, stream:bld.genStream, battle:bld.scale==='battle', highway:!!document.getElementById('bLmHighway')?.checked,
+    const r=TE.generateModernMap(bld.grid, bld.board, bFillCells(), bDefs(), {seed:bld.seed, theme, stream:bld.genStream, river:!!bld.genRiver, battle:bld.scale==='battle', highway:!!document.getElementById('bLmHighway')?.checked,
       skySize:parseInt(document.getElementById('bSkySize')?.value)||2, stadium:document.getElementById('bStadium')?.value||'auto',
       landmarks:{ airport:!!document.getElementById('bLmAirport')?.checked, military:!!document.getElementById('bLmMilitary')?.checked,
                   space:!!document.getElementById('bLmSpace')?.checked, port:!!document.getElementById('bLmPort')?.checked }});
@@ -4181,7 +4213,7 @@ function bGenerateMap(){ bPushUndo();
   bld.modern=null;
   const townSize=Math.max(0,parseInt(document.getElementById('bGenTownSize')?.value)||0);
   const moat=!!document.getElementById('bMoat')?.checked;
-  const r=TE.generateMap(bld.grid, bld.board, bFillCells(), bDefs(), {seed:bld.seed, theme:bld.theme, stream:bld.genStream, road:bld.genRoad, battle:bld.scale==='battle', townSize, moat, keepSize:bKeepSize()});
+  const r=TE.generateMap(bld.grid, bld.board, bFillCells(), bDefs(), {seed:bld.seed, theme:bld.theme, stream:bld.genStream, river:!!bld.genRiver, road:bld.genRoad, battle:bld.scale==='battle', townSize, moat, keepSize:bKeepSize()});
   bld.draw = Array.isArray(r.draw) ? r.draw : []; bld.pen=[]; bld.props=[]; bld.selStroke=null; bld.selProp=null;
   bld.structPlans = r.structure ? [bStructFromResult(r.structure)] : []; bStructRefreshDraw();      // the castle (all of it, even past the edge) → completes first on Extend
   if(TGC_HEXMAT[bld.tgc]) bTrimToHexMatShape(); bRender(); bFit();
@@ -5677,6 +5709,7 @@ function bSyncTownSizeRow(){ const row=document.getElementById('bTownSizeRow'); 
   const mo=document.getElementById('bModernRow'); if(mo) mo.style.display = String(bld.theme).startsWith('modern:') ? '' : 'none'; }
 document.getElementById('bGenStream').onchange=(e)=>{ bld.genStream=e.target.checked; };
 document.getElementById('bGenRoad').onchange=(e)=>{ bld.genRoad=e.target.checked; };
+document.getElementById('bGenRiver').onchange=(e)=>{ bld.genRiver=e.target.checked; };
 document.getElementById('bExtTerrain').onchange=(e)=>{ bld.extTerrain=e.target.value; };
 document.getElementById('bExtFeature').onchange=(e)=>{ bld.extFeature=e.target.value; };
 // ---- Tile Builder wiring ----

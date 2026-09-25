@@ -324,8 +324,12 @@
       for (let i = 0; i < Math.min(3, foothills.length); i++) { if (rng() < 0.6) biome[foothills[i]] = B.ROCKS; }
     }
 
-    /* ---- 1b. natural MINIMUM SIZES (mountain ranges ≥5 cells, lakes 16–400) — then re-read the blobs ---- */
-    enforceTerrainSizes({ keys, get: (k) => biome[k], fixed: () => null, rng, lakes: lakesOk,
+    /* ---- 1a. FILL (Paul: "All Mountains … had road and stream selected and only got mountains"): a single-biome
+       map. Every cell takes opts.fill, then the normal drainage network + roads run across it — through mountains
+       they cut a green VALLEY (river) or a rocky PASS (road) — and an all-mountain map gets raised PLATEAUS (§5d). ---- */
+    const FILL = opts.fill || null;
+    if (FILL) keys.forEach(k => { biome[k] = FILL; feature[k] = FILL === B.WATER ? 'water' : undefined; });
+    if (!FILL) enforceTerrainSizes({ keys, get: (k) => biome[k], fixed: () => null, rng, lakes: lakesOk,
       nbrs: (k) => nbrs(k).map(n => n.k),
       set: (k, bm) => { biome[k] = bm; feature[k] = bm === B.WATER ? 'water' : undefined; } });
     const reread = () => {
@@ -333,6 +337,7 @@
       mtn = keys.filter(k => biome[k] === B.MOUNTAINS || biome[k] === B.SNOW); mtnSet = new Set(mtn);
       forest = keys.filter(k => biome[k] === B.FOREST); forestSet = new Set(forest); };
     reread();
+    if (FILL) { water = []; waterSet = new Set(); mtn = []; mtnSet = new Set(); }                  // passable everywhere; the land just tilts
 
     /* ---- 2. CASTLE (boards of 256+ cells) — a REAL walled castle of 64+ cells (keep, curtain wall, gatehouses,
        optional moat + drawbridges) with a 2-ring OUTSKIRTS of hamlets, farmsteads & fields outside the moat, built
@@ -341,7 +346,7 @@
        when the map is Extended, before the new land is generated. ---- */
     const locked = new Set(), castleExits = [], castleFeeds = [];
     let structure = null, castleAnchor = null;
-    const wantCastle = opts.castle !== false && NC >= 256 && (mtn.length > 0 || rng() < 0.4);
+    const wantCastle = opts.castle !== false && !FILL && NC >= 256 && (mtn.length > 0 || rng() < 0.4);
     if (wantCastle) {
       const cw = 8 + ri(3), ch = 8 + ri(3), OUT = 2, RW = cw + 2 * OUT, RH = ch + 2 * OUT;
       const cand = keys.filter(k => !waterSet.has(k) && !mtnSet.has(k));
@@ -399,6 +404,7 @@
       : opts.stream === true ? Math.max(1, themeRivers)
       : themeRivers;
     const doRoads = opts.road !== false;
+    const wantRiver = !!opts.river;                                  // 🌊 a RIVER (2× wide) — with 💧 stream on too it gets a tributary
     function dijkstra(src, dst, cost) {
       const dist = { [src]: 0 }, prev = {}, pq = [[0, src]];
       while (pq.length) {
@@ -409,18 +415,22 @@
       if (dist[dst] == null) return null;
       const path = [dst]; let k = dst; while (k !== src) { k = prev[k]; path.push(k); } return path.reverse();
     }
-    if (nRivers > 0 || castleFeeds.length) {
+    if (nRivers > 0 || castleFeeds.length || wantRiver) {
       const bfsDist = (src) => { const d = {}, q = []; for (const k of src) { d[k] = 0; q.push(k); } let h = 0;
         while (h < q.length) { const k = q[h++]; for (const { k: nk } of nbrs(k)) if (d[nk] === undefined) { d[nk] = d[k] + 1; q.push(nk); } } return d; };
       const dM = mtn.length ? bfsDist(mtn) : null, dW = water.length ? bfsDist(water) : null;
       const ta = rng() * Math.PI * 2, tx = Math.cos(ta), tz = Math.sin(ta);           // no mountains → the land tilts one way
       const elev = {};
       keys.forEach(k => { elev[k] = (dM ? -(dM[k] ?? 60) : ((pos[k].x - cx) * tx + (pos[k].z - cz) * tz) * 1.2)
-        + (dW ? Math.min(dW[k] ?? 60, 14) * 0.45 : 0) + _jit[k] * 0.9; });
+        + (dW ? Math.min(dW[k] ?? 60, 14) * 0.45 : 0) + _jit[k] * 0.9
+        + (FILL ? 1.7 * (Math.sin(pos[k].x * 0.43 + ta * 3) + Math.cos(pos[k].z * 0.47 + ta * 5) + Math.sin((pos[k].x + pos[k].z) * 0.29 + ta)) : 0); });
       let eLo = Infinity, eHi = -Infinity; keys.forEach(k => { eLo = Math.min(eLo, elev[k]); eHi = Math.max(eHi, elev[k]); });
       const eN = (k) => (elev[k] - eLo) / ((eHi - eLo) || 1);
       const blocked = (k) => locked.has(k) || mtnSet.has(k) || (biome[k] === B.WATER && !waterSet.has(k));
       const sources = [];
+      // (0) the 🌊 RIVER: already a river when it enters the board (its headwaters lie beyond), on the high side
+      if (wantRiver) { const hs = border.filter(k => !blocked(k) && !waterSet.has(k)).sort((a, b) => elev[b] - elev[a]), hi = hs[Math.min(hs.length - 1, ri(3))];
+        if (hi) { const od = offDirs(hi); sources.push({ k: hi, flow: 2, from: edgePt(hi, od[0]), link: od[0], offSrc: true, main: true, alts: hs.filter(k => k !== hi).slice(0, 40) }); } }
       // (a) mountain SPRINGS on the range's flank — a few, moderately spread so their streams can meet downhill
       if (nRivers > 0 && mtn.length) {
         const pool = keys.filter(k => !blocked(k) && !waterSet.has(k) && nbrs(k).some(n => mtnSet.has(n.k)));
@@ -431,7 +441,7 @@
           for (const k of pool) { if (picked.includes(k)) continue; const md = Math.min(...picked.map(p => d2(p, k))); if (md < 4) continue;
             const s = Math.min(md, 36) + rng() * 6; if (s > bs) { bs = s; bk = k; } }
           if (!bk) break; picked.push(bk); }
-        for (const s of picked) { const mn = nbrs(s).find(n => mtnSet.has(n.k)); sources.push({ k: s, flow: 1, from: edgePt(s, mn.dir), link: mn.dir }); }
+        for (const s of picked) { const mn = nbrs(s).find(n => mtnSet.has(n.k)); sources.push({ k: s, flow: 1, from: edgePt(s, mn.dir), link: mn.dir, joinPref: wantRiver }); }
       }
       // (b) LAKE OUTLETS — an inland lake (not touching the board edge) spills a river from its low side
       if (nRivers > 0 && water.length) {
@@ -461,7 +471,7 @@
           if (d > (dist[k] ?? Infinity)) continue;
           if (k !== s.k && riverSet.has(k)) { hit = { type: 'join', k }; break; }
           const od = offDirs(k);
-          if (od.length && !(s.offSrc && k === s.k)) pq.push([d + 2 + 14 * eN(k), k, { type: 'off', k, dir: od[(_jit[k] * od.length) | 0] }]);   // leaving the map is cheap only from low ground
+          if (od.length && !(s.offSrc && (k === s.k || d2(k, s.k) < s.minOff)) && !s.mustJoin) pq.push([d + (s.joinPref ? 4 : 1) * (2 + 14 * eN(k)), k, { type: 'off', k, dir: od[(_jit[k] * od.length) | 0] }]);   // leaving the map is cheap only from low ground
           for (const { k: nk, dir } of nbrs(k)) {
             if (waterSet.has(nk)) { if (!(s.lake && s.lake.has(nk))) pq.push([d + 1, k, { type: 'lake', k, dir }]); continue; }
             if (blocked(nk)) continue;
@@ -473,13 +483,19 @@
         const path = [hit.k]; let q = hit.k; while (q !== s.k) { q = prev[q]; path.push(q); }
         return { path: path.reverse(), hit };
       };
-      const order = sources.slice().sort((a, b) => (a.feed ? 1 : 0) - (b.feed ? 1 : 0) || elev[b.k] - elev[a.k]);
+      const order = sources.slice().sort((a, b) => (b.main ? 1 : 0) - (a.main ? 1 : 0) || (a.feed ? 1 : 0) - (b.feed ? 1 : 0) || elev[b.k] - elev[a.k]);
+      const tribWanted = wantRiver && nRivers > 0 && !sources.some(x => !x.main && !x.feed);        // 💧+🌊 and nothing else would feed it
       for (const s of order) {
         if (riverSet.has(s.k) || blocked(s.k)) continue;
-        const res = route(s); if (!res) continue;
+        const tryRoute = () => { if (!s.offSrc) return route(s);
+          for (const f of [0.9, 0.45, 0]) { s.minOff = Math.pow(span * f, 2); const r0 = route(s); if (r0) return r0; } return null; };
+        let res = tryRoute(); if (!res && s.mustJoin) { s.mustJoin = false; res = tryRoute(); }
+        while (!res && s.alts && s.alts.length) { const a = s.alts.shift(); if (riverSet.has(a) || blocked(a)) continue;           // hemmed in (castle / range) → try the next source
+          const od = offDirs(a); s.k = a; s.link = od[0]; s.from = edgePt(a, od[0]); res = tryRoute(); }
+        if (!res) continue;
         const { path, hit } = res, land = hit.type === 'join' ? path.slice(0, -1) : path;
         if (!land.length) continue;
-        for (const k of land) { riverSet.add(k); if (biome[k] !== B.SAND) biome[k] = B.PLAINS; if (feature[k] !== 'water') feature[k] = undefined; flow[k] = (flow[k] || 0) + s.flow; }
+        for (const k of land) { riverSet.add(k); if (biome[k] !== B.SAND && (!FILL || FILL === B.MOUNTAINS || FILL === B.FOREST)) biome[k] = B.PLAINS; if (feature[k] !== 'water') feature[k] = undefined; flow[k] = (flow[k] || 0) + s.flow; }
         for (let i = 0; i < land.length - 1; i++) { down[land[i]] = land[i + 1]; setEdge(land[i], dirTo(land[i], land[i + 1]), P.RIVER); }
         const last = land[land.length - 1];
         if (hit.type === 'join') { down[last] = hit.k; setEdge(last, dirTo(last, hit.k), P.RIVER);
@@ -487,6 +503,9 @@
         else { endOf[last] = edgePt(last, hit.dir); setEdge(last, hit.dir, P.RIVER); }
         setEdge(land[0], s.link, P.RIVER);                                          // emerges from the mountain / leaves the lake / enters from off-map
         srcCells.set(land[0], { from: s.from, flow: s.flow });
+        if (s.main && tribWanted) { const rv = [...riverSet], far = (k) => nearBlob(k, rv) >= 9 && d2(k, s.k) >= Math.pow(span * 0.45, 2);
+          const t = border.filter(k => !riverSet.has(k) && !blocked(k) && !waterSet.has(k) && far(k)).sort((a, b) => (elev[b] + _jit[b]) - (elev[a] + _jit[a]))[0];
+          if (t) { const od = offDirs(t).filter(d => edges[t][d] === P.NONE); if (od.length) order.push({ k: t, flow: 1, from: edgePt(t, od[0]), link: od[0], offSrc: true, mustJoin: true }); } }
       }
       // REACHES: split the network at sources + confluences; each reach = one swept stroke with its own width
       const ups = {}; for (const k in down) ups[down[k]] = (ups[down[k]] || 0) + 1;
@@ -509,7 +528,7 @@
     const nearLocked = (k) => locked.has(k) || nbrs(k).some(n => locked.has(n.k));
     const buildable = (k) => !waterSet.has(k) && !mtnSet.has(k) && !riverSet.has(k) && !onShore(k) && !locked.has(k)
       && biome[k] !== B.SNOW && biome[k] !== B.ROCKS && biome[k] !== B.WATER;
-    const cand = opts.wild ? [] : keys.filter(k => buildable(k) && !nearLocked(k) && !nbrs(k).some(n => mtnSet.has(n.k)));   // wild = natural land only (the Modern Pack develops it)   // villages don't abut mountains (no natural pair)
+    const cand = (opts.wild || FILL) ? [] : keys.filter(k => buildable(k) && !nearLocked(k) && !nbrs(k).some(n => mtnSet.has(n.k)));   // wild = natural land only (the Modern Pack develops it)   // villages don't abut mountains (no natural pair)
     const nSet = Math.max(1, clamp(opts.settlements != null ? opts.settlements : Math.round(NC / 26), 2, 4) - (structure ? 1 : 0));
     // SIZES (Paul): towns 9–64 cells, villages 4–12, castles 64+ (§2). Tiny mats (<50 cells) keep compact symbols.
     const battle = !!opts.battle, roomy = NC >= 50;
@@ -555,7 +574,8 @@
       for (const k of blob) { biome[k] = B.VILLAGE; feature[k] = 'houses'; } }
 
     /* ---- 5. sparse road network: a spanning tree over settlements + castle gates + 1 edge exit ---- */
-    const roadCost = (nk) => {
+    const roadCost = (nk, from) => {
+      if (from !== undefined && edges[from][dirTo(from, nk)] === P.RIVER) return Infinity;           // cross a river, never run along it
       if (waterSet.has(nk) || mtnSet.has(nk) || locked.has(nk) || biome[nk] === B.WATER) return Infinity;   // roads route around mountains, water & the castle grounds
       let c = 1;
       const bm = biome[nk];
@@ -568,7 +588,11 @@
     const exitPool = border.filter(k => buildable(k) && !settleSet.has(k) && !nearLocked(k));
     const exit = exitPool.length ? exitPool.sort((a, b) => (settlements.length ? nearBlob(b, settlements) - nearBlob(a, settlements) : 0))[0] : null;
     const gates = castleExits.filter(k => roadCost(k) !== Infinity || edges[k].includes(P.ROAD));
-    const terminals = settlements.concat(exit ? [exit] : [], gates);
+    // FILL map: one through-road from a board edge to (roughly) the opposite edge — a pass through the range
+    let fillExits = [];
+    if (FILL && doRoads) { const ok = border.filter(k => roadCost(k) !== Infinity && !riverSet.has(k));
+      if (ok.length >= 2) { const a = ok[ri(ok.length)], b = ok.slice().sort((x, y) => (d2(y, a) + _jit[y] * 8) - (d2(x, a) + _jit[x] * 8))[0]; if (b !== a) fillExits = [a, b]; } }
+    const terminals = FILL ? fillExits : settlements.concat(exit ? [exit] : [], gates);
     const roadCells = new Set();
     function layRoad(pathKeys) {
       for (const k of pathKeys) roadCells.add(k);
@@ -591,7 +615,8 @@
         connected.push(rest[bestIdx]); rest.splice(bestIdx, 1);
       }
       // exit spills off the board
-      if (exit && roadCells.has(exit)) { const od = offDirs(exit); if (od.length) setEdge(exit, od[ri(od.length)], P.ROAD); }
+      if (exit && roadCells.has(exit) && !FILL) { const od = offDirs(exit); if (od.length) setEdge(exit, od[ri(od.length)], P.ROAD); }
+      for (const e of fillExits) if (roadCells.has(e)) { const od = offDirs(e).filter(d => edges[e][d] === P.NONE); if (od.length) setEdge(e, od[ri(od.length)], P.ROAD); }
     }
     // a plains road leaf (a dead-end that isn't a village/castle gate/exit) becomes a farm
     const gateSet = new Set(castleExits);
@@ -609,7 +634,8 @@
     }
 
     /* ---- 6. one or two trails off to a lone feature (forest / mountain pass) ---- */
-    const trailCost = (nk) => {
+    const trailCost = (nk, from) => {
+      if (from !== undefined && edges[from][dirTo(from, nk)] === P.RIVER) return Infinity;
       if (waterSet.has(nk) || locked.has(nk) || biome[nk] === B.WATER) return Infinity;
       let c = 1;
       const bm = biome[nk];
@@ -625,7 +651,7 @@
     if (forest.length) featureTargets.push(deepForest[0]);
     let trailsLaid = 0;
     for (const tgt of featureTargets) {
-      if (!doRoads || trailsLaid >= 2 || !tgt || !trailStarts.length) break;
+      if (!doRoads || FILL || trailsLaid >= 2 || !tgt || !trailStarts.length) break;
       const start = trailStarts.slice().sort((a, b) => d2(a, tgt) - d2(b, tgt))[0];
       if (start === tgt) continue;
       const path = dijkstra(start, tgt, trailCost);
@@ -660,7 +686,7 @@
     /* ---- 6b. farmland: patches of crop rows / orchards / centre-pivot circles on open plains ("farms
        from the air") near settlements & irrigation water. Painted top-down tiles, mixed per-cell for a patchwork. */
     const farmVar = {};                                   // per-cell field variant (crops 0–2, orchard 0–1, pivot 0–1)
-    if (opts.farms !== false) {
+    if (opts.farms !== false && !FILL) {
       const anchor = settlements.concat([...townCells]);
       const canFarm = (k) => biome[k] === B.PLAINS && !riverSet.has(k) && !settleSet.has(k) && !townCells.has(k) && !locked.has(k)
         && feature[k] === undefined && k !== exit && !gateSet.has(k);
@@ -684,13 +710,31 @@
       }
     }
 
+    /* ---- 5d. ALL-MOUNTAIN FILL: a road through the range runs on a rocky PASS; and clusters of flat high ground —
+       PLATEAUS (rock, or snowfields) that the host raises above the valleys — break up the sea of peaks
+       (Paul: "an all mountains map should also have some plateau squares … representing high mountain areas"). ---- */
+    const rockVar = {};                                   // rocky_ground variant: 0 grey · 1 red desert · 2 mossy alpine
+    if (FILL === B.MOUNTAINS) {
+      roadCells.forEach(k => { if (!riverSet.has(k) && biome[k] === B.MOUNTAINS) { biome[k] = B.ROCKS; rockVar[k] = 0; } });
+      if (opts.plateaus !== false) {
+        const pathy = (k) => edges[k].some(p => p !== P.NONE);
+        const free = (k) => biome[k] === B.MOUNTAINS && !pathy(k) && !nbrs(k).some(n => pathy(n.k) || feature[n.k] === 'plateau');
+        const target = Math.round(NC * 0.14); let made = 0, tries = 0;
+        while (made < target && tries++ < 80) {
+          const pool = keys.filter(free); if (!pool.length) break;
+          const blob = grow(pool[ri(pool.length)], 2 + ri(5), k => !free(k)), snowy = rng() < 0.35, rv = rng() < 0.5 ? 0 : 2;
+          for (const k of blob) { biome[k] = snowy ? B.SNOW : B.ROCKS; feature[k] = 'plateau'; if (!snowy) rockVar[k] = rv; made++; } }
+      }
+    }
+
     /* ---- 6c. mountain-massif depth (0 = fringe/foothill, 1 = range core) so peaks grow toward the heart of
        the range and taper to foothills at its edge — no more a uniform grid of identical spikes. ---- */
     const mtnMass = {};
     { const dist = {}, front = [];
-      keys.forEach(k => { if (biome[k] !== B.MOUNTAINS) { dist[k] = 0; front.push(k); } else if (isBorder(k)) { dist[k] = 1; front.push(k); } });
+      const isM = (k) => biome[k] === B.MOUNTAINS || feature[k] === 'plateau';
+      keys.forEach(k => { if (!isM(k)) { dist[k] = 0; front.push(k); } else if (isBorder(k)) { dist[k] = 1; front.push(k); } });
       let head = 0; while (head < front.length) { const k = front[head++];
-        for (const { k: nk } of nbrs(k)) if (dist[nk] === undefined && biome[nk] === B.MOUNTAINS) { dist[nk] = dist[k] + 1; front.push(nk); } }
+        for (const { k: nk } of nbrs(k)) if (dist[nk] === undefined && isM(nk)) { dist[nk] = dist[k] + 1; front.push(nk); } }
       let maxd = 2; keys.forEach(k => { if (biome[k] === B.MOUNTAINS && dist[k] > maxd) maxd = dist[k]; });
       keys.forEach(k => { if (biome[k] === B.MOUNTAINS) mtnMass[k] = Math.min(1, (dist[k] || 1) / maxd); });
     }
@@ -707,6 +751,7 @@
       const rec = { defId: id, rot: 0 };
       if (mtnMass[k] !== undefined) rec.mass = mtnMass[k];
       if (farmVar[k] !== undefined) rec.variant = farmVar[k];
+      if (rockVar[k] !== undefined) rec.variant = rockVar[k];
       board.set(k, rec);
       placed++;
     }

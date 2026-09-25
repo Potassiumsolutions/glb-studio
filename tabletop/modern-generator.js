@@ -87,7 +87,7 @@
     opts = opts || {};
     const theme = THEME[opts.theme] ? opts.theme : 'city';
     const seed = (opts.seed || 1) >>> 0;
-    const r = TE.generateMap(gridKind, board, cells, defs, { seed, theme: THEME[theme].base, stream: opts.stream, road: false, farms: false, castle: false, wild: true });
+    const r = TE.generateMap(gridKind, board, cells, defs, { seed, theme: THEME[theme].base, stream: opts.stream, river: opts.river, road: false, farms: false, castle: false, wild: true });
     let rivers = (r.draw || []).filter(s => s.type === 'river');
     const g = gridFor(gridKind);
     let coastSide = null;
