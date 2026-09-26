@@ -18,7 +18,7 @@ One app with five tabs that share one library, so whatever one tab makes is inst
 - **🧍 Rig**: drop a textured `.glb` / `.gltf` / `.fbx` (works with models generated on meshy.ai and mixamo.com); it **auto-fits one of 19 skeletons** (biped, biped + fingers, quadruped, bird, dragon, fish, crab and more) and **auto-skins** it. Nudge the joints if you want, then export a rigged GLB.
 - **🐾 Animate**: procedurally generate motions for bipeds and animals (walking, running, jumping, sports, dancing, gestures, wing flaps…), tuned by speed / amplitude / loop length.
 - **🎬 Stitch**: load a rigged character, **auto-retarget** motions onto it, and composite clips into one **MP4** with 3D scenes, camera moves, multiple characters, audio and cross-fades.
-- **🎲 Tabletop**: make the content for your game: maps and boards, cards, boxes and minis, print-ready for The Game Crafter, ready for virtual tabletops, or built into your own app. Play-test it right there (Chess, Checkers, Chinese Checkers, the Royal Game of Ur or your own board) with your characters as the pieces.
+- **🎲 Tabletop**: make the content for your game: maps and boards, cards, boxes and minis, print-ready for The Game Crafter, ready for virtual tabletops, or built into your own app. Play-test it right there (Chess, Checkers, Chinese Checkers or your own board; race games like the Royal Game of Ur with the Race Games pack) with your characters as the pieces.
 
 Everything runs **client-side** in your browser: no account, and your models stay on your computer. The one exception is the optional **🪄 Generate** add-on, which sends the picture you choose to fal.ai to make the model.
 
