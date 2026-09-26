@@ -975,7 +975,7 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 
 const $ = s => document.querySelector(s);
-const APP_NAME='GLB Stitcher', APP_VERSION='1.10.6', APP_BUILD='2026-09-23';   // version shown in About + footer
+const APP_NAME='GLB Stitcher', APP_VERSION='1.10.7', APP_BUILD='2026-09-26';   // version shown in About + footer
 // Bump APP_BUILD whenever the app or the bundled motion library changes. It is printed to the console and
 // shown in the footer so "am I running the current version?" can be answered by looking, not by guessing —
 // a stale browser tab kept an old build alive twice while the files on disk were already up to date.
@@ -6617,6 +6617,19 @@ function sigCompat(a,b){
   let hit=0; for(const bone of small) if(big.has(bone)) hit++;
   return hit >= Math.ceil(small.length*0.88);
 }
+/* SPECIES FILTER (v1.10.7, Paul 2026-09-26: "when I have the dragon selected I should only see motions that apply for that
+   character"). sigCompat alone let a dragon list every dog / giraffe / pegasus motion (their leg bones all exist on a dragon) —
+   87 motions, 11 of them the dragon's own. Now: if ANY motion matches the character's skeleton exactly (its own species), only
+   motions whose skeletons differ from it by DETAIL bones (fingers, extra neck joints, wing-base, saddle mount, eyes, end bones) are listed.
+   So a finger rig still gets every plain biped motion (and vice versa); an imported character with no exact family (Mixamo
+   superset) keeps the loose bone-subset rule. */
+const SIG_DETAIL=/^(Left|Right)Hand(Thumb|Index|Middle|Ring|Pinky)\d$|^neck0[1-4]$|^wingbase$|^saddle$|^(head_end|headfront|headend)$|eye|Eye|_end$/;
+function sigSameSpecies(a,b){ if(a===b || sigCore(a)===sigCore(b)) return true; const A=new Set(a.split('|')), B=new Set(b.split('|'));
+  for(const x of A) if(!B.has(x) && !SIG_DETAIL.test(x)) return false; for(const x of B) if(!A.has(x) && !SIG_DETAIL.test(x)) return false; return true; }
+let _mlFam={sig:undefined, n:-1, has:false};
+function sigFitsChar(rigSig, mSig){ if(!rigSig) return true; if(!sigCompat(rigSig, mSig)) return false;
+  if(_mlFam.sig!==rigSig || _mlFam.n!==(libIndex?libIndex.length:0)){ _mlFam={sig:rigSig, n:libIndex?libIndex.length:0, has:!!libIndex && libIndex.some(m=>m.sig && sigSameSpecies(rigSig, m.sig))}; }
+  return !_mlFam.has || sigSameSpecies(rigSig, mSig); }
 function mlActiveRoot(){ const ch=(typeof activeChar==='function')?activeChar():null;
   if(ch){ const src=charClips(ch).find(c=>c.hips&&c.root); if(src) return {root:src.root, name:ch.name}; }
   return libRig?{root:libRig.root, name:libRig.label}:null; }
@@ -6624,7 +6637,7 @@ function mlActiveSig(){ const a=mlActiveRoot(); return a?mlRootSig(a.root):null;
 let _mlLastSig; let _mlLastSigSet=false;
 function mlSyncListToActive(){ const s=mlActiveSig(); if(!_mlLastSigSet || s!==_mlLastSig){ _mlLastSig=s; _mlLastSigSet=true; renderMotionLib(); } }
 function mlCollapseAll(){ if(!libIndex) return; const rigSig=mlActiveSig(); const s=new Set();
-  for(const m of libIndex){ if(!rigSig||sigCompat(rigSig,m.sig)) s.add(catSuper(m.cat||'Other')); } mlSuperCollapsed=s; mlSaveSuper(); renderMotionLib(); }
+  for(const m of libIndex){ if(sigFitsChar(rigSig,m.sig)) s.add(catSuper(m.cat||'Other')); } mlSuperCollapsed=s; mlSaveSuper(); renderMotionLib(); }
 function mlExpandAll(){ mlSuperCollapsed=new Set(); mlCollapsed=new Set(); mlSaveSuper(); mlSaveCollapsed(); renderMotionLib(); }
 { const _cb=$('#mlCollapseAllBtn'), _eb=$('#mlExpandAllBtn'); if(_cb) _cb.onclick=mlCollapseAll; if(_eb) _eb.onclick=mlExpandAll; }
 // One motion row (shared by the grouped browse list and the flow-ranked sequence list).
@@ -6650,7 +6663,7 @@ function renderMotionLib(){
   const seq = mlSeqOn();
   // Base set: type + rig + name search. Category is applied after, so the chips can show live counts.
   let base=libIndex.filter(m=> (ty==='all'||m.type===ty) && (!q||m.name.toLowerCase().includes(q))
-                               && (!rigSig || sigCompat(rigSig, m.sig)));   // neck bones optional — see sigCompat
+                               && sigFitsChar(rigSig, m.sig));   // neck bones optional — see sigCompat
   // TWIN PICK: most biped motions ship twice — plain (ra_biped_*) and with animated fingers (ra_bipedhand_*). Show ONE
   // of each pair: the finger version for a character that has finger bones, the plain one for everything else.
   { const ids=new Set(libIndex.map(m=>m.id)), fingers=!!rigSig && ('|'+rigSig+'|').includes('|LeftHandIndex1|');

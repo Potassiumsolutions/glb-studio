@@ -420,7 +420,7 @@ function ribbonMesh(curve, spec){
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos,3));
   g.setAttribute('uv', new THREE.Float32BufferAttribute(uv,2)); g.setIndex(idx);
   const tt=spec.tex.clone(); tt.needsUpdate=true; tt.wrapT=THREE.RepeatWrapping;
-  const mo={ map:tt, transparent:true, depthTest:false, depthWrite:false, side:THREE.DoubleSide };
+  const mo={ map:tt, transparent:true, depthTest:true, depthWrite:false, side:THREE.DoubleSide };   // v1.39: a REAL ground surface — characters standing on it are drawn over it (was always-on-top)
   if(spec.blend==='multiply') mo.blending=THREE.MultiplyBlending;                 // trail: darken the terrain it's on
   const m=new THREE.Mesh(g, new THREE.MeshBasicMaterial(mo)); m.renderOrder=ro; return m;
 }
@@ -452,7 +452,7 @@ function buildPaths(grp, def, gridKind, seed){
       for(const E of edges) grp.add(ribbonMesh(pathCurve(E,H,wob,true), spec));
       // a small dirt patch fills the meeting point so 3+ roads merge (only roads; trails/rivers overlap at the hub)
       if(type===P.ROAD){ const jt=spec.tex.clone(); jt.needsUpdate=true;
-        const plate=new THREE.Mesh(new THREE.CircleGeometry(spec.w*0.52,16), new THREE.MeshBasicMaterial({map:jt,transparent:true,depthTest:false,depthWrite:false}));
+        const plate=new THREE.Mesh(new THREE.CircleGeometry(spec.w*0.52,16), new THREE.MeshBasicMaterial({map:jt,transparent:true,depthTest:true,depthWrite:false}));   // v1.39 depth-tested like the roads
         plate.rotation.x=-Math.PI/2; plate.position.set(H.x, spec.y+0.001, H.z); plate.renderOrder=spec.ro+1; grp.add(plate); }
     }
   }
@@ -1839,10 +1839,11 @@ const DRAW_SPEC = {
   highwayflat: ()=>({ tex:highwayTex(), w:_scale==='battle'?3.2:0.34, y:TOP+0.045, ro:8, depth:true }),
   street: ()=>({ tex:streetTex(), w:_scale==='battle'?5:0.2, y:TOP+0.034, ro:7, depth:true }),
   rail:   ()=>({ tex:railTex(),   w:_scale==='battle'?2:0.13, y:TOP+0.037, ro:8, depth:true }),
-  river: ()=>({ tex:riverTex(), w:_scale==='battle'?0.95:0.24, y:TOP+0.028, ro:5 }),
-  trail: ()=>({ tex:trailTex(), w:_scale==='battle'?0.55:0.09, y:TOP+0.030, ro:6, blend:'multiply' }),   // World roads/trails halved — too thick for the map scale (Paul)
-  road:  ()=>({ tex:roadTex(),  w:_scale==='battle'?0.90:0.11, y:TOP+0.034, ro:7 }),
-  paved: ()=>({ tex:pavedTex(), w:_scale==='battle'?1.00:0.12, y:TOP+0.035, ro:7 }),
+  // v1.39 (Paul): rivers / trails / roads are real ground surfaces too, so a character standing on one is drawn ON it, not under it
+  river: ()=>({ tex:riverTex(), w:_scale==='battle'?0.95:0.24, y:TOP+0.028, ro:5, depth:true }),
+  trail: ()=>({ tex:trailTex(), w:_scale==='battle'?0.55:0.09, y:TOP+0.030, ro:6, blend:'multiply', depth:true }),   // World roads/trails halved — too thick for the map scale (Paul)
+  road:  ()=>({ tex:roadTex(),  w:_scale==='battle'?0.90:0.11, y:TOP+0.034, ro:7, depth:true }),
+  paved: ()=>({ tex:pavedTex(), w:_scale==='battle'?1.00:0.12, y:TOP+0.035, ro:7, depth:true }),
 };
 // a flat textured ribbon of the given type following world points [{x,z},…]
 // The drawn points are the clicked connector dots; instead of hard straight segments between
