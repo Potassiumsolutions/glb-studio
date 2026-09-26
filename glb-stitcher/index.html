@@ -6942,7 +6942,7 @@ async function loadStudioModel(id){
 async function renderStudioLibrary(){
   const card=$('#studioCard'); if(!card) return;
   if(!window.StudioLib){ card.style.display='none'; return; }
-  const host=$('#studioModels'); let models=[]; try{ models=await StudioLib.listModels(); }catch(e){}
+  const host=$('#studioModels'); let models=[]; try{ models=(await StudioLib.listModels()).filter(m=>m.skeleton!=='prop'&&m.skeleton!=='unrigged'); }catch(e){}   // 🪄 Generate-tab models aren't rigged → not base characters
   const icon={biped:'🧍',quadruped:'🐾',quad:'🐾',bird:'🐦'};
   card.style.display='block';
   if(!models.length){ host.innerHTML='<div class="hint" style="margin:0">No rigged characters yet — make one in <b>🧍 Rig</b>. (Motions from <b>🐾 Animate</b> still appear in the retarget panel below.)</div>'; return; }

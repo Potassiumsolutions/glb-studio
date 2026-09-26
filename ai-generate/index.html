@@ -1,0 +1,628 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GLB Studio — Generate</title>
+<style>
+  :root{ --bg:#0b0e13; --bar:#11151d; --panel:#12161d; --line:#232b38; --text:#e7ecf3; --muted:#8b97a8; --accent:#5b8cff; --accent2:#37d0a0; --warn:#e0b87f; --bad:#ff8f8f; }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:13.5px/1.45 system-ui,Segoe UI,Roboto,sans-serif;overflow:hidden}
+  #wrap{display:flex;height:100%}
+  #side{width:360px;flex:none;overflow:auto;background:var(--bar);border-right:1px solid var(--line);padding:12px 14px 30px}
+  #stage{flex:1;position:relative;min-width:0;min-height:0;overflow:hidden;display:flex;flex-direction:column}
+  #view{flex:1;position:relative;min-height:0}
+  #view canvas{display:block;width:100%;height:100%;position:absolute;inset:0}
+  h2{font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);margin:16px 0 7px;font-weight:800;display:flex;align-items:center;gap:8px}
+  h2 .num{width:19px;height:19px;border-radius:6px;display:grid;place-items:center;font-size:11px;color:#06121f;background:linear-gradient(135deg,var(--accent),var(--accent2))}
+  .card{border:1px solid var(--line);background:var(--panel);border-radius:10px;padding:10px}
+  .btn{appearance:none;border:1px solid var(--line);background:#1a2130;color:var(--text);border-radius:8px;padding:7px 11px;font:inherit;font-weight:600;cursor:pointer}
+  .btn:hover{border-color:#3a4a66}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .btn.pri{background:linear-gradient(135deg,#3f6fe0,#2aa884);border-color:transparent;color:#fff}
+  .btn.big{width:100%;padding:11px;font-size:15px}
+  .btn.sm{padding:4px 9px;font-size:12px}
+  .btn.bad{color:var(--bad)}
+  .seg{display:flex;gap:6px}
+  .seg .opt{flex:1;border:1px solid var(--line);background:#151b25;border-radius:9px;padding:8px;cursor:pointer;text-align:left}
+  .seg .opt .t{font-weight:700}
+  .seg .opt .s{font-size:11.5px;color:var(--muted);margin-top:2px}
+  .seg .opt.on{border-color:var(--accent);background:linear-gradient(135deg,rgba(91,140,255,.18),rgba(55,208,160,.12))}
+  .row{display:flex;align-items:center;gap:8px;margin-top:8px}
+  .row label{color:var(--muted);font-size:12px;min-width:92px}
+  select,input[type=text],input[type=password]{flex:1;min-width:0;background:#0d1119;border:1px solid var(--line);color:var(--text);border-radius:7px;padding:6px 8px;font:inherit}
+  .hint{font-size:12px;color:var(--muted);margin-top:6px}
+  .hint b{color:#cdd7e6}
+  .keyline{display:flex;align-items:center;gap:8px}
+  .dot{width:9px;height:9px;border-radius:50%;background:#555;flex:none}
+  .dot.ok{background:var(--accent2)} .dot.no{background:#c96}
+  #drop{display:block;border:1.5px dashed var(--line);border-radius:10px;padding:18px 10px;text-align:center;color:var(--muted);cursor:pointer;background:#0f1319}
+  #drop.hot{border-color:var(--accent)}
+  #cropWrap{position:relative;display:none;user-select:none;touch-action:none}
+  #cropCv{display:block;width:100%;border-radius:8px;background:repeating-conic-gradient(#1a1f28 0 25%,#12161d 0 50%) 0 0/16px 16px;cursor:crosshair}
+  #status{margin-top:10px;font-size:12.5px;display:none}
+  #status .bar{height:6px;border-radius:4px;background:#1a2130;overflow:hidden;margin-top:6px}
+  #status .bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .4s}
+  #status.err{color:var(--bad)}
+  .pr{color:#9fe3c4}
+  .payg{display:flex;flex-direction:column;align-items:center;gap:1px;text-align:center;margin-bottom:10px;padding:8px 10px;border-radius:10px;border:1px solid #2e6a52;background:linear-gradient(135deg,rgba(55,208,160,.16),rgba(91,140,255,.10));color:#bff0da;font-size:13px}
+  .payg b{color:#eafff5;font-size:14px}
+  .payg span{font-size:11.5px;color:#9fd8c0}
+  .rec{font-size:9.5px;font-weight:700;background:#1e3a2a;color:#7fe0a8;border-radius:20px;padding:1px 6px;vertical-align:2px;white-space:nowrap}
+  .costgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px;text-align:center}
+  .costgrid>div{background:#0d1119;border:1px solid var(--line);border-radius:8px;padding:6px 4px}
+  .cv{font-size:16px;font-weight:800;color:#e9f3ff}
+  .cl{font-size:10.5px;color:var(--muted)}
+  .it .c{position:absolute;left:3px;top:3px;font-size:10px;font-weight:700;background:rgba(8,12,18,.8);color:#9fe3c4;border-radius:5px;padding:0 4px}
+  .help h3{font-size:13px;margin:14px 0 4px;color:#dfe8f5}
+  .help h3:first-child{margin-top:0}
+  .help ol,.help ul{margin:4px 0 8px;padding-left:20px;color:#c3ccd9}
+  .help li{margin:4px 0}
+  .help p{color:#c3ccd9;margin:4px 0}
+  table.hist{width:100%;border-collapse:collapse;font-size:12px}
+  table.hist th,table.hist td{padding:5px 6px;border-bottom:1px solid var(--line);text-align:left}
+  table.hist td.n{text-align:right;white-space:nowrap}
+  table.hist tr.x td{color:var(--muted)}
+  #tips{display:none;margin-top:8px}
+  #tips ul{margin:4px 0 6px;padding-left:18px;color:#c3ccd9;font-size:12px}
+  #actions{position:absolute;left:12px;top:12px;display:none;gap:6px;flex-wrap:wrap;max-width:calc(100% - 24px)}
+  #info{position:absolute;right:12px;bottom:12px;font-size:12px;color:var(--muted);background:rgba(17,21,29,.85);border:1px solid var(--line);border-radius:8px;padding:6px 10px;display:none;max-width:320px}
+  #info .warn{color:var(--warn);margin-top:4px}
+  #empty{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);text-align:center;pointer-events:none;padding:20px}
+  #empty .big{font-size:42px}
+  #srcThumb{position:absolute;left:12px;bottom:12px;width:92px;height:92px;border-radius:8px;border:1px solid var(--line);object-fit:contain;background:#0d1119;display:none}
+  #shelf{flex:none;border-top:1px solid var(--line);background:var(--bar);padding:8px 12px;display:flex;gap:8px;overflow-x:auto;align-items:stretch;min-height:92px}
+  #shelf .ttl{writing-mode:vertical-rl;transform:rotate(180deg);font-size:10.5px;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);font-weight:800}
+  .it{flex:none;width:92px;border:1px solid var(--line);border-radius:8px;background:#151b25;cursor:pointer;overflow:hidden;position:relative}
+  .it:hover,.it.on{border-color:var(--accent)}
+  .it img{display:block;width:100%;height:58px;object-fit:cover;background:#0d1119}
+  .it .nm{font-size:10.5px;padding:3px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .it .k{position:absolute;right:3px;top:3px;font-size:12px}
+  .shelfEmpty{color:var(--muted);font-size:12px;align-self:center}
+  /* modals */
+  .modal{position:fixed;inset:0;background:rgba(4,6,10,.72);display:none;align-items:flex-start;justify-content:center;padding:40px 16px;z-index:50;overflow:auto}
+  .modal.open{display:flex}
+  .sheet{width:min(560px,100%);background:var(--bar);border:1px solid var(--line);border-radius:14px;box-shadow:0 24px 70px rgba(0,0,0,.5);overflow:hidden}
+  .sheet .hd{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;background:linear-gradient(135deg,rgba(91,140,255,.16),rgba(55,208,160,.12));border-bottom:1px solid var(--line)}
+  .sheet .hd b{font-size:16px}
+  .sheet .bd{padding:16px 18px 20px}
+  .sheet ol{padding-left:20px;color:#c3ccd9;margin:6px 0 12px}
+  .sheet ol li{margin:3px 0}
+  .step{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:10px;padding:10px;margin-top:8px;background:var(--panel)}
+  .step .sn{width:22px;height:22px;flex:none;border-radius:7px;display:grid;place-items:center;font-weight:800;font-size:12px;color:#06121f;background:linear-gradient(135deg,var(--accent),var(--accent2))}
+  .step .sb{flex:1;min-width:0}
+  .step .btn{flex:none;text-decoration:none;white-space:nowrap}
+  .x{cursor:pointer;color:var(--muted);border:1px solid var(--line);border-radius:7px;padding:2px 9px}
+  a{color:var(--accent)}
+  #lock{position:fixed;inset:0;z-index:60;background:rgba(6,8,12,.9);display:none;align-items:center;justify-content:center;padding:20px;overflow:auto}
+  #lock.open{display:flex}
+  #lock .sheet{width:min(620px,100%)}
+  #lock ul{color:#c3ccd9;padding-left:20px;margin:8px 0}
+  #lock li{margin:4px 0}
+  .fine{font-size:11px;color:#6f7b8c;margin-top:14px;line-height:1.5}
+  @media (max-width:760px){ #wrap{flex-direction:column} #side{width:100%;max-height:55%;border-right:0;border-bottom:1px solid var(--line)} }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <aside id="side">
+    <div class="payg">💲 <b>Pay only for what you make</b><span>No subscription · no monthly fee · about 2¢ a model</span></div>
+    <div class="card keyline">
+      <span class="dot" id="keyDot"></span>
+      <div style="flex:1;min-width:0"><div style="font-weight:700">fal.ai key</div><div class="hint" style="margin:0" id="keyTxt">Not set</div></div>
+      <button class="btn sm pri" id="keyBtn">⚙ Set up</button>
+    </div>
+    <div class="row" style="margin-top:6px"><button class="btn sm" id="helpBtn" style="flex:1">❔ How it works &amp; what it costs</button></div>
+
+    <h2><span class="num">1</span> Picture</h2>
+    <label id="drop">Drop a picture here, <b>paste</b> one (Ctrl+V), or click to choose<br><span class="hint">PNG · JPG · WebP — one object or character, plain background works best</span>
+      <input type="file" id="file" accept="image/png,image/jpeg,image/webp" hidden></label>
+    <div id="cropWrap"><canvas id="cropCv"></canvas>
+      <div class="row" style="margin-top:6px"><span class="hint" style="margin:0;flex:1">Drag a box around the part to use.</span>
+        <button class="btn sm" id="cropAll">Whole picture</button><button class="btn sm" id="imgClear">✕</button></div></div>
+
+    <h2><span class="num">2</span> What is it?</h2>
+    <div class="seg" id="kindSeg">
+      <div class="opt on" data-v="prop"><div class="t">🏺 Prop / object</div><div class="s">Buildings, trees, vehicles, statues, furniture</div></div>
+      <div class="opt" data-v="char"><div class="t">🧍 Character</div><div class="s">To rig &amp; animate afterwards</div></div>
+    </div>
+    <div id="tips" class="card">
+      <div style="font-weight:700">For a character you can rig:</div>
+      <ul>
+        <li><b>Front view</b>, whole body in frame, head to feet</li>
+        <li><b>T-pose</b> (arms straight out) or A-pose — arms away from the body</li>
+        <li>Plain background, nothing held in the hands, no long capes</li>
+      </ul>
+      <button class="btn sm" id="copyPrompt">📋 Copy a picture prompt for Gemini / any image AI</button>
+      <div class="hint" id="copyNote"></div>
+    </div>
+
+    <h2><span class="num">3</span> Quality</h2>
+    <div class="hint" style="margin:-2px 0 8px">💲 Prices are what <b>fal.ai</b> charges <b>your own fal.ai account</b> to run the TRELLIS 3D AI, per model you make. Nothing else in GLB Studio has a per-use cost.</div>
+    <div class="seg" id="tierSeg">
+      <div class="opt on" data-v="draft"><div class="t">⚡ Draft <span class="rec">best for game pieces</span></div><div class="s"><b class="pr" id="prDraft">$0.02</b> · good shape, softer paint · ~30 s–2 min</div></div>
+      <div class="opt" data-v="hero"><div class="t">💎 Hero <span class="rec" style="background:#2a2440;color:#cbb8ff">close-ups</span></div><div class="s"><b class="pr" id="prHero">$0.25–0.35</b> · sharp detail &amp; textures · ~1–3 min</div></div>
+    </div>
+    <div class="row" id="resRow" style="display:none"><label>Detail</label>
+      <select id="res"><option value="512">Standard</option><option value="1024" selected>High</option><option value="1536">Ultra</option></select></div>
+    <div class="row"><label>Texture</label><select id="tex"></select></div>
+    <div class="row"><label>Save size</label>
+      <select id="size"><option value="game" selected>Game-ready (small, fast)</option><option value="detail">High detail (bigger file)</option><option value="raw">Original (no shrinking)</option></select></div>
+    <div class="row"><label>Name</label><input type="text" id="name" placeholder="AI model"></div>
+
+    <h2><span class="num">4</span> Generate</h2>
+    <button class="btn pri big" id="goBtn" disabled>🪄 Generate</button>
+    <button class="btn big bad" id="cancelBtn" style="display:none;margin-top:6px">✕ Cancel</button>
+    <div id="status"><div id="stTxt"></div><div class="bar"><i id="stBar"></i></div></div>
+    <div class="hint" id="costNote" style="text-align:center"></div>
+    <div class="card" style="margin-top:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b>💲 Your costs</b><span class="hint" style="margin:0" id="priceSrc"></span></div>
+      <div class="costgrid">
+        <div><div class="cv" id="cLast">—</div><div class="cl">last model</div></div>
+        <div><div class="cv" id="cMonth">$0.00</div><div class="cl" id="cMonthL">this month</div></div>
+        <div><div class="cv" id="cAll">$0.00</div><div class="cl" id="cAllL">all time</div></div>
+      </div>
+      <div class="hint">These are <b>fal.ai</b> charges for the <b>TRELLIS</b> 3D AI, billed to <b>your fal.ai account</b> through your key. KSOL Designs gets none of it and adds nothing on top. Rigging, animating, videos and the Tabletop never charge per use.</div>
+      <div class="row" style="margin-top:8px"><button class="btn sm" id="histBtn">📜 History</button><a class="btn sm" href="https://fal.ai/dashboard/billing" target="_blank" rel="noopener" style="text-decoration:none">Check balance / top up ↗</a></div>
+    </div>
+    <div class="fine">Models are made by the TRELLIS 3D AI on <b>fal.ai</b> with <b>your own</b> fal.ai account; fal.ai bills you directly for each model. Prices are read live from fal.ai; the totals are counted on this device (your <a href="https://fal.ai/dashboard/billing" target="_blank" rel="noopener">fal.ai billing page</a> is the official record). Your picture is sent to fal.ai to make the model; nothing goes to KSOL Designs. 3D model AI: TRELLIS (Microsoft, MIT license).<br>GLB Studio works with fal.ai but is not affiliated with or endorsed by fal.ai or Microsoft. All trademarks belong to their owners.</div>
+  </aside>
+
+  <section id="stage">
+    <div id="view">
+      <div id="empty"><div><div class="big">🪄</div><div style="font-size:15px;color:#cdd7e6;margin:6px 0">Turn a picture into a textured 3D model</div><div>Pick a picture on the left, choose Draft or Hero, and press Generate.<br>Your models are saved to the ◆ Studio Library.</div></div></div>
+      <div id="actions">
+        <button class="btn sm" id="aDl">⬇ Download .glb</button>
+        <button class="btn sm" id="aRig">🧍 Rig this</button>
+        <button class="btn sm" id="aTt">🎲 Use in Tabletop</button>
+        <button class="btn sm" id="aRen">✎ Rename</button>
+        <button class="btn sm bad" id="aDel">🗑 Delete</button>
+      </div>
+      <div id="info"></div>
+      <img id="srcThumb" alt="">
+    </div>
+    <div id="shelf"><span class="ttl">Your AI models</span><span class="shelfEmpty" id="shelfEmpty">None yet.</span></div>
+  </section>
+</div>
+
+<!-- key settings -->
+<div class="modal" id="keyModal"><div class="sheet">
+  <div class="hd"><b>⚙ Connect fal.ai: 3 quick steps</b><span class="x" data-close>✕</span></div>
+  <div class="bd">
+    <div>The 3D models are made by <b>TRELLIS</b> (an image-to-3D AI) running on <b>fal.ai</b>, using <b>your own fal.ai account</b>. fal.ai bills you directly per model: about <b>2¢</b> per Draft, 25–35¢ per Hero. <b>No subscription, no monthly fee</b>: you pay only for what you make, and nothing is charged unless you press Generate. Setup takes about 2 minutes, one time only.</div>
+    <div class="step"><span class="sn">1</span><div class="sb"><b>Make a free fal.ai account</b><div class="hint">Sign up with Google or email. No card is needed to sign up.</div></div>
+      <a class="btn sm" href="https://fal.ai/login" target="_blank" rel="noopener">Open fal.ai ↗</a></div>
+    <div class="step"><span class="sn">2</span><div class="sb"><b>Add a little credit</b><div class="hint">On the <b>Billing</b> page, add a card and top up. <b>$5</b> makes about 250 Draft models.</div></div>
+      <a class="btn sm" href="https://fal.ai/dashboard/billing" target="_blank" rel="noopener">Open Billing ↗</a></div>
+    <div class="step"><span class="sn">3</span><div class="sb"><b>Create a key and copy it</b><div class="hint">On the <b>Keys</b> page click <b>Create new key</b>, name it “GLB Studio”, leave the scope on <b>API</b>, then <b>copy</b> it. fal.ai shows it only once.</div></div>
+      <a class="btn sm" href="https://fal.ai/dashboard/keys" target="_blank" rel="noopener">Open Keys ↗</a></div>
+    <div class="step" style="border-color:var(--accent)"><span class="sn">4</span><div class="sb"><b>Paste it here</b> <span class="hint">(it checks itself)</span>
+      <div class="row" style="margin-top:6px"><input type="password" id="keyIn" placeholder="paste your fal.ai key" autocomplete="off" spellcheck="false"><button class="btn sm" id="keyPaste" title="Paste from clipboard">📋 Paste</button><button class="btn sm" id="keyShow" title="Show / hide">👁</button></div>
+      <div class="row"><button class="btn pri" id="keySave">Save &amp; test</button><button class="btn" id="keyClear">Clear key</button><span class="hint" id="keyMsg" style="margin:0"></span></div></div></div>
+    <label class="row" style="cursor:pointer"><input type="checkbox" id="keyRemember" checked> <span class="hint" style="margin:0">Remember on this device (untick on a shared computer; it's then forgotten when you close the browser)</span></label>
+    <div class="fine">Your key stays in this browser only. It is sent to fal.ai and nowhere else, never to KSOL Designs. Keep it private like a password; if it ever leaks, delete it on the fal.ai Keys page and make a new one.</div>
+  </div>
+</div></div>
+
+<!-- how it works -->
+<div class="modal" id="helpModal"><div class="sheet" style="width:min(620px,100%)">
+  <div class="hd"><b>❔ Generate: how it works &amp; what it costs</b><span class="x" data-close>✕</span></div>
+  <div class="bd help">
+    <h3>Making a model</h3>
+    <ol>
+      <li><b>Picture:</b> drop, paste (Ctrl+V) or choose a picture, then drag a box around the part you want. One object, plain background, whole thing in frame.</li>
+      <li><b>What is it?</b> 🏺 <b>Prop</b> for buildings, trees, vehicles, statues. 🧍 <b>Character</b> if you'll rig and animate it: use a <b>front view in a T-pose</b> (arms out). <b>📋 Copy a picture prompt</b> gives you a ready-made prompt for Gemini or any picture AI.</li>
+      <li><b>Quality:</b> ⚡ <b>Draft</b> is fine for game pieces seen on a map. 💎 <b>Hero</b> is sharper, for close-ups, films and showpieces.</li>
+      <li><b>Generate.</b> The first model of a session can wait about a minute while fal.ai starts up; after that a Draft takes about 30 seconds.</li>
+      <li>The model is shrunk to game size and saved to your <b>◆ Studio Library</b>. Then use <b>🧍 Rig this</b> (characters), <b>🎲 Use in Tabletop</b>, or <b>⬇ Download .glb</b>.</li>
+    </ol>
+    <h3>💲 Where the cost comes from</h3>
+    <div class="payg" style="margin:6px 0">💲 <b>Pay only for what you make</b><span>No subscription or monthly fee. If you make nothing, you pay nothing.</span></div>
+    <ul>
+      <li>The 3D model is made by <b>TRELLIS</b>, an image-to-3D AI by Microsoft, running on <b>fal.ai</b>'s servers.</li>
+      <li>fal.ai charges <b>your own fal.ai account</b> for each model, using the key you set up in ⚙. You top up your balance on fal.ai; the money never goes through GLB Studio or KSOL Designs, and nothing is added on top.</li>
+      <li>You always see the price first: it's on the Generate button, each model shows what it cost, and <b>💲 Your costs</b> keeps a running total and history. Prices are read live from fal.ai.</li>
+      <li><b>This is the only part of GLB Studio with a per-use cost.</b> Rig, Animate, Stitch, the Tabletop and everything else run on your own computer and never charge per use. Add-ons and packs are one-time unlocks.</li>
+      <li>The <b>AI Generate add-on</b> itself is a separate one-time purchase that unlocks this tab. It doesn't include any fal.ai credit.</li>
+    </ul>
+    <h3>🔒 Privacy</h3>
+    <p>Your picture is sent to fal.ai to make the model, and your key is sent only to fal.ai. Nothing goes to KSOL Designs. Everything else in GLB Studio stays on your computer.</p>
+  </div>
+</div></div>
+
+<!-- cost history -->
+<div class="modal" id="histModal"><div class="sheet" style="width:min(640px,100%)">
+  <div class="hd"><b>📜 Generation history &amp; costs</b><span class="x" data-close>✕</span></div>
+  <div class="bd"><div id="histBody"></div>
+    <div class="row" style="margin-top:12px"><a class="btn sm" href="https://fal.ai/dashboard/billing" target="_blank" rel="noopener" style="text-decoration:none">fal.ai billing page ↗</a><span style="flex:1"></span><button class="btn sm bad" id="histClear">Clear history</button></div>
+    <div class="fine">Counted on this device from fal.ai's prices at the time. Your fal.ai billing page is the official record (it also shows models made on other devices).</div></div>
+</div></div>
+
+<!-- locked -->
+<div id="lock"><div class="sheet">
+  <div class="hd"><b>🪄 AI Generate — add-on module</b></div>
+  <div class="bd">
+    <div class="payg" style="margin-bottom:12px">💲 <b>Pay only for what you make</b><span>No subscription · no monthly fee · Draft models about 2¢ each</span></div>
+    <div style="font-size:14.5px;color:#d7e0ee">Turn any picture into a <b>textured 3D model</b> right inside GLB Studio — then rig it, animate it, film it, or drop it on your Tabletop maps.</div>
+    <ul>
+      <li><b>⚡ Draft</b> models for about <b>2 cents</b> each, <b>💎 Hero</b> models with sharp textures for about 30 cents</li>
+      <li><b>Two separate costs:</b> the add-on is a one-time purchase that unlocks this tab. Each model you make is billed by <b>fal.ai</b> to your own fal.ai account (the TRELLIS 3D AI runs there). No subscription; you pay only for what you make.</li>
+      <li>Crop the picture, pick Prop or Character, and the model lands in your Studio Library</li>
+      <li>Auto-shrinks models so they stay fast in games · 🧍 <b>Rig this</b> and 🎲 <b>Use in Tabletop</b> in one click</li>
+    </ul>
+    <div class="row" style="margin-top:14px"><a class="btn pri" href="https://www.patreon.com/KsolDesigns" target="_blank" rel="noopener" style="text-decoration:none">Get it on Patreon</a>
+      <button class="btn" id="lockKey">I have a key → ✨ Upgrades</button></div>
+    <div class="hint">After buying, import the <b>.studiokey</b> file in <b>✨ Upgrades</b> (top right) and this tab unlocks.</div>
+  </div>
+</div></div>
+
+<script src="../studio/studio-lib.js?v=meta1"></script>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+
+const $ = s => document.querySelector(s);
+const APP_VERSION = '1.0.0';
+const PARAMS = new URLSearchParams(location.search);
+const MOCK = PARAMS.get('mock');                 // test hook: ?mock=<glb url> skips fal.ai entirely (no cost)
+
+/* ---------------- unlock (same key store the ✨ Upgrades panel writes) ---------------- */
+function unlocked(){ try{ return JSON.parse(localStorage.getItem('studio.tabletop.exp')||'[]').includes('aigen'); }catch(e){ return false; } }
+if(!unlocked()) $('#lock').classList.add('open');
+$('#lockKey').onclick = ()=>{ try{ parent.document.getElementById('upgradesBtn').click(); }catch(e){ alert('Open GLB Studio → ✨ Upgrades (top right) and import your .studiokey.'); } };
+
+/* ---------------- fal.ai key (BYOK) ---------------- */
+const KEY_LS = 'glb_studio_fal_key';
+function getKey(){ try{ return localStorage.getItem(KEY_LS) || sessionStorage.getItem(KEY_LS) || ''; }catch(e){ return ''; } }
+function setKey(k, remember){ try{ localStorage.removeItem(KEY_LS); sessionStorage.removeItem(KEY_LS); if(k) (remember?localStorage:sessionStorage).setItem(KEY_LS, k); }catch(e){} }
+function paintKey(){ const k=getKey(); $('#keyDot').className='dot '+(k?'ok':'no');
+  $('#keyTxt').textContent = MOCK ? 'Test mode (no fal.ai calls)' : k ? 'Connected ('+k.slice(0,4)+'…'+k.slice(-4)+')' : 'Not set — needed to generate';
+  $('#keyBtn').textContent = k ? '⚙ Change' : '⚙ Set up'; updateGo(); }
+const keyModal=$('#keyModal');
+$('#keyBtn').onclick=()=>{ $('#keyIn').value=getKey(); $('#keyMsg').textContent=''; keyModal.classList.add('open'); $('#keyIn').focus(); };
+keyModal.addEventListener('click', e=>{ if(e.target===keyModal || e.target.hasAttribute('data-close')) keyModal.classList.remove('open'); });
+$('#keyPaste').onclick=async ()=>{ try{ $('#keyIn').value=(await navigator.clipboard.readText()).trim(); $('#keySave').click(); }catch(e){ $('#keyMsg').textContent='Click in the box and press Ctrl+V instead.'; $('#keyIn').focus(); } };
+$('#keyIn').addEventListener('paste', ()=>setTimeout(()=>$('#keySave').click(), 50));
+$('#keyShow').onclick=()=>{ const i=$('#keyIn'); i.type = i.type==='password'?'text':'password'; };
+$('#keyClear').onclick=()=>{ setKey(''); $('#keyIn').value=''; $('#keyMsg').textContent='Key cleared.'; paintKey(); };
+$('#keySave').onclick=async ()=>{ const k=$('#keyIn').value.trim(); const msg=$('#keyMsg');
+  if(!k){ msg.textContent='Paste a key first.'; return; }
+  msg.textContent='Testing…';
+  const r = await testKey(k);
+  if(r===true){ setKey(k, $('#keyRemember').checked); loadPrices(); msg.innerHTML='<span style="color:var(--accent2)">✔ Key works.</span>'; paintKey(); setTimeout(()=>keyModal.classList.remove('open'), 700); }
+  else msg.innerHTML='<span style="color:var(--bad)">'+r+'</span>'; };
+// A free check: ask for the status of a request that doesn't exist. A bad key → 401/403; a good key → 404/400.
+async function testKey(k){
+  try{ const r=await fetch('https://queue.fal.run/fal-ai/trellis/requests/00000000-0000-0000-0000-000000000000/status',{headers:{Authorization:'Key '+k}});
+    if(r.status===401||r.status===403) return 'fal.ai rejected that key — check you copied all of it.';
+    return true; }catch(e){ return 'Could not reach fal.ai — check your internet connection.'; } }
+
+/* ---------------- options ---------------- */
+// Prices: read live from fal.ai's pricing API (works with a normal key); these list prices are the fallback.
+// TRELLIS.2 is billed in units: 512 → 5, 1024 → 6, 1536 → 7 units.
+const LIVE = { trellis:0.02, trellis2:0.05, live:false };
+const HERO_UNITS = {512:5, 1024:6, 1536:7};
+const PRICE = { draft:()=>LIVE.trellis, hero:()=>+(LIVE.trellis2*HERO_UNITS[+$('#res').value]).toFixed(4) };
+const usd = v => v==null ? '—' : '$'+(v>0 && v<0.1 ? v.toFixed(3).replace(/0$/,'') : v.toFixed(2));
+async function loadPrices(){ const k=getKey();
+  if(k && !MOCK){ try{ const r=await fetch('https://api.fal.ai/v1/models/pricing?endpoint_id=fal-ai/trellis&endpoint_id=fal-ai/trellis-2',{headers:{Authorization:'Key '+k}});
+    if(r.ok){ const j=await r.json(); for(const p of (j.prices||[])){ if(p.currency!=='USD') continue;
+        if(p.endpoint_id==='fal-ai/trellis') LIVE.trellis=+p.unit_price; if(p.endpoint_id==='fal-ai/trellis-2') LIVE.trellis2=+p.unit_price; }
+      LIVE.live=true; } }catch(e){} }
+  paintPrices(); }
+function paintPrices(){
+  $('#prDraft').textContent = usd(LIVE.trellis);
+  const hs=Object.values(HERO_UNITS).map(u=>LIVE.trellis2*u); $('#prHero').textContent = usd(Math.min(...hs))+'–'+usd(Math.max(...hs)).slice(1);
+  const names={512:'Standard',1024:'High',1536:'Ultra'};
+  [...$('#res').options].forEach(o=>o.textContent=names[o.value]+' — '+usd(LIVE.trellis2*HERO_UNITS[o.value]));
+  $('#priceSrc').textContent = LIVE.live ? '✔ live fal.ai prices' : 'list prices';
+  updateGo(); }
+let kind='prop', tier='draft';
+function seg(id, cb){ const el=$(id); el.querySelectorAll('.opt').forEach(o=>o.onclick=()=>{ el.querySelectorAll('.opt').forEach(x=>x.classList.toggle('on',x===o)); cb(o.dataset.v); }); }
+seg('#kindSeg', v=>{ kind=v; $('#tips').style.display = v==='char'?'block':'none'; });
+seg('#tierSeg', v=>{ tier=v; fillTex(); $('#resRow').style.display = v==='hero'?'flex':'none'; updateGo(); });
+$('#res').onchange=updateGo;
+function fillTex(){ const opts = tier==='hero' ? [['1024','1024'],['2048','2048 (default)'],['4096','4096 (largest)']] : [['512','512'],['1024','1024 (default)'],['2048','2048 (sharpest)']];
+  const def = tier==='hero' ? '2048' : '1024';
+  $('#tex').innerHTML = opts.map(([v,t])=>`<option value="${v}" ${v===def?'selected':''}>${t}</option>`).join(''); }
+fillTex();
+// remember each person's last choices (kind, quality, detail, texture, save size) on this device
+const PREF_LS='glb_studio_aigen_prefs';
+function savePrefs(){ try{ localStorage.setItem(PREF_LS, JSON.stringify({kind, tier, res:$('#res').value, tex:$('#tex').value, size:$('#size').value})); }catch(e){} }
+setTimeout(function loadPrefs(){ let p=null; try{ p=JSON.parse(localStorage.getItem(PREF_LS)||'null'); }catch(e){} if(!p) return;
+  if(p.kind) $('#kindSeg .opt[data-v="'+p.kind+'"]')?.click();
+  if(p.tier) $('#tierSeg .opt[data-v="'+p.tier+'"]')?.click();
+  if(p.res) $('#res').value=p.res; if(p.tex && [...$('#tex').options].some(o=>o.value===p.tex)) $('#tex').value=p.tex; if(p.size) $('#size').value=p.size; updateGo(); }, 0);
+['#res','#tex','#size'].forEach(q=>$(q).addEventListener('change', savePrefs));
+document.querySelectorAll('#kindSeg .opt,#tierSeg .opt').forEach(o=>o.addEventListener('click', ()=>setTimeout(savePrefs,0)));
+const GEMINI_PROMPT = 'Full-body character reference picture of [DESCRIBE YOUR CHARACTER HERE], standing in a T-pose with both arms held straight out to the sides at shoulder height, palms facing down, legs straight and slightly apart. Seen straight from the front, the whole body in frame from the top of the head to the feet with some space around it. Plain white background, soft even lighting, no shadows on the ground, nothing held in the hands, no cape, no text or logos. Clean, detailed, colourful 3D game-character style.';
+$('#copyPrompt').onclick=async ()=>{ try{ await navigator.clipboard.writeText(GEMINI_PROMPT); $('#copyNote').innerHTML='Copied! Paste it into Gemini (or any picture AI), replace <b>[DESCRIBE YOUR CHARACTER HERE]</b>, then drop the result here.'; }
+  catch(e){ $('#copyNote').textContent=GEMINI_PROMPT; } };
+
+/* ---------------- cost log (this device) ---------------- */
+// every generation: {t, name, tier, res, usd, ok}. ok:false = cancelled/failed (fal.ai normally doesn't bill those; logged at $0).
+const LOG_LS='glb_studio_fal_log';
+function costLog(){ try{ return JSON.parse(localStorage.getItem(LOG_LS)||'[]'); }catch(e){ return []; } }
+function logCost(e){ const L=costLog(); L.push(e); try{ localStorage.setItem(LOG_LS, JSON.stringify(L.slice(-2000))); }catch(_){} paintCosts(); }
+(function migrateOldTally(){ try{ const old=JSON.parse(localStorage.getItem('glb_studio_fal_spend')||'null');
+  if(old && old.usd>0 && !costLog().length) localStorage.setItem(LOG_LS, JSON.stringify([{t:Date.now(), name:'Earlier models', tier:'—', usd:old.usd, ok:true, n:old.n}]));
+  localStorage.removeItem('glb_studio_fal_spend'); }catch(e){} })();
+function paintCosts(){ const L=costLog().filter(e=>e.ok), now=new Date();
+  const month=L.filter(e=>{ const d=new Date(e.t); return d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear(); });
+  const sum=a=>a.reduce((s,e)=>s+(e.usd||0),0), cnt=a=>a.reduce((s,e)=>s+(e.n||1),0);
+  $('#cLast').textContent = L.length ? usd(L[L.length-1].usd) : '—';
+  $('#cMonth').textContent = usd(sum(month)); $('#cMonthL').textContent = 'this month · '+cnt(month);
+  $('#cAll').textContent = usd(sum(L)); $('#cAllL').textContent = 'all time · '+cnt(L); }
+const helpModal=$('#helpModal');
+$('#helpBtn').onclick=()=>helpModal.classList.add('open');
+helpModal.addEventListener('click', e=>{ if(e.target===helpModal || e.target.hasAttribute('data-close')) helpModal.classList.remove('open'); });
+const histModal=$('#histModal');
+histModal.addEventListener('click', e=>{ if(e.target===histModal || e.target.hasAttribute('data-close')) histModal.classList.remove('open'); });
+$('#histBtn').onclick=()=>{ const L=costLog().slice().reverse();
+  $('#histBody').innerHTML = L.length ? '<table class="hist"><tr><th>When</th><th>Model</th><th>Quality</th><th class="n">Cost</th></tr>'+
+    L.map(e=>`<tr class="${e.ok?'':'x'}"><td>${new Date(e.t).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}</td><td>${esc(e.name)}</td><td>${e.tier==='hero'?'💎 Hero'+(e.res?' '+e.res:''):e.tier==='draft'?'⚡ Draft':esc(e.tier)}</td><td class="n">${e.ok?usd(e.usd):(e.why||'not made')+' · $0'}</td></tr>`).join('')+'</table>'
+    : '<div class="hint">Nothing generated on this device yet.</div>';
+  histModal.classList.add('open'); };
+$('#histClear').onclick=()=>{ if(confirm('Clear the cost history on this device? (Your fal.ai billing page keeps its own record.)')){ localStorage.removeItem(LOG_LS); paintCosts(); $('#histBtn').click(); } };
+paintCosts();
+
+/* ---------------- picture + crop ---------------- */
+let img=null, crop=null;           // crop in image pixels {x,y,w,h}
+const cv=$('#cropCv'), cx=cv.getContext('2d');
+const drop=$('#drop'), fileIn=$('#file');
+drop.addEventListener('click', e=>{ if(e.target!==fileIn){ e.preventDefault(); fileIn.click(); } });
+fileIn.onchange=()=>{ if(fileIn.files[0]) loadImage(fileIn.files[0]); fileIn.value=''; };
+['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{ e.preventDefault(); drop.classList.add('hot'); }));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{ e.preventDefault(); drop.classList.remove('hot'); }));
+drop.addEventListener('drop', e=>{ const f=[...(e.dataTransfer?.files||[])].find(f=>/^image\//.test(f.type)); if(f) loadImage(f); });
+window.addEventListener('paste', e=>{ const it=[...(e.clipboardData?.items||[])].find(i=>/^image\//.test(i.type)); if(it){ loadImage(it.getAsFile()); e.preventDefault(); } });
+async function loadImage(file){
+  if(!/^image\/(png|jpe?g|webp)$/.test(file.type)){ setStatus('That file isn\'t a PNG, JPG or WebP picture.', 'err'); return; }
+  try{ img = await createImageBitmap(file); }catch(e){ setStatus('Could not read that picture.', 'err'); return; }
+  crop={x:0,y:0,w:img.width,h:img.height};
+  if(!$('#name').value) $('#name').value = (file.name||'AI model').replace(/\.[a-z0-9]+$/i,'').replace(/[_-]+/g,' ').slice(0,40) || 'AI model';
+  drop.style.display='none'; $('#cropWrap').style.display='block'; drawCrop(); updateGo(); setStatus('');
+}
+$('#imgClear').onclick=()=>{ img=null; crop=null; drop.style.display='block'; $('#cropWrap').style.display='none'; updateGo(); };
+$('#cropAll').onclick=()=>{ if(img){ crop={x:0,y:0,w:img.width,h:img.height}; drawCrop(); } };
+function drawCrop(){ if(!img) return; const W=Math.min(1000, img.width), s=W/img.width; cv.width=W; cv.height=Math.round(img.height*s);
+  cx.clearRect(0,0,cv.width,cv.height); cx.drawImage(img,0,0,cv.width,cv.height);
+  const r={x:crop.x*s,y:crop.y*s,w:crop.w*s,h:crop.h*s};
+  cx.fillStyle='rgba(0,0,0,.55)'; cx.beginPath(); cx.rect(0,0,cv.width,cv.height); cx.rect(r.x,r.y+r.h,r.w,-r.h); cx.fill('evenodd');
+  cx.strokeStyle='#5b8cff'; cx.lineWidth=Math.max(2,cv.width/300); cx.strokeRect(r.x,r.y,r.w,r.h); }
+{ let a=null;
+  const pt=e=>{ const b=cv.getBoundingClientRect(); return { x:Math.max(0,Math.min(img.width,(e.clientX-b.left)/b.width*img.width)), y:Math.max(0,Math.min(img.height,(e.clientY-b.top)/b.height*img.height)) }; };
+  cv.addEventListener('pointerdown', e=>{ if(!img) return; a=pt(e); cv.setPointerCapture(e.pointerId); });
+  cv.addEventListener('pointermove', e=>{ if(!a) return; const p=pt(e); crop={x:Math.min(a.x,p.x),y:Math.min(a.y,p.y),w:Math.abs(p.x-a.x),h:Math.abs(p.y-a.y)}; drawCrop(); });
+  cv.addEventListener('pointerup', ()=>{ a=null; if(crop.w<16||crop.h<16){ crop={x:0,y:0,w:img.width,h:img.height}; drawCrop(); } }); }
+// the cropped picture, padded to a square with a little margin, max 1024 px → PNG data URI (keeps transparency)
+async function croppedDataURL(){
+  const side=Math.max(crop.w,crop.h)*1.08, S=Math.min(1024, Math.round(side)), k=S/side;
+  const c=new OffscreenCanvas(S,S), g=c.getContext('2d');
+  const hasAlpha = await imageHasAlpha();
+  if(!hasAlpha){ g.fillStyle=cornerColour(); g.fillRect(0,0,S,S); }
+  g.drawImage(img, crop.x,crop.y,crop.w,crop.h, (S-crop.w*k)/2,(S-crop.h*k)/2, crop.w*k,crop.h*k);
+  const blob=await c.convertToBlob({type: hasAlpha?'image/png':'image/jpeg', quality:0.93});
+  return await new Promise(res=>{ const fr=new FileReader(); fr.onload=()=>res(fr.result); fr.readAsDataURL(blob); }); }
+function sample(){ const c=new OffscreenCanvas(64,64), g=c.getContext('2d'); g.drawImage(img, crop.x,crop.y,crop.w,crop.h, 0,0,64,64); return g.getImageData(0,0,64,64).data; }
+async function imageHasAlpha(){ const d=sample(); for(let i=3;i<d.length;i+=4) if(d[i]<250) return true; return false; }
+function cornerColour(){ const d=sample(), at=(x,y)=>{ const i=(y*64+x)*4; return [d[i],d[i+1],d[i+2]]; }, cs=[at(0,0),at(63,0),at(0,63),at(63,63)];
+  const m=[0,1,2].map(j=>Math.round(cs.reduce((s,c)=>s+c[j],0)/4)); return `rgb(${m[0]},${m[1]},${m[2]})`; }
+
+/* ---------------- generate ---------------- */
+function updateGo(){ const b=$('#goBtn'); const ok=!!img && !busy;
+  b.disabled=!ok; b.textContent = `🪄 Generate — ${usd(PRICE[tier]())}`;
+  const cn=$('#costNote'); if(cn) cn.innerHTML = MOCK ? 'Test mode — no charge' : `This model will cost <b class="pr">${usd(PRICE[tier]())}</b>, charged by fal.ai to your fal.ai account`;
+  b.title = !img ? 'Choose a picture first' : ''; }
+let busy=false, abortCtl=null, cancelUrl=null;
+function setStatus(t, cls, pct){ const s=$('#status'); s.style.display=t?'block':'none'; s.className=cls||''; $('#stTxt').innerHTML=t||''; $('#stBar').style.width=(pct||0)+'%'; $('#stBar').parentElement.style.display = cls==='err'||!t ? 'none':'block'; }
+function falError(status, body){
+  const d = (body && (body.detail || body.error || body.message)) || '';
+  const txt = typeof d==='string' ? d : JSON.stringify(d);
+  if(status===402 || /balance|credit|billing|payment|top up/i.test(txt)) return 'Your fal.ai account has no credit left. <a href="https://fal.ai/dashboard/billing" target="_blank" rel="noopener">Add credit on fal.ai’s Billing page</a>, then press Generate again.';
+  if(status===401||status===403) return 'fal.ai rejected your key. Open ⚙ and paste it again.';
+  if(status===429) return 'fal.ai is busy or you hit a rate limit — wait a minute and try again.';
+  if(status===422) return 'fal.ai could not use that picture ('+(txt||'invalid input').slice(0,160)+'). Try a clearer picture with one object.';
+  return 'fal.ai error '+status+(txt?': '+txt.slice(0,200):'');
+}
+async function falJSON(url, opt){ const r=await fetch(url, Object.assign({signal:abortCtl.signal}, opt)); let body=null; try{ body=await r.json(); }catch(e){}
+  if(!r.ok){ const e=new Error(falError(r.status, body)); e.fal=true; throw e; } return body; }
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+
+$('#goBtn').onclick = generate;
+$('#cancelBtn').onclick = async ()=>{ if(abortCtl) abortCtl.abort();
+  if(cancelUrl){ try{ await fetch(cancelUrl,{method:'PUT',headers:{Authorization:'Key '+getKey()}}); }catch(e){} } };
+async function generate(){
+  if(busy || !img) return;
+  if(!MOCK && !getKey()){ $('#keyBtn').click(); return; }      // no key yet → walk them through setup first
+  busy=true; updateGo(); abortCtl=new AbortController(); cancelUrl=null;
+  $('#cancelBtn').style.display='block';
+  const t0=performance.now(); let tick=null;
+  const name = ($('#name').value||'AI model').trim().slice(0,60);
+  const price = PRICE[tier](); let charged=false, submitted=false;
+  try{
+    let glbBytes;
+    if(MOCK){
+      setStatus('Test mode: loading a sample model…','',40); await sleep(600);
+      glbBytes = new Uint8Array(await (await fetch(MOCK,{signal:abortCtl.signal})).arrayBuffer());
+    } else {
+      const key=getKey();
+      setStatus('Preparing the picture…','',5);
+      const image_url = await croppedDataURL();
+      const app = tier==='hero' ? 'fal-ai/trellis-2' : 'fal-ai/trellis';
+      const tex = +$('#tex').value;
+      const input = tier==='hero'
+        ? { image_url, resolution:+$('#res').value, texture_size:tex, decimation_target: $('#size').value==='raw'?500000:($('#size').value==='detail'?200000:100000) }
+        : { image_url, texture_size:tex, mesh_simplify:0.95 };
+      setStatus('Sending the picture to fal.ai…','',10);
+      const sub = await falJSON('https://queue.fal.run/'+app, { method:'POST', headers:{ Authorization:'Key '+key, 'Content-Type':'application/json' }, body:JSON.stringify(input) });
+      cancelUrl = sub.cancel_url; submitted=true;
+      const statusUrl = sub.status_url, respUrl = sub.response_url;
+      const est = tier==='hero' ? 90 : 35;
+      tick=setInterval(()=>{ const s=(performance.now()-t0)/1000; const pct=Math.min(88, 12+76*s/est);
+        const txt=$('#stTxt'); if(txt && txt.dataset.phase) txt.innerHTML = txt.dataset.phase+` <span style="color:var(--muted)">${Math.round(s)} s</span>`; $('#stBar').style.width=pct+'%'; }, 500);
+      const phase=t=>{ const el=$('#stTxt'); el.dataset.phase=t; el.innerHTML=t; };
+      setStatus(' ','',12); phase('Waiting in fal.ai\'s queue…');
+      for(;;){
+        await sleep(1500);
+        const st = await falJSON(statusUrl, { headers:{ Authorization:'Key '+key } });
+        if(st.status==='IN_QUEUE') phase('Waiting in fal.ai\'s queue'+(st.queue_position!=null?' (position '+(st.queue_position+1)+')':'')+'…');
+        else if(st.status==='IN_PROGRESS') phase('Building the 3D model with TRELLIS'+(tier==='hero'?'.2':'')+'…');
+        else if(st.status==='COMPLETED'){ if(st.error){ const e=new Error('fal.ai could not make this model: '+String(st.error).slice(0,200)); e.fal=true; throw e; } break; }
+      }
+      clearInterval(tick); tick=null; $('#stTxt').dataset.phase='';
+      const out = await falJSON(respUrl, { headers:{ Authorization:'Key '+key } });
+      cancelUrl=null;
+      charged=true; logCost({t:Date.now(), name, tier, res: tier==='hero'?+$('#res').value:null, usd:price, ok:true});   // billed once a model comes back
+      const file = out.model_glb || out.model_mesh;
+      if(!file || !file.url) throw new Error('fal.ai finished but sent no model back.');
+      setStatus('Downloading the model…','',90);
+      glbBytes = new Uint8Array(await (await fetch(file.url,{signal:abortCtl.signal})).arrayBuffer());
+    }
+    const rawSize = glbBytes.length;
+    const size=$('#size').value;
+    if(size!=='raw'){
+      setStatus('Shrinking it for games…','',94);
+      try{ glbBytes = await optimizeModel(glbBytes, size==='game'?{tris:40000,tex:1024}:{tris:150000,tex:2048}); }
+      catch(e){ console.warn('[aigen] optimize failed — keeping the original', e); }
+    }
+    setStatus('Saving to your Studio Library…','',97);
+    const thumb = await makeThumbFromImage();
+    const secs=Math.round((performance.now()-t0)/1000);
+    const meta={ ai:'trellis', tier, res: tier==='hero'?+$('#res').value:null, tex:+$('#tex').value, usd: MOCK?0:price, secs, made:Date.now() };
+    const id = await StudioLib.addModel({ name, skeleton: kind==='char'?'unrigged':'prop', glb:glbBytes, thumb, meta });
+    await showModel(id);
+    setStatus(`✔ Done in ${secs} s · cost ${MOCK?'$0 (test)':usd(price)} · ${fmtMB(glbBytes.length)}${size!=='raw'&&rawSize>glbBytes.length?` (shrunk from ${fmtMB(rawSize)})`:''}`, '', 100);
+  }catch(e){
+    if(submitted && !charged && !MOCK) logCost({t:Date.now(), name, tier, res: tier==='hero'?+$('#res').value:null, usd:0, ok:false, why: e.name==='AbortError'?'cancelled':'failed'});
+    if(e.name==='AbortError') setStatus('Cancelled.'+(cancelUrl?' (If fal.ai had already started, it may still bill for it.)':''), 'err');
+    else { console.error('[aigen]', e); setStatus(e.fal ? e.message : ('Something went wrong: '+(e.message||e)), 'err'); }
+  }finally{
+    if(tick) clearInterval(tick);
+    busy=false; abortCtl=null; $('#cancelBtn').style.display='none'; updateGo();
+  }
+}
+const fmtMB = n => n>=1e6 ? (n/1e6).toFixed(1)+' MB' : Math.max(1,Math.round(n/1024))+' KB';
+async function makeThumbFromImage(){ if(!img) return null; const c=new OffscreenCanvas(160,160), g=c.getContext('2d'); g.fillStyle='#0d1119'; g.fillRect(0,0,160,160);
+  const k=Math.min(160/crop.w,160/crop.h); g.drawImage(img,crop.x,crop.y,crop.w,crop.h,(160-crop.w*k)/2,(160-crop.h*k)/2,crop.w*k,crop.h*k);
+  const b=await c.convertToBlob({type:'image/jpeg',quality:0.8}); return await new Promise(r=>{ const fr=new FileReader(); fr.onload=()=>r(fr.result); fr.readAsDataURL(b); }); }
+
+/* ---------------- shrink: weld + simplify (meshoptimizer) + cap textures ---------------- */
+let _gtLibs=null;
+async function _gt(){ if(_gtLibs) return _gtLibs; const V='4.5.0';
+  const core=await import(`https://esm.sh/@gltf-transform/core@${V}`);
+  const funcs=await import(`https://esm.sh/@gltf-transform/functions@${V}?deps=@gltf-transform/core@${V}`);
+  const exts=await import(`https://esm.sh/@gltf-transform/extensions@${V}?deps=@gltf-transform/core@${V}`);
+  const mo=await import('https://esm.sh/meshoptimizer@1.2.0'); await mo.MeshoptSimplifier.ready;
+  _gtLibs={core,funcs,exts,mo}; return _gtLibs; }
+async function optimizeModel(bytes, {tris, tex}){
+  const {core,funcs,exts,mo}=await _gt();
+  const io=new core.WebIO().registerExtensions(exts.ALL_EXTENSIONS).registerDependencies({'meshopt.decoder':mo.MeshoptDecoder});
+  const doc=await io.readBinary(bytes);
+  let n=0; for(const m of doc.getRoot().listMeshes()) for(const p of m.listPrimitives()){ const ix=p.getIndices(), po=p.getAttribute('POSITION'); n += ix ? ix.getCount()/3 : (po?po.getCount()/3:0); }
+  await doc.transform(funcs.dedup(), funcs.weld());
+  if(n>tris) await doc.transform(funcs.simplify({simplifier:mo.MeshoptSimplifier, ratio:tris/n, error:0.005}));
+  await doc.transform(funcs.prune());
+  const webp = doc.createExtension(exts.EXTTextureWebP).setRequired(true);   // WebP: ~5–10× smaller than PNG, read by every modern browser + three.js
+  for(const t of doc.getRoot().listTextures()){ const im=t.getImage(); if(!im) continue; const mime=t.getMimeType()||'image/png';
+    try{ const bmp=await createImageBitmap(new Blob([im],{type:mime})); const big=Math.max(bmp.width,bmp.height), kk=Math.min(1, tex/big);
+      const w=Math.max(1,Math.round(bmp.width*kk)), h=Math.max(1,Math.round(bmp.height*kk));
+      const c=new OffscreenCanvas(w,h); c.getContext('2d').drawImage(bmp,0,0,w,h);
+      // colour maps a little lossier; normal / roughness maps near-lossless so lighting data isn't smeared
+      const isColour = doc.getRoot().listMaterials().some(m=>m.getBaseColorTexture()===t||m.getEmissiveTexture()===t);
+      const outMime = 'image/webp';
+      const blob=await c.convertToBlob({type:outMime, quality:isColour?0.86:0.95});
+      if(blob.size < im.byteLength || kk<1){ t.setImage(new Uint8Array(await blob.arrayBuffer())).setMimeType(outMime).setURI(''); }
+      bmp.close&&bmp.close();
+    }catch(e){ console.warn('[aigen] texture shrink skipped', e); } }
+  if(!doc.getRoot().listTextures().some(t=>t.getMimeType()==='image/webp')) webp.dispose();
+  return await io.writeBinary(doc);
+}
+
+/* ---------------- viewer ---------------- */
+const view=$('#view');
+const renderer=new THREE.WebGLRenderer({antialias:true, preserveDrawingBuffer:true});
+renderer.setPixelRatio(Math.min(2, devicePixelRatio)); renderer.outputColorSpace=THREE.SRGBColorSpace; renderer.toneMapping=THREE.ACESFilmicToneMapping;
+view.prepend(renderer.domElement);
+const scene=new THREE.Scene(); scene.background=new THREE.Color(0x0e1218);
+scene.environment=new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(),0.04).texture;
+const sun=new THREE.DirectionalLight(0xffffff,1.2); sun.position.set(3,5,4); scene.add(sun);
+const grid=new THREE.GridHelper(4,16,0x2a3446,0x1b2230); scene.add(grid);
+const camera=new THREE.PerspectiveCamera(40,1,0.01,200); camera.position.set(2.2,1.6,3);
+const controls=new OrbitControls(camera, renderer.domElement); controls.target.set(0,0.6,0); controls.enableDamping=true;
+const loader=new GLTFLoader(); loader.setMeshoptDecoder(MeshoptDecoder);
+let current=null, currentId=null, currentMeta=null;
+function resize(){ const w=view.clientWidth, h=view.clientHeight; if(!w||!h) return; renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix(); }
+new ResizeObserver(resize).observe(view); resize();
+renderer.setAnimationLoop(()=>{ controls.update(); renderer.render(scene,camera); });
+
+// fit the whole model in view whatever the viewer shape (tall phone panel or wide desktop), from a 3/4 angle
+function frameCam(w, h, d){ const t=Math.tan(THREE.MathUtils.degToRad(camera.fov/2)), span=Math.max(w,d)*1.05;
+  const dist = Math.max(h*1.2/(2*t), span*1.2/(2*t*camera.aspect)) + span/2;
+  controls.target.set(0,h/2,0); const dir=new THREE.Vector3(0.45,0.28,1).normalize(); camera.position.copy(dir.multiplyScalar(dist)).add(controls.target); controls.update(); }
+async function showModel(id){
+  const m = await StudioLib.getModel(id); if(!m){ return; }
+  const buf = await m.glb.arrayBuffer();
+  const gltf = await new Promise((res,rej)=>loader.parse(buf,'',res,rej));
+  if(current){ scene.remove(current); current.traverse(o=>{ if(o.geometry) o.geometry.dispose(); }); }
+  current=gltf.scene; currentId=id; currentMeta=m;
+  // stand it on the grid, centred, and frame the camera round it
+  const box=new THREE.Box3().setFromObject(current), size=box.getSize(new THREE.Vector3()), ctr=box.getCenter(new THREE.Vector3());
+  const s = 1.6/Math.max(size.x,size.y,size.z,1e-6); current.scale.setScalar(s);
+  current.position.set(-ctr.x*s, -box.min.y*s, -ctr.z*s); scene.add(current);
+  const h=size.y*s, r=Math.max(size.x,size.y,size.z)*s;
+  frameCam(size.x*s, h, size.z*s);
+  let tris=0; current.traverse(o=>{ if(o.isMesh){ const g=o.geometry; tris += g.index? g.index.count/3 : g.attributes.position.count/3; } });
+  $('#empty').style.display='none'; $('#actions').style.display='flex';
+  $('#aRig').style.display = m.skeleton==='unrigged' ? '' : 'none';
+  let warn='';
+  if(m.skeleton==='unrigged'){ const ratio=size.x/size.y;
+    if(ratio<0.55) warn='⚠ The arms look close to the body. Rigging works best when the picture shows a T-pose or A-pose (arms away from the body).';
+    if(size.z>size.y*0.8) warn='⚠ This doesn\'t look like a standing character — check the picture shows the whole body from the front.'; }
+  const info=$('#info'); info.style.display='block';
+  const mt=m.meta||{}; info.innerHTML = `<b style="color:var(--text)">${esc(m.name)}</b><br>${m.skeleton==='unrigged'?'🧍 Character (not rigged yet)':'🏺 Prop'} · ${Math.round(tris).toLocaleString()} triangles · ${fmtMB(m.size||0)}`+(mt.tier?`<br>💲 <b class="pr">${usd(mt.usd)}</b> · ${mt.tier==='hero'?'💎 Hero '+(mt.res||''):'⚡ Draft'} · made in ${mt.secs} s`:'')+(warn?`<div class="warn">${warn}</div>`:'');
+  const t=$('#srcThumb'); if(m.thumb){ t.src=m.thumb; t.style.display='block'; } else t.style.display='none';
+  renderShelf();
+}
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ---------------- actions ---------------- */
+$('#aDl').onclick=()=>{ if(!currentMeta) return; const a=document.createElement('a'); a.href=URL.createObjectURL(currentMeta.glb); a.download=(currentMeta.name||'model').replace(/[\\/:*?"<>|]+/g,'_')+'.glb'; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),4000); };
+function handoff(to){ localStorage.setItem('studio.handoff', JSON.stringify({to, id:currentId, t:Date.now()}));
+  try{ if(parent!==window && parent.show){ parent.show(to); return; } }catch(e){}
+  location.href = to==='rig' ? '../character-rigger/index.html' : '../tabletop/index.html'; }
+$('#aRig').onclick=()=>{ if(currentId) handoff('rig'); };
+$('#aTt').onclick=()=>{ if(currentId) handoff('tabletop'); };
+$('#aRen').onclick=async ()=>{ if(!currentMeta) return; const nm=prompt('New name:', currentMeta.name); if(!nm) return;
+  // StudioLib has no rename: re-save under the new name, then drop the old record
+  const id=await StudioLib.addModel({name:nm.trim().slice(0,60), skeleton:currentMeta.skeleton, glb:currentMeta.glb, thumb:currentMeta.thumb, meta:currentMeta.meta});
+  await StudioLib.deleteModel(currentId); await showModel(id); };
+$('#aDel').onclick=async ()=>{ if(!currentMeta||!confirm('Delete “'+currentMeta.name+'” from your Studio Library?')) return;
+  await StudioLib.deleteModel(currentId); if(current) scene.remove(current); current=null; currentId=null; currentMeta=null;
+  $('#actions').style.display='none'; $('#info').style.display='none'; $('#srcThumb').style.display='none'; $('#empty').style.display='grid'; renderShelf(); };
+
+/* ---------------- shelf: every AI model in the library ---------------- */
+async function renderShelf(){ const sh=$('#shelf'); sh.querySelectorAll('.it').forEach(e=>e.remove());
+  let ms=[]; try{ ms=(await StudioLib.listModels()).filter(m=>m.skeleton==='prop'||m.skeleton==='unrigged'); }catch(e){}
+  $('#shelfEmpty').style.display = ms.length?'none':'';
+  for(const m of ms){ const d=document.createElement('div'); d.className='it'+(m.id===currentId?' on':''); d.title=m.name+' · '+fmtMB(m.size||0)+(m.meta&&m.meta.usd!=null?' · cost '+usd(m.meta.usd):'');
+    d.innerHTML=`${m.thumb?`<img src="${m.thumb}" alt="">`:'<img alt="">'}<div class="nm">${esc(m.name)}</div><span class="k">${m.skeleton==='unrigged'?'🧍':'🏺'}</span>${m.meta&&m.meta.usd!=null?`<span class="c">${usd(m.meta.usd)}</span>`:''}`;
+    d.onclick=()=>showModel(m.id); sh.appendChild(d); } }
+if(window.StudioLib){ StudioLib.onChange(e=>{ if(e.store==='models') renderShelf(); }); StudioLib.ready.then(renderShelf); }
+
+paintKey(); updateGo(); loadPrices();
+// first visit with no key → open the 3-step setup once (per browser session) so nobody has to hunt for it
+try{ if(!MOCK && unlocked() && !getKey() && !sessionStorage.getItem('aigenSetupShown')){ sessionStorage.setItem('aigenSetupShown','1'); $('#keyBtn').click(); } }catch(e){}
+window.__aigen = { version:APP_VERSION, optimizeModel, showModel };   // test hook
+</script>
+</body>
+</html>

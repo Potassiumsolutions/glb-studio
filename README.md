@@ -8,18 +8,19 @@
 
 **Turn an AI-generated 3D character into a finished animated video — free, in your browser, on your own machine.**
 
-A small suite of three tools that share one library, so a character you rig or a
-motion you make is instantly usable by the next step:
+One app with five tabs that share one library, so whatever one tab makes is instantly usable by the next:
 
-### 🧍 Rig → 🐾 Animate → 🎬 Stitch
+### 🪄 Generate → 🧍 Rig → 🐾 Animate → 🎬 Stitch → 🎲 Tabletop
 
 ![KSOL Designs GLB Studio](studio/help/menu.png)
 
-- **🧍 Rig** — drop a textured `.glb` character; it **auto-fits a skeleton** (biped / quadruped / bird) and **auto-skins** it. Nudge the joints if you want, then export a rigged GLB.
-- **🐾 Animate** — procedurally generate **biped, quadruped & bird** motions, organized by category (walking, running, jumping, climbing, boxing, fencing, football, dancing…), tuned by speed / amplitude / loop length.
-- **🎬 Stitch** — load a rigged character, **auto-retarget** motions onto it, and composite clips into one **MP4** with 3D scenes, camera moves, multiple characters, audio and cross-fades.
+- **🪄 Generate** *(add-on)*: turn a picture into a textured 3D model. **Pay only for what you make, no subscription**: models are made by the TRELLIS 3D AI on your own fal.ai account (about 2¢ per Draft model).
+- **🧍 Rig**: drop a textured `.glb` / `.gltf` / `.fbx` (works with models generated on meshy.ai and mixamo.com); it **auto-fits one of 19 skeletons** (biped, biped + fingers, quadruped, bird, dragon, fish, crab and more) and **auto-skins** it. Nudge the joints if you want, then export a rigged GLB.
+- **🐾 Animate**: procedurally generate motions for bipeds and animals (walking, running, jumping, sports, dancing, gestures, wing flaps…), tuned by speed / amplitude / loop length.
+- **🎬 Stitch**: load a rigged character, **auto-retarget** motions onto it, and composite clips into one **MP4** with 3D scenes, camera moves, multiple characters, audio and cross-fades.
+- **🎲 Tabletop**: play Chess, Checkers, Chinese Checkers and the Royal Game of Ur with your characters as the pieces, generate and build board maps, and design cards and game boxes, with print-ready export for The Game Crafter.
 
-Everything runs **client-side** — nothing is uploaded, no account, no cloud.
+Everything runs **client-side** in your browser: no account, and your models stay on your computer. The one exception is the optional **🪄 Generate** add-on, which sends the picture you choose to fal.ai to make the model.
 
 ---
 
@@ -53,6 +54,8 @@ Chrome or Edge recommended. Internet is needed the *first* time only, to load th
 - **Scenes:** 3D rooms and open-expanse environments with colour-matched photo texture sets, props, terrain relief, and travel / camera-follow.
 - **Ensemble:** multiple characters on one stage at once.
 - **Timeline & node editor**, per-clip cameras, cross-fades, audio, and exact-length **MP4** export (WebCodecs H.264) — or bake the whole sequence to a single GLB.
+
+**🪄 Generate** *(add-on)* — turn a picture into a textured 3D model (TRELLIS image-to-3D, run on the user's **own fal.ai account**, about $0.02 per Draft / $0.25–0.35 per Hero model). Crop the picture, pick Prop or Character, and the model is auto-shrunk for games (weld + meshoptimizer simplify + WebP textures), saved to the Studio Library, and handed to **Rig** or the **Tabletop** in one click. The key stays in the browser and is sent only to fal.ai.
 
 The **Studio** shell ties them together with a menu and a shared in-browser library, plus an **❔ About** walkthrough. See [`studio/README.md`](studio/README.md) for details.
 
@@ -104,7 +107,7 @@ If this is useful to you, a Patreon follow or a ⭐ on the repo is appreciated.
 
 ## Trademarks
 
-GLB Studio works with models generated on meshy.ai and mixamo.com. Meshy and Mixamo are trademarks of their respective owners (Mixamo: Adobe Inc.). GLB Studio is an independent tool and is not affiliated with, sponsored or endorsed by them.
+GLB Studio works with models generated on meshy.ai and mixamo.com. Meshy and Mixamo are trademarks of their respective owners (Mixamo: Adobe Inc.). GLB Studio is an independent tool and is not affiliated with, sponsored or endorsed by them. The 🪄 Generate add-on works with fal.ai (TRELLIS by Microsoft, MIT license); it is not affiliated with or endorsed by fal.ai or Microsoft.
 
 ## License
 

@@ -7,7 +7,7 @@
 
    window.StudioLib API (all async return Promises):
      ready                      -> resolves when the DB is open
-     addModel({name,skeleton,glb[,thumb]}) -> id   (glb = ArrayBuffer|Blob)
+     addModel({name,skeleton,glb[,thumb,meta]}) -> id   (meta = small plain object, e.g. AI cost)   (glb = ArrayBuffer|Blob)
      listModels()               -> [{id,name,skeleton,size,createdAt,thumb?}]
      getModel(id)               -> {..., glb:Blob}
      deleteModel(id)
@@ -61,15 +61,15 @@
     ready: open().then(() => true),
 
     // ---- rigged models (base characters) ----
-    async addModel({ name, skeleton, glb, thumb }) {
+    async addModel({ name, skeleton, glb, thumb, meta }) {
       const blob = (glb instanceof Blob) ? glb : new Blob([glb], { type: 'model/gltf-binary' });
-      const rec = { id: uid('mdl'), name: name || 'character', skeleton: skeleton || 'biped', glb: blob, size: blob.size, thumb: thumb || null, createdAt: Date.now() };
+      const rec = { id: uid('mdl'), name: name || 'character', skeleton: skeleton || 'biped', glb: blob, size: blob.size, thumb: thumb || null, meta: meta || null, createdAt: Date.now() };
       await tx('models', 'readwrite', os => os.put(rec));
       notify('models'); return rec.id;
     },
     async listModels() {
       const rows = await tx('models', 'readonly', getAll);
-      return rows.map(({ id, name, skeleton, size, createdAt, thumb }) => ({ id, name, skeleton, size, createdAt, thumb }))
+      return rows.map(({ id, name, skeleton, size, createdAt, thumb, meta }) => ({ id, name, skeleton, size, createdAt, thumb, meta }))
                  .sort((a, b) => b.createdAt - a.createdAt);
     },
     getModel(id) { return tx('models', 'readonly', os => getOne(os, id)); },

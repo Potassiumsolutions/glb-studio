@@ -44,6 +44,7 @@
   .row .del:hover{color:#f88;border-color:#5a3a3a}
   .empty{color:var(--muted);font-size:12.5px;padding:8px 4px}
   .tag{font-size:10px;padding:1px 6px;border-radius:20px;background:#22304a;color:#a9c2ee;margin-left:6px}
+  @media (max-width:1600px){ .flow{display:none} }
   @media (max-width:720px){ .flow,.tab .n{display:none} }
   /* About / instructions */
   #about,#upgrades{position:absolute;inset:0;z-index:40;background:rgba(4,6,10,.72);display:none;align-items:flex-start;justify-content:center;overflow:auto;padding:34px 18px}
@@ -76,6 +77,8 @@
   .cmd{font-family:ui-monospace,Consolas,monospace;font-size:12.5px;background:#0d1119;border:1px solid var(--line);border-radius:7px;padding:8px 11px;color:#bfe0ce;overflow:auto}
   .sheet-body ul{margin:6px 0;padding-left:20px;color:#c3ccd9;font-size:13.5px;line-height:1.6}
   .sheet-body ul li{margin:4px 0}
+  .payg{display:inline-block;margin:4px 0 8px;padding:6px 12px;border-radius:9px;border:1px solid #2e6a52;background:linear-gradient(135deg,rgba(55,208,160,.16),rgba(91,140,255,.10));color:#bff0da;font-size:13px}
+  .payg b{color:#eafff5}
 </style>
 </head>
 <body>
@@ -83,12 +86,13 @@
   <header>
     <div class="brand"><span class="logo"></span><span style="display:flex;flex-direction:column;line-height:1.05"><span style="font-size:9px;letter-spacing:1.4px;color:var(--muted);font-weight:700">KSOL DESIGNS</span><span>GLB&nbsp;Studio</span></span></div>
     <nav>
+      <div class="tab" data-tool="generate" title="Turn a picture into a textured 3D model (add-on)"><span>🪄</span> Generate</div>
       <div class="tab" data-tool="rig"><span>🧍</span> Rig <span class="n">1</span></div>
       <div class="tab" data-tool="animate"><span>🐾</span> Animate <span class="n">2</span></div>
       <div class="tab" data-tool="stitch"><span>🎬</span> Stitch <span class="n">3</span></div>
       <div class="tab" data-tool="tabletop"><span>🎲</span> Tabletop <span class="n">4</span></div>
     </nav>
-    <span class="flow">Rig &amp; animate → <b>Library</b> → Stitch films or play on the <b>Tabletop</b></span>
+    <span class="flow">Picture → <b>3D</b> → rig &amp; animate → film it or play it on the <b>Tabletop</b></span>
     <div class="spacer"></div>
     <div class="lib" id="libBtn" title="Studio Library — shared between all tools">
       <span class="dot">◆</span> Library:&nbsp;<b id="cModels">0</b>&nbsp;models&nbsp;·&nbsp;<b id="cMotions">0</b>&nbsp;motions
@@ -101,11 +105,11 @@
     <aside id="drawer">
       <div class="dhead"><b>◆ Studio Library</b><span class="x" id="drawerX">✕</span></div>
       <div class="dbody">
-        <div class="sect">Rigged models <span class="tag">base characters</span></div>
+        <div class="sect">Models <span class="tag">characters &amp; AI models</span></div>
         <div id="modelList"><div class="empty">No models yet — rig one in <b>🧍 Rig</b>.</div></div>
         <div class="sect">Baked motions <span class="tag">retarget clips</span></div>
         <div id="motionList"><div class="empty">No motions yet — make one in <b>🐾 Animate</b>.</div></div>
-        <div class="empty" style="margin-top:14px;line-height:1.5">Anything here is available to the <b>🎬 Stitch</b> tool automatically — rigged models load as base characters, motions join its retarget library.</div>
+        <div class="empty" style="margin-top:14px;line-height:1.5">Everything here is picked up by the other tabs automatically: rigged characters load in <b>🎬 Stitch</b> and <b>🎲 Tabletop</b>, 🪄 AI models are in <b>🧍 Rig</b> (Rig this) and the Tabletop’s <b>🪄 AI models</b> list, and motions join Stitch’s motion library.</div>
       </div>
     </aside>
   </main>
@@ -113,31 +117,54 @@
   <div id="about">
     <div class="sheet">
       <div class="sheet-hd">
-        <div><h1>◆ KSOL Designs GLB Studio — how it works</h1><div class="sub">Rig → Animate → Stitch, with one shared library</div></div>
+        <div><h1>◆ KSOL Designs GLB Studio — how it works</h1><div class="sub">Generate → Rig → Animate → Stitch → Tabletop, with one shared library</div></div>
         <span class="x" id="aboutX">✕ Close</span>
       </div>
       <div class="sheet-body">
-        <p class="lead">KSOL Designs GLB Studio bundles three tools into one pipeline. Whatever one tool makes lands in a shared <b>Studio Library</b>, so the next tool can use it instantly — no exporting files or running scripts between steps.</p>
-        <figure class="shot"><img src="help/menu.png" alt="Menu bar"><figcaption>Top menu — switch tools with <b>Rig · Animate · Stitch</b>. The <b>◆ Library</b> pill (right) shows what's shared and opens the library drawer.</figcaption></figure>
+        <p class="lead">GLB Studio takes you from a picture or a 3D model all the way to a <b>rigged, animated character</b>, a finished <b>video</b>, or a <b>board game</b> you can play and print. Each tab hands its work to the next through a shared <b>Studio Library</b>, so there are no files to shuffle between steps.</p>
+        <figure class="shot"><img src="help/menu.png" alt="Menu bar"><figcaption>The top menu: <b>🪄 Generate · 🧍 Rig · 🐾 Animate · 🎬 Stitch · 🎲 Tabletop</b>. On the right, <b>◆ Library</b> shows what's shared, <b>✨ Upgrades</b> unlocks add-ons and packs, and <b>❔ About</b> opens this guide.</figcaption></figure>
+        <div class="callout"><b>Quick start:</b> make or drop in a character → <b>🧍 Rig</b> it → pick motions in <b>🎬 Stitch</b> and render an MP4, or put it on a board in <b>🎲 Tabletop</b> and play. No model yet? Stitch has free sample characters, or make one from a picture with <b>🪄 Generate</b>.</div>
 
-        <h2><span class="step">1</span> 🧍 Rig — turn a model into a base character</h2>
-        <p>Open <b>Rig</b> and drop a textured <span class="pill2">.glb</span> character. Pick its skeleton type — <b>Biped</b>, <b>Quad</b>, or <b>Bird</b> — then fit the joints onto the model (choose a view, drag the joints; turn on <b>Mirror L/R</b> to rig one side and mirror it). Click <b>Bind &amp; preview weights</b> to check the skinning, then <b>⬇ Export rigged GLB</b>.</p>
-        <p>The export downloads the GLB <b>and</b> adds the character to the Studio Library automatically.</p>
-        <figure class="shot"><img src="help/rig.png" alt="Character Rigger"><figcaption>Rig: 1 drop a mesh · pick the skeleton · 2 fit the joints · 3 skin &amp; <b>Export rigged GLB</b>.</figcaption></figure>
+        <h2><span class="step">✦</span> 🪄 Generate: turn a picture into a 3D model <span class="pill2">add-on</span></h2>
+        <div class="payg">💲 <b>Pay only for what you make</b> · no subscription, no monthly fee · about 2¢ per Draft model</div>
+        <p>Drop, paste or crop a picture, choose <b>🏺 Prop</b> (buildings, trees, vehicles, statues) or <b>🧍 Character</b> (to rig and animate), then choose the quality:</p>
+        <ul>
+          <li><b>⚡ Draft</b> (about 2¢): good shape with softer paint. Best for game pieces on a map.</li>
+          <li><b>💎 Hero</b> (about 25–35¢): sharp detail and textures, for close-ups, films and showpieces.</li>
+        </ul>
+        <p>Press <b>Generate</b>. The model is shrunk to game size, saved to the Studio Library, and can go straight to <b>🧍 Rig this</b> or <b>🎲 Use in Tabletop</b>. For a character you can rig, use a front-view <b>T-pose</b> picture; the tab has a ready-made prompt to copy into Gemini or any picture AI.</p>
+        <figure class="shot"><img src="help/generate.png" alt="Generate tab"><figcaption>Generate: picture on the left, the 3D model on the right, what it cost, and your AI models along the bottom.</figcaption></figure>
+        <div class="callout"><b>💲 Where the cost comes from:</b> the models are made by <b>TRELLIS</b> (an image-to-3D AI by Microsoft) running on <b>fal.ai</b>. fal.ai charges <b>your own fal.ai account</b> for each model you make, using the key you set up in the tab's <b>⚙ Set up</b> (about 2 minutes: sign up, add a little credit, create a key, paste it). KSOL Designs receives none of that money and adds nothing on top. You always see the price before you click, and <b>💲 Your costs</b> keeps a running total and history. The add-on itself is a separate one-time purchase that unlocks the tab. <b>This is the only part of GLB Studio with a per-use cost.</b></div>
 
-        <h2><span class="step">2</span> 🐾 Animate — build motions for quadrupeds &amp; birds</h2>
-        <p>Open <b>Animate</b>, choose the <b>rig type</b>, pick an animation (Walk, Trot, Gallop, Wing flap…), and tune its <b>speed</b>, <b>amplitude</b> and <b>loop length</b>. When it looks right, click <b>➕ Add current animation → Studio Library</b>. The motion joins the Stitcher's retarget list, tagged to its skeleton.</p>
-        <figure class="shot"><img src="help/animate.png" alt="Rig Animator"><figcaption>Animate: pick a rig, choose a motion, tune it, then <b>➕ Add</b> to send it to the library.</figcaption></figure>
+        <h2><span class="step">1</span> 🧍 Rig: give a model a skeleton</h2>
+        <p>Drop a textured <span class="pill2">.glb</span>, <span class="pill2">.gltf</span> or <span class="pill2">.fbx</span> (works with models generated on meshy.ai and mixamo.com), or press <b>🧍 Rig this</b> in Generate. Pick the <b>skeleton type</b>. There are 19: biped, biped + fingers, quadruped, bird, snake, fish, whale/dolphin, great ape, dragon, pegasus, elephant, giraffe, reptile, frog, rabbit, crab, lobster, manta ray and jellyfish. The skeleton <b>fits itself</b> to the model; drag any joint to fine-tune it (<b>🪞 Symmetric</b> copies each change to the other side). Click <b>Bind &amp; preview weights</b> to check the skin, then <b>⬇ Export rigged GLB</b>. The export downloads <b>and</b> goes into the Studio Library.</p>
+        <figure class="shot"><img src="help/rig.png" alt="Character Rigger"><figcaption>Rig: a Generate-made orc, fitted to the biped skeleton automatically and bound, ready to export.</figcaption></figure>
 
-        <h2><span class="step">3</span> 🎬 Stitch — assemble the video</h2>
-        <p>Open <b>Stitch</b>. The <b>◆ Studio Library</b> card lists your rigged characters — click <b>Load</b> to drop one in as a base character. Its skeleton's motions (the built-in 579 for bipeds, plus anything you made in Animate) appear in the <b>Motion library (retarget)</b> panel below — click a motion to add it as a clip. Then set the scene, camera, audio and cross-fades, and <b>Render</b> the MP4.</p>
-        <figure class="shot"><img src="help/stitch.png" alt="GLB Stitcher"><figcaption>Stitch: <b>Load</b> a character from the Studio Library, add retargeted motions, build &amp; render.</figcaption></figure>
+        <h2><span class="step">2</span> 🐾 Animate: make motions</h2>
+        <p>Choose the <b>rig type</b>, pick a motion (walks, runs, jumps, sports, dances, gestures, wing flaps and more), and tune its <b>speed</b>, <b>amplitude</b> and <b>loop length</b>. When it looks right, click <b>➕ Add current animation → Studio Library</b>. It joins Stitch's motion list for that skeleton.</p>
+        <figure class="shot"><img src="help/animate.png" alt="Rig Animator"><figcaption>Animate: pick a rig, choose a motion, tune it, then <b>➕ Add</b> it to the library.</figcaption></figure>
 
-        <h2>◆ The shared library</h2>
-        <p>Click the <b>◆ Library</b> pill any time to see everything the tools have shared — rigged <b>models</b> (base characters) and baked <b>motions</b> (retarget clips) — and delete anything you don't need.</p>
-        <figure class="shot"><img src="help/library.png" alt="Studio Library drawer"><figcaption>The library drawer: rigged models load as base characters; motions join the retarget list — automatically.</figcaption></figure>
+        <h2><span class="step">3</span> 🎬 Stitch: make the video</h2>
+        <p><b>Load</b> a rigged character from the <b>◆ Studio Library</b> card (or a free sample). Motions for its skeleton appear in the <b>Motion library</b>; click one to add it as a clip, and it's <b>retargeted</b> onto your character automatically. Then set the scene, props, camera, audio and cross-fades, add more characters if you like, and <b>Render</b> an MP4.</p>
+        <figure class="shot"><img src="help/stitch.png" alt="GLB Stitcher"><figcaption>Stitch: load a character, add motions, build the scene and render.</figcaption></figure>
 
-        <div class="callout"><b>Tip:</b> everything runs locally in your browser. Each tool also opens on its own, but the shared library only works inside GLB Studio (it's tied to this one address). Run it locally with <code style="background:#0d1119;border:1px solid var(--line);border-radius:5px;padding:1px 6px">run-local.bat</code> (or any static server), or open your hosted link.</div>
+        <h2><span class="step">4</span> 🎲 Tabletop: play and build board games</h2>
+        <p>Use the <b>Game</b> list at the top left:</p>
+        <ul>
+          <li><b>Chess, Checkers, Chinese Checkers and the Royal Game of Ur</b>, played with your own rigged characters as the pieces. Set up the teams, then play against the computer or a friend.</li>
+          <li><b>🛠 Build a Board</b>: generate a map (grassland, forest, towns, castles, rivers, roads and more) with one click, <b>Extend</b> it in any direction, paint tiles, and place props, including your own models and <b>🪄 AI models</b>. Choose a print size to export print-ready art for The Game Crafter, or play on the board with your characters.</li>
+          <li><b>🃏 Cards</b> (deck designer) and <b>📦 Box designer</b> (Game Crafter packaging templates).</li>
+        </ul>
+        <figure class="shot"><img src="help/tabletop.png" alt="Tabletop map builder"><figcaption>Tabletop → Build a Board: a generated map with a walled castle, villages, a stream, roads, farms and mountains.</figcaption></figure>
+
+        <h2><span class="step">✦</span> ✨ Upgrades: add-ons and expansion packs</h2>
+        <p>The core tools are free. Add-ons (like <b>🪄 AI Generate</b>) and Tabletop packs (hex boards and terrain, battle maps, modern, sci-fi, race games and more) are <b>one-time purchases</b> on <a href="https://www.patreon.com/KsolDesigns" target="_blank" rel="noopener" style="color:var(--accent)">Patreon</a>. Each comes as a small <span class="pill2">.studiokey</span> file: click <b>✨ Upgrades</b>, drop the file in, and it unlocks on that device. Keep the file; if you clear your browser or change computers, just drop it in again.</p>
+
+        <h2><span class="step">◆</span> The shared library</h2>
+        <p>Click <b>◆ Library</b> any time to see everything the tabs have shared: rigged characters, AI models and baked motions. You can delete anything you don't need from there.</p>
+        <figure class="shot"><img src="help/library.png" alt="Studio Library drawer"><figcaption>The library drawer: everything here is picked up by the other tabs automatically.</figcaption></figure>
+
+        <div class="callout"><b>🔒 Privacy:</b> GLB Studio runs in your browser and your models stay on your computer. The one exception is <b>🪄 Generate</b>, which sends the picture you choose to fal.ai to make the model. Your fal.ai key is sent only to fal.ai. Nothing goes to KSOL Designs.<br><b>Running it:</b> use the hosted link, or run it locally with <code style="background:#0d1119;border:1px solid var(--line);border-radius:5px;padding:1px 6px">run-local.bat</code> (or any static server). The shared library only works inside GLB Studio, because it's tied to that one address.</div>
 
         <div style="margin-top:30px;padding-top:20px;border-top:1px solid var(--line);display:flex;gap:18px;align-items:center;flex-wrap:wrap">
           <svg viewBox="0 0 240 280" style="width:46px;height:auto;color:var(--muted);flex:none" role="img" aria-label="Potassium Solutions logo">
@@ -170,7 +197,7 @@
         <span class="x" id="upgradesX">✕ Close</span>
       </div>
       <div class="sheet-body">
-        <p class="lead">The <b>🎲 Tabletop</b> tab comes free with square boards, three classic games and the map builder. Expansion packs add hex boards, more terrain, battle-scale maps and race games — download the <span class="pill2">.studiokey</span> from <a href="https://www.patreon.com/KsolDesigns" target="_blank" rel="noopener">Patreon</a>, import it here, and it unlocks on this device.</p>
+        <p class="lead">The <b>🎲 Tabletop</b> tab comes free with square boards, three classic games and the map builder. Expansion packs add hex boards, more terrain, battle-scale maps and race games; the <b>🪄 AI Generate</b> add-on unlocks the Generate tab — download the <span class="pill2">.studiokey</span> from <a href="https://www.patreon.com/KsolDesigns" target="_blank" rel="noopener">Patreon</a>, import it here, and it unlocks on this device.</p>
         <label class="updrop" id="keyDrop">Import an upgrade <b>.studiokey</b><br><span class="tag" style="margin:0">drop it here or click to choose</span>
           <input type="file" id="keyInput" accept=".studiokey,.json,application/json" hidden></label>
         <div id="modList"></div>
@@ -186,6 +213,7 @@
     animate:  '../rig-animator/index.html',
     stitch:   '../glb-stitcher/index.html',
     tabletop: '../tabletop/index.html',
+    generate: '../ai-generate/index.html',
   };
   const frame = document.getElementById('frame');
   const tabs = [...document.querySelectorAll('.tab')];
@@ -224,6 +252,7 @@
   // ---- Upgrades: import an expansion .studiokey → unlock content in the 🎲 Tabletop tab ----
   // Keys write ids into localStorage['studio.tabletop.exp']; the Tabletop iframe (same origin) reads them.
   const EXPANSIONS = {
+    aigen:      { icon:'🪄', name:'AI Generate',     tab:'generate', blurb:'Turn a picture into a textured 3D model inside GLB Studio, then rig it, animate it, or drop it on the Tabletop. Pay only for what you make, with no subscription: fal.ai bills your own fal.ai account about 2¢ per Draft model or 25–35¢ per Hero model (TRELLIS 3D AI).' },
     terrain:    { icon:'⛰', name:'Terrain Pack',     blurb:'Hex boards, desert / mountains / wetlands themes & textures, extra Extend terrains, and farmland.' },
     battlemaps: { icon:'⚔', name:'Battle Maps Pack', blurb:'Battle (D&D 5-ft) scale with real buildings (rooms, doors, furniture), one-click VTT export (map + grid + walls + doors), plus real-world satellite / relief / night / antique base maps.' },
     race:       { icon:'🏁', name:'Race Games',       blurb:'Roll-and-move race games on the tabletop (Derby Loop — with more to come).' },
@@ -240,7 +269,7 @@
   };
   const ttExp = ()=>{ try{ return new Set(JSON.parse(localStorage.getItem('studio.tabletop.exp')||'[]').filter(id=>EXPANSIONS[id])); }catch(e){ return new Set(); } };
   const ttSave = s => localStorage.setItem('studio.tabletop.exp', JSON.stringify([...s]));
-  const reloadTabletop = ()=>{ if(location.hash.slice(1)==='tabletop'){ try{ frame.contentWindow.location.reload(); }catch(e){ show('tabletop'); } } };
+  const reloadTabletop = ()=>{ if(['tabletop','generate'].includes(location.hash.slice(1))){ try{ frame.contentWindow.location.reload(); }catch(e){ show('tabletop'); } } };
   const upgrades = document.getElementById('upgrades');
   document.getElementById('upgradesBtn').addEventListener('click', ()=>{ renderExpList(); upgrades.classList.add('open'); });
   document.getElementById('upgradesX').addEventListener('click', ()=>upgrades.classList.remove('open'));
@@ -265,7 +294,7 @@
     const X=EXPANSIONS[id], s=ttExp();
     if(s.has(id)){ alert(X.name+' is already unlocked.'); return; }
     s.add(id); ttSave(s); renderExpList(); reloadTabletop();
-    alert('✅ Unlocked '+X.icon+' '+X.name+' — open the 🎲 Tabletop tab to use it.');
+    alert('✅ Unlocked '+X.icon+' '+X.name+(X.tab==='generate'?' — open the 🪄 Generate tab to use it.':' — open the 🎲 Tabletop tab to use it.'));
   }
   (function wireKeyImport(){
     const drop=document.getElementById('keyDrop'), inp=document.getElementById('keyInput');
@@ -278,7 +307,8 @@
   document.addEventListener('keydown', e=>{ if(e.key==='Escape'){ about.classList.remove('open'); upgrades.classList.remove('open'); drawer.classList.remove('open'); } });
   const fmtDate = t => new Date(t).toLocaleDateString(undefined,{month:'short',day:'numeric'});
   const kb = n => n>=1e6 ? (n/1e6).toFixed(1)+' MB' : Math.max(1,Math.round(n/1024))+' KB';
-  const SK_ICON = {biped:'🧍', quadruped:'🐾', quad:'🐾', bird:'🐦'};
+  const SK_LABEL = {prop:'🪄 AI prop', unrigged:'🪄 AI character · not rigged yet', '':'model'};
+  const SK_ICON = {biped:'🧍', quadruped:'🐾', quad:'🐾', bird:'🐦', prop:'🏺', unrigged:'🧍'};
   async function refresh(){
     const [models, motions] = await Promise.all([StudioLib.listModels(), StudioLib.listMotions()]);
     document.getElementById('cModels').textContent = models.length;
@@ -288,7 +318,7 @@
     for(const m of models){
       const row=document.createElement('div'); row.className='row';
       row.innerHTML = `<div class="ic">${SK_ICON[m.skeleton]||'🧍'}</div>
-        <div class="meta"><div class="nm">${m.name}</div><div class="sub">${m.skeleton} · ${kb(m.size||0)} · ${fmtDate(m.createdAt)}</div></div>
+        <div class="meta"><div class="nm">${m.name}</div><div class="sub">${SK_LABEL[m.skeleton]||(m.skeleton||'model')} · ${kb(m.size||0)} · ${fmtDate(m.createdAt)}</div></div>
         <span class="del" data-id="${m.id}">Delete</span>`;
       row.querySelector('.del').onclick=async()=>{ await StudioLib.deleteModel(m.id); };
       ml.appendChild(row);

@@ -463,6 +463,12 @@ meshInput.onchange=e=>{ if(e.target.files[0]) loadMeshFromFile(e.target.files[0]
 ;['dragover','dragenter'].forEach(ev=>meshDrop.addEventListener(ev,e=>{e.preventDefault();meshDrop.classList.add('over');}));
 ;['dragleave','drop'].forEach(ev=>meshDrop.addEventListener(ev,e=>{e.preventDefault();meshDrop.classList.remove('over');}));
 meshDrop.addEventListener('drop',e=>{ const f=e.dataTransfer.files[0]; if(f) loadMeshFromFile(f); });
+// 🪄 hand-off from the Generate tab (“Rig this”): load that Studio Library model as soon as the tool is up
+setTimeout(async ()=>{ let h=null; try{ h=JSON.parse(localStorage.getItem('studio.handoff')||'null'); }catch(e){}
+  if(!h || h.to!=='rig' || Date.now()-h.t>120000 || !window.StudioLib) return;
+  localStorage.removeItem('studio.handoff');
+  try{ await StudioLib.ready; const m=await StudioLib.getModel(h.id); if(m&&m.glb) loadMeshFromFile(new File([m.glb], (m.name||'model')+'.glb', {type:'model/gltf-binary'})); }
+  catch(e){ console.warn('[rig] Generate hand-off failed', e); } }, 300);
 
 // ---------- skeleton fit + rendering ----------
 // ---- whole-skeleton transform (applied on top of the auto-fit result) ----

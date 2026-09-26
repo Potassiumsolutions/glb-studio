@@ -675,7 +675,7 @@
       <div id="bLibWrap" style="margin-top:8px">
         <label class="fld">📦 Studio library — real GLB models (trees, rocks, buildings, your Meshy characters, expansion packs). Pick one, click a cell to drop it, drag to move.</label>
         <div class="seg" id="bLibSrcSeg" style="flex-wrap:wrap">
-          <button data-src="scene" class="on">🌳 Scene</button><button data-src="held">⚔ Items</button><button data-src="lib">🧍 Characters</button><button data-src="pack">📦 Packs</button>
+          <button data-src="scene" class="on">🌳 Scene</button><button data-src="held">⚔ Items</button><button data-src="lib">🧍 Characters</button><button data-src="ai">🪄 AI models</button><button data-src="pack">📦 Packs</button>
         </div>
         <div class="row wrap" id="bLibList" style="max-height:200px;overflow:auto;margin-top:4px;gap:4px"></div>
       </div>
@@ -3821,7 +3821,7 @@ function bMakeGLBProp(src, scaleMul, pose){ const g=new THREE.Group(); scaleMul=
     // geometry box can be 3–4× too small (Man sample: measured 1.5 cells, drew 5.6) and characters came out giant
     inst.updateMatrixWorld(true); inst.traverse(o=>{ if(o.isSkinnedMesh && o.skeleton){ o.skeleton.update(); o.computeBoundingBox(); } });
     let box=new THREE.Box3().setFromObject(inst), size=new THREE.Vector3(); box.getSize(size);
-    const isChar = src.type==='sample' || src.type==='lib' || src.cat==='char';                     // characters fit by their TALLEST side
+    const isChar = src.type==='sample' || (src.type==='lib' && !src.prop) || src.cat==='char';                     // characters fit by their TALLEST side
     const horiz=(src.axis==='ht' ? size.y : isChar ? Math.max(size.x,size.y,size.z) : Math.max(size.x,size.z))||1, fit=(src.fit||1.5); inst.scale.setScalar(fit/horiz);   // hero 'ht' = sized by height (towers, statues)
     inst.updateMatrixWorld(true);
     box=new THREE.Box3().setFromObject(inst); const ctr=new THREE.Vector3(); box.getCenter(ctr);
@@ -3838,14 +3838,18 @@ async function bLibEntries(srcTab){ const out=[];
   else if(srcTab==='held'){ for(const [id,name,em] of HELD_PROPS) out.push({label:(em||'⚔')+' '+name, src:{type:'file',ref:'Props/'+id+'.glb',fit:0.7}}); }
   else if(srcTab==='lib'){ for(const c of SAMPLE_CHARS) out.push({label:c.icon+' '+c.name+' (sample)', src:{type:'sample',ref:c.file,fit:1.1}});
     if(!window.StudioLib){ for(const P of await ttPackMeta()) for(const ch of (P.characters||[])) out.push({label:(P.em||'📦')+' '+(ch.icon||'🧍')+' '+(ch.name||ch.file), src:{type:'pack',pack:P.id,cat:'char',ref:(ch.file||ch.name),fit:1.2}}); return out; }
-    try{ await window.StudioLib.ready; const ms=await window.StudioLib.listModels(); for(const m of ms) out.push({label:'✦ '+(m.name||m.id), src:{type:'lib',ref:m.id,fit:1.1}}); }catch(e){}
+    try{ await window.StudioLib.ready; const ms=(await window.StudioLib.listModels()).filter(m=>m.skeleton!=='prop'); for(const m of ms) out.push({label:'✦ '+(m.name||m.id), src:{type:'lib',ref:m.id,fit:1.1}}); }catch(e){}
     for(const P of await ttPackMeta()) for(const ch of (P.characters||[])) out.push({label:(P.em||'📦')+' '+(ch.icon||'🧍')+' '+(ch.name||ch.file), src:{type:'pack',pack:P.id,cat:'char',ref:(ch.file||ch.name),fit:1.2}}); }   // pack characters (unlocked in GLB Stitcher) are characters too
+  else if(srcTab==='ai'){ for(const m of await bAiModels()) out.push({label:(m.skeleton==='prop'?'🏺 ':'🧍 ')+(m.name||m.id), src:bAiSrc(m)}); }
   else if(srcTab==='pack'){ const packs=await ttPackMeta();
     for(const P of packs){ const pre=(P.em||'📦')+' ';
       for(const ch of (P.characters||[])) out.push({label:pre+(ch.icon||'🧍')+' '+(ch.name||ch.file), src:{type:'pack',pack:P.id,cat:'char',ref:(ch.file||ch.name),fit:1.2}});
       for(const sp of (P.sceneProps||[])) out.push({label:pre+(sp.em||'🌳')+' '+(sp.name||sp.id), src:{type:'pack',pack:P.id,cat:'scene',ref:(sp.id||sp.name),fit:1.6}});
       for(const pr of (P.props||[])) out.push({label:pre+(pr.em||'⚔')+' '+(pr.label||pr.name), src:{type:'pack',pack:P.id,cat:'prop',ref:(pr.name),fit:0.7}}); } }
   return out; }
+// 🪄 models made in the Generate tab: skeleton "prop" (sized like a scene prop) or "unrigged" (a character, not rigged yet)
+async function bAiModels(){ if(!window.StudioLib) return []; try{ await window.StudioLib.ready; return (await window.StudioLib.listModels()).filter(m=>m.skeleton==='prop'||m.skeleton==='unrigged'); }catch(e){ return []; } }
+const bAiSrc=(m)=> m.skeleton==='prop' ? {type:'lib',ref:m.id,fit:1.6,prop:1} : {type:'lib',ref:m.id,fit:1.1};
 // --- library palette (source sub-tabs → clickable model list) ---
 let bLibSrc='scene';
 async function bBuildLibList(){ const el=document.getElementById('bLibList'); if(!el) return; el.innerHTML='';
@@ -3861,9 +3865,13 @@ async function bBuildLibList(){ const el=document.getElementById('bLibList'); if
     { const packs=(await ttPackMeta()).filter(P=>(P.characters||[]).length); if(packs.length){ head('📦 Characters from your packs'); for(const P of packs) for(const ch of P.characters) add((P.em||'📦')+' '+(ch.icon||'🧍')+' '+(ch.name||ch.file), {type:'pack',pack:P.id,cat:'char',ref:(ch.file||ch.name),fit:1.2}); } }
     head('✦ Your rigged models'); bAddGlbFileButton(el);
     if(!window.StudioLib) return tip('Your own rigged characters appear here when Tabletop runs inside GLB Studio.');
-    try{ await window.StudioLib.ready; const ms=await window.StudioLib.listModels();
+    try{ await window.StudioLib.ready; const ms=(await window.StudioLib.listModels()).filter(m=>m.skeleton!=='prop');
       if(!ms.length) return tip('None yet — rig a character in GLB Studio (🧍 <b>Rig</b> → <b>⬇ Export rigged GLB</b> adds it here automatically), or add a rigged <b>.glb</b> file above.');
       for(const m of ms) add('✦ '+(m.name||m.id), {type:'lib',ref:m.id,fit:1.1}); }catch(e){ tip('Library unavailable.'); } }
+  else if(bLibSrc==='ai'){ const ms=await bAiModels();
+    if(!window.StudioLib) return note('Your AI models appear here when Tabletop runs inside GLB Studio.');
+    if(!ms.length) return note('No AI models yet — make one in GLB Studio’s 🪄 <b>Generate</b> tab (turns a picture into a 3D model).');
+    for(const m of ms) add((m.skeleton==='prop'?'🏺 ':'🧍 ')+(m.name||m.id), bAiSrc(m)); }
   else if(bLibSrc==='pack'){ const packs=await ttPackMeta(); const rel=packs.filter(P=>(P.sceneProps&&P.sceneProps.length)||(P.props&&P.props.length)||(P.characters&&P.characters.length));
     if(!rel.length) return note('No expansion packs imported. Import packs in GLB Stitcher and their models appear here.');
     for(const P of rel){ const h=document.createElement('div'); h.className='mini'; h.style.cssText='width:100%;margin:4px 0 2px;font-weight:700'; h.textContent=(P.em||'📦')+' '+(P.name||P.id); el.appendChild(h);
@@ -3886,7 +3894,7 @@ function bSelectGlbProp(src,label){ const same=bld.propGlb && JSON.stringify(bld
 // procedural/GLB props are modelled for WORLD tiles; on a 5-ft BATTLE map they'd be tiny next to battle-scale
 // buildings, so render them larger there (minis already handle their own cell sizing).
 const bIsHero=(pr)=>pr && pr.kind==='glb' && pr.src && pr.src.type==='hero';
-const bIsCharSrc=(s)=>!!s && (s.type==='sample' || s.type==='lib' || s.cat==='char');
+const bIsCharSrc=(s)=>!!s && (s.type==='sample' || (s.type==='lib' && !s.prop) || s.cat==='char');
 function bPropMul(pr){ if(pr.kind==='gen'||pr.kind==='feat') return 1; if(bIsHero(pr)) return bld.scale==='battle' ? 1 : 1/34; return (bld.scale==='battle' && pr.kind!=='mini') ? (pr.kind==='glb'?(bIsCharSrc(pr.src)?1.1:1.6):(MODERN_PROP_KINDS.includes(pr.kind)&&!/boat/.test(pr.kind)?34:3.8)) : 1; }   // vehicles: real size on 5-ft squares (a car ≈ 3 squares)   // characters ≈ 6 ft (1.2 squares) tall at battle scale
 // SHADE a prop: recolour its meshes toward an optional tint and by a brightness factor (the edit-menu "shade").
 function bApplyShade(g, tint, bright){ const b=(bright==null?1:bright); const tc = tint!=null ? new THREE.Color(tint) : null;
@@ -8074,7 +8082,18 @@ if(appCfg){
   // dev self-checks
   for(const id in GAMES){ const v=BGC.validateDef(GAMES[id]); if(!v.ok) console.warn('[Tabletop] def incomplete', id, v.missing); }
   console.log('[Tabletop] ready — games:', Object.keys(GAMES).join(', '));
+  await bTakeHandoff();
 }
+// 🪄 “Use in Tabletop” from the Generate tab: open Build a Board with that AI model ready to drop
+async function bTakeHandoff(){ let h=null; try{ h=JSON.parse(localStorage.getItem('studio.handoff')||'null'); }catch(e){}
+  if(!h || h.to!=='tabletop' || Date.now()-h.t>120000 || !window.StudioLib) return;
+  localStorage.removeItem('studio.handoff');
+  try{ const m=(await bAiModels()).find(x=>x.id===h.id); if(!m) return;
+    const gsel=document.getElementById('gameSel'); gsel.value=BUILDER_ID; await selectGame(BUILDER_ID);
+    bLibSrc='ai'; document.querySelectorAll('#bLibSrcSeg button').forEach(x=>x.classList.toggle('on',x.dataset.src==='ai'));
+    bSelectGlbProp(bAiSrc(m), (m.skeleton==='prop'?'🏺 ':'🧍 ')+m.name);
+    document.getElementById('bLibWrap')?.scrollIntoView({block:'center'});
+  }catch(e){ console.warn('[Tabletop] Generate hand-off failed', e); } }
 // dev hooks (parity with GLB Chess for headless verification)
 // __pump drives the anim queue + mixers via timers, so automated tests can complete moves even
 // when the tab is backgrounded and requestAnimationFrame is paused (production uses loop()/rAF).
