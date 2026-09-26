@@ -1783,9 +1783,10 @@ export function buildTileMesh(def, gridKind, seed, variant, mass, customTex){
       top.rotation.y = (gridKind==='hex'?Math.PI/3:Math.PI/2) * Math.floor(rr()*steps); }   // uploaded art stays upright
     grp.add(top);
   }
-  // rim — a crisp thin tile outline drawn on top (depth-test off) so the hex/grid line stays clean over the blend
+  // rim — a crisp thin tile outline just above every flat ground layer (top .02, blends, paths ≤ .032) so the grid line stays
+  // clean over them; DEPTH-TESTED (v1.37) so props / buildings / trees standing on the map hide it (it used to show through them)
   const rimPts=g.corners(); const rimGeo=new THREE.BufferGeometry().setFromPoints(rimPts.concat([rimPts[0]]).map(c=>new THREE.Vector3(c[0],TOP+0.04,c[1])));
-  const rim=new THREE.LineLoop(rimGeo, new THREE.LineBasicMaterial({color:0x12100c, transparent:true, opacity:0.28, depthTest:false, depthWrite:false}));
+  const rim=new THREE.LineLoop(rimGeo, new THREE.LineBasicMaterial({color:0x12100c, transparent:true, opacity:0.28, depthWrite:false}));
   rim.renderOrder=2; grp.add(rim);
   // transition biome tint
   transitionTint(grp, def, gridKind);

@@ -1,0 +1,72 @@
+[
+ {
+  "id": "airliner",
+  "name": "Passenger jet",
+  "em": "✈",
+  "ft": 100,
+  "axis": "len"
+ },
+ {
+  "id": "tank",
+  "name": "Battle tank",
+  "em": "🎖",
+  "ft": 32,
+  "axis": "len"
+ },
+ {
+  "id": "galleon",
+  "name": "Pirate galleon",
+  "em": "🏴‍☠️",
+  "ft": 150,
+  "axis": "len"
+ },
+ {
+  "id": "marble-statue",
+  "name": "Marble statue",
+  "em": "🗿",
+  "ft": 12,
+  "axis": "ht"
+ },
+ {
+  "id": "statue-liberty",
+  "name": "Liberty statue",
+  "em": "🗽",
+  "ft": 150,
+  "axis": "ht"
+ },
+ {
+  "id": "locomotive",
+  "name": "Steam locomotive",
+  "em": "🚂",
+  "ft": 55,
+  "axis": "len"
+ },
+ {
+  "id": "treasure",
+  "name": "Treasure chest",
+  "em": "💰",
+  "ft": 4,
+  "axis": "len"
+ },
+ {
+  "id": "helicopter",
+  "name": "Helicopter",
+  "em": "🚁",
+  "ft": 50,
+  "axis": "len"
+ },
+ {
+  "id": "schoolbus",
+  "name": "School bus",
+  "em": "🚌",
+  "ft": 40,
+  "axis": "len"
+ },
+ {
+  "id": "firetruck",
+  "name": "Fire engine",
+  "em": "🚒",
+  "ft": 35,
+  "axis": "len"
+ }
+]

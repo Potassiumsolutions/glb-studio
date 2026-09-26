@@ -124,7 +124,24 @@
     const isWater = (k) => biome[k] === B.WATER, isHigh = (k) => biome[k] === B.MOUNTAINS || biome[k] === B.SNOW;
     const hasRiver = (k) => edges[k] && edges[k].includes(P.RIVER);
     const devable = (k) => load(k) && !isWater(k) && !isHigh(k);
-    const dn = (k) => { const w = pos(k); return Math.hypot(w.x - ctx.cx, w.z - ctx.cz) / (ctx.span || 1); };
+    /* EXTEND MODES (host sets ctx.extMode; Paul 2026-09-25): 'grow' = "Extend with → City blocks": downtown keeps growing —
+       the new land is zoned around ITS OWN centre (towers in the middle, apartments & shops round them) · 'fade' = Match /
+       a plain terrain on a city or suburbs map: the city FINISHES OUT — development thins from the seam and has ended
+       ~3 blocks in (or by the far edge of a narrower strip); only the avenues carry on as country roads. */
+    const seamD = {}; let fadeL = 1, gC = null, gR = 1;
+    if (ctx.extMode) { const q = [];
+      const built = (n) => load(n) && (biome[n] === B.URBAN || biome[n] === B.SUBURB || biome[n] === B.LOT);   // the fade starts only where the old side is BUILT UP (extending past countryside stays countryside)
+      const depth = {}; for (const k of keysW) for (let d = 0; d < N; d++) { const n = nb(k, d); if (!W.has(n) && board.has(n)) { depth[k] = 0; q.push(k); break; } }   // strip depth from the seam
+      for (let h = 0; h < q.length; h++) { const k = q[h]; for (let d = 0; d < N; d++) { const n = nb(k, d); if (W.has(n) && depth[n] == null) { depth[n] = depth[k] + 1; q.push(n); } } }
+      const deep = Object.values(depth).reduce((m, v) => Math.max(m, v), 0) + 1; fadeL = Math.max(2, Math.min(deep, 3 * S));
+      // fade distance: starts where the old side is BUILT, at the fade level that old cell had reached (rec.fade), so a
+      // second Extend past a thinning strip carries on thinning instead of starting a fresh ring of houses
+      const fq = []; for (const k of keysW) for (let d = 0; d < N; d++) { const n = nb(k, d); if (!W.has(n) && board.has(n) && (ctx.extMode === 'grow' || built(n))) { const v = ((board.get(n) || {}).fade || 0) * fadeL; if (seamD[k] == null || v < seamD[k]) { seamD[k] = v; fq.push(k); } } }
+      for (let h = 0; h < fq.length; h++) { const k = fq[h]; for (let d = 0; d < N; d++) { const n = nb(k, d); if (W.has(n) && (seamD[n] == null || seamD[k] + 1 < seamD[n])) { seamD[n] = seamD[k] + 1; fq.push(n); } } }
+      if (ctx.extMode === 'grow') { let x = 0, z = 0; keysW.forEach(k => { const w = pos(k); x += w.x; z += w.z; }); gC = [x / keysW.length, z / keysW.length];
+        keysW.forEach(k => { const w = pos(k); gR = Math.max(gR, Math.hypot(w.x - gC[0], w.z - gC[1])); }); } }
+    const dn = (k) => { const w = pos(k); if (gC && W.has(k)) return 0.5 * Math.hypot(w.x - gC[0], w.z - gC[1]) / gR; return Math.hypot(w.x - ctx.cx, w.z - ctx.cz) / (ctx.span || 1); };
+    const fadeOut = (k) => (ctx.extMode === 'fade' && W.has(k)) ? (seamD[k] == null ? 1 : seamD[k] / fadeL) : 0;   // 0 at the seam → 1 where the city has ended
     const noise = (k, f, s) => { const w = pos(k); return (Math.sin(w.x * f + s) + Math.cos(w.z * f * 1.13 + s * 1.7) + Math.sin((w.x - w.z) * f * 0.71 + s * 0.3)) / 6 + 0.5; };
 
     /* ---- 1. STREET GRID (fixed to map coordinates) ---- */
@@ -143,6 +160,7 @@
       const lo = axis === 'A' ? (c.r < cn.r ? c : cn) : (c.q < cn.q ? c : cn);
       const av = axis === 'A' ? avenueA(c) : avenueB(c);
       if (!av && !keepSeg(axis, axis === 'A' ? lineA(c) : lineB(c), axis === 'A' ? segA(lo) : segB(lo))) return;
+      if (!av && (fadeOut(k) >= 0.6 || (W.has(n) && fadeOut(n) >= 0.6))) return;   // fading city: side streets stop, avenues run on as roads
       if (!devable(k)) return;
       if (edges[k][d] === P.RIVER) return;                            // the river runs along this line here → the street gives way (Paul: streams ran UNDER roads for cells)
       const onBoard = W.has(n) || board.has(n);
@@ -386,6 +404,7 @@
         const d = dn(k), pk = noise(k, 0.9, ctx.seed % 97), onSt = street.has(k), rv = hasRiver(k), h = hash(ctx.seed, cellOf(k).q, cellOf(k).r);
         if (rail.has(k)) { if (!stationDone && theme === 'city' && d < 0.45) { setB(k, B.URBAN, 'station'); stationDone = true; } else setB(k, onSt ? B.URBAN : biome[k] === B.FOREST ? B.PARK : B.URBAN, 'railside'); continue; }
         if (rv && !onSt) { setB(k, B.PARK, 'park'); continue; }                                   // riverside parkland
+        if (ctx.extMode === 'fade') { const f = fadeOut(k); if (f >= 1 || hash(ctx.seed + 7, cellOf(k).q, cellOf(k).r) < f * 1.15) continue; }   // thinning out → open country
         if (theme === 'city') {
           if (onSt) { setB(k, d < 0.62 ? B.URBAN : B.SUBURB, d < 0.62 ? 'streetside' : 'homes'); continue; }
           if (pk > 0.8 || (biome[k] === B.FOREST && d < 0.8)) { setB(k, B.PARK, h < 0.3 && d > 0.3 ? 'sportsfield' : 'park'); continue; }
@@ -472,6 +491,7 @@
       let f = feature[k] !== undefined ? feature[k] : featDefault(bm);
       if (sig.includes(P.RIVER) && (sig.includes(P.ROAD) || sig.includes(P.RAIL)) && !sig.includes(P.HWY)) f = 'bridge';
       const id = TE.registerGen(defs, gridKind, bm, sig, f), old = extra[k] || {}, rec = { defId: id, rot: 0 };
+      if (ctx.extMode === 'fade' && W.has(k)) rec.fade = +Math.min(1, fadeOut(k)).toFixed(3); else if (old.fade !== undefined) rec.fade = old.fade;   // how far the city has thinned here
       if (old.mass !== undefined) rec.mass = old.mass; if (old.variant !== undefined) rec.variant = old.variant; if (old.tree !== undefined) rec.tree = old.tree;
       board.set(k, rec); };
     keysW.forEach(realise); touched.forEach(realise);
@@ -506,7 +526,7 @@
       return out; };
     const draw = [];
     for (const t in segs) for (const run of (t === 'rail' ? TE.chainSegments(segs[t]) : chainStraight(segs[t]))) if (run.length >= 2) draw.push({ type: t, pts: t === 'rail' ? trueLine(run, 0.8) : run });
-    ctx.first = false;
+    ctx.first = false; delete ctx.extMode;
     return { draw, ctx, towns };
   }
 
