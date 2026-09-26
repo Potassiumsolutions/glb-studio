@@ -1063,7 +1063,7 @@ function highwayTex(){ return _hwyTex || (_hwyTex = makeStripTex((x,w,h)=>{
   x.fillStyle='#b5b1a8'; x.fillRect(0,0,w*0.05,h); x.fillRect(w*0.95,0,w*0.05,h); x.fillRect(w*0.485,0,w*0.03,h);   // barriers + median
   x.fillStyle='rgba(245,245,240,.9)'; for(const f of [0.25,0.75]) x.fillRect(w*f-1,0,2,h*0.5);                          // dashed lane lines
   x.fillStyle='#e8c230'; x.fillRect(w*0.46,0,1.5,h); x.fillRect(w*0.54-1.5,0,1.5,h); },96,64)); }
-export function highwayAlong(points){
+export function highwayAlong(points, clear){
   if(!points || points.length<2) return null;
   const grp=new THREE.Group(); grp.name='highway';
   const Y=_scale==='battle'?TOP+1.6:TOP+0.16, W=_scale==='battle'?3.2:0.34;
@@ -1078,12 +1078,58 @@ export function highwayAlong(points){
   const deck=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({map:tex,roughness:0.85,side:THREE.DoubleSide})); deck.receiveShadow=true; grp.add(deck);
   // deck underside + edge beams, piers every ~0.5
   const conc=_vc(0xa9a6a0,{roughness:0.9}), step=_scale==='battle'?5:0.5;
+  const clr=(clear||[]), clrR=_scale==='battle'?4:0.2;                                            // no pier in a street / railway that passes under
   for(let s=0;s<=L;s+=step){ const u=Math.min(1,s/L), p=curve.getPointAt(u), t=curve.getTangentAt(u), a=Math.atan2(t.x,t.z);
+    if(clr.some(c=>Math.hypot(c.x-p.x,c.z-p.z)<clrR)) continue;
     const pier=_boxB(W*0.3,Y-TOP,W*0.12,conc); pier.position.set(p.x,TOP+(Y-TOP)/2,p.z); pier.rotation.y=a; grp.add(pier);
     const cap=_boxB(W*0.95,W*0.08,W*0.14,conc); cap.position.set(p.x,Y-W*0.05,p.z); cap.rotation.y=a; grp.add(cap); }
   for(const side of [-1,1]){ const bp=[]; for(let i=0;i<=N;i++){ const u=i/N, p=curve.getPointAt(u), t=curve.getTangentAt(u), nx=-t.z, nz=t.x; bp.push(new THREE.Vector3(p.x+nx*W/2*side,Y+W*0.03,p.z+nz*W/2*side)); }
     const bc=new THREE.CatmullRomCurve3(bp); const tube=new THREE.Mesh(new THREE.TubeGeometry(bc,N,W*0.03,4,false),conc); grp.add(tube); }
   return grp; }
+
+/* ===================== BRIDGES (v1.35) =====================
+   A span where a drawn street / road / railway / trail crosses a drawn river or stream. The road ribbon stays the
+   running surface (traffic keeps driving on it); this adds what makes it READ as a bridge: parapets (streets),
+   a steel truss or plate girder (railways), plank deck + rails (trails / dirt roads), stone parapets (fantasy roads),
+   a deck fascia over the water and a pier on long spans. Built along +z, centred on the crossing — the host rotates
+   it to the road's heading. The river ribbon draws with depthTest OFF (always on top), so every part here is a late
+   (renderOrder 9) depth-tested pass that paints over the water. Flat (print) mode = the same footprint as flat bars. */
+const _brMat=(hex,o)=>_mMat('br'+hex+(o?JSON.stringify(o):''),()=>new THREE.MeshStandardMaterial(Object.assign({color:hex,roughness:0.85,metalness:0,transparent:true,opacity:1,depthWrite:true},o||{})));
+export function strokeWidth(type, cls){ if(type==='river' && cls && RIVER_W[_scale][cls]) return RIVER_W[_scale][cls]; const s=DRAW_SPEC[type]&&DRAW_SPEC[type](); return s?s.w:0.2; }
+export function bridgeSpan(kind, len, width, style, opts){ opts=opts||{};
+  const g=new THREE.Group(); g.name='bridge'; const B=_scale==='battle', ROAD=TOP+0.034;
+  const u=B ? { t:0.28, ph:0.6, post:0.75, pier:0.5, truss:2.2, gap:1.6, rail:0.55, plank:0.12 }
+            : { t:0.016, ph:0.022, post:0.03, pier:0.03, truss:0.06, gap:0.07, rail:0.02, plank:0.007 };
+  const box=(w,h,d,m,x,y,z,under)=>{ if(_flat){ if(under) return null; h=0.003; y=ROAD+0.008; } const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m); b.position.set(x,y,z); b.renderOrder=under?6:9;   // under-road parts draw after the river (5) but before the road (7) so the road paints over them
+    if(!_flat){ b.castShadow=true; b.receiveShadow=true; } g.add(b); return b; };
+  const hw=width/2, modern=style==='modern';
+  if(kind==='rail'){
+    const steel=_brMat(0x8a939c,{roughness:0.5,metalness:0.35}), X=hw+u.t*0.6;
+    const truss=!_flat, TH=len>(B?4:0.3)?u.truss:u.truss*0.6;             // through truss on long spans, a low pony truss on streams
+    for(const s of [-1,1]){
+      box(u.t*0.8, truss?u.t*1.2:u.ph*1.3, len, steel, s*X, ROAD+(truss?u.t*0.6:u.ph*0.65), 0);            // bottom chord / plate girder
+      if(!truss) continue;
+      box(u.t*0.8, u.t, len-u.gap, steel, s*X, ROAD+TH, 0);                                                // top chord
+      const n=Math.max(2,Math.round(len/(TH<u.truss?u.gap*0.7:u.gap)));
+      for(let i=0;i<=n;i++){ const z=-len/2+i*len/n; box(u.t*0.6, TH, u.t*0.6, steel, s*X, ROAD+TH/2, z); }   // verticals
+      for(let i=0;i<n;i++){ const z0=-len/2+i*len/n, z1=z0+len/n, d=new THREE.Mesh(new THREE.BoxGeometry(u.t*0.45, Math.hypot(TH,z1-z0), u.t*0.45), steel);   // diagonals
+        d.position.set(s*X, ROAD+TH/2, (z0+z1)/2); d.rotation.x=(i%2?1:-1)*Math.atan2(z1-z0,TH); d.renderOrder=9; d.castShadow=true; g.add(d); } }
+    if(truss && TH===u.truss) for(const z of [-len/2+u.gap/2, len/2-u.gap/2]) box(2*X, u.t*0.7, u.t*0.7, steel, 0, ROAD+TH, z);   // portal bracing (through truss only)
+  } else if(kind==='trail' || (!modern && kind==='road')){
+    const wood=_brMat(0x7a5a3a), dark=_brMat(0x4e3522), W=width+u.t*2;
+    if(!_flat){ const n=Math.max(3,Math.round(len/(u.plank*3.2))); for(let i=0;i<n;i++) box(W, u.plank, len/n*0.82, i%2?wood:_brMat(0x866444), 0, ROAD+u.plank/2, -len/2+(i+0.5)*len/n); }   // plank deck
+    for(const s of [-1,1]){ box(u.t*0.7, u.t*0.7, len, dark, s*(W/2), ROAD+u.rail+u.plank, 0);                    // hand rail
+      const n=Math.max(2,Math.round(len/(u.gap*1.2))); for(let i=0;i<=n;i++) box(u.t*0.7, u.rail+u.plank, u.t*0.7, dark, s*(W/2), ROAD+(u.rail+u.plank)/2, -len/2+i*len/n); }
+  } else {
+    const conc=modern ? _brMat(0xc2bdb3) : _brMat(0x9d9282,{roughness:0.95}), fascia=modern ? _brMat(0x8e8a83) : _brMat(0x857a6a,{roughness:0.95}), X=hw+u.t/2;
+    for(const s of [-1,1]){
+      if(!opts.open){ box(u.t, u.ph, len, conc, s*X, ROAD+u.ph/2, 0);                                            // parapet
+        for(const z of [-len/2, len/2]) box(u.t*1.5, u.ph*1.25, u.t*1.5, conc, s*X, ROAD+u.ph*0.625, z); }       // end posts
+      box(u.t*1.4, ROAD-TOP-0.006, len, fascia, s*X, TOP+0.002+(ROAD-TOP-0.006)/2, 0, true); }                     // deck edge over the water
+    if(!_flat && len>(B?5:0.34)){ const n=Math.max(1,Math.round(len/(B?5:0.32))-1);
+      for(let i=1;i<=n;i++) box(width+u.t*2.4, ROAD-TOP-0.006, u.pier, fascia, 0, TOP+(ROAD-TOP-0.006)/2, -len/2+i*len/(n+1), true); }   // piers
+  }
+  return g; }
 
 /* ===================== INDUSTRIAL ===================== */
 function _corrTex(base){ return _mTex('corr'+base,64,64,(x,W,H)=>{ x.fillStyle=base; x.fillRect(0,0,W,H); for(let i=0;i<W;i+=4){ x.fillStyle='rgba(0,0,0,.12)'; x.fillRect(i,0,1.5,H); x.fillStyle='rgba(255,255,255,.1)'; x.fillRect(i+2,0,1,H); } }); }
@@ -1194,11 +1240,20 @@ function modernScatter(group, def, gridKind, f, pts, r, mass, pathDirs, railDirs
     if(f==='marina'){ water(); group.add(_marina(r, gr.edgeMid(info.dir||0))); return true; }
     if(f==='pier'){ water(); group.add(_pier(r, gr.edgeMid(info.dir||0))); return true; }
     if(f==='powerplant'){ const W=info.w||2, H=info.h||2, sub=new THREE.Group(); if(gridKind==='square') sub.position.set((W-1)/2,0,(H-1)/2); sub.add(_powerPlant(gridKind,W,H,r)); group.add(sub); return true; }
-    if(f==='interchange'){ // on/off ramps: a sloped deck either side of the elevated highway, down to the street it crosses
+    if(f==='interchange'){ // DIAMOND on/off ramps (v1.35): parallel to the elevated freeway, one pair each side of the cross street,
+      // each ramp's FOOT set back from the street by the street's half-width + a clearance, measured ALONG the freeway and
+      // allowing for a skewed (hex, 60°) crossing — so cross-street traffic passes under the freeway without meeting a ramp.
       const hd=def.edges.map((e,i)=>e.path===P.HWY?gr.edgeMid(i):null).filter(Boolean)[0]; if(!hd) return true;
-      const a=Math.atan2(hd[0],hd[1]), conc=_mCol(0x9e9b95,{roughness:0.9}), Y=0.16;
-      for(const s of [-1,1]){ const len=0.95, rise=Y, ramp=_boxB(0.1,0.02,len,[conc,conc,_mMat('rampTop',()=>new THREE.MeshStandardMaterial({color:0x3a3c40,roughness:0.9})),conc,conc,conc]);
-        const inner=new THREE.Group(); inner.rotation.y=a; group.add(inner); ramp.position.set(s*0.25,TOP+rise/2+0.01,s*0.02); ramp.rotation.x=s*Math.atan2(rise,len); inner.add(ramp); }
+      const a=Math.atan2(hd[0],hd[1]), conc=_mCol(0x9e9b95,{roughness:0.9}), top=_mMat('rampTop',()=>new THREE.MeshStandardMaterial({color:0x3a3c40,roughness:0.9})), Y=0.16;
+      const sd=def.edges.map((e,i)=>e.path===P.ROAD?gr.edgeMid(i):null).filter(Boolean)[0]||[Math.cos(a),-Math.sin(a)];
+      const lx=sd[0]*Math.cos(a)-sd[1]*Math.sin(a), lz=sd[0]*Math.sin(a)+sd[1]*Math.cos(a);          // cross street in the freeway frame (x across, z along)
+      const HW=0.17, RW=0.1, X=HW+RW/2+0.012, SH=0.1, CLR=0.05, LEN=0.62, sin=Math.abs(lx)/(Math.hypot(lx,lz)||1), hwEff=SH/Math.max(sin,0.3);
+      const inner=new THREE.Group(); inner.rotation.y=a; group.add(inner); inner.userData.ramps=[];
+      for(const s of [-1,1]){ const x=s*X, zc=Math.abs(lx)>1e-3 ? x*lz/lx : 0;                        // where the street centre-line passes this ramp lane
+        for(const l of [-1,1]){ const z0=zc+l*(hwEff+CLR), z1=z0+l*LEN, L=Math.hypot(LEN,Y);
+          const ramp=_boxB(RW,0.02,L,[conc,conc,top,conc,conc,conc]); ramp.position.set(x,TOP+Y/2+0.01,(z0+z1)/2); ramp.rotation.x=-l*Math.atan2(Y,LEN); inner.add(ramp);
+          const pad=_boxB(RW,0.006,CLR+0.02,[conc,conc,top,conc,conc,conc]); pad.position.set(x,TOP+0.034,zc+l*(hwEff+CLR/2)); inner.add(pad);   // at-grade link to the street
+          inner.userData.ramps.push({x,z0,z1}); } }
       return true; } }
   if(f==='airport'||f==='military'||f==='spacehub'||f==='port'){ const W=info.w||2, H=info.h||2, sub=new THREE.Group(); if(gridKind==='square') sub.position.set((W-1)/2,0,(H-1)/2);
     sub.add(f==='airport'?_airport(gridKind,W,H,r): f==='military'?_military(gridKind,W,H,r): f==='spacehub'?_spaceHub(gridKind,W,H,r): _seaPort(gridKind,W,H,info.dir||0,r)); group.add(sub); return true; }

@@ -15,6 +15,12 @@
   #app{display:flex;height:100%}
   #side{width:346px;min-width:346px;height:100%;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column}
   #stage{flex:1;position:relative;min-width:0}
+  #bLvlPad{position:absolute;right:12px;top:50%;transform:translateY(-50%);z-index:30;display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px;background:rgba(16,21,31,.82);border:1px solid #2b3648;border-radius:12px;box-shadow:0 6px 20px rgba(0,0,0,.45);font:12px system-ui,Arial,sans-serif;color:#dfe7f2;max-height:80%}
+  #bLvlPad[hidden]{display:none}
+  #bLvlPad button{min-width:44px;min-height:32px;border:1px solid #33405a;border-radius:8px;background:#1c2536;color:#dfe7f2;cursor:pointer;font:600 12px system-ui,Arial,sans-serif;padding:3px 8px}
+  #bLvlPad button:hover:not(:disabled){background:#2a3852} #bLvlPad button:disabled{opacity:.35;cursor:default}
+  #bLvlPad button.on{background:var(--acc);border-color:var(--acc);color:#fff} #bLvlPad .lvlList{display:flex;flex-direction:column;gap:3px;overflow:auto}
+  #bLvlPad .lvlT{font-size:10px;opacity:.7;text-transform:uppercase;letter-spacing:.06em}
   canvas{display:block}
   header{padding:12px 14px;border-bottom:1px solid var(--line)}
   header h1{margin:0;font-size:16px;letter-spacing:.3px}
@@ -363,6 +369,18 @@
           <optgroup label="Home printing — Letter 8½×11 (print at 100%)">
             <option value="letter">🖨 Letter Sheet · Portrait (8½×11)</option>
             <option value="letterLand">🖨 Letter Sheet · Landscape (11×8½)</option>
+          </optgroup>
+          <optgroup label="Print shop — FedEx Office · Staples · Vistaprint (PDF)">
+            <option value="tab11x17">🏪 Card stock 11×17 · trim yourself</option>
+            <option value="tab17x11">🏪 Card stock 17×11 landscape · trim yourself</option>
+            <option value="post12x18">🏪 Poster 12×18 · full bleed</option>
+            <option value="post18x12">🏪 Poster 18×12 landscape · full bleed</option>
+            <option value="post18x24">🏪 Poster 18×24 · full bleed</option>
+            <option value="post24x18">🏪 Poster 24×18 landscape · full bleed</option>
+            <option value="post24x36">🏪 Poster 24×36 · full bleed</option>
+            <option value="post36x24">🏪 Poster 36×24 landscape · full bleed</option>
+            <option value="post36x48">🏪 Poster 36×48 · full bleed</option>
+            <option value="post48x36">🏪 Poster 48×36 landscape · full bleed</option>
           </optgroup>
           <optgroup label="Hex mat sets — one image">
             <option value="flower">🌸 Flower Mat (7 hex)</option>
@@ -969,6 +987,7 @@
   </div>
 
   <div id="stage">
+    <div id="bLvlPad" hidden><span class="lvlT" id="bLvlT">Level</span><button id="bLvlA" title="Up">▲</button><div class="lvlList" id="bLvlList"></div><button id="bLvlB" title="Down">▼</button></div>
     <div id="tuckStage" hidden>
       <div id="cardsBar">
         <div class="seg" id="tSheetSeg"></div>
@@ -1153,13 +1172,13 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshSurfaceSampler } from 'three/addons/math/MeshSurfaceSampler.js';
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
-import { buildTileMesh, liftSkirt, trainAlong, trafficAlong, highwayAlong, MODERN_PROP_KINDS, stepAngle as tileStepAngle, pathRibbonAlong, wallRibbonAlong, wallFlatAlong, pathPlate, makeProp, PROP_KINDS, biomeVariantCount, subdivisionOverlay, subdivisionCount, subdivisionCells, setTileFlat, setTileScale, makeBattleProp, registerCustomTile, unregisterCustomTile, customTileImageScaled } from './tile-render.js';
+import { buildTileMesh, liftSkirt, trainAlong, trafficAlong, highwayAlong, bridgeSpan, strokeWidth, MODERN_PROP_KINDS, stepAngle as tileStepAngle, pathRibbonAlong, wallRibbonAlong, wallFlatAlong, pathPlate, makeProp, PROP_KINDS, biomeVariantCount, subdivisionOverlay, subdivisionCount, subdivisionCells, setTileFlat, setTileScale, makeBattleProp, registerCustomTile, unregisterCustomTile, customTileImageScaled } from './tile-render.js';
 import * as Cards from './cards-deck.js';
 import * as Tuck from './tuckbox-designer.js';
 
 const BGC = window.BGC, GAMES = window.BGC_GAMES;
 const TE = window.TileEngine, TLIB = window.TileLibrary;
-const APP_VERSION = 'v1.34';
+const APP_VERSION = 'v1.35';
 const CREDITS = `<b>Ksol Designs</b> — Paul A.T. Ramey<br>www.ksoldesigns.com<br>Built with GLB Studio · Tabletop<br><span class="ver">${APP_VERSION}</span>`;
 // ---- Board credit: a small "KSOL Designs" mark on the board for the FREE build. Owning ANY content pack
 // (TTier expansion) unlocks removing it (⚙ Settings toggle, or click the credit). ----
@@ -1781,7 +1800,7 @@ function buildPiece(roleKey){
 const PRINT_SIZES=[ {id:'tiny',name:'Tiny',ft:2.5,sq:0.5,base:20}, {id:'small',name:'Small',ft:4,sq:1,base:25}, {id:'medium',name:'Medium',ft:6,sq:1,base:25},
   {id:'large',name:'Large',ft:10,sq:2,base:50}, {id:'huge',name:'Huge',ft:16,sq:3,base:75}, {id:'garg',name:'Gargantuan',ft:24,sq:4,base:100} ];
 const PRINT_MM_PER_FT=25.4/5, PRINT_BASE_H=3.2, PRINT_SINK=0.4;
-const _prSet={ mode:'grid', cellMm:25.4, hOverride:0, base:'auto', fmt:'both' };   // remembered for the session
+const _prSet={ mode:'grid', cellMm:25.4, hOverride:0, base:'auto', fmt:'both', legs:'auto' };   // remembered for the session
 const _prItem={};                                                                  // per item key: {pose, frac, size}
 function printSizeFor(scale){ const s=scale||1; return s<=0.6?'tiny':s<=1.3?'medium':s<=2.3?'large':s<=3.3?'huge':'garg'; }
 async function printPosed(proto, poseId, frac){ let inst; try{ inst=skeletonClone(proto); }catch(e){ inst=proto.clone(true); }
@@ -1814,15 +1833,65 @@ function printBaseMesh(d, h){ const R=d/2, ch=Math.min(0.8,h*0.3,R*0.2), N=Math.
   for(let i=0;i<N;i++){ const j=(i+1)%N; I.push(cb,b+j,b+i); I.push(ct,t+i,t+j);
     for(const [L,U] of [[b,m],[m,t]]){ I.push(L+i,L+j,U+j, L+i,U+j,U+i); } }
   return {P:new Float32Array(P), I:new Uint32Array(I)}; }
+/* 🦵 THIN-LEG SUPPORT (v1.35) — slice the posed figure (mm, Z-up) upward from the feet like a slicer does; follow each piece
+   that STARTS AT THE GROUND (a leg — hands hanging at hip height aren't grounded, so they're ignored) until legs join
+   (crotch / belly). Each leg's thinnest cross-section is measured. If one is thinner than an FDM printer can hold together
+   (~2.2 mm) — or always, if asked — a rectangular block is added BETWEEN the legs, from the base up to just under the crotch,
+   its ends buried in each leg, so the legs print as one solid piece. 4 legs (animals) → the block sits under the belly. */
+const PRINT_THIN_LEG=2.2;
+function printLegs(P, I, nI, z0, H){
+  const top=z0+H*0.62, step=Math.max(0.3,H/100), cell=Math.max(0.18,H/170), tris=[];
+  for(let t=0;t<nI;t+=3){ const a=I[t]*3,b=I[t+1]*3,c=I[t+2]*3, zl=Math.min(P[a+2],P[b+2],P[c+2]); if(zl>top) continue; tris.push([zl,Math.max(P[a+2],P[b+2],P[c+2]),a,b,c]); }
+  const slice=(h)=>{ const occ=new Map(), mark=(x,y)=>{ const gx=Math.round(x/cell), gy=Math.round(y/cell); for(let dx=-1;dx<=1;dx++) for(let dy=-1;dy<=1;dy++) occ.set((gx+dx)+','+(gy+dy),[gx+dx,gy+dy]); };
+    for(const T of tris){ if(T[0]>h||T[1]<h) continue; const v=[T[2],T[3],T[4]], pts=[];
+      for(let e=0;e<3;e++){ const p=v[e], q=v[(e+1)%3], zp=P[p+2], zq=P[q+2]; if((zp-h)*(zq-h)>0 || zp===zq) continue; const f=(h-zp)/(zq-zp); pts.push([P[p]+f*(P[q]-P[p]), P[p+1]+f*(P[q+1]-P[p+1])]); }
+      if(pts.length>=2){ const A=pts[0], B=pts[1], n=Math.max(1,Math.ceil(Math.hypot(B[0]-A[0],B[1]-A[1])/cell)); for(let i=0;i<=n;i++) mark(A[0]+(B[0]-A[0])*i/n, A[1]+(B[1]-A[1])*i/n); } }
+    const seen=new Set(), comps=[];
+    for(const [k,g] of occ){ if(seen.has(k)) continue; seen.add(k); const st=[g]; let x0=g[0],x1=g[0],y0=g[1],y1=g[1],n=0;
+      while(st.length){ const [x,y]=st.pop(); n++; if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y;
+        for(let dx=-1;dx<=1;dx++) for(let dy=-1;dy<=1;dy++){ const kk=(x+dx)+','+(y+dy); if(!seen.has(kk)&&occ.has(kk)){ seen.add(kk); st.push([x+dx,y+dy]); } } }
+      const c={x0:(x0+1)*cell, x1:(x1-1)*cell, y0:(y0+1)*cell, y1:(y1-1)*cell, n}; c.cx=(c.x0+c.x1)/2; c.cy=(c.y0+c.y1)/2; c.t=Math.max(0,Math.min(c.x1-c.x0,c.y1-c.y0)); comps.push(c); }
+    return comps.filter(c=>c.n>=6); };
+  // follow every piece CONNECTED TO THE GROUND upward (a piece continues a grounded piece below it when it covers part of that
+  // piece's cross-section box). Legs may touch (feet together, knees together) and separate again, so the crotch / belly is the
+  // LAST height where 2+ grounded pieces are still apart. Pieces with no grounded piece below (hands, a tail) are ignored.
+  const cover=(a,c)=>{ const ix=Math.min(a.x1,c.x1)-Math.max(a.x0,c.x0)+cell, iy=Math.min(a.y1,c.y1)-Math.max(a.y0,c.y0)+cell; return (ix>0&&iy>0)?ix*iy:0; };
+  let act=null; const rows=[];
+  for(let h=z0+Math.min(1.2,H*0.04); h<top; h+=step){ const cs=slice(h); if(window.__legDebug) (window.__legLog=window.__legLog||[]).push({h:+(h-z0).toFixed(2), cs:cs.map(c=>[+c.cx.toFixed(1),+c.cy.toFixed(1),+(c.x1-c.x0).toFixed(1),+(c.y1-c.y0).toFixed(1),c.n])});
+    if(!act){ if(cs.length){ act=cs; rows.push({h, g:cs}); } continue; }
+    const g=cs.filter(c=>act.some(a=>cover(a,c)>0)); if(!g.length) break; act=g; rows.push({h, g}); }
+  const split=rows.filter(r=>r.g.length>=2); if(!split.length) return {n:rows.length?1:0, minT:rows.length?Math.min(...rows.map(r=>Math.min(...r.g.map(c=>c.t)))):null, crotch:null, legs:[]};
+  const lastSplit=split[split.length-1].h, crotch=lastSplit+step, band=rows.filter(r=>r.h<=lastSplit);
+  const minT=Math.min(...band.map(r=>Math.min(...r.g.map(c=>c.t))));
+  const target=z0+(crotch-z0)*0.45; let pick=split[0]; for(const r of split) if(Math.abs(r.h-target)<Math.abs(pick.h-target)) pick=r;
+  const legs=pick.g.map(c=>({track:[{h:pick.h,...c}]}));                                   // the separate legs, measured at ~45% of the way up to the crotch
+  return {n:Math.max(...split.map(r=>r.g.length)), minT, crotch, legs}; }
+// a closed box between the legs (u = across the legs, v = its thickness), outward-facing
+function printLegStrut(A, z0, zb, T){ const cz=z0+(A.crotch-z0)*0.45, cs=A.legs.map(L=>{ let e=L.track[0]; for(const t of L.track) if(Math.abs(t.h-cz)<Math.abs(e.h-cz)) e=t; return [e.cx,e.cy]; });
+  const mx=cs.reduce((a,c)=>a+c[0],0)/cs.length, my=cs.reduce((a,c)=>a+c[1],0)/cs.length;
+  let sxx=0,sxy=0,syy=0; for(const [x,y] of cs){ sxx+=(x-mx)**2; sxy+=(x-mx)*(y-my); syy+=(y-my)**2; }
+  const ang=0.5*Math.atan2(2*sxy, sxx-syy), u=[Math.cos(ang),Math.sin(ang)], v=[-u[1],u[0]];            // principal axis through the feet
+  const pu=cs.map(c=>(c[0]-mx)*u[0]+(c[1]-my)*u[1]), pv=cs.map(c=>(c[0]-mx)*v[0]+(c[1]-my)*v[1]);
+  let a0=Math.min(...pu), a1=Math.max(...pu), b0=Math.min(...pv), b1=Math.max(...pv); if(b1-b0<T){ const m=(b0+b1)/2; b0=m-T/2; b1=m+T/2; }
+  const zt=Math.max(z0+1.2, A.crotch-Math.max(0.5,(A.crotch-z0)*0.08));
+  const P=[], I=[], pt=(a,b,z)=>P.push(mx+u[0]*a+v[0]*b, my+u[1]*a+v[1]*b, z);
+  for(const z of [zb,zt]) for(const [a,b] of [[a0,b0],[a1,b0],[a1,b1],[a0,b1]]) pt(a,b,z);
+  const q=(a,b,c,d)=>I.push(a,b,c,a,c,d); q(0,3,2,1); q(4,5,6,7); q(0,1,5,4); q(1,2,6,5); q(2,3,7,6); q(3,0,4,7);
+  return {P, I, len:a1-a0, thick:b1-b0, h:zt-zb}; }
 // scaled, Z-up, welded mesh of the figure (+ base) — the exact thing the preview shows and the files contain
-function printBuild(chunks, meas, k, baseD){ const lift=baseD>0?PRINT_BASE_H-PRINT_SINK:0, q=1/2000, map=new Map(), P=[], I=[];
+function printBuild(chunks, meas, k, baseD, legsMode){ const lift=baseD>0?PRINT_BASE_H-PRINT_SINK:0, q=1/2000, map=new Map(), P=[], I=[];
   const add=(X,Y,Z)=>{ const key=Math.round(X/q)+','+Math.round(Y/q)+','+Math.round(Z/q); let id=map.get(key); if(id===undefined){ id=P.length/3; P.push(X,Y,Z); map.set(key,id); } return id; };
   for(const {W,T} of chunks){ const ids=new Int32Array(W.length/3).fill(-1);
     const vid=(i)=>{ if(ids[i]<0){ const j=i*3; ids[i]=add((W[j]-meas.fcx)*k, -(W[j+2]-meas.fcz)*k, (W[j+1]-meas.y0)*k+lift); } return ids[i]; };
     for(let t=0;t<T.length;t+=3){ const a=vid(T[t]), b=vid(T[t+1]), c=vid(T[t+2]); if(a!==b && b!==c && a!==c) I.push(a,b,c); } }
+  let legs=null;
+  if(legsMode && legsMode!=='off'){ const nI=I.length; let z0=Infinity; for(let i=2;i<P.length;i+=3) if(P[i]<z0) z0=P[i];
+    const A=printLegs(P, I, nI, z0, meas.H*k); legs={n:A.n, minT:A.minT, crotch:A.crotch!=null?A.crotch-z0:null, strut:false};
+    if(A.n>=2 && (legsMode==='on' || A.minT<PRINT_THIN_LEG)){ const S=printLegStrut(A, z0, baseD>0?z0-PRINT_SINK-0.2:z0, Math.max(2.4, Math.min(A.minT*1.6, 5))), o=P.length/3;
+      for(let i=0;i<S.P.length;i++) P.push(S.P[i]); for(let i=0;i<S.I.length;i++) I.push(S.I[i]+o); legs.strut=true; legs.box=[+S.len.toFixed(1), +S.thick.toFixed(1), +S.h.toFixed(1)]; } }
   if(baseD>0){ const B=printBaseMesh(baseD, PRINT_BASE_H), o=P.length/3; for(let i=0;i<B.P.length;i++) P.push(B.P[i]); for(let i=0;i<B.I.length;i++) I.push(B.I[i]+o); }
   const Pf=new Float32Array(P); let zx0=Infinity,zx1=-Infinity,zy0=Infinity,zy1=-Infinity,zz1=-Infinity; for(let i=0;i<Pf.length;i+=3){ const x=Pf[i],y=Pf[i+1],z=Pf[i+2]; if(x<zx0)zx0=x; if(x>zx1)zx1=x; if(y<zy0)zy0=y; if(y>zy1)zy1=y; if(z>zz1)zz1=z; }
-  return {P:Pf, I:new Uint32Array(I), W:zx1-zx0, D:zy1-zy0, H:zz1, figH:meas.H*k, baseD}; }
+  return {P:Pf, I:new Uint32Array(I), W:zx1-zx0, D:zy1-zy0, H:zz1, figH:meas.H*k, baseD, legs}; }
 function printSTL(M, title){ const nT=M.I.length/3, buf=new ArrayBuffer(84+50*nT), dv=new DataView(buf), hd=('KSOL Tabletop 3D print - '+(title||'mini')+' - mm').slice(0,79);
   for(let i=0;i<hd.length;i++) dv.setUint8(i, hd.charCodeAt(i)&127); dv.setUint32(80,nT,true); let o=84; const P=M.P, I=M.I;
   for(let t=0;t<I.length;t+=3){ const a=I[t]*3,b=I[t+1]*3,c=I[t+2]*3, ux=P[b]-P[a],uy=P[b+1]-P[a+1],uz=P[b+2]-P[a+2], vx=P[c]-P[a],vy=P[c+1]-P[a+1],vz=P[c+2]-P[a+2];
@@ -1852,7 +1921,7 @@ function printScale(it, meas, st){ const S=st||_prSet, sc=PRINT_SIZES.find(s=>s.
 async function printMake(it, st){ const P=_prItem[it.key]||(_prItem[it.key]={pose:it.pose||'auto', frac:0.3, size:it.size||'medium'}); it.size=P.size;
   const ck=P.pose+'|'+P.frac; if(!it._bake || it._bakeKey!==ck){ const proto=await it.getProto(); if(!proto) return null; const {inst,used}=await printPosed(proto, P.pose, P.frac);
     it._bake=printBake(inst); it._meas=printMeasure(it._bake); it._bakeKey=ck; it._used=used; }
-  if(!it._meas) return null; const {k,base}=printScale(it, it._meas, st); return {M:printBuild(it._bake, it._meas, k, base), meas:it._meas}; }
+  if(!it._meas) return null; const {k,base}=printScale(it, it._meas, st); return {M:printBuild(it._bake, it._meas, k, base, (st||_prSet).legs), meas:it._meas}; }
 function printFileBase(it, M){ return ((it.name||'mini').replace(/[^\w\-]+/g,'-').replace(/^-+|-+$/g,'')||'mini')+'_'+Math.round(M.H)+'mm'; }
 async function printFiles(it, M, fmt){ const nm=printFileBase(it,M), out=[];
   if(fmt!=='3mf') out.push({name:nm+'.stl', data:printSTL(M, it.name)});
@@ -1866,6 +1935,8 @@ Units: MILLIMETRES, Z up, the character faces the front of the build plate.
 
 Sizing used: ${_prSet.mode==='grid'?'5-ft battle grid (1 inch = 5 ft; a 6-ft human ≈ 30 mm tall)':'match the game board (printed square = '+_prSet.cellMm+' mm)'}${_prSet.hOverride>0?' · height forced to '+_prSet.hOverride+' mm':''}.
 Base: figure and base are ONE mesh that overlaps 0.4 mm — the slicer joins them.
+Leg support: ${_prSet.legs==='off'?'off':_prSet.legs==='on'?'always':'auto — added only where legs measured thinner than 2.2 mm'}. The block between the legs
+  keeps thin legs from snapping; it is part of the same mesh (trim it with a hobby knife after printing if you like).
 
 Printing tips
  • Resin prints fingers, blades and tails best at this scale. On FDM use a 0.2–0.25 mm nozzle
@@ -1908,6 +1979,7 @@ function printOpen(items, idx){ _prItems=items.filter(Boolean); _prIdx=Math.max(
       <label class="fld">Height override (mm, 0 = auto)</label><input type="number" id="pdH" min="0" max="400" step="0.5" style="width:100%">
       <div class="pdTwo"><div><label class="fld">Base</label><select id="pdBase" style="width:100%"><option value="auto">Auto</option><option value="none">No base</option>${[20,25,32,40,50,60,75,100].map(v=>`<option value="${v}">${v} mm</option>`).join('')}</select></div>
         <div><label class="fld">Format</label><select id="pdFmt" style="width:100%"><option value="both">STL + 3MF (zip)</option><option value="stl">STL</option><option value="3mf">3MF</option></select></div></div>
+      <label class="fld">Leg support <span class="mini">(a block between thin legs so they don't snap)</span></label><select id="pdLegs" style="width:100%"><option value="auto">Auto — add it when the legs are thin</option><option value="on">Always</option><option value="off">Off</option></select>
       <div class="mini pdWarn" id="pdWarn"></div><div class="mini" id="pdStat"></div>
       <div class="pdBtns"><button class="btn" id="pdOne">⬇ Export this one</button><button class="btn sec" id="pdAll">⬇ All ${_prItems.length} (zip)</button></div>
     </div></div></div>`;
@@ -1916,7 +1988,7 @@ function printOpen(items, idx){ _prItems=items.filter(Boolean); _prIdx=Math.max(
   $('#pdAll').style.display=_prItems.length>1?'':'none';
   const syncUI=async()=>{ const it=_prItems[_prIdx], P=_prItem[it.key]; $('#pdFrac').value=P.frac; $('#pdFv').textContent=Math.round(P.frac*100)+'%'; $('#pdSize').value=P.size;
     d.querySelectorAll('input[name=pdMode]').forEach(r=>r.checked=(r.value===_prSet.mode)); $('#pdGridRow').style.display=_prSet.mode==='grid'?'':'none'; $('#pdBoardRow').style.display=_prSet.mode==='board'?'':'none';
-    $('#pdCell').value=_prSet.cellMm; $('#pdH').value=_prSet.hOverride||0; $('#pdBase').value=_prSet.base; $('#pdFmt').value=_prSet.fmt; await printPoseOptions($('#pdPose'), it); printRefresh(); };
+    $('#pdCell').value=_prSet.cellMm; $('#pdH').value=_prSet.hOverride||0; $('#pdBase').value=_prSet.base; $('#pdFmt').value=_prSet.fmt; $('#pdLegs').value=_prSet.legs; await printPoseOptions($('#pdPose'), it); printRefresh(); };
   itSel.onchange=()=>{ _prIdx=+itSel.value; syncUI(); };
   $('#pdPose').onchange=e=>{ _prItem[_prItems[_prIdx].key].pose=e.target.value; printRefresh(); };
   $('#pdFrac').oninput=e=>{ const P=_prItem[_prItems[_prIdx].key]; P.frac=+e.target.value; $('#pdFv').textContent=Math.round(P.frac*100)+'%'; printRefresh(250); };
@@ -1926,6 +1998,7 @@ function printOpen(items, idx){ _prItems=items.filter(Boolean); _prIdx=Math.max(
   $('#pdH').onchange=e=>{ _prSet.hOverride=Math.max(0,+e.target.value||0); printRefresh(); };
   $('#pdBase').onchange=e=>{ _prSet.base=e.target.value; printRefresh(); };
   $('#pdFmt').onchange=e=>{ _prSet.fmt=e.target.value; };
+  $('#pdLegs').onchange=e=>{ _prSet.legs=e.target.value; printRefresh(); };
   $('#pdOne').onclick=()=>printExport(_prItems, _prIdx); $('#pdAll').onclick=()=>printExport(_prItems, 'all');
   $('.pdX').onclick=printClose; d.onclick=e=>{ if(e.target===d) printClose(); };
   const cv=$('#pdCv'); let drag=null; cv.onpointerdown=e=>{ drag={x:e.clientX,y:e.clientY,az:_prView.az,el:_prView.el}; cv.setPointerCapture(e.pointerId); };
@@ -1939,6 +2012,7 @@ function printRefresh(delay){ clearTimeout(_prTimer); _prTimer=setTimeout(async(
   dims.innerHTML=`<b>${M.W.toFixed(1)} × ${M.D.toFixed(1)} × ${M.H.toFixed(1)} mm</b> (W × D × H) · figure ${M.figH.toFixed(1)} mm${M.baseD?` · base Ø${M.baseD} mm`:''} · ${(M.I.length/3).toLocaleString()} triangles`;
   const warn=[]; if(M.figH<45) warn.push('Small scale: fingers, blades and tails may be thinner than an FDM nozzle — resin prints them best (see PRINT NOTES).');
   if(!M.baseD) warn.push('No base: the figure stands on its feet only — add supports or a base in the slicer.');
+  if(M.legs && M.legs.n>=2) warn.push(M.legs.strut ? `🦵 Legs ${M.legs.minT.toFixed(1)} mm at their thinnest — added a support block between them (${M.legs.box[0]}×${M.legs.box[1]}×${M.legs.box[2]} mm) so they print solid.` : `🦵 Legs ${M.legs.minT.toFixed(1)} mm at their thinnest${M.legs.minT<PRINT_THIN_LEG?' — thin: set Leg support to Auto/Always':' — OK'}.`);
   if(it._used===null && _prItem[it.key].pose!=='rest') warn.push('No compatible motion for this rig — printing it as rigged.');
   _prDlg.querySelector('#pdWarn').textContent=warn.join(' '); _prDlg.querySelector('#pdGridL').textContent=_prSet.mode==='grid'?'1-inch (5 ft)':(_prSet.cellMm+' mm');
   printDraw(true); }, delay||0); }
@@ -1968,7 +2042,7 @@ function printOpenMini(i){ const items=printMiniItems(), at=items.findIndex(it=>
 window.__printItem=async(o)=>{ o=o||{}; const items=o.mini?printMiniItems():printRosterItems(), it=items[o.i||0]; if(!it) return null; Object.assign(_prSet, o.set||{}); _prItem[it.key]=Object.assign({pose:'auto',frac:0.3,size:it.size}, _prItem[it.key]||{}, o.item||{});
   const r=await printMake(it); if(!r) return null; const M=r.M; let vol=0; for(let t=0;t<M.I.length;t+=3){ const a=M.I[t]*3,b=M.I[t+1]*3,c=M.I[t+2]*3, P=M.P; vol+=(P[a]*(P[b+1]*P[c+2]-P[b+2]*P[c+1]) - P[a+1]*(P[b]*P[c+2]-P[b+2]*P[c]) + P[a+2]*(P[b]*P[c+1]-P[b+1]*P[c]))/6; }
   const edges=new Map(); for(let t=0;t<M.I.length;t+=3) for(let e=0;e<3;e++){ const a=M.I[t+e], b=M.I[t+(e+1)%3], key=a<b?a+'_'+b:b+'_'+a; edges.set(key,(edges.get(key)||0)+1); } let open=0; edges.forEach(n=>{ if(n===1) open++; });
-  return {name:it.name, pose:it._used, W:+M.W.toFixed(2), D:+M.D.toFixed(2), H:+M.H.toFixed(2), figH:+M.figH.toFixed(2), baseD:M.baseD, tris:M.I.length/3, verts:M.P.length/3, volume:+vol.toFixed(1), openEdges:open,
+  return {name:it.name, pose:it._used, legs:M.legs, W:+M.W.toFixed(2), D:+M.D.toFixed(2), H:+M.H.toFixed(2), figH:+M.figH.toFixed(2), baseD:M.baseD, tris:M.I.length/3, verts:M.P.length/3, volume:+vol.toFixed(1), openEdges:open,
     stlBytes:o.files?printSTL(M,it.name).length:undefined, threeMF:o.files?(await print3MF(M,it.name)).length:undefined}; };
 window.__printOpen=(o)=>{ o=o||{}; if(o.mini) printOpenMini(o.i||0); else printOpen(printRosterItems(), o.i||0); return !!(_prDlg && !_prDlg.hidden); };
 window.__printFiles=async(o)=>{ o=o||{}; const items=o.mini?printMiniItems():printRosterItems(), it=items[o.i||0]; if(!it) return null; const r=await printMake(it); if(!r) return null; const fs=await printFiles(it, r.M, o.fmt||'both');
@@ -2355,7 +2429,7 @@ renderer.domElement.addEventListener('pointermove',(ev)=>{
 });
 function bEndPropDrag(ev){ if(bld.dragProp==null) return; const pr=bld.props[bld.dragProp], moved=bld._dragMoved;
   bld.dragProp=null; controls.enableRotate=(camMode==='orbit'); try{ renderer.domElement.releasePointerCapture(ev.pointerId); }catch(e){}
-  if(moved && pr && pr.kind==='mini'){ const c=bNearestCell(pr.x,pr.z); if(c){ const w=bGridObj().world(c); pr.x=w.x; pr.z=w.z; } }   // a moved mini re-snaps to the nearest cell centre
+  if(moved && pr && pr.kind==='mini'){ const c=bDgFloorCell(bNearestCell(pr.x,pr.z)); if(c){ const w=bGridObj().world(c); pr.x=w.x; pr.z=w.z; } }   // a moved mini re-snaps to the nearest cell centre
   bRender(); if(moved&&pr) bStatus(`Moved the <b>${propLabel(pr)}</b> · drag to reposition · <b>Delete</b> removes · Scale slider resizes`);
   const mo=bld._menuOnUp; bld._menuOnUp=null; const i=bld.props.indexOf(pr); if(mo && !moved && i>=0) bOpenPropMenu(i, mo.x, mo.y); }
 renderer.domElement.addEventListener('pointerup',(ev)=>{ if(BUILD && bEditUp(ev)) return; bEndPropDrag(ev);
@@ -3069,7 +3143,7 @@ function bCellsRange(qLo,qHi,rLo,rHi){ const out=[];
   return out; }
 function bCells(){
   const c=TGC[bld.tgc];
-  if(c && c.kind==='mat' && !c.fit && bld.grid==='hex') return bHexMatFieldCells();   // a hex-filled mat = OFFSET hexes inside the mat rect (fills it; correct count) not a big sheared q,r block
+  if(c && c.kind==='mat' && !c.fit) return bHexMatFieldCells();   // a mat/board/print sheet = the cells inside the sheet rect (hex: offset hexes; square: whole + edge squares), at TRUE scale   // a hex-filled mat = OFFSET hexes inside the mat rect (fills it; correct count) not a big sheared q,r block
   return bCellsRange(bld.q0, bld.q0+bld.cols, bld.r0, bld.r0+bld.rows);
 }
 // hexes whose CENTRE falls inside the mat's finished rectangle (+ half a hex so edges crop to half-hexes). Centred
@@ -3077,10 +3151,12 @@ function bCells(){
 // sheared axial q,r block — so an 18" mat holds ~24×21 one-inch hexes, not a 28×39 parallelogram.
 function bSheetW(){ const c=TGC[bld.tgc]; return c?c.finished[0]/(bld.tgcCell||1):1; }   // one printable sheet, in world units
 function bSheetH(){ const c=TGC[bld.tgc]; return c?c.finished[1]/(bld.tgcCell||1):1; }
+// the first sheet's centre: square boards put a cell CORNER at the sheet's top-left, so every sheet starts with whole squares
+function bSheetHome(){ const c=TGC[bld.tgc]; if(c && c.kind==='mat' && !c.fit && bld.grid!=='hex'){ bld.sheetCX=bSheetW()/2-0.5; bld.sheetCZ=bSheetH()/2-0.5; } else { bld.sheetCX=0; bld.sheetCZ=0; } }
 function bHexMatFieldCells(){
   const c=TGC[bld.tgc]; if(!c) return [];
   const g=bGridObj(), cx=bld.sheetCX||0, cz=bld.sheetCZ||0;
-  const halfW=bSheetW()*(bld.sheetsX||1)/2, halfH=bSheetH()*(bld.sheetsY||1)/2, m=0.5;   // whole nx×ny sheet field, offset so Extend grows directionally
+  const halfW=bSheetW()*(bld.sheetsX||1)/2, halfH=bSheetH()*(bld.sheetsY||1)/2, m=bld.grid==='hex'?0.5:0.45;   // squares: only cells that reach INTO the sheet   // whole nx×ny sheet field, offset so Extend grows directionally
   const QC=Math.ceil((Math.abs(cx)+halfW)/0.75)+2, QR=Math.ceil((Math.abs(cz)+halfH)/0.8660254)+QC+2, out=[];
   for(let q=-QC;q<=QC;q++) for(let r=-QR;r<=QR;r++){ const w=g.world({q,r});
     if(Math.abs(w.x-cx)<=halfW+m && Math.abs(w.z-cz)<=halfH+m) out.push({q,r}); }
@@ -3184,10 +3260,56 @@ function bRenderTrains(){ const rails=bld.draw.filter(s=>s.type==='rail' && s.pt
   const defs=bDefs(), g=bGridObj(), avoid=[];
   for(const [k,pl] of bld.board){ const d=defs[pl.defId]; if(d && /^(station|elevator)$/.test(d.feature||'')){ const [q,r]=k.split(',').map(Number); const w=g.world({q,r}); avoid.push({x:w.x-bld.off.x, z:w.z-bld.off.z}); } }
   const m=trainAlong(bStrokeScene(best), bld.seed, avoid); if(m) builderGroup.add(m); }
+/* 🌉 BRIDGES (v1.35) — wherever a drawn street / road / railway / trail crosses a drawn river or stream, lay a bridge
+   along the road so it reads as crossing OVER the water (it used to be the road ribbon simply painted across the river).
+   Crossings are found on the same centripetal Catmull-Rom curves the ribbons are drawn with. The same crossing search
+   keeps the elevated freeway's piers out of the streets / railways that pass under it. */
+const BRIDGE_WAYS=/^(street|road|paved|trail|rail)$/;
+function bStrokeCurvePts(s){ const pts=bStrokeScene(s); if(pts.length<2) return [];
+  const c=new THREE.CatmullRomCurve3(pts.map(p=>new THREE.Vector3(p.x,0,p.z)),false,'centripetal',0.5), L=c.getLength(), st=bld.scale==='battle'?0.25:0.04, n=Math.max(2,Math.min(4000,Math.round(L/st)));
+  const out=[]; for(let i=0;i<=n;i++){ const p=c.getPoint(i/n); out.push([p.x,p.z]); } return out; }
+function bPolyBox(P){ let x0=Infinity,x1=-Infinity,z0=Infinity,z1=-Infinity; for(const [x,z] of P){ if(x<x0)x0=x; if(x>x1)x1=x; if(z<z0)z0=z; if(z>z1)z1=z; } return {x0,x1,z0,z1}; }
+// every crossing of polyline A with polyline B → [{x,z, ta, tb}] (ta/tb = the two segment directions there)
+function bPolyHits(A,B,ba,bb){ const out=[]; if(ba.x1<bb.x0||bb.x1<ba.x0||ba.z1<bb.z0||bb.z1<ba.z0) return out;
+  for(let i=0;i<A.length-1;i++){ const a=A[i], b=A[i+1], ax0=Math.min(a[0],b[0]), ax1=Math.max(a[0],b[0]), az0=Math.min(a[1],b[1]), az1=Math.max(a[1],b[1]);
+    if(ax1<bb.x0||ax0>bb.x1||az1<bb.z0||az0>bb.z1) continue;
+    for(let j=0;j<B.length-1;j++){ const c=B[j], d=B[j+1]; if(Math.max(c[0],d[0])<ax0||Math.min(c[0],d[0])>ax1||Math.max(c[1],d[1])<az0||Math.min(c[1],d[1])>az1) continue;
+      const rx=b[0]-a[0], rz=b[1]-a[1], sx=d[0]-c[0], sz=d[1]-c[1], den=rx*sz-rz*sx; if(Math.abs(den)<1e-12) continue;
+      const t=((c[0]-a[0])*sz-(c[1]-a[1])*sx)/den, u=((c[0]-a[0])*rz-(c[1]-a[1])*rx)/den;
+      if(t>=0&&t<1&&u>=0&&u<1) out.push({x:a[0]+t*rx, z:a[1]+t*rz, ta:[rx,rz], tb:[sx,sz]}); } }
+  return out; }
+let _bBridgeLog=[];
+function bRenderBridges(){ _bBridgeLog=[]; const rivers=bld.draw.filter(s=>s.type==='river'&&s.pts.length>=2), ways=bld.draw.filter(s=>BRIDGE_WAYS.test(s.type)&&s.pts.length>=2);
+  if(!rivers.length||!ways.length) return;
+  const bank=bld.scale==='battle'?0.35:0.05, style=bld.modern?'modern':'fantasy';
+  const WP=ways.map(w=>{ const P=bStrokeCurvePts(w); return {s:w, P, box:bPolyBox(P), w:strokeWidth(w.type)}; });
+  // another road running ACROSS this bridge's deck (a junction on the span) → no parapets, or they'd block its lanes
+  const crossesDeck=(me,h,span,ww)=>{ const L=Math.hypot(h.ta[0],h.ta[1])||1, ux=h.ta[0]/L, uz=h.ta[1]/L;
+    for(const o of WP){ if(o.s===me || o.s.type==='rail') continue; if(o.box.x1<h.x-span||o.box.x0>h.x+span||o.box.z1<h.z-span||o.box.z0>h.z+span) continue;
+      for(let i=0;i<o.P.length-1;i++){ const [x,z]=o.P[i], dx=x-h.x, dz=z-h.z, al=dx*ux+dz*uz, ac=Math.abs(-dx*uz+dz*ux); if(Math.abs(al)>span/2 || ac>=ww/2+o.w/2) continue;
+        const ex=o.P[i+1][0]-x, ez=o.P[i+1][1]-z, el=Math.hypot(ex,ez)||1; if(Math.abs(ex*uz-ez*ux)/el>0.5) return true; } }   // crosses at an angle (a collinear continuation of the same street does not count)
+    return false; };
+  const R=rivers.map(s=>{ const P=bStrokeCurvePts(s); return {P, box:bPolyBox(P), w:strokeWidth('river', s.w)}; });
+  for(const {s,P,box} of WP){ const ww=strokeWidth(s.type), kind=(s.type==='paved'||s.type==='street')?'street':s.type, placed=[];
+    for(const r of R) for(const h of bPolyHits(P,r.P,box,r.box)){
+      const la=Math.hypot(h.ta[0],h.ta[1])||1, lb=Math.hypot(h.tb[0],h.tb[1])||1, sin=Math.abs(h.ta[0]*h.tb[1]-h.ta[1]*h.tb[0])/(la*lb);
+      const span=Math.min(r.w/Math.max(sin,0.4)+2*bank, r.w*3+2*bank);                          // longer on a skewed crossing
+      if(placed.some(q=>Math.hypot(q.x-h.x,q.z-h.z)<span*0.6)) continue; placed.push(h);
+      const open=kind!=='rail' && crossesDeck(s,h,span,ww);
+      const g=bridgeSpan(kind, span, ww, style, {open}); g.position.set(h.x,0,h.z); g.rotation.y=Math.atan2(h.ta[0],h.ta[1]); builderGroup.add(g);
+      _bBridgeLog.push({type:s.type, open, x:+(h.x+bld.off.x).toFixed(2), z:+(h.z+bld.off.z).toFixed(2), span:+span.toFixed(3), sin:+sin.toFixed(2)}); } } }
+// scene points where a street / road / railway passes under the elevated freeway (no pier there)
+function bHighwayClear(){ const hw=bld.draw.filter(s=>s.type==='highway'&&s.pts.length>=2); if(!hw.length) return [];
+  const others=bld.draw.filter(s=>/^(street|road|paved|rail)$/.test(s.type)&&s.pts.length>=2).map(s=>{ const P=bStrokeCurvePts(s); return {P, box:bPolyBox(P)}; }), out=[];
+  for(const h of hw){ const P=bStrokeCurvePts(h), box=bPolyBox(P); for(const o of others) for(const x of bPolyHits(P,o.P,box,o.box)) out.push({x:x.x, z:x.z}); }
+  return out; }
+window.__bBridges=()=>({n:_bBridgeLog.length, byType:_bBridgeLog.reduce((m,b)=>(m[b.type]=(m[b.type]||0)+1,m),{}), list:_bBridgeLog});
 function bRenderDraw(){
+  const hwyClear=bHighwayClear();
   for(const s of bld.draw){ if(s.pts.length<2) continue; const pts=bStrokeScene(s);
-    const mesh = s.type==='wall' ? (s.mode==='2d'?wallFlatAlong(pts):wallRibbonAlong(pts)) : s.type==='highway' ? highwayAlong(pts) : pathRibbonAlong(pts, s.type, s.w); if(mesh) builderGroup.add(mesh); }
+    const mesh = s.type==='wall' ? (s.mode==='2d'?wallFlatAlong(pts):wallRibbonAlong(pts)) : s.type==='highway' ? highwayAlong(pts, hwyClear) : pathRibbonAlong(pts, s.type, s.w); if(mesh) builderGroup.add(mesh); }
   bRenderJunctions();
+  bRenderBridges();
   bRenderTrains();
   bRenderTraffic();
   // highlight the selected drawn line (bright ribbon under it + glowing node markers) so Delete has a target
@@ -3443,6 +3565,10 @@ function bDeleteSelProp(){ if(bld.selProp==null || !bld.props[bld.selProp]) retu
    ============================================================================ */
 const MINI_TEAMS = { blue:{c:0x3b7dd8,name:'Hero'}, red:{c:0xd23b3b,name:'Enemy'}, green:{c:0x3aa657,name:'NPC'}, gold:{c:0xd9a534,name:'Boss'}, gray:{c:0x9aa0a6,name:'Other'} };
 function bCellSize(){ const g=bGridObj(); const a=g.world({q:0,r:0}), b=g.world({q:1,r:0}); return Math.hypot(b.x-a.x,b.z-a.z)||1; }   // square≈1, hex≈0.87 → keeps a token sized to one cell on either grid
+function bDgFloorAt(c){ const D=bld.dungeon; if(!D||!D.floor) return true; const res=D.res||1, W=D.cols*res, x=Math.floor((c.q-D.q0+0.5)*res), y=Math.floor((c.r-D.r0+0.5)*res);
+  return x>=0 && y>=0 && x<W && y<D.rows*res && !!D.floor[y*W+x]; }
+function bDgFloorCell(c){ if(!c || !bld.dungeon || bDgFloorAt(c)) return c; let best=null, bd=Infinity;   // nearest open square
+  for(const k of bld.board.keys()){ const [q,r]=k.split(',').map(Number), d=(q-c.q)**2+(r-c.r)**2; if(d<bd && bDgFloorAt({q,r})){ bd=d; best={q,r}; } } return best||c; }
 function bNearestCell(x,z){ const g=bGridObj(); let best=null,bd=Infinity; for(const c of bCells()){ const w=g.world(c); const d=(w.x-x)**2+(w.z-z)**2; if(d<bd){bd=d;best=c;} }
   const maxr=bld.grid==='hex'?0.62:0.85; return (best && bd<=maxr*maxr)?best:null; }
 function bMakeMini(pr){ const g=new THREE.Group(); const team=MINI_TEAMS[pr.team]||MINI_TEAMS.gray; const col=team.c;
@@ -3459,7 +3585,7 @@ function bMakeMini(pr){ const g=new THREE.Group(); const team=MINI_TEAMS[pr.team
   }
   g.scale.set(S,S,S); return g; }
 function bPlaceMini(ev){ const hit=bPickCell(ev); if(!hit || hit.cell===undefined){ bStatus('Click on the board to drop a mini.',true); return; }
-  const w=bGridObj().world(hit.cell);
+  const w=bGridObj().world(bDgFloorCell(hit.cell));
   const exist=bld.props.findIndex(p=>p.kind==='mini' && Math.hypot(p.x-w.x,p.z-w.z)<1e-3);
   if(exist>=0){ bSelectPropAt(exist); bStatus('A mini is already on that cell — selected it. Drag it away or Delete it first.'); return; }
   bPushUndo(); bld.props.push({kind:'mini', team:bld.miniTeam, x:w.x, z:w.z, scale:1, rot:0});
@@ -3622,7 +3748,8 @@ function glbFetcherFor(src){
   if(src.type==='sample') return async ()=>{ const u=await fetchSampleBytes(src.ref); return u.buffer.slice(u.byteOffset, u.byteOffset+u.byteLength); };
   if(src.type==='lib')  return async ()=>{ await window.StudioLib.ready; const m=await window.StudioLib.getModel(src.ref); const b=m&&m.glb; if(!b) throw new Error('no model'); return b.arrayBuffer?await b.arrayBuffer():b; };
   if(src.type==='pack') return async ()=>{ const packs=await ttPackGetAll(); const P=packs.find(p=>p.id===src.pack); if(!P) throw new Error('no pack');
-    const list=(src.cat==='char'?P.characters:src.cat==='prop'?P.props:P.sceneProps)||[]; const e=list.find(x=>(x.id||x.name||x.file)===src.ref); if(!e||!e.glb) throw new Error('no entry'); return b64ToBuf(e.glb); };
+    const list=(src.cat==='char'?P.characters:src.cat==='prop'?P.props:P.sceneProps)||[]; const e=list.find(x=>x.id===src.ref||x.name===src.ref||x.file===src.ref); if(!e||!(e.buf||e.glb)) throw new Error('no entry');
+    return e.buf ? (e.buf instanceof ArrayBuffer ? e.buf : (e.buf.buffer||e.buf)) : b64ToBuf(e.glb); };   // Stitcher stores RAW bytes (buf) since v1.9; older packs kept base64 (glb)
   return ()=>Promise.reject(new Error('bad src'));
 }
 // a placeholder-then-swap GLB prop group: cloned, auto-fit (centred X/Z, feet on tile top, scaled to src.fit span)
@@ -3656,8 +3783,9 @@ async function bLibEntries(srcTab){ const out=[];
   if(srcTab==='scene'){ for(const [id,name,em] of SCENE_PROPS) out.push({label:(em||'🌳')+' '+name, src:{type:'file',ref:'sceneprops/'+id+'.glb',fit:1.6}}); }
   else if(srcTab==='held'){ for(const [id,name,em] of HELD_PROPS) out.push({label:(em||'⚔')+' '+name, src:{type:'file',ref:'Props/'+id+'.glb',fit:0.7}}); }
   else if(srcTab==='lib'){ for(const c of SAMPLE_CHARS) out.push({label:c.icon+' '+c.name+' (sample)', src:{type:'sample',ref:c.file,fit:1.1}});
-    if(!window.StudioLib) return out;
-    try{ await window.StudioLib.ready; const ms=await window.StudioLib.listModels(); for(const m of ms) out.push({label:'✦ '+(m.name||m.id), src:{type:'lib',ref:m.id,fit:1.1}}); }catch(e){} }
+    if(!window.StudioLib){ for(const P of await ttPackGetAll()) for(const ch of (P.characters||[])) out.push({label:(P.em||'📦')+' '+(ch.icon||'🧍')+' '+(ch.name||ch.file), src:{type:'pack',pack:P.id,cat:'char',ref:(ch.file||ch.name),fit:1.2}}); return out; }
+    try{ await window.StudioLib.ready; const ms=await window.StudioLib.listModels(); for(const m of ms) out.push({label:'✦ '+(m.name||m.id), src:{type:'lib',ref:m.id,fit:1.1}}); }catch(e){}
+    for(const P of await ttPackGetAll()) for(const ch of (P.characters||[])) out.push({label:(P.em||'📦')+' '+(ch.icon||'🧍')+' '+(ch.name||ch.file), src:{type:'pack',pack:P.id,cat:'char',ref:(ch.file||ch.name),fit:1.2}}); }   // pack characters (unlocked in GLB Stitcher) are characters too
   else if(srcTab==='pack'){ const packs=await ttPackGetAll();
     for(const P of packs){ const pre=(P.em||'📦')+' ';
       for(const ch of (P.characters||[])) out.push({label:pre+(ch.icon||'🧍')+' '+(ch.name||ch.file), src:{type:'pack',pack:P.id,cat:'char',ref:(ch.file||ch.name),fit:1.2}});
@@ -3676,6 +3804,7 @@ async function bBuildLibList(){ const el=document.getElementById('bLibList'); if
   else if(bLibSrc==='lib'){ const head=(t)=>{ const h=document.createElement('div'); h.className='mini'; h.style.cssText='width:100%;margin:4px 0 2px;font-weight:700'; h.textContent=t; el.appendChild(h); };
     const tip=(t)=>{ const h=document.createElement('div'); h.className='mini'; h.style.cssText='width:100%;opacity:.75;margin:2px 0'; h.innerHTML=t; el.appendChild(h); };
     head('Sample characters'); for(const c of SAMPLE_CHARS) add(c.icon+' '+c.name, {type:'sample',ref:c.file,fit:1.1});
+    { const packs=(await ttPackGetAll()).filter(P=>(P.characters||[]).length); if(packs.length){ head('📦 Characters from your packs'); for(const P of packs) for(const ch of P.characters) add((P.em||'📦')+' '+(ch.icon||'🧍')+' '+(ch.name||ch.file), {type:'pack',pack:P.id,cat:'char',ref:(ch.file||ch.name),fit:1.2}); } }
     head('✦ Your rigged models'); bAddGlbFileButton(el);
     if(!window.StudioLib) return tip('Your own rigged characters appear here when Tabletop runs inside GLB Studio.');
     try{ await window.StudioLib.ready; const ms=await window.StudioLib.listModels();
@@ -3702,7 +3831,8 @@ function bSelectGlbProp(src,label){ const same=bld.propGlb && JSON.stringify(bld
   bBuildLibList(); bStatus(bld.propGlb? `Library prop: <b>${label}</b> — click a cell to drop it · drag to move`:'Prop off'); }
 // procedural/GLB props are modelled for WORLD tiles; on a 5-ft BATTLE map they'd be tiny next to battle-scale
 // buildings, so render them larger there (minis already handle their own cell sizing).
-function bPropMul(pr){ return (bld.scale==='battle' && pr.kind!=='mini') ? (pr.kind==='glb'?1.6:3.8) : 1; }
+const bIsCharSrc=(s)=>!!s && (s.type==='sample' || s.type==='lib' || s.cat==='char');
+function bPropMul(pr){ return (bld.scale==='battle' && pr.kind!=='mini') ? (pr.kind==='glb'?(bIsCharSrc(pr.src)?1.1:1.6):3.8) : 1; }   // characters ≈ 6 ft (1.2 squares) tall at battle scale
 // SHADE a prop: recolour its meshes toward an optional tint and by a brightness factor (the edit-menu "shade").
 function bApplyShade(g, tint, bright){ const b=(bright==null?1:bright); const tc = tint!=null ? new THREE.Color(tint) : null;
   if(!tc && b===1) return;
@@ -3724,7 +3854,7 @@ function bSeatProp(pr, g){ if((pr.mode||'3d')==='2d'){ g.position.y=(pr.h||0)*bP
   g.position.y = base + (pr.h||0)*bPropLiftUnit() + g.userData.baseOff; }
 function bRenderProps(){ bld._propMeshes=[];                        // keep group refs so a live drag moves one mesh w/o a full rebuild
   bld._surfCands = builderGroup.children.filter(o=>o.name!=='traffic' && !o.isLine && !o.isPoints && !o.isSprite);   // what a prop can rest on (earlier props join below)
-  bld.props.forEach((pr,i)=>{ if(pr.kind==='mini' && bld._noMinis) return; const eff=(pr.scale||1)*bPropMul(pr); const g = pr.kind==='mini' ? bMakeMini(pr) : pr.kind==='glb' ? bMakeGLBProp(pr.src, eff) : makeProp(pr.kind, pr.mode||'3d', eff);
+  bld.props.forEach((pr,i)=>{ if(pr.kind==='mini' && bld._noMinis) return; const eff=(pr.scale||1)*bPropMul(pr); const g = pr.kind==='mini' ? bMakeMini(pr) : pr.kind==='glb' ? bMakeGLBProp(pr.src, eff, bIsCharSrc(pr.src)?(pr.pose||'auto'):undefined) : makeProp(pr.kind, pr.mode||'3d', eff);
     bApplyShade(g, pr.tint, pr.bright);
     g.position.set(pr.x-bld.off.x, 0, pr.z-bld.off.z); g.rotation.y=pr.rot||0; bSeatProp(pr, g); builderGroup.add(g); bld._propMeshes[i]=g; bld._surfCands.push(g); });
   bld._selRing=null;
@@ -5241,14 +5371,32 @@ const TGC = {
   // inkjet/laser without clipping; `img` is the full 8½×11 sheet @300 DPI. `home:true` → white margin + cut border.
   letter:    {name:'Home Sheet · Letter 8½×11 (portrait)',  kind:'mat', grid:null, finished:[8,10.5], img:[2550,3300], home:true},
   letterLand:{name:'Home Sheet · Letter 11×8½ (landscape)', kind:'mat', grid:null, finished:[10.5,8], img:[3300,2550], home:true},
+  // PRINT SHOP (v1.35) — FedEx Office / Staples / Vistaprint (researched 2026-09-25). Their copies & card stock (8½×11, 11×17,
+  // 80–100 lb cover) ALWAYS print with a small white margin → 'trim yourself' sheets: white margin + dashed cut line around a
+  // whole-inch area (so 1" squares come out whole). POSTERS print full-bleed and the SHOP trims: img = trim size + ⅛" bleed on
+  // every side, and the bleed carries the REAL neighbouring map, so a trim that drifts ~1/32–1/16" never shows white and
+  // extended boards still butt together with the grid continuous. dpi: 300 small, 200 / 150 for big posters (shops accept
+  // 150 dpi for large format). shop → exports ONE multi-page PDF (page = sheet, TrimBox/BleedBox set) — what shops ask for.
+  tab11x17:  {name:'Card stock 11×17 · trim yourself (FedEx / Staples copies)', kind:'mat', grid:null, finished:[10,16], img:[3300,5100], home:true, shop:'trim', paper:[11,17]},
+  tab17x11:  {name:'Card stock 17×11 landscape · trim yourself', kind:'mat', grid:null, finished:[16,10], img:[5100,3300], home:true, shop:'trim', paper:[17,11]},
+  post12x18: {name:'Poster 12×18 · full bleed (Staples)', kind:'mat', grid:null, finished:[12,18], img:[3675,5475], bleed:0.125, shop:'poster'},
+  post18x12: {name:'Poster 18×12 landscape · full bleed (Staples)', kind:'mat', grid:null, finished:[18,12], img:[5475,3675], bleed:0.125, shop:'poster'},
+  post18x24: {name:'Poster 18×24 · full bleed (FedEx / Staples / Vistaprint)', kind:'mat', grid:null, finished:[18,24], img:[3650,4850], dpi:200, bleed:0.125, shop:'poster'},
+  post24x18: {name:'Poster 24×18 landscape · full bleed', kind:'mat', grid:null, finished:[24,18], img:[4850,3650], dpi:200, bleed:0.125, shop:'poster'},
+  post24x36: {name:'Poster 24×36 · full bleed (FedEx / Staples / Vistaprint)', kind:'mat', grid:null, finished:[24,36], img:[3638,5438], dpi:150, bleed:0.125, shop:'poster'},
+  post36x24: {name:'Poster 36×24 landscape · full bleed', kind:'mat', grid:null, finished:[36,24], img:[5438,3638], dpi:150, bleed:0.125, shop:'poster'},
+  post36x48: {name:'Poster 36×48 · full bleed (FedEx / Staples / Vistaprint)', kind:'mat', grid:null, finished:[36,48], img:[5438,7238], dpi:150, bleed:0.125, shop:'poster'},
+  post48x36: {name:'Poster 48×36 landscape · full bleed', kind:'mat', grid:null, finished:[48,36], img:[7238,5438], dpi:150, bleed:0.125, shop:'poster'},
   flower:   {name:'Flower Mat',  kind:'mat', grid:'hex', finished:[2.5,2.75], img:[825,900],  fit:[3,3]},
   invader:  {name:'Invader Mat', kind:'mat', grid:'hex', finished:[4,3.5],    img:[1275,1125],fit:[5,5]},
 };
+const bDpi=(c)=>(c&&c.dpi)||300;                                          // print resolution (big posters render at 150–200 dpi)
 function bTgcSelect(id){
   bld.tgc = id||''; const c = TGC[id];
   const info=document.getElementById('bTgcInfo'), row=document.getElementById('bTgcExportRow'), cellSel=document.getElementById('bTgcCell');
   if(!c){ info.style.display='none'; row.style.display='none'; cellSel.style.display='none'; bStatus('Print size: screen only.'); return; }
   row.style.display=''; info.style.display='';
+  { const eb=document.getElementById('bTgcExport'); if(eb) eb.textContent = c.shop ? '🖨 Export print-shop PDF' : c.home ? '🖨 Export for home printing' : '🖨 Export for print (The Game Crafter)'; }
   const isFixedHex = !!c.fit;                                            // flower / invader
   cellSel.style.display = (c.kind==='mat' && !isFixedHex) ? '' : 'none'; // mats let you choose the fill cell size
   if(c.grid && c.grid!==bld.grid){ bld.grid=c.grid;    // switching grid → clear the old-grid board (its tiles don't exist in the new grid's tile set)
@@ -5262,7 +5410,7 @@ function bTgcSelect(id){
 }
 function bTgcFit(){                                                      // auto-fit the grid to the chosen mat/board (cells filling the component)
   const c=TGC[bld.tgc]; if(!c || c.kind!=='mat') return;
-  bld.q0=0; bld.r0=0; bld.sheetsX=1; bld.sheetsY=1; bld.sheetCX=0; bld.sheetCZ=0; _settlePlan=null; bld.structPlans=[];   // one sheet until Extend adds more; a print-size change drops any planned settlement
+  bld.q0=0; bld.r0=0; bld.sheetsX=1; bld.sheetsY=1; bSheetHome(); _settlePlan=null; bld.structPlans=[];   // one sheet until Extend adds more; a print-size change drops any planned settlement
   if(c.fit){ bld.grid='hex'; bld.cols=c.fit[0]; bld.rows=c.fit[1]; }     // flower / invader = a small fixed hex layout
   else { const cell=bld.tgcCell||1;
     if(bld.grid==='hex'){
@@ -5271,18 +5419,23 @@ function bTgcFit(){                                                      // auto
       bld.cols=Math.max(3, Math.round(c.finished[0]/(cell*0.75)));
       bld.rows=Math.max(3, Math.round(c.finished[1]/(cell*0.8660254)));
     }
-    else { bld.cols=Math.max(2,Math.round(c.finished[0]/cell)); bld.rows=Math.max(2,Math.round(c.finished[1]/cell)); } }
+    else { bld.cols=Math.max(2,Math.ceil(c.finished[0]/cell-0.01)); bld.rows=Math.max(2,Math.ceil(c.finished[1]/cell-0.01)); } }
   document.getElementById('bCols').value=bld.cols; document.getElementById('bRows').value=bld.rows;
 }
+function bShopHelp(c){ return c.shop==='trim'
+  ? ` <br>🏪 <b>How to order:</b> upload the PDF for <b>${c.paper[0]}×${c.paper[1]} color copies</b> on <b>80–100 lb cover card stock</b>, <b>100% / actual size</b> (not "fit to page"). Shops print copies with a small white margin, so <b>trim each sheet on the dashed line</b> — then the sheets butt together and the grid runs straight across.`
+  : ` <br>🏪 <b>How to order:</b> upload the PDF as a <b>${c.finished[0]}×${c.finished[1]} poster</b> (matte; <b>dry-erase lamination</b> or <b>foam-board mounting</b> make a reusable battle mat). Each page carries a <b>⅛" bleed</b> of real map — the shop trims it off, and any small trim drift never shows white, so trimmed sheets butt together and the grid lines up (${bDpi(c)} dpi).`; }
 function bTgcInfo(){ const c=TGC[bld.tgc], el=document.getElementById('bTgcInfo'); if(!c){ el.style.display='none'; return; } el.style.display='';
   if(c.kind==='tile'){ el.innerHTML=`<b>${c.name}</b> — each cell prints as a <b>${c.img[0]}×${c.img[1]}px</b> tile (${c.finished[0]}×${c.finished[1]} in, 300 DPI + bleed). Export → a <b>ZIP of one PNG per tile</b> for The Game Crafter. <b>Extend</b> keeps this size.`; }
   else if(c.fit){ el.innerHTML=`<b>${c.name}</b> — one <b>${c.img[0]}×${c.img[1]}px</b> hex-mat image (${c.finished[0]}×${c.finished[1]} in).`; }
   else if(bld.grid==='hex'){ const cell=bld.tgcCell||1; const ac=Math.round(c.finished[0]/(cell*0.75)), ar=Math.round(c.finished[1]/(cell*0.8660254));
     const nx=bld.sheetsX||1, ny=bld.sheetsY||1, multi=nx*ny>1;
-    const home=c.home?` Print at <b>100% / Actual Size</b> on any home printer (¼" margin, dashed trim guide).`:'';
+    const home=(c.home&&!c.shop)?` Print at <b>100% / Actual Size</b> on any home printer (¼" margin, dashed trim guide).`:'';
     const sheets=multi?` Now <b>${nx}×${ny}=${nx*ny} sheets</b> — exports one image per sheet; laid edge-to-edge the half-hexes complete.`:` <b>Extend</b> (◀▶▲▼) tiles more sheets that complete at the seam.`;
-    el.innerHTML=`<b>${c.name}</b> (<b>${c.finished[0]}×${c.finished[1]} in</b> each) — filled with ≈${ac}×${ar} <b>${cell}" hexes</b>, edges <b>half-hexes at the seam</b>.${home}${sheets}`; }
-  else { el.innerHTML=`<b>${c.name}</b> — fills with ${bld.cols}×${bld.rows} <b>square</b> cells (${bld.tgcCell||1}" each); exports as one <b>${c.img[0]}×${c.img[1]}px</b> image (${c.finished[0]}×${c.finished[1]} in).`; }
+    el.innerHTML=`<b>${c.name}</b> (<b>${c.finished[0]}×${c.finished[1]} in</b> each) — filled with ≈${ac}×${ar} <b>${cell}" hexes</b>, edges <b>half-hexes at the seam</b>.${home}${sheets}`; if(c.shop) el.innerHTML+=bShopHelp(c); }
+  else { const nx=bld.sheetsX||1, ny=bld.sheetsY||1, cell=bld.tgcCell||1;
+    el.innerHTML=`<b>${c.name}</b> (<b>${c.finished[0]}×${c.finished[1]} in</b> each) — <b>${cell}" squares</b> at true scale, whole squares from the top-left corner.${c.home&&!c.shop?' Print at <b>100% / Actual Size</b> on any home printer (¼" margin, dashed trim guide).':''}${nx*ny>1?` Now <b>${nx}×${ny}=${nx*ny} sheets</b> — laid edge-to-edge the squares line up.`:' <b>Extend</b> (◀▶▲▼) adds sheets that line up at the seam.'}`; }
+  if(c.shop) el.innerHTML+=bShopHelp(c);
 }
 /* ---- render the builder scene straight-down into outW×outH px (flat top-down print look) ---- */
 function bTgcRenderRegion(cx,cz,fw,fh,outW,outH,upAngle){
@@ -5304,8 +5457,8 @@ function bTgcRenderRegion(cx,cz,fw,fh,outW,outH,upAngle){
   renderer.setPixelRatio(1); renderer.setSize(rw,rh,false); renderer.render(scene,ocam);
   const cv=document.createElement('canvas'); cv.width=outW; cv.height=outH; const x=cv.getContext('2d');
   x.imageSmoothingEnabled=true; x.imageSmoothingQuality='high'; x.drawImage(renderer.domElement,0,0,rw,rh,0,0,outW,outH);
-  if(homeC){ const c=TGC[bld.tgc], mx=Math.round((outW-c.finished[0]*300)/2), my=Math.round((outH-c.finished[1]*300)/2);   // dashed trim guide at the printable border
-    x.strokeStyle='#b9b9b9'; x.lineWidth=2; x.setLineDash([16,11]); x.strokeRect(mx+1, my+1, outW-2*mx-2, outH-2*my-2); x.setLineDash([]); }
+  if(homeC){ const c=TGC[bld.tgc], mx=Math.round((outW-c.finished[0]*bDpi(c))/2), my=Math.round((outH-c.finished[1]*bDpi(c))/2);   // dashed trim guide at the printable border
+    x.strokeStyle='#9a9a9a'; x.lineWidth=3; x.setLineDash([16,11]); x.strokeRect(mx-2.5, my-2.5, outW-2*mx+5, outH-2*my+5); x.setLineDash([]); }   // guide sits just OUTSIDE the finished edge → cutting on it leaves no line at the seam
   renderer.setPixelRatio(oldPR); renderer.setSize(old.x,old.y,false);
   scene.background=savedBg; renderer.setClearColor(savedClear, savedA); renderer.clippingPlanes=savedClip; if(gp) gp.visible=gpVis;
   return cv;
@@ -5314,7 +5467,7 @@ function bTgcRenderRegion(cx,cz,fw,fh,outW,outH,upAngle){
 function bTgcRenderSheet(c, i, j){ const cell=bld.tgcCell||1, iw=c.img[0], ih=c.img[1], sw=bSheetW(), sh=bSheetH();
   const cx=(bld.sheetCX + sw*(i+0.5-(bld.sheetsX||1)/2)) - bld.off.x;
   const cz=(bld.sheetCZ + sh*(j+0.5-(bld.sheetsY||1)/2)) - bld.off.z;
-  return bTgcRenderRegion(cx, cz, iw/(300*cell), ih/(300*cell), iw, ih); }
+  return bTgcRenderRegion(cx, cz, iw/(bDpi(c)*cell), ih/(bDpi(c)*cell), iw, ih); }
 function bTgcCellFootprint(){ const cs=bGridObj().corners(); let mnx=1e9,mxx=-1e9,mnz=1e9,mxz=-1e9;
   for(const c of cs){ mnx=Math.min(mnx,c[0]);mxx=Math.max(mxx,c[0]);mnz=Math.min(mnz,c[1]);mxz=Math.max(mxz,c[1]); } return {w:mxx-mnx, h:mxz-mnz}; }
 function bTgcSceneBBox(){ let mnx=1e9,mxx=-1e9,mnz=1e9,mxz=-1e9; const cs=bGridObj().corners();
@@ -5324,10 +5477,10 @@ function bTgcSceneBBox(){ let mnx=1e9,mxx=-1e9,mnz=1e9,mxz=-1e9; const cs=bGridO
 function bTgcRenderWhole(c){ const bb=bTgcSceneBBox(); const [iw,ih]=c.img;
   if(bld.grid==='hex' && !TGC_HEXMAT[bld.tgc]){                 // hex-filled mat: CROP to the mat rectangle at a fixed
     const cell=bld.tgcCell||1;                                  // hex size → edge hexes squared off (half-hexes), terrain
-    return bTgcRenderRegion(bb.cx, bb.cz, iw/(300*cell), ih/(300*cell), iw, ih);   // fills the whole rectangle, no jagged border
+    return bTgcRenderRegion(bb.cx, bb.cz, iw/(bDpi(c)*cell), ih/(bDpi(c)*cell), iw, ih);   // fills the whole rectangle, no jagged border
   }
   const s=Math.min(c.finished[0]/bb.w, c.finished[1]/bb.h);     // square grid: contain the map in the finished area (squares tile flush)
-  return bTgcRenderRegion(bb.cx, bb.cz, (iw/300)/s, (ih/300)/s, iw, ih); }
+  return bTgcRenderRegion(bb.cx, bb.cz, (iw/bDpi(c))/s, (ih/bDpi(c))/s, iw, ih); }
 function bTgcRenderTile(cell,c){ const w=bWorld(cell); const [iw,ih]=c.img; const fp=bTgcCellFootprint();
   const s=Math.min(c.finished[0]/fp.w, c.finished[1]/fp.h);   // hexes are now natively flat-top → no render rotation needed
   return bTgcRenderRegion(w.x, w.z, (iw/300)/s, (ih/300)/s, iw, ih); }
@@ -5410,6 +5563,28 @@ function bTgcRenderHexMat(c, center){
   });
   return out;
 }
+/* ---- 📄 minimal PDF writer: one JPEG page per sheet, page = the image at its print size (so "actual size" is exact);
+   TrimBox = the finished size inside a full-bleed page (print shops read it), BleedBox/MediaBox = the whole image ---- */
+async function bCanvasJpeg(cv,q){ return new Uint8Array(await (await new Promise(r=>cv.toBlob(r,'image/jpeg',q||0.92))).arrayBuffer()); }
+function bPdf(pages, title){ const enc=new TextEncoder(), parts=[], offs=[]; let len=0; const push=(b)=>{ if(typeof b==='string') b=enc.encode(b); parts.push(b); len+=b.length; };
+  const obj=(n,body,stream)=>{ offs[n]=len; push(n+' 0 obj\n'+body); if(stream){ push('\nstream\n'); push(stream); push('\nendstream'); } push('\nendobj\n'); };
+  push('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n'); const N=pages.length, kids=[]; for(let i=0;i<N;i++) kids.push((3+i*3)+' 0 R');
+  obj(1,'<< /Type /Catalog /Pages 2 0 R >>'); obj(2,'<< /Type /Pages /Count '+N+' /Kids ['+kids.join(' ')+'] >>');
+  pages.forEach((p,i)=>{ const n=3+i*3, W=(p.wIn*72).toFixed(3), H=(p.hIn*72).toFixed(3), t=p.trim||0, T=(t*72).toFixed(3), TW=(p.wIn*72-t*72).toFixed(3), TH=(p.hIn*72-t*72).toFixed(3);
+    const cs='q '+W+' 0 0 '+H+' 0 0 cm /Im0 Do Q';
+    obj(n,'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 '+W+' '+H+'] /BleedBox [0 0 '+W+' '+H+'] /TrimBox ['+T+' '+T+' '+TW+' '+TH+'] /Resources << /XObject << /Im0 '+(n+1)+' 0 R >> >> /Contents '+(n+2)+' 0 R >>');
+    obj(n+1,'<< /Type /XObject /Subtype /Image /Width '+p.px[0]+' /Height '+p.px[1]+' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length '+p.jpeg.length+' >>', p.jpeg);
+    obj(n+2,'<< /Length '+cs.length+' >>', enc.encode(cs)); });
+  const info=3+N*3; obj(info,'<< /Title ('+String(title||'map').replace(/[()\\]/g,'')+') /Producer (KSOL Designs Tabletop '+APP_VERSION+') >>');
+  const xref=len; let x='xref\n0 '+(info+1)+'\n0000000000 65535 f \n'; for(let i=1;i<=info;i++) x+=String(offs[i]).padStart(10,'0')+' 00000 n \n';
+  push(x+'trailer\n<< /Size '+(info+1)+' /Root 1 0 R /Info '+info+' 0 R >>\nstartxref\n'+xref+'\n%%EOF\n');
+  const out=new Uint8Array(len); let o=0; for(const b of parts){ out.set(b,o); o+=b.length; } return out; }
+// 🏪 print-shop export: every sheet (1 or the extended nx×ny grid, row by row) → one PDF, pages at the exact print size
+async function bShopExport(c){ const nx=bld.sheetsX||1, ny=bld.sheetsY||1, dpi=bDpi(c), pages=[];
+  for(let j=0;j<ny;j++) for(let i=0;i<nx;i++){ bStatus(`🏪 Rendering sheet ${j*nx+i+1} of ${nx*ny}…`); await new Promise(r=>setTimeout(r,20));
+    const cv=bTgcRenderSheet(c,i,j); pages.push({jpeg:await bCanvasJpeg(cv,0.93), px:[cv.width,cv.height], wIn:cv.width/dpi, hIn:cv.height/dpi, trim:c.shop==='poster'?(cv.width/dpi-c.finished[0])/2:0}); }
+  const name=`print_${bld.tgc}_${nx*ny>1?nx+'x'+ny+'sheets':'1sheet'}.pdf`; bDownload(new Blob([bPdf(pages, c.name)],{type:'application/pdf'}), name);
+  bStatus(`🏪 Exported <b>${name}</b> — ${nx*ny} page${nx*ny>1?'s':''} at ${c.shop==='poster'?`${c.finished[0]}×${c.finished[1]} in + ⅛" bleed`:`${c.paper[0]}×${c.paper[1]} in, trim on the dashed line`}${nx*ny>1?`, in reading order (row 1 left→right, then row 2…) — lay them out ${nx} across × ${ny} down`:''}. ${c.shop==='poster'?'Order as a poster at 100% size.':'Print at 100% / actual size on card stock.'}`); return {name, pages:pages.length}; }
 async function bTgcExport(){
   const c=TGC[bld.tgc]; if(!c){ bStatus('Pick a print size first (🖨 Print size).',true); return; }
   if(!bld.board.size){ bStatus('Generate or build a map first, then export.',true); return; }
@@ -5417,7 +5592,8 @@ async function bTgcExport(){
   bStatus('Rendering print artwork…'); await new Promise(r=>setTimeout(r,40));
   const savedFlat=bld.boardFlat; bld._exporting=true; setTileFlat(true); bld.boardFlat=true; bRender();   // _exporting hides edit aids (ghosts + screen-only ruler)
   try{
-    if(c.kind==='mat'){
+    if(c.kind==='mat' && c.shop){ await bShopExport(c); }
+    else if(c.kind==='mat'){
       if(TGC_HEXMAT[bld.tgc]){
         const centers=(bld.tgcCenters&&bld.tgcCenters.length)?bld.tgcCenters:[bHexMatCenter()];
         if(centers.length>1){                                          // multiple interlocking units → one print image per unit, zipped
@@ -5429,13 +5605,13 @@ async function bTgcExport(){
           const cv=bTgcRenderHexMat(c, centers[0]); bDownload(await bCanvasBlob(cv), `tgc_${bld.tgc}_${cv.width}x${cv.height}.png`);
           bStatus(`🖨 Exported <b>${c.name}</b> — one <b>${cv.width}×${cv.height}px</b> image, die-aligned to the TGC template, ready to upload.`);
         }
-      } else if(bld.grid==='hex' && (bld.sheetsX*bld.sheetsY)>1){        // rect hex board grown into a grid of sheets → one image per sheet, cut at seams (half-hexes complete on neighbours)
+      } else if((bld.sheetsX*bld.sheetsY)>1){        // rect hex board grown into a grid of sheets → one image per sheet, cut at seams (half-hexes complete on neighbours)
         const nx=bld.sheetsX, ny=bld.sheetsY, files=[];
         for(let j=0;j<ny;j++) for(let i=0;i<nx;i++){ const cv=bTgcRenderSheet(c,i,j); files.push({name:`${bld.tgc}_sheet_r${j+1}c${i+1}_${cv.width}x${cv.height}.png`, data:await bCanvasBytes(cv)}); }
         bDownload(new Blob([bZip(files)],{type:'application/zip'}), `tgc_${bld.tgc}_${nx}x${ny}sheets.zip`);
         bStatus(`🖨 Exported <b>${nx}×${ny} = ${nx*ny} sheets</b> of ${c.name} (${c.img[0]}×${c.img[1]}px each) in a ZIP — ${c.home?'print at <b>100% / Actual Size</b>, trim the margin,':'print/cut'} then lay them edge-to-edge and the half-hexes complete into whole hexes.`);
       } else {
-        const cv = bld.grid==='hex' ? bTgcRenderSheet(c,0,0) : bTgcRenderWhole(c);
+        const cv = bTgcRenderSheet(c,0,0);                              // true scale (hex or square), same framing as each extended sheet
         bDownload(await bCanvasBlob(cv), `tgc_${bld.tgc}_${cv.width}x${cv.height}.png`);
         bStatus(`🖨 Exported <b>${c.name}</b> — one <b>${cv.width}×${cv.height}px</b> image${c.home?', print at <b>100% / Actual Size</b>':', full-bleed'} — ready to ${c.home?'print at home':'upload to The Game Crafter'}. <b>Extend</b> (◀▶▲▼) adds more tiling sheets.`);
       }
@@ -5751,16 +5927,49 @@ async function bGmKey(){
 main{max-width:1000px;margin:0 auto;padding:16px} h1{font-size:26px;margin:8px 0 2px} .sub{color:var(--mut);margin:0 0 14px;font-family:system-ui,Arial,sans-serif;font-size:13px}
 section{margin:0 0 28px} h2{font-size:20px;border-bottom:2px solid var(--ink);padding-bottom:4px;margin:18px 0 10px}
 img{display:block;width:100%;height:auto;border:1px solid var(--line);border-radius:4px;background:#222}
-.k{columns:2 320px;column-gap:26px;margin-top:14px} .e{break-inside:avoid;margin:0 0 12px;padding:0 0 10px;border-bottom:1px dotted var(--line)}
+.k{display:grid;grid-template-columns:1fr 1fr;column-gap:26px;align-items:start;margin-top:14px} .e{break-inside:avoid;margin:0 0 12px;padding:0 0 10px;border-bottom:1px dotted var(--line)}
+@media screen and (max-width:640px){ .k{grid-template-columns:1fr} }   /* a GRID, not CSS columns: Chrome shrank whole printed pages when column text split across pages */
 .e h3{font-size:16px;margin:0 0 3px;display:flex;align-items:center;gap:8px} .e p{margin:0} .fl{font-style:italic;color:var(--acc);margin-top:3px!important}
 .b{display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:26px;padding:0 5px;border-radius:13px;border:2px solid var(--ink);background:#fff;font:bold 13px system-ui,Arial,sans-serif}
 .m .b{border-radius:4px;background:#ffd166} .nt{margin-top:6px;height:30px;border-bottom:1px solid var(--line);color:var(--mut);font:11px system-ui,Arial,sans-serif}
 footer{color:var(--mut);font:12px system-ui,Arial,sans-serif;text-align:center;padding:10px 0 24px}
 @media print{ .bar{display:none} body{background:#fff;font-size:11pt} main{max-width:none;padding:0} section{break-before:page} section:first-of-type{break-before:auto} img{max-height:9in;object-fit:contain} }
-</style></head><body><div class="bar"><b>📜 ${esc(title)}</b><button onclick="print()">🖨 Print</button><button onclick="(function(){var a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['<!doctype html>'+document.documentElement.outerHTML],{type:'text/html'}));a.download='${esc((town?'town':'dungeon')+'-'+bld.seed+'_gm-key.html')}';a.click();})()">⬇ Save</button></div>
+html.pm .bar{display:none} html.pm body{background:#fff;font-size:11pt} html.pm main{max-width:none;width:var(--pw);padding:0;margin:0} html.pm img{max-height:9in;object-fit:contain}
+.bar select{font:inherit;padding:5px 8px;border:1px solid var(--line);border-radius:8px;background:#fff}
+</style><style id="pgsz">@page{size:letter;margin:0.5in}</style><style id="fitcss"></style></head><body><div class="bar"><b>📜 ${esc(title)}</b><select id="pp" title="Paper"><option value="letter">Letter</option><option value="a4">A4</option></select><button onclick="fitPages();print()">🖨 Print</button><button onclick="(function(){var a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['<!doctype html>'+document.documentElement.outerHTML],{type:'text/html'}));a.download='${esc((town?'town':'dungeon')+'-'+bld.seed+'_gm-key.html')}';a.click();})()">⬇ Save</button></div>
 <main><h1>${esc(title)}</h1><p class="sub">${bld.cols} × ${bld.rows} squares · 1 square = 5 ft · ${pages.length>1?pages.length+(town?' floors':' levels')+' · ':''}for the game master's eyes only${pages.some(p=>/S|L/.test('')) ? '' : ''} · on the map: <b>S</b> = secret door, <b>L</b> = locked door, <b>T</b> = trap, <b>A</b>, <b>B</b>… = a way up / down in a passage</p>
 ${pages.map(p=>`<section><h2>${esc(p.h)}</h2><img src="${p.img}" alt="${esc(p.h)} map">${(p.entries.length||p.marks.length)?`<div class="k">${p.entries.map(e=>item(e)).join('')}${p.marks.map(m=>item(m,1)).join('')}</div>`:(town?'<p class="sub" style="margin-top:8px">Rooms on this floor are listed under the ground floor, building by building.</p>':'')}</section>`).join('\n')}
-<footer>Made with KSOL Designs Tabletop ${APP_VERSION}</footer></main></body></html>`;
+<footer>Made with KSOL Designs Tabletop ${APP_VERSION}</footer></main><script>
+/* FIT TO PAGE: each level/floor starts a new page. Its content is walked the way Chrome paginates it — heading, the
+   map picture (can't split), then each ROW of room entries (a row that doesn't fit moves to the next page). If the section's
+   LAST page would hold only a sliver (≤40% of a page, e.g. one room left over), shrink the map picture (never below 60%) and
+   then tighten the text a little until it ends a page sooner. Reference pictures only — scaled prints are never resized. */
+function fitPages(){ var A=document.getElementById('pp').value==='a4', PW=(A?8.27:8.5)-1, PH=((A?11.69:11)-1)*96*0.97;   // 3% safety: Chrome's page breaks run a little fuller than a measured layout
+  document.getElementById('pgsz').textContent='@page{size:'+(A?'A4':'letter')+';margin:0.5in}';
+  var H=document.documentElement, fit=document.getElementById('fitcss'), rules=[], secs=[].slice.call(document.querySelectorAll('main section')), foot=document.querySelector('footer'), head=[].slice.call(document.querySelectorAll('main > h1, main > .sub'));
+  fit.textContent=''; H.style.setProperty('--pw',PW+'in'); H.classList.add('pm');
+  function blocks(s,i){ var out=[], add=function(el,h){ out.push(h!=null?h:el.getBoundingClientRect().height); };
+    if(i===0) head.forEach(function(e){ var r=e.getBoundingClientRect(), cs=getComputedStyle(e); out.push(r.height+parseFloat(cs.marginTop)+parseFloat(cs.marginBottom)); });
+    [].slice.call(s.children).forEach(function(ch){ var cs=getComputedStyle(ch), mg=parseFloat(cs.marginTop)+parseFloat(cs.marginBottom);
+      if(ch.classList.contains('k')){ var rows={}, es=[].slice.call(ch.children); es.forEach(function(e){ var r=e.getBoundingClientRect(), t=Math.round(r.top); rows[t]=Math.max(rows[t]||0, r.height+12); });
+        var ks=Object.keys(rows).map(Number).sort(function(a,b){return a-b;}); ks.forEach(function(t,j){ out.push(rows[t]+(j===0?parseFloat(cs.marginTop):0)); }); }
+      else out.push(ch.getBoundingClientRect().height+mg); });
+    if(i===secs.length-1 && foot) out.push(foot.getBoundingClientRect().height+20);
+    return out; }
+  function paginate(b){ var pages=1, y=0; b.forEach(function(h){ if(y>0 && y+h>PH){ pages++; y=0; } y+=Math.min(h,PH); }); return {pages:pages, last:y}; }
+  secs.forEach(function(s,i){ s.id='s'+i; var im=s.querySelector('img'), P=paginate(blocks(s,i)), n=P.pages;
+    if(n<2 || P.last>PH*0.4) return;                                                  // fits on its pages, or the last page is well used
+    var ih=im?im.getBoundingClientRect().height:0, best=null;
+    var tries=[]; [1,0.95,0.9,0.85,0.8,0.75,0.7,0.65,0.6].forEach(function(k){ [null,10,9.5].forEach(function(f){ tries.push([k,f]); }); });
+    for(var t=0;t<tries.length && !best;t++){ var k=tries[t][0], f=tries[t][1]; if(k===1 && f===null) continue;
+      if(im){ im.style.maxHeight=(ih*k)+'px'; im.style.width='auto'; im.style.maxWidth='100%'; im.style.margin='0 auto'; }
+      s.style.fontSize=f?f+'pt':'';
+      if(paginate(blocks(s,i)).pages<n) best={k:k,f:f}; }
+    if(im){ im.style.maxHeight=''; im.style.width=''; im.style.maxWidth=''; im.style.margin=''; } s.style.fontSize='';
+    if(best){ if(im && best.k<1) rules.push('#s'+i+' img{max-height:'+(ih*best.k).toFixed(0)+'px!important;width:auto!important;max-width:100%!important;margin:0 auto!important}'); if(best.f) rules.push('#s'+i+'{font-size:'+best.f+'pt!important}'); } });
+  H.classList.remove('pm'); fit.textContent='@media print{'+rules.join('')+'}'; window.__fit={rules:rules.length, sections:secs.length}; return window.__fit; }
+window.addEventListener('beforeprint', fitPages);
+<\/script></body></html>`;
   const blob=new Blob([html],{type:'text/html'}), name=`${town?'town':what.toLowerCase().replace(/ /g,'-')}-${bld.seed}_gm-key.html`;
   const w=window.open(URL.createObjectURL(blob),'_blank'); if(!w) bDownload(blob,name);
   const n=pages.reduce((a,p)=>a+p.entries.length,0);
@@ -5902,13 +6111,26 @@ function bFloorUI(){ const sel=document.getElementById('bVttFloor'); if(!sel) re
   sel.style.display=''; document.getElementById('bVttAllWrap').style.display=''; document.getElementById('bVttAllTxt').textContent='all floors'; }
 function bDgUI(){ bFloorUI(); const row=document.getElementById('bDgRow'); if(!row) return; const on=!!bld.dungeon; row.style.display=on?'':'none';
   const er=document.getElementById('bDgExtRow'); if(er){ er.style.display=on?'':'none'; document.getElementById('bDgEnd').style.display=document.getElementById('bDgExtMode').value==='dead'?'':'none'; }
-  if(!on) return;
+  if(!on){ bLvlPad(); return; }
   document.getElementById('bVttAllTxt').textContent='all levels';
   const L=bld.dungeonLevels||[bld.dungeon], i=bld.dungeonLevel||0;
   const TWR=bld.dungeon.style==='tower'; document.getElementById('bDgWhich').textContent=`${TWR?'Floor':'Level'} ${i+1} / ${L.length}`;
   document.getElementById('bDgUp').disabled = i===0; document.getElementById('bDgUp').textContent = TWR?'▼ Floor':'▲ Level'; document.getElementById('bDgDown').textContent = TWR ? (i<L.length-1 ? '▲ Floor' : '⬆ Build a floor up') : (i<L.length-1 ? '▼ Level' : '⬇ Dig deeper');
   document.getElementById('bDigKind').style.display = i<L.length-1 ? 'none' : '';
-  const all=document.getElementById('bVttAllWrap'); if(all) all.style.display = L.length>1 ? '' : 'none'; }
+  const all=document.getElementById('bVttAllWrap'); if(all) all.style.display = L.length>1 ? '' : 'none'; bLvlPad(); }
+/* ▲▼ LEVEL PAD (v1.35) — switch levels / floors right on the map (not only in the side panel). Dungeons list Level 1 at the
+   top and go DOWN; a wizard's tower lists its top floor at the top and goes UP. The end button digs deeper / builds a floor up. */
+function bLvlPad(){ const pad=document.getElementById('bLvlPad'); if(!pad) return; const L=bld.dungeonLevels||[];
+  if(!BUILD || !bld.dungeon || bld._exporting){ pad.hidden=true; return; } pad.hidden=false;
+  const i=bld.dungeonLevel||0, n=Math.max(1,L.length), TWR=bld.dungeon.style==='tower', last=i>=n-1;
+  document.getElementById('bLvlT').textContent=TWR?'Floor':'Level';
+  const A=document.getElementById('bLvlA'), B=document.getElementById('bLvlB'), list=document.getElementById('bLvlList');
+  // towers: ▲ = next floor up (index +1, or build one) · ▼ = down (index −1). Dungeons: ▲ = up (−1) · ▼ = next down (+1, or dig).
+  const upNext=TWR, more=(btn)=>{ btn.textContent=last?(TWR?'⬆ +':'⬇ +'):(btn===A?'▲':'▼'); btn.title=last?(TWR?'Build a floor up':'Dig a level deeper'):(TWR?'Up a floor':'Down a level'); btn.disabled=false; btn.onclick=()=>bDigDeeper(); };
+  const back=(btn)=>{ btn.textContent=btn===A?'▲':'▼'; btn.title=TWR?'Down a floor':'Up a level'; btn.disabled=i===0; btn.onclick=()=>bSwitchLevel(i-1); };
+  if(upNext){ more(A); back(B); } else { back(A); more(B); }
+  list.innerHTML=''; const idx=[...Array(n).keys()]; if(TWR) idx.reverse();
+  for(const k of idx){ const b=document.createElement('button'); b.textContent=(TWR?'F':'L')+(k+1); b.title=(TWR?'Floor ':'Level ')+(k+1)+(L[k]?' — '+dgName(L[k]):''); if(k===i) b.classList.add('on'); b.onclick=()=>bSwitchLevel(k); list.appendChild(b); } }
 // every way DOWN on level i has its landing on level i+1 (same square) — retrofit any that are missing (e.g. a dead end
 // ending in stairs added AFTER the level below was dug). Returns how many landings were added.
 function bSyncLandings(){ const L=bld.dungeonLevels||[]; let added=0;
@@ -6047,9 +6269,10 @@ window.__bGen = (theme,scale,cols,rows,seed)=>{ bld.theme=theme; if(scale){ setT
 // 📸 PHOTO MODE (marketing / gallery renders): a clean frame straight from the 3D scene — no UI, ruler, north arrow
 // or edit aids — through its own camera, supersampled, with the sun's shadow box fitted to the framed area.
 // o = { w,h, az,el (deg), dist (× board size), fov, tx,tz (target offset, cells), ss (supersample), bg:[top,bottom] }
+window.__bShotSettled = async(o)=>{ if(BUILD){ bld._exporting=true; bRender(); await bGlbSettled(); await new Promise(r=>setTimeout(r,300)); } return window.__bShot(Object.assign({}, o||{}, {noRender:true})); };   // test harness: a shot WITH the GLB models loaded
 window.__bShot = (o)=>{ o=o||{};
   const W=o.w||1920, H=o.h||1080, ss=o.ss||2;
-  const inB=BUILD, savedRuler=bld.ruler; if(inB){ bld.ruler='off'; bld._exporting=true; bRender(); }
+  const inB=BUILD, savedRuler=bld.ruler; if(inB){ bld.ruler='off'; bld._exporting=true; if(!o.noRender) bRender(); }
   if(_northArrow) _northArrow.visible=false;
   const bb=o.size?{cx:o.cx||0,cz:o.cz||0,w:o.size,h:o.size}:bTgcSceneBBox(), size=Math.max(bb.w,bb.h);   // game boards (chess, Ur…): pass size/cx/cz
   const tgt=new THREE.Vector3(bb.cx+(o.tx||0), o.ty||0, bb.cz+(o.tz||0));
@@ -6089,7 +6312,7 @@ function bGenerateNextSection(dir){
   if(bld.baseMap){ bStatus('Extend works on generated/built maps — remove the base map first.',true); return; }
   if(!bld.board.size){ bStatus('Generate or build a map first, then extend it.',true); return; }
   if(TGC_HEXMAT[bld.tgc]){ bExtendHexMat(dir); return; }   // flower/invader → add another whole interlocking unit
-  { const _c=TGC[bld.tgc]; if(_c && _c.kind==='mat' && !_c.fit && bld.grid==='hex'){ bExtendHexSheet(dir); return; } }   // rect hex board/mat → add a printable SHEET that tiles at the seam
+  { const _c=TGC[bld.tgc]; if(_c && _c.kind==='mat' && !_c.fit){ bExtendHexSheet(dir); return; } }   // rect hex board/mat → add a printable SHEET that tiles at the seam
   bPushUndo();
   const E=6, g=bGridObj(); let newCells;
   if(dir==='E'){ newCells=bCellsRange(bld.q0+bld.cols, bld.q0+bld.cols+E, bld.r0, bld.r0+bld.rows); bld.cols+=E; }
@@ -6153,7 +6376,7 @@ function bExtendHexSheet(dir){
   newCells.sort(cmp);
   const theme=bld.tgcFillTheme||bld.theme||'';
   let feat=bld.extFeature; if(feat==='castle' && bPlanExtendCastle(newCells)) feat='bare';
-  const sp=bStructPlace(newCells); newCells.length=0; sp.rest.forEach(c=>newCells.push(c));   // planned castle cells FIRST
+  const sp=bStructPlace(newCells), rest=sp.rest.slice(); newCells.length=0; rest.forEach(c=>newCells.push(c));   // planned castle cells FIRST (copy: with no plans sp.rest IS newCells — clearing it first left the new sheet blank)
   if(newCells.length && bModernExtTheme()){ bModernExtend(newCells.slice(), bModernExtTheme()); newCells.length=0; }   // 🏙 Modern Pack
   if(!newCells.length){                                                                  // the whole new sheet was castle
   } else if(bExtCustomFill(newCells)){                                                   // custom texture → uniform fill the new sheet
@@ -6165,7 +6388,7 @@ function bExtendHexSheet(dir){
     if(Array.isArray(r.draw) && r.draw.length) bld.draw=bld.draw.concat(r.draw);
     if(Array.isArray(r.props) && r.props.length) bld.props=bld.props.concat(r.props.map(p=>({...p, rot:p.rot||0})));
   }
-  bRender(); bFit();
+  bRender(); bFit(); bTgcInfo();
   const nm=TGC[bld.tgc].name;
   bStatus(`Extended ${({E:'east',W:'west',N:'north',S:'south'})[dir]} — the board is now <b>${bld.sheetsX}×${bld.sheetsY} = ${bld.sheetsX*bld.sheetsY} sheets</b> of ${nm}. <b>Export</b> gives one print image per sheet; laid edge-to-edge the half-hexes complete and the terrain flows across the seam.`);
 }
@@ -6255,7 +6478,7 @@ function bRenderHexMatGhosts(){ if(!TGC_HEXMAT[bld.tgc] || bld._exporting) retur
     for(let i=0;i<=6;i++){ const a=i*Math.PI/3; hp.push(new THREE.Vector3(w.x+0.85*Math.cos(a), TILE_TOP+0.07, w.z+0.85*Math.sin(a))); }
     const rim=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(hp), new THREE.LineBasicMaterial({color:0x6fe0ff, transparent:true, opacity:0.55, depthTest:false})); rim.renderOrder=20; builderGroup.add(rim);
     const l=bMakeTickLabel('＋'); l.position.set(w.x, TILE_TOP+0.11, w.z); l.scale.set(0.85,0.42,1); l.renderOrder=32; builderGroup.add(l); } }
-function bClear(){ bPushUndo(); bld.dungeon=null; bld.dungeonLevels=[]; bld.dungeonLevel=0; bld.structEdits={}; bld.editSel=null; bld.board.clear(); bld.zones.clear(); bld.draw=[]; bld.pen=[]; bld.props=[]; bld.subdiv.clear(); bld.subpaint.clear(); bld.selStroke=null; bld.selProp=null; bld.q0=0; bld.r0=0; bld.tgcCenters=[]; bld.selUnit=0; bld.sheetsX=1; bld.sheetsY=1; bld.sheetCX=0; bld.sheetCZ=0; _settlePlan=null; bld.structPlans=[]; bld.modern=null; if(TGC[bld.tgc]&&TGC[bld.tgc].kind==='mat') bTgcFit(); bRender(); bStatus("Cleared"); }
+function bClear(){ bPushUndo(); bld.dungeon=null; bld.dungeonLevels=[]; bld.dungeonLevel=0; bld.structEdits={}; bld.editSel=null; bld.board.clear(); bld.zones.clear(); bld.draw=[]; bld.pen=[]; bld.props=[]; bld.subdiv.clear(); bld.subpaint.clear(); bld.selStroke=null; bld.selProp=null; bld.q0=0; bld.r0=0; bld.tgcCenters=[]; bld.selUnit=0; bld.sheetsX=1; bld.sheetsY=1; bSheetHome(); _settlePlan=null; bld.structPlans=[]; bld.modern=null; if(TGC[bld.tgc]&&TGC[bld.tgc].kind==='mat') bTgcFit(); bRender(); bStatus("Cleared"); }
 function bSaveBoard(){ const data=TE.serializeBoard(bld.grid, bld.board, bld.zones, {cols:bld.cols,rows:bld.rows,seed:bld.seed,q0:bld.q0,r0:bld.r0}); data.draw=bld.draw; data.props=bld.props; data.season=bld.season; data.trees=bld.trees;
   data.dungeon=bld.dungeon||null; data.dungeonLevels=bld.dungeonLevels||[]; data.dungeonLevel=bld.dungeonLevel||0;   // ⚔ dungeon / cave levels (plain JSON)
   data.structEdits=bld.structEdits||{};                                    // ✏ hand edits to battle buildings
@@ -6383,7 +6606,7 @@ function enterBuilder(){ BUILD=true; RACE=false; GRAPH=null; PLAYB=false;
 }
 document.querySelectorAll('#bLibSrcSeg button').forEach(b=> b.onclick=()=>{ bLibSrc=b.dataset.src;
   document.querySelectorAll('#bLibSrcSeg button').forEach(x=>x.classList.toggle('on',x===b)); bBuildLibList(); });
-function leaveBuilder(){ BUILD=false; PLAYB=false; builderGroup.visible=false; bHover.visible=false;
+function leaveBuilder(){ { const p=document.getElementById('bLvlPad'); if(p) p.hidden=true; } BUILD=false; PLAYB=false; builderGroup.visible=false; bHover.visible=false;
   if(navCube) navCube.show(false); _zoomBack=null; bShowZoomBack(false);
   boardGroup.visible=true; piecesGroup.visible=true; fxGroup.visible=true;
   document.querySelector('.tabs').style.display='';
@@ -7655,6 +7878,10 @@ window.__bRiverCheck = ()=>{ const defs=bDefs(), g=bGridObj(), N=g.N;
     if(e && e.path===TE.PATH.RIVER) connected++; else if(rvEdges===1) danglingTermini++;
   }
   return {danglingTermini, connected}; };
+window.__bRaw = ()=>bld;
+window.__bLvlPad = ()=>{ const p=document.getElementById('bLvlPad'); return {hidden:p.hidden, title:document.getElementById('bLvlT').textContent, a:document.getElementById('bLvlA').textContent, b:document.getElementById('bLvlB').textContent, chips:[...document.querySelectorAll('#bLvlList button')].map(x=>x.textContent+(x.classList.contains('on')?'*':''))}; };
+window.__bShopPdf = async()=>{ const c=TGC[bld.tgc]; if(!c||!c.shop) return null; const sf=bld.boardFlat; bld._exporting=true; setTileFlat(true); bld.boardFlat=true; bRender(); let r; const dl=window.__lastDl; try{ r=await bShopExport(c); } finally { bld._exporting=false; setTileFlat(sf); bld.boardFlat=sf; bRender(); } return r; };
+window.__bFeatureCells = (f)=>{ const defs=bDefs(), g=bGridObj(), out=[]; for(const [k,pl] of bld.board){ const d=defs[pl.defId]; if(d && d.feature===f){ const [q,r]=k.split(',').map(Number), w=g.world({q,r}); out.push({x:w.x, z:w.z}); } } return out; };   // test harnesses: world centres of cells with a tile feature                                           // test harnesses: read the raw board state
 window.__bDbg = {
   info: ()=>({ tool:bld.tool, wallMode:bld.wallMode, pen:bld.pen.slice(), draw:bld.draw.map(s=>({type:s.type,n:s.pts.length,mode:s.mode})), undo:_undo.length }),
   nodes: ()=>{ const r=renderer.domElement.getBoundingClientRect(); return bConnNodes().list.map(n=>{ const v=new THREE.Vector3(n.x-bld.off.x,TILE_TOP,n.z-bld.off.z).project(camera); return {id:n.id, center:!!n.center, sx:Math.round((v.x*0.5+0.5)*r.width+r.left), sy:Math.round((-v.y*0.5+0.5)*r.height+r.top)}; }); },
