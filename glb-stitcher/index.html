@@ -163,7 +163,22 @@
   .sidebar-tabs button.on{background:var(--panel);color:var(--text);font-weight:600;border-color:var(--accent)}
   .node-hint{position:absolute;left:12px;bottom:12px;right:12px;font-size:11px;color:var(--muted);pointer-events:none}
   .node-marquee{position:absolute;border:1px solid var(--accent);background:rgba(91,157,255,.14);border-radius:2px;pointer-events:none;z-index:7}
-  .scrubber{display:flex;align-items:center;gap:10px;padding:8px 12px 2px}
+  .scrubber{display:flex;align-items:center;gap:10px;padding:8px 12px 2px;position:relative}
+  /* 🎥 camera cube */
+  .cc-new{font-size:9.5px;font-weight:800;letter-spacing:.5px;background:#d4a017;color:#241c00;border-radius:20px;padding:1px 6px;margin-left:4px;vertical-align:1px}
+  .cc-seg{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
+  .cc-seg button{flex:1;min-width:0;font-size:12px;padding:6px 6px}
+  .cc-seg button.on{outline:2px solid var(--accent,#5b8cff);outline-offset:-2px}
+  .cc-keys{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;min-height:22px}
+  .cc-key{font-size:11.5px;padding:3px 8px;border-radius:20px;border:1px solid #3a4560;background:#1a2130;color:#cfe0ff;cursor:pointer}
+  .cc-key.on{background:#d4a017;color:#241c00;border-color:#d4a017;font-weight:700}
+  .cc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px 6px;margin-top:4px}
+  .cc-grid label{display:flex;flex-direction:column;font-size:10.5px;color:var(--muted,#8b97a8);gap:2px}
+  .cc-grid input{width:100%;min-width:0;padding:4px 5px;font-size:12px}
+  .cc-pip{position:absolute;pointer-events:none;border:2px solid #d4a017;border-radius:4px;box-shadow:0 0 0 1px rgba(0,0,0,.5);display:none;z-index:5}
+  .cc-pip span{position:absolute;right:-2px;top:-19px;font-size:10.5px;font-weight:700;color:#241c00;background:#d4a017;border-radius:4px 4px 0 0;padding:2px 7px;white-space:nowrap}
+  .cc-marks{position:absolute;pointer-events:none;height:0}
+  .cc-mark{position:absolute;top:-7px;width:9px;height:9px;margin-left:-4.5px;background:#d4a017;transform:rotate(45deg);border:1px solid #241c00;border-radius:1px}
   .scrubber input[type=range]{flex:1}
   .scrubber .st{font-size:11px;color:var(--muted)}
   .scrubber .st#scrubT{min-width:104px;text-align:right}
@@ -645,6 +660,32 @@
         <option value="pushOrbit">Push-in + orbit</option>
       </select>
       <div class="hint" style="margin-top:2px">Eases the camera across the whole video (in preview &amp; render). Combines with auto-spin and camera-follow.</div>
+      <div id="ccBox">
+      <label class="block" style="margin-top:14px">🎥 Camera cube <span class="cc-new">NEW</span></label>
+      <label class="toggle" style="margin-top:4px"><input type="checkbox" id="ccShow"> Show the camera cube in the scene</label>
+      <label class="toggle"><input type="checkbox" id="ccUse"> Use camera cube viewpoint for preview &amp; render</label>
+      <div class="hint" style="margin-top:2px">A camera you place in the scene, separate from your editing view. Aim it, key its moves along the timeline, and the video is filmed through it.</div>
+      <div id="ccPanel" hidden>
+        <div class="cc-seg"><button type="button" id="ccHere" title="Move the cube to exactly where your editing view is now">📍 Put cube at my view</button></div>
+        <div class="cc-seg"><button type="button" id="ccMove" class="on" title="Drag the arrows to move the cube (W)">✥ Move (W)</button><button type="button" id="ccRot" title="Drag the rings to aim the cube (E)">⟳ Rotate (E)</button><button type="button" id="ccPipBtn" class="on" title="Show what the cube sees in the corner of the preview">🖼 Cube view</button></div>
+        <label class="block">Cube follows</label>
+        <select id="ccFollow"><option value="fixed" selected>Fixed in the scene (character moves through the shot)</option><option value="travel">Travel with the character (keeps its offset)</option></select>
+        <label class="toggle"><input type="checkbox" id="ccAim"> Keep aimed at the character</label>
+        <div class="hint" style="margin-top:2px">The cube turns to keep the character centred every frame (in an ensemble, the ★ main character). Your keys still set where the cube is; the aim is automatic.</div>
+        <label class="block">Motion between keys</label>
+        <select id="ccMotion"><option value="smooth" selected>Smooth glide through the keys</option><option value="ease">Ease in &amp; out, pause at each key</option></select>
+        <label class="block">Keyframes <span style="text-transform:none;letter-spacing:0">(◆ on the scrub bar)</span></label>
+        <div class="cc-seg"><button type="button" id="ccKey" title="Save the cube's position, aim and lens at the playhead time">◆ Set key at playhead</button><button type="button" id="ccDelKey" title="Delete the selected key">Delete key</button><button type="button" id="ccClear" title="Delete every key">Clear</button></div>
+        <div class="cc-keys" id="ccKeys"></div>
+        <label class="block">Exact placement</label>
+        <div class="cc-grid">
+          <label>X<input type="number" id="ccX" step="0.05"></label><label>Y (height)<input type="number" id="ccY" step="0.05"></label><label>Z<input type="number" id="ccZ" step="0.05"></label>
+          <label>Turn °<input type="number" id="ccYaw" step="1"></label><label>Tilt °<input type="number" id="ccPitch" step="1"></label><label>Roll °<input type="number" id="ccRoll" step="1"></label>
+          <label>Lens (view °)<input type="number" id="ccFov" step="1" min="10" max="100"></label>
+        </div>
+        <div class="hint" style="margin-top:6px"><b>How to film a camera move:</b> drag the scrub bar to a moment, place and aim the cube (drag its arrows / rings, or 📍 put it at your view), then <b>◆ Set key</b>. Move to another moment, move the cube, key again. The camera glides between keys; one key = a locked-off shot. Click a ◆ chip to jump to it and adjust it (setting a key at the same time replaces it). Tick <b>Use camera cube viewpoint</b> to preview and render through it.</div>
+      </div>
+      </div>
       <label class="block">Lighting</label>
       <div class="range-row"><input type="range" id="light" min="0.2" max="3" step="0.05" value="1.2"><span class="val" id="lightVal">1.20×</span></div>
       <label class="toggle"><input type="checkbox" id="shadow"> Ground contact shadow</label>
@@ -882,6 +923,7 @@
         <li><b>Orbit:</b> middle-drag, or hold <b>Alt</b>/<b>Space</b> and drag (or use <b>🎥 Orbit view</b>). Wheel = zoom. Sliders in panel 3 set padding, height, yaw and vertical position.</li>
         <li><b>View cube</b> (bottom-right) snaps to Front/Side/Iso angles; <b>Top</b> looks straight down (great for laying out obstacles on the grid). The cube works even before you load a character.</li>
         <li><b>Cinematic camera move</b> (panel 3) eases the camera across the whole video — push-in, pull-out, or drift-orbit.</li>
+        <li><b>🎥 Camera cube</b> (panel 3) is a camera you place in the scene, separate from your editing view: drag its arrows (W) / rings (E) or <b>📍 put it at your view</b>, then <b>◆ Set key</b> at different playhead times to fly it. <b>Travel with the character</b> keeps its offset as the character moves; <b>Keep aimed</b> keeps the character centred. Tick <b>Use camera cube viewpoint</b> to preview &amp; render through it — the corner <b>🖼 Cube view</b> shows the shot while you edit.</li>
       </ul>
 
       <h3>Titles, captions &amp; audio</h3>
@@ -921,6 +963,7 @@
       <li>Each clip's <b>1×</b> pill sets that clip's <b>speed</b> (slow-mo / fast-forward).</li>
       <li><b>💬</b> on a clip adds a caption; enable captions in <b>🎬 Titles &amp; captions</b>.</li>
       <li><b>Cinematic camera move</b> (Scene &amp; camera) drifts the camera across the video.</li>
+      <li><b>🎥 Camera cube</b> (Scene &amp; camera): place a camera in the scene, key its moves along the timeline, and render the video through it.</li>
       <li>Drag the character on the ground to place it; middle-drag / Alt-drag to orbit.</li>
       <li><b>☰ Menu → Save</b> keeps all settings + per-clip options in a <code>.json</code> project.</li>
     </ul>
@@ -973,9 +1016,10 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+import { TransformControls } from 'three/addons/controls/TransformControls.js';
 
 const $ = s => document.querySelector(s);
-const APP_NAME='GLB Stitcher', APP_VERSION='1.10.7', APP_BUILD='2026-09-26';   // version shown in About + footer
+const APP_NAME='GLB Stitcher', APP_VERSION='1.10.8', APP_BUILD='2026-09-26';   // version shown in About + footer
 // Bump APP_BUILD whenever the app or the bundled motion library changes. It is printed to the console and
 // shown in the footer so "am I running the current version?" can be answered by looking, not by guessing —
 // a stale browser tab kept an old build alive twice while the files on disk were already up to date.
@@ -3348,6 +3392,7 @@ window.addEventListener('blur', ()=>{ camKey=false; setCursor(); });
 canvasEl.addEventListener('contextmenu', e=>e.preventDefault());   // free up the right button for spin/pan
 canvasEl.addEventListener('pointerdown', e=>{
   if(rendering) return;
+  if(ccGrabbing()) return;                                // 🎥 camera cube arrows / rings take this drag
   _lastPtr={x:e.clientX, y:e.clientY};                    // remember where the click was (for popups)
   const ax = clips.length ? gizmoPick(e) : null;         // Move / Rotate tool: grab a handle first
   if(ax){
@@ -3597,15 +3642,22 @@ function ensureMainChar(){ const act=activeChars(); if(!act.length){ mainCharId=
 function mainChar(){ ensureMainChar(); return characters.find(x=>x.id===mainCharId)||null; }
 function isMain(ch){ return !!ch && ch.id===mainCharId; }
 function skelSig(root){ const n=[]; root.traverse(o=>{ if(o.isBone) n.push(o.name); }); n.sort(); return n.length? n.join('|') : 'nobones'; }
-function newCharacter(sig, restH, name){
+function newCharacter(sig, restH, name, mesh){
   const ch={ id:crypto.randomUUID(), name: name || ('Character '+(characters.length+1)),
-    color:CHAR_COLORS[characters.length%CHAR_COLORS.length], relativeScale:1, sig, restH };
+    color:CHAR_COLORS[characters.length%CHAR_COLORS.length], relativeScale:1, sig, restH, mesh:mesh||null };
   characters.push(ch); return ch;
 }
+// Model fingerprint (mesh count + total vertices). Every biped rigged in 🧍 Rig shares the SAME 24 bone names, so
+// the skeleton alone can't tell an Elf from an Orc (a new rig used to join the first biped's character and take its
+// name). Same skeleton AND same model = same character (per-animation exports of one model, library clips cloned
+// from the rig); a different model with the same skeleton becomes its own character, named after its file.
+function meshSig(root){ let n=0, v=0; root.traverse(o=>{ if(o.isMesh && o.geometry && o.geometry.attributes && o.geometry.attributes.position){ n++; v+=o.geometry.attributes.position.count; } }); return n+':'+v; }
 function assignCharacter(c, nameHint){
   const sig = c.hips ? skelSig(c.root) : ('mesh:'+(c.restH||0).toFixed(2));
-  let ch=characters.find(x=>x.sig===sig);
-  if(!ch) ch=newCharacter(sig, c.restH, nameHint);   // name a NEW character after its file/sample (single load only)
+  const ms = meshSig(c.root);
+  let ch=characters.find(x=>x.sig===sig && (!x.mesh || x.mesh===ms));
+  if(!ch) ch=newCharacter(sig, c.restH, nameHint, ms);   // name a NEW character after its file/sample (single load only)
+  if(!ch.mesh) ch.mesh=ms;
   c.charId=ch.id;
   if(ch.restH==null) ch.restH=c.restH;
 }
@@ -4236,10 +4288,12 @@ async function runShow(fps,loops,hold,spin,trans, emit, abort){
   // The KSOL brand card now plays ONLY at the END (a brief, classy closing credit) — the video opens straight
   // on the intro/content instead of a leading brand card.
   const inF=introFrames(fps);
-  for(let f=0; f<inF && !abort(); f++){ renderFrame(); drawTitleCard(cardTextAlpha(f,inF,fps), cfg.introTitle, cfg.introSub); await emit(gi++); }
-  if(!abort()) await runProducer(fps,loops,hold,spin,trans, async()=>{ await emit(gi++); }, abort);
+  ccFrame(gi, fps);
+  for(let f=0; f<inF && !abort(); f++){ ccFrame(gi, fps); renderFrame(); drawTitleCard(cardTextAlpha(f,inF,fps), cfg.introTitle, cfg.introSub); await emit(gi++); }
+  ccFrame(gi, fps);
+  if(!abort()) await runProducer(fps,loops,hold,spin,trans, async()=>{ await emit(gi++); ccFrame(gi, fps); }, abort);
   const outF=outroFrames(fps);
-  for(let f=0; f<outF && !abort(); f++){ renderFrame(); drawTitleCard(cardTextAlpha(f,outF,fps), cfg.outroText, ''); await emit(gi++); }
+  for(let f=0; f<outF && !abort(); f++){ ccFrame(gi, fps); renderFrame(); drawTitleCard(cardTextAlpha(f,outF,fps), cfg.outroText, ''); await emit(gi++); }
   for(let f=0; f<bF && !abort(); f++){ drawBrandCard(cardTextAlpha(f,bF,fps)); await emit(gi++); }   // branded END (always)
 }
 // Pro-gated controls: owning Studio content lets the KSOL end card be removed. Hide [data-pro] unless pro.
@@ -5192,7 +5246,9 @@ function renderFrame(){
   renderer.autoClear=false; renderer.clear();
   if(!trans) renderer.render(bgScene,bgCam);   // transparent mode: skip the background so the video/PNG has alpha
   renderer.clearDepth();
+  ccBeforeRender();                 // 🎥 camera cube: pose the proxy / look through it during preview + render
   renderer.render(scene,camera);
+  ccAfterRender(trans);             // 🎥 camera cube: corner "cube view" (editing only, never in exports)
   positionGizmoChip();
 }
 function renderOverlay(op){ fadeMat.opacity=op; renderer.render(fadeScene,fadeCam); }
@@ -5203,6 +5259,180 @@ function snapshotCanvas(){
   fadeMat.needsUpdate=true;
 }
 const frameWait=()=>new Promise(r=>requestAnimationFrame(r));
+
+
+/* ============================================================================
+   🎥 CAMERA CUBE (v1.10.8) — a camera you place in the scene, independent of the editing view.
+   Drag handles (TransformControls) move/aim it; keys along the show timeline (seconds, incl. intro frames)
+   glide it; "Use camera cube viewpoint" renders preview + video through it. Travel mode stores each key's
+   character anchor and replays the key's OFFSET from the character's current position.
+   State lives on window.__ccS (hooks are hoisted functions that no-op until init runs).
+   ========================================================================== */
+function ccS(){ return window.__ccS || null; }
+function ccFrame(n, fps){ const S=ccS(); if(S){ S.frame=n; if(fps) S.fps=fps; } }
+function ccAnchor(D){ const S=ccS(); if(S && D) S.anchor.set(D.x||0, D.y||0, D.z||0); }
+function ccScrub(on){ const S=ccS(); if(S) S.scrub=!!on; }
+function ccGrabbing(){ const S=ccS(); return !!(S && S.tc.enabled && S.tc.visible && S.tc.axis); }
+function ccRestore(){ const S=ccS(); if(S && S.overrode){ camera.fov=S.baseFov; camera.updateProjectionMatrix(); S.overrode=false; } }
+function ccOn(id){ const e=document.getElementById(id); return !!(e && e.checked); }
+function ccVal(id, d){ const e=document.getElementById(id); return e ? e.value : d; }
+function ccCatmull(p0,p1,p2,p3,u){ const u2=u*u, u3=u2*u;
+  return new THREE.Vector3(
+    0.5*(2*p1.x + (-p0.x+p2.x)*u + (2*p0.x-5*p1.x+4*p2.x-p3.x)*u2 + (-p0.x+3*p1.x-3*p2.x+p3.x)*u3),
+    0.5*(2*p1.y + (-p0.y+p2.y)*u + (2*p0.y-5*p1.y+4*p2.y-p3.y)*u2 + (-p0.y+3*p1.y-3*p2.y+p3.y)*u3),
+    0.5*(2*p1.z + (-p0.z+p2.z)*u + (2*p0.z-5*p1.z+4*p2.z-p3.z)*u2 + (-p0.z+3*p1.z-3*p2.z+p3.z)*u3)); }
+// camera pose at show time t (seconds). No keys → the cube where it sits (offset by travel since it was placed).
+function ccPoseRaw(t){ const S=ccS(), K=S.keys, travel=ccVal('ccFollow','fixed')==='travel';
+  const P=k=> travel ? new THREE.Vector3(k.p[0]-k.a[0]+S.anchor.x, k.p[1]-k.a[1]+S.anchor.y, k.p[2]-k.a[2]+S.anchor.z) : new THREE.Vector3(k.p[0],k.p[1],k.p[2]);
+  const Q=k=> new THREE.Quaternion(k.q[0],k.q[1],k.q[2],k.q[3]);
+  if(!K.length){ const p=S.g.position.clone(); if(travel) p.add(S.anchor).sub(S.a0); return {p, q:S.g.quaternion.clone(), fov:S.fov}; }
+  if(K.length===1 || t<=K[0].t) return {p:P(K[0]), q:Q(K[0]), fov:K[0].fov};
+  const L=K[K.length-1]; if(t>=L.t) return {p:P(L), q:Q(L), fov:L.fov};
+  let i=0; while(i<K.length-2 && t>K[i+1].t) i++;
+  const a=K[i], b=K[i+1]; let u=(t-a.t)/Math.max(1e-6, b.t-a.t);
+  const ease=ccVal('ccMotion','smooth')==='ease'; if(ease) u=u*u*(3-2*u);
+  const p = ease ? P(a).lerp(P(b),u) : ccCatmull(P(K[Math.max(0,i-1)]), P(a), P(b), P(K[Math.min(K.length-1,i+2)]), u);
+  return {p, q:Q(a).slerp(Q(b),u), fov:a.fov+(b.fov-a.fov)*u};
+}
+// point of interest for "Keep aimed at the character"
+function ccAimTarget(){ const S=ccS();
+  if(typeof isEnsemble==='function' && isEnsemble()){ const m=(typeof mainChar==='function')?mainChar():null, p=(m&&m.stagePos)||{x:0,z:0};
+    return new THREE.Vector3(p.x, REF_H*((m&&m.relativeScale)||1)*0.55, p.z); }
+  return new THREE.Vector3(S.anchor.x, S.anchor.y + ((camState&&camState.radius)||1)*1.0, S.anchor.z); }
+const _ccAimM=new THREE.Matrix4(), _ccUp=new THREE.Vector3(0,1,0);
+function ccAimQuat(p){ const tgt=ccAimTarget(); if(tgt.distanceToSquared(p)<1e-6) return null;
+  _ccAimM.lookAt(p, tgt, _ccUp); return new THREE.Quaternion().setFromRotationMatrix(_ccAimM); }
+function ccPoseAt(t){ const r=ccPoseRaw(t); if(ccOn('ccAim')){ const q=ccAimQuat(r.p); if(q) r.q=q; } return r; }
+function ccSyncCams(){ const S=ccS(); if(!S) return; S.g.updateMatrixWorld(true);
+  for(const c of [S.cam, S.hcam]){ c.position.copy(S.g.position); c.quaternion.copy(S.g.quaternion); c.fov=S.fov; c.aspect=outW/outH; c.updateProjectionMatrix(); c.updateMatrixWorld(true); }
+  S.helper.update(); }
+function ccSyncFields(){ const S=ccS(); if(!S) return; const act=document.activeElement, e=new THREE.Euler().setFromQuaternion(S.g.quaternion,'YXZ'), d=THREE.MathUtils.radToDeg;
+  const set=(id,v)=>{ const el=document.getElementById(id); if(el && el!==act) el.value=(Math.round(v*100)/100); };
+  set('ccX',S.g.position.x); set('ccY',S.g.position.y); set('ccZ',S.g.position.z);
+  set('ccYaw',d(e.y)); set('ccPitch',d(e.x)); set('ccRoll',d(e.z)); set('ccFov',S.fov); }
+function ccPlaceAtView(){ const S=ccS(); S.g.position.copy(camera.position); S.g.quaternion.copy(camera.quaternion); S.fov=camera.fov;
+  S.a0.copy(S.anchor); S.placed=true; ccSyncCams(); ccSyncFields(); }
+function ccShowTime(){ const fps=parseInt(ccVal('fps',30))||30, loops=parseInt(ccVal('loops',1))||1, hold=parseFloat(ccVal('hold',0))||0;
+  const total=Math.max(1, showTotalFrames(fps,loops,hold)); const frac=(parseInt(ccVal('scrub',0))||0)/1000;
+  return { fps, total, frac, t: Math.round(frac*(total-1))/fps }; }
+function ccRenderKeys(){ const S=ccS(); if(!S) return; const box=document.getElementById('ccKeys'); if(!box) return; box.innerHTML='';
+  if(!S.keys.length){ box.innerHTML='<span class="hint" style="margin:0">No keys yet — the cube films from where it sits.</span>'; }
+  S.keys.forEach((k,i)=>{ const b=document.createElement('button'); b.type='button'; b.className='cc-key'+(i===S.sel?' on':''); b.textContent='◆ '+k.t.toFixed(2)+'s';
+    b.title='Jump to this key (then move the cube and ◆ Set key to update it)';
+    b.onclick=()=>{ S.sel=i; ccRenderKeys(); const {total,fps}=ccShowTime(); const frac=Math.min(1, k.t*fps/Math.max(1,total-1));
+      const sc=document.getElementById('scrub'); if(sc) sc.value=Math.round(frac*1000);
+      if(clips.length) requestScrub(frac); else { const P=ccPoseAt(k.t); S.g.position.copy(P.p); S.g.quaternion.copy(P.q); S.fov=P.fov; ccSyncCams(); ccSyncFields(); renderFrame(); } };
+    box.appendChild(b); });
+  ccMarks(); }
+function ccMarks(){ const S=ccS(); const bar=document.getElementById('scrubBar'), sc=document.getElementById('scrub'); if(!S||!bar||!sc) return;
+  let m=document.getElementById('ccMarks'); if(!m){ m=document.createElement('div'); m.id='ccMarks'; m.className='cc-marks'; bar.appendChild(m); }
+  const br=bar.getBoundingClientRect(), r=sc.getBoundingClientRect(); const inset=8;   // range thumb half-width
+  m.style.left=(r.left-br.left+inset)+'px'; m.style.width=Math.max(0,r.width-2*inset)+'px'; m.style.top=(r.top-br.top+r.height/2)+'px';
+  const {total,fps}=ccShowTime(), dur=Math.max(1e-6,(total-1)/fps);
+  const sig=S.keys.map(k=>k.t).join(',')+'|'+dur+'|'+m.style.width+'|'+(ccOn('ccShow')||ccOn('ccUse'));
+  if(m.dataset.sig===sig) return; m.dataset.sig=sig; m.innerHTML='';
+  if(!(ccOn('ccShow')||ccOn('ccUse'))) return;
+  for(const k of S.keys){ const d=document.createElement('div'); d.className='cc-mark'; d.style.left=(Math.min(1,k.t/dur)*100)+'%'; m.appendChild(d); } }
+function ccUpdateUI(){ const S=ccS(); if(!S) return; const on=ccOn('ccShow')||ccOn('ccUse');
+  const p=document.getElementById('ccPanel'); if(p) p.hidden=!on;
+  document.getElementById('ccMove')?.classList.toggle('on', S.tc.getMode()==='translate');
+  document.getElementById('ccRot')?.classList.toggle('on', S.tc.getMode()==='rotate');
+  document.getElementById('ccPipBtn')?.classList.toggle('on', !!S.pip);
+  ccRenderKeys(); }
+function ccSerialize(){ const S=ccS(); if(!S) return null;
+  return { placed:S.placed, p:S.g.position.toArray(), q:S.g.quaternion.toArray(), fov:S.fov, a0:S.a0.toArray(), pip:S.pip, mode:S.tc.getMode(), keys:S.keys }; }
+function ccDeserialize(d){ const S=ccS(); if(!S) return;
+  if(d){ S.placed=!!d.placed; if(d.p) S.g.position.fromArray(d.p); if(d.q) S.g.quaternion.fromArray(d.q); if(d.fov) S.fov=d.fov;
+    if(d.a0) S.a0.fromArray(d.a0); S.pip = d.pip!==false; if(d.mode) S.tc.setMode(d.mode);
+    S.keys=Array.isArray(d.keys) ? d.keys.filter(k=>k && isFinite(k.t) && k.p && k.q).map(k=>({t:+k.t, p:k.p.slice(0,3), q:k.q.slice(0,4), fov:+k.fov||45, a:(k.a||[0,0,0]).slice(0,3)})).sort((a,b)=>a.t-b.t) : []; }
+  else { S.keys=[]; }
+  S.sel=-1; ccSyncCams(); ccSyncFields(); ccUpdateUI(); renderFrame(); }
+function ccScale(){ const r=(camState && camState.radius) || 1; return Math.min(8, Math.max(0.45, r*1.25)); }
+function ccBeforeRender(){ const S=ccS(); if(!S) return;
+  const show=ccOn('ccShow'), live=ccOn('ccUse') && (realPreview || rendering), t=S.frame/Math.max(1,S.fps);
+  if(S.scrub && !S.hold && S.keys.length){ const P=ccPoseAt(t); S.g.position.copy(P.p); S.g.quaternion.copy(P.q); S.fov=P.fov; ccSyncCams(); ccSyncFields(); }
+  if(show && ccOn('ccAim') && !live && !(S.scrub && S.keys.length)){ const q=ccAimQuat(S.g.position); if(q && q.angleTo(S.g.quaternion)>1e-4){ S.g.quaternion.copy(q); ccSyncCams(); ccSyncFields(); } }
+  const vis = show && !rendering && !realPreview && (!previewing || S.scrub);
+  S.g.scale.setScalar(ccScale()); S.g.visible=vis; S.helper.visible=vis; S.tc.visible=vis; S.tc.enabled=vis;
+  if(live){ const P=ccPoseAt(t);
+    camera.up.set(0,1,0); camera.position.copy(P.p); camera.quaternion.copy(P.q); camera.fov=P.fov;
+    camera.near=0.01; camera.far=5000; camera.updateProjectionMatrix(); camera.updateMatrixWorld(true); S.overrode=true; }
+  else if(S.overrode) ccRestore();
+}
+function ccAfterRender(trans){ const S=ccS(); if(!S) return;
+  const on = ccOn('ccShow') && S.pip && !rendering && !realPreview && (!previewing || S.scrub);
+  if(!rendering && !realPreview) ccMarks();
+  if(!on){ S.pipEl.style.display='none'; return; }
+  const W=outW, H=outH, w=Math.round(W*0.27), h=Math.round(w*H/W), m=Math.round(W*0.014), x=W-w-m, y=H-h-m;
+  const vis=[S.g.visible, S.helper.visible, S.tc.visible]; S.g.visible=false; S.helper.visible=false; S.tc.visible=false;
+  ccSyncCams();
+  renderer.setScissorTest(true); renderer.setScissor(x,y,w,h); renderer.setViewport(x,y,w,h);
+  renderer.clear(true,true,true);
+  if(!trans){ renderer.render(bgScene,bgCam); renderer.clearDepth(); }
+  renderer.render(scene, S.cam);
+  renderer.setScissorTest(false); renderer.setViewport(0,0,W,H);
+  [S.g.visible, S.helper.visible, S.tc.visible]=vis;
+  const rect=canvasEl.getBoundingClientRect(), wr=wrap.getBoundingClientRect(), k=rect.width/W;
+  Object.assign(S.pipEl.style, { display:'block', left:(rect.left-wr.left+x*k)+'px', top:(rect.top-wr.top+(H-y-h)*k)+'px', width:(w*k)+'px', height:(h*k)+'px' });
+}
+(function initCamCube(){
+  const g=new THREE.Group(); g.name='camCube';
+  const dark=new THREE.MeshStandardMaterial({color:0x2a2f3a, roughness:.45, metalness:.35});
+  const body=new THREE.Mesh(new THREE.BoxGeometry(0.34,0.24,0.28), dark);
+  const lens=new THREE.Mesh(new THREE.CylinderGeometry(0.075,0.095,0.15,24), new THREE.MeshStandardMaterial({color:0x111318, roughness:.3, metalness:.6}));
+  lens.rotation.x=Math.PI/2; lens.position.z=-0.21;
+  const glass=new THREE.Mesh(new THREE.CircleGeometry(0.066,24), new THREE.MeshBasicMaterial({color:0x5b8cff})); glass.position.z=-0.286; glass.rotation.y=Math.PI;
+  const reelM=new THREE.MeshStandardMaterial({color:0xd4a017, roughness:.4, metalness:.4});
+  const r1=new THREE.Mesh(new THREE.CylinderGeometry(0.085,0.085,0.045,24), reelM); r1.rotation.z=Math.PI/2; r1.position.set(0,0.2,0.07);
+  const r2=r1.clone(); r2.position.set(0,0.2,-0.08);
+  const tally=new THREE.Mesh(new THREE.SphereGeometry(0.022,12,8), new THREE.MeshBasicMaterial({color:0xff4040})); tally.position.set(0.12,0.08,-0.141);
+  g.add(body,lens,glass,r1,r2,tally); g.traverse(o=>{ if(o.isMesh){ o.castShadow=false; o.receiveShadow=false; } });
+  g.visible=false; scene.add(g);
+  const cam=new THREE.PerspectiveCamera(45, outW/outH, 0.01, 5000);
+  const hcam=new THREE.PerspectiveCamera(45, outW/outH, 0.05, 1.4);
+  const helper=new THREE.CameraHelper(hcam); helper.visible=false; scene.add(helper);
+  try{ helper.setColors(new THREE.Color(0xd4a017), new THREE.Color(0xd4a017), new THREE.Color(0xffffff), new THREE.Color(0xd4a017), new THREE.Color(0x888888)); }catch(e){}
+  const tc=new TransformControls(camera, canvasEl); tc.setSize(0.85); tc.attach(g); tc.visible=false; tc.enabled=false; scene.add(tc);
+  const pipEl=document.createElement('div'); pipEl.className='cc-pip'; pipEl.innerHTML='<span>🎥 Cube view</span>'; wrap.appendChild(pipEl);
+  const S=window.__ccS={ g, cam, hcam, helper, tc, pipEl, keys:[], sel:-1, fov:45, frame:0, fps:30, anchor:new THREE.Vector3(), a0:new THREE.Vector3(),
+    scrub:false, hold:false, overrode:false, baseFov:camera.fov, placed:false, pip:true };
+  tc.addEventListener('change', ()=>{ if(!rendering && !realPreview) renderFrame(); });
+  tc.addEventListener('objectChange', ()=>{ S.a0.copy(S.anchor); ccSyncCams(); ccSyncFields(); });
+  const $id=id=>document.getElementById(id);
+  const ensurePlaced=()=>{ if(!S.placed){ ccPlaceAtView(); setStatus('🎥 Camera cube placed at your current view — orbit or zoom away to see it, then drag its arrows / rings.'); } };
+  $id('ccShow')?.addEventListener('change', ()=>{ if(ccOn('ccShow')) ensurePlaced(); ccUpdateUI(); renderFrame(); });
+  $id('ccUse')?.addEventListener('change', ()=>{ if(ccOn('ccUse')) ensurePlaced(); ccUpdateUI(); renderFrame();
+    setStatus(ccOn('ccUse') ? '🎥 Preview & render will film through the camera cube' : 'Preview & render use the normal camera again'); });
+  $id('ccHere')?.addEventListener('click', ()=>{ ccPlaceAtView(); renderFrame(); setStatus('📍 Cube moved to your current view. Orbit away to see it; ◆ Set key to keep this shot.'); });
+  $id('ccMove')?.addEventListener('click', ()=>{ tc.setMode('translate'); ccUpdateUI(); renderFrame(); });
+  $id('ccRot')?.addEventListener('click', ()=>{ tc.setMode('rotate'); ccUpdateUI(); renderFrame(); });
+  $id('ccPipBtn')?.addEventListener('click', ()=>{ S.pip=!S.pip; ccUpdateUI(); renderFrame(); });
+  ['ccFollow','ccMotion','ccAim'].forEach(id=>$id(id)?.addEventListener('change', ()=>renderFrame()));
+  $id('ccKey')?.addEventListener('click', async ()=>{ ensurePlaced();
+    const st=ccShowTime();
+    if(clips.length && ccVal('ccFollow','fixed')==='travel'){ S.hold=true; try{ await doScrub(st.frac); }finally{ S.hold=false; } }   // anchor = character at this moment
+    const key={ t:st.t, p:S.g.position.toArray(), q:S.g.quaternion.toArray(), fov:S.fov, a:S.anchor.toArray() };
+    const tol=0.5/st.fps, i=S.keys.findIndex(k=>Math.abs(k.t-key.t)<=tol);
+    if(i>=0) S.keys[i]=key; else S.keys.push(key);
+    S.keys.sort((a,b)=>a.t-b.t); S.sel=S.keys.indexOf(key); ccRenderKeys(); renderFrame();
+    setStatus((i>=0?'◆ Key updated':'◆ Key set')+' at '+key.t.toFixed(2)+'s — '+S.keys.length+' key'+(S.keys.length===1?'':'s')+(S.keys.length===1?' (a locked-off shot; add another key at a different time to move the camera)':''));
+  });
+  $id('ccDelKey')?.addEventListener('click', ()=>{ if(S.sel<0||S.sel>=S.keys.length){ setStatus('Click a ◆ key chip first, then Delete key'); return; }
+    const k=S.keys.splice(S.sel,1)[0]; S.sel=-1; ccRenderKeys(); renderFrame(); setStatus('Deleted the key at '+k.t.toFixed(2)+'s'); });
+  $id('ccClear')?.addEventListener('click', ()=>{ if(!S.keys.length) return; if(!confirm('Delete all '+S.keys.length+' camera keys?')) return; S.keys=[]; S.sel=-1; ccRenderKeys(); renderFrame(); });
+  const fromFields=()=>{ const n=id=>parseFloat(($id(id)||{}).value); const r=THREE.MathUtils.degToRad;
+    const X=n('ccX'),Y=n('ccY'),Z=n('ccZ'); if([X,Y,Z].every(Number.isFinite)) S.g.position.set(X,Y,Z);
+    const a=n('ccYaw'),b=n('ccPitch'),c=n('ccRoll'); if([a,b,c].every(Number.isFinite)) S.g.quaternion.setFromEuler(new THREE.Euler(r(b),r(a),r(c),'YXZ'));
+    const fv=n('ccFov'); if(Number.isFinite(fv)) S.fov=Math.min(100,Math.max(10,fv));
+    S.placed=true; S.a0.copy(S.anchor); ccSyncCams(); renderFrame(); };
+  ['ccX','ccY','ccZ','ccYaw','ccPitch','ccRoll','ccFov'].forEach(id=>$id(id)?.addEventListener('input', fromFields));
+  window.addEventListener('keydown', e=>{ const tg=(e.target&&e.target.tagName)||''; if(/^(INPUT|TEXTAREA|SELECT)$/.test(tg)) return;
+    if(!ccOn('ccShow') || e.ctrlKey || e.metaKey || e.altKey) return;
+    const k=e.key.toLowerCase(); if(k==='w'){ tc.setMode('translate'); ccUpdateUI(); renderFrame(); } else if(k==='e'){ tc.setMode('rotate'); ccUpdateUI(); renderFrame(); } });
+  window.addEventListener('resize', ()=>{ const m=$id('ccMarks'); if(m) m.dataset.sig=''; ccMarks(); });
+  ccSyncCams(); ccSyncFields(); ccUpdateUI();
+  window.__ccDbg=()=>({ cam:camera.position.toArray(), fov:camera.fov, live:S.overrode, cube:S.g.position.toArray(), t:S.frame/Math.max(1,S.fps) });   // test hook
+})();
 
 // ---------- Shared frame generator (drives preview + render) ----------
 async function produceFrames(fps,loops,hold,spin,trans, emit, abort){
@@ -5273,6 +5503,7 @@ async function produceFrames(fps,loops,hold,spin,trans, emit, abort){
       if(ci>0 && prevPose && clipFrame<blendFrames){   // ease this clip's skeleton in from the previous clip's end pose
         _cleanPose = capturePose(c.root);
         const x=clipFrame/blendFrames, w=(1-x)*(1-x); blendPose(c.root, prevPose, w); }   // quadratic ease-out weight
+      ccAnchor(D);                                           // 🎥 camera cube "travel with the character" anchor
       if(c.hips) placeCharacter(c, {x:D.x, z:D.z, y:D.y});   // x/z travel + accumulated climb (D.y) + manual lift
       if(follow){ camState.pivotX=D.x; camState.pivotZ=D.z;
         if(baseDy===null) baseDy=D.y;
@@ -5344,12 +5575,12 @@ async function doScrub(frac){
   const total = showTotalFrames(fps,loops,hold);
   const target = Math.max(0, Math.min(total-1, Math.round(frac*(total-1))));
   $('#scrubT').textContent = (target/fps).toFixed(2)+'s / '+((total-1)/fps).toFixed(2)+'s';
-  previewing=true;                                  // reuse the preview guards (scenery scrolls, no gizmo)
+  previewing=true; ccScrub(true);                   // reuse the preview guards (scenery scrolls, no gizmo)
   try{
     let cur=-1;
     await runShow(fps,loops,hold,false,0, async(f)=>{ cur=f; }, ()=> cur>=target);
   }catch(e){ /* aborted */ }
-  finally{ previewing=false; }
+  finally{ previewing=false; ccScrub(false); }
 }
 $('#scrub').addEventListener('input', ()=>{ if(!realPreview && !rendering) requestScrub(parseInt($('#scrub').value)/1000); });
 // Click anywhere on the scrub track → jump the playhead straight to that spot.
@@ -5410,7 +5641,7 @@ async function startPreview(){
     } while(previewLoop && previewing);      // 🔁 replay until the user pauses
   }
   catch(err){ console.error(err); setStatus('Preview error: '+(err.message||err)); }
-  finally{ previewing=false; realPreview=false; previewSeek=0; syncPlayUI(false); refreshView(); }
+  finally{ previewing=false; realPreview=false; previewSeek=0; syncPlayUI(false); ccRestore(); refreshView(); }
 }
 function togglePreview(){ if(previewing) previewing=false; else startPreview(); }   // pause sets the flag; the loop unwinds
 $('#preview').addEventListener('click', togglePreview);
@@ -5567,7 +5798,7 @@ $('#render').addEventListener('click', async ()=>{
       blob=await renderMediaRecorder(fps,loops,hold,spin,trans,totalFrames);
       ext=pickMime().includes('mp4')?'mp4':'webm'; }
   }catch(err){ console.error(err); setStatus('Render error: '+(err.message||err)); }
-  finally{ rendering=false; $('#render').disabled=false; $('#overlay').classList.remove('show'); showClip(selIndex); }
+  finally{ rendering=false; $('#render').disabled=false; $('#overlay').classList.remove('show'); ccRestore(); showClip(selIndex); }
   if(cancelRender){ setStatus('Render cancelled'); return; }
   if(!blob){ setStatus('Render failed — see console'); return; }
   const url=URL.createObjectURL(blob);
@@ -7111,7 +7342,7 @@ bootPacks().then(()=>{ renderPacksUI(); rebuildPropPresets(); buildObstacleGrid(
 if(window.StudioLib) StudioLib.onChange(studioRefresh);
 
 // ==================== Save / Load project ====================
-const PROJ_SKIP=new Set(['scrub','mlSearch','projInput']);
+const PROJ_SKIP=new Set(['scrub','mlSearch','projInput','ccX','ccY','ccZ','ccYaw','ccPitch','ccRoll','ccFov']);
 function collectControls(){ const out={};
   document.querySelectorAll('.sidebar input[id], .sidebar select[id]').forEach(el=>{
     if(el.type==='file'||PROJ_SKIP.has(el.id)) return;
@@ -7140,7 +7371,7 @@ function applyClipMeta(list){ if(!list||!list.length||!clips.length) return;
   renderList(); renderTimeline(); if(!rendering&&!previewing) refreshView();
 }
 function projectJSON(){ return JSON.stringify({ app:'glb-stitcher', version:1, savedAt:new Date().toISOString(),
-  controls:collectControls(), clips:collectClipMeta() }, null, 2); }
+  controls:collectControls(), clips:collectClipMeta(), camCube:ccSerialize() }, null, 2); }
 function clipNote(){ return clips.length?` (${clips.length} clip setting${clips.length===1?'':'s'}; models & audio not embedded)`:''; }
 let currentFileHandle=null;
 // Save (overwrite the current file when possible) / Save As (always a new file). Uses the File System
@@ -7172,6 +7403,7 @@ async function loadProject(file){
   try{ const data=JSON.parse(await file.text());
     if(!data||data.app!=='glb-stitcher'){ setStatus('That is not a GLB Stitcher project file'); return; }
     applyControls(data.controls);
+    ccDeserialize(data.camCube);
     pendingClipMeta=(data.clips&&data.clips.length)?data.clips:null;
     applyClipMeta(pendingClipMeta);
     const missing=(pendingClipMeta||[]).filter(m=>!clips.some(c=>c.name===m.name));
