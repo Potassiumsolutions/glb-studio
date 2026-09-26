@@ -6,7 +6,7 @@
 [![Visits](https://hits.sh/github.com/Potassiumsolutions/glb-studio.svg?label=visits)](https://hits.sh/github.com/Potassiumsolutions/glb-studio/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
 
-**Turn an AI-generated 3D character into a finished animated video — free, in your browser, on your own machine.**
+**Everything a game creator needs to make the characters, boards, cards, boxes, videos and the app, in one place, in your browser.**
 
 One app with five tabs that share one library, so whatever one tab makes is instantly usable by the next:
 
@@ -18,12 +18,25 @@ One app with five tabs that share one library, so whatever one tab makes is inst
 - **🧍 Rig**: drop a textured `.glb` / `.gltf` / `.fbx` (works with models generated on meshy.ai and mixamo.com); it **auto-fits one of 19 skeletons** (biped, biped + fingers, quadruped, bird, dragon, fish, crab and more) and **auto-skins** it. Nudge the joints if you want, then export a rigged GLB.
 - **🐾 Animate**: procedurally generate motions for bipeds and animals (walking, running, jumping, sports, dancing, gestures, wing flaps…), tuned by speed / amplitude / loop length.
 - **🎬 Stitch**: load a rigged character, **auto-retarget** motions onto it, and composite clips into one **MP4** with 3D scenes, camera moves, multiple characters, audio and cross-fades.
-- **🎲 Tabletop**: play Chess, Checkers, Chinese Checkers and the Royal Game of Ur with your characters as the pieces, generate and build board maps, and design cards and game boxes, with print-ready export for The Game Crafter.
+- **🎲 Tabletop**: make the content for your game: maps and boards, cards, boxes and minis, print-ready for The Game Crafter, ready for virtual tabletops, or built into your own app. Play-test it right there (Chess, Checkers, Chinese Checkers, the Royal Game of Ur or your own board) with your characters as the pieces.
 
 Everything runs **client-side** in your browser: no account, and your models stay on your computer. The one exception is the optional **🪄 Generate** add-on, which sends the picture you choose to fal.ai to make the model.
 
 ---
 
+## Why I built this
+
+I built GLB Studio because I needed it.
+
+Making my pirate board game **Port & Plunder** and my card game **Baby Dragon** meant learning tool after tool: one for the card layouts, another for the box art, another to model and 3D-print the pieces, another to cut the how-to-play video, and a whole app-building setup to get the games onto Google Play. It took years of learning before I could make the thing I actually wanted to make.
+
+GLB Studio puts that work in one place. Turn a picture into a 3D character, rig it and animate it, film your promo and how-to videos, build and print your boards, cards and boxes at Game Crafter sizes, print your pieces as 3D minis, and turn it into a playable app.
+
+If it saves you some of the years it cost me, it's done its job.
+
+— Paul A.T. Ramey, KSOL Designs
+
+---
 ## ▶ Try it
 
 **Live:** **https://potassiumsolutions.github.io/glb-studio/**

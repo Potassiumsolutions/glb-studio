@@ -77,6 +77,10 @@
   .cmd{font-family:ui-monospace,Consolas,monospace;font-size:12.5px;background:#0d1119;border:1px solid var(--line);border-radius:7px;padding:8px 11px;color:#bfe0ce;overflow:auto}
   .sheet-body ul{margin:6px 0;padding-left:20px;color:#c3ccd9;font-size:13.5px;line-height:1.6}
   .sheet-body ul li{margin:4px 0}
+  .sheet-body p.pitch{font-size:17px;font-weight:700;color:#fff;line-height:1.45;margin:0 0 10px}
+  .story{border-left:3px solid var(--accent);background:rgba(91,140,255,.07);border-radius:0 10px 10px 0;padding:6px 18px 10px;margin:8px 0}
+  .story p{font-size:14px;line-height:1.65;color:#d3dbe8}
+  .story p.sig{color:var(--muted);font-style:italic;margin-top:10px}
   .payg{display:inline-block;margin:4px 0 8px;padding:6px 12px;border-radius:9px;border:1px solid #2e6a52;background:linear-gradient(135deg,rgba(55,208,160,.16),rgba(91,140,255,.10));color:#bff0da;font-size:13px}
   .payg b{color:#eafff5}
 </style>
@@ -121,7 +125,8 @@
         <span class="x" id="aboutX">✕ Close</span>
       </div>
       <div class="sheet-body">
-        <p class="lead">GLB Studio takes you from a picture or a 3D model all the way to a <b>rigged, animated character</b>, a finished <b>video</b>, or a <b>board game</b> you can play and print. Each tab hands its work to the next through a shared <b>Studio Library</b>, so there are no files to shuffle between steps.</p>
+        <p class="pitch">Everything a game creator needs to make the characters, boards, cards, boxes, videos and the app, in one place, in your browser.</p>
+        <p class="lead">GLB Studio takes you from a picture or a 3D model all the way to a <b>rigged, animated character</b>, finished <b>videos</b>, print-ready <b>boards, cards and boxes</b>, 3D-printable <b>minis</b>, and a <b>playable app</b>. Each tab hands its work to the next through a shared <b>Studio Library</b>, so there are no files to shuffle between steps.</p>
         <figure class="shot"><img src="help/menu.png" alt="Menu bar"><figcaption>The top menu: <b>🪄 Generate · 🧍 Rig · 🐾 Animate · 🎬 Stitch · 🎲 Tabletop</b>. On the right, <b>◆ Library</b> shows what's shared, <b>✨ Upgrades</b> unlocks add-ons and packs, and <b>❔ About</b> opens this guide.</figcaption></figure>
         <div class="callout"><b>Quick start:</b> make or drop in a character → <b>🧍 Rig</b> it → pick motions in <b>🎬 Stitch</b> and render an MP4, or put it on a board in <b>🎲 Tabletop</b> and play. No model yet? Stitch has free sample characters, or make one from a picture with <b>🪄 Generate</b>.</div>
 
@@ -148,8 +153,8 @@
         <p><b>Load</b> a rigged character from the <b>◆ Studio Library</b> card (or a free sample). Motions for its skeleton appear in the <b>Motion library</b>; click one to add it as a clip, and it's <b>retargeted</b> onto your character automatically. Then set the scene, props, camera, audio and cross-fades, add more characters if you like, and <b>Render</b> an MP4.</p>
         <figure class="shot"><img src="help/stitch.png" alt="GLB Stitcher"><figcaption>Stitch: load a character, add motions, build the scene and render.</figcaption></figure>
 
-        <h2><span class="step">4</span> 🎲 Tabletop: play and build board games</h2>
-        <p>Use the <b>Game</b> list at the top left:</p>
+        <h2><span class="step">4</span> 🎲 Tabletop: make the content for your game</h2>
+        <p>Maps and boards, cards, boxes and minis, print-ready for The Game Crafter, ready for virtual tabletops, or built into your own app. You can play-test it right there with your characters as the pieces. Use the <b>Game</b> list at the top left:</p>
         <ul>
           <li><b>Chess, Checkers, Chinese Checkers and the Royal Game of Ur</b>, played with your own rigged characters as the pieces. Set up the teams, then play against the computer or a friend.</li>
           <li><b>🛠 Build a Board</b>: generate a map (grassland, forest, towns, castles, rivers, roads and more) with one click, <b>Extend</b> it in any direction, paint tiles, and place props, including your own models and <b>🪄 AI models</b>. Choose a print size to export print-ready art for The Game Crafter, or play on the board with your characters.</li>
@@ -165,6 +170,15 @@
         <figure class="shot"><img src="help/library.png" alt="Studio Library drawer"><figcaption>The library drawer: everything here is picked up by the other tabs automatically.</figcaption></figure>
 
         <div class="callout"><b>🔒 Privacy:</b> GLB Studio runs in your browser and your models stay on your computer. The one exception is <b>🪄 Generate</b>, which sends the picture you choose to fal.ai to make the model. Your fal.ai key is sent only to fal.ai. Nothing goes to KSOL Designs.<br><b>Running it:</b> use the hosted link, or run it locally with <code style="background:#0d1119;border:1px solid var(--line);border-radius:5px;padding:1px 6px">run-local.bat</code> (or any static server). The shared library only works inside GLB Studio, because it's tied to that one address.</div>
+
+        <h2><span class="step">♥</span> Why I built this</h2>
+        <div class="story">
+          <p>I built GLB Studio because I needed it.</p>
+          <p>Making my pirate board game <b>Port &amp; Plunder</b> and my card game <b>Baby Dragon</b> meant learning tool after tool: one for the card layouts, another for the box art, another to model and 3D-print the pieces, another to cut the how-to-play video, and a whole app-building setup to get the games onto Google Play. It took years of learning before I could make the thing I actually wanted to make.</p>
+          <p>GLB Studio puts that work in one place. Turn a picture into a 3D character, rig it and animate it, film your promo and how-to videos, build and print your boards, cards and boxes at Game Crafter sizes, print your pieces as 3D minis, and turn it into a playable app.</p>
+          <p>If it saves you some of the years it cost me, it's done its job.</p>
+          <p class="sig">Paul A.T. Ramey, KSOL Designs</p>
+        </div>
 
         <div style="margin-top:30px;padding-top:20px;border-top:1px solid var(--line);display:flex;gap:18px;align-items:center;flex-wrap:wrap">
           <svg viewBox="0 0 240 280" style="width:46px;height:auto;color:var(--muted);flex:none" role="img" aria-label="Potassium Solutions logo">
