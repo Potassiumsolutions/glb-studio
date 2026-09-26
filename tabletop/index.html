@@ -1187,13 +1187,14 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { MeshSurfaceSampler } from 'three/addons/math/MeshSurfaceSampler.js';
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
+import { mergeGeometries as _mergeGeos } from 'three/addons/utils/BufferGeometryUtils.js';
 import { buildTileMesh, liftSkirt, trainAlong, trafficAlong, highwayAlong, bridgeSpan, strokeWidth, genFactory, GEN_ASSET_KINDS, MODERN_PROP_KINDS, stepAngle as tileStepAngle, pathRibbonAlong, wallRibbonAlong, wallFlatAlong, pathPlate, makeProp, PROP_KINDS, biomeVariantCount, subdivisionOverlay, subdivisionCount, subdivisionCells, setTileFlat, setTileScale, makeBattleProp, registerCustomTile, unregisterCustomTile, customTileImageScaled } from './tile-render.js';
 import * as Cards from './cards-deck.js';
 import * as Tuck from './tuckbox-designer.js';
 
 const BGC = window.BGC, GAMES = window.BGC_GAMES;
 const TE = window.TileEngine, TLIB = window.TileLibrary;
-const APP_VERSION = 'v1.37';
+const APP_VERSION = 'v1.38';
 const CREDITS = `<b>Ksol Designs</b> — Paul A.T. Ramey<br>www.ksoldesigns.com<br>Built with GLB Studio · Tabletop<br><span class="ver">${APP_VERSION}</span>`;
 // ---- Board credit: a small "KSOL Designs" mark on the board for the FREE build. Owning ANY content pack
 // (TTier expansion) unlocks removing it (⚙ Settings toggle, or click the credit). ----
@@ -2392,7 +2393,7 @@ function raceClick(sqi){
 document.getElementById('rollBtn').onclick=rollForHuman;
 
 /* ---------- interaction ---------- */
-const ray = new THREE.Raycaster();
+const ray = new THREE.Raycaster(); ray.layers.enableAll();   // batched originals live on layer 1 (see STATIC BATCHING)
 const ndc = new THREE.Vector2();
 function pick(ev){
   const r = renderer.domElement.getBoundingClientRect();
@@ -3781,13 +3782,25 @@ function glbProto(key, fetcher){ if(_glbCache.has(key)) return _glbCache.get(key
 function _ttPackDB(){ return new Promise((res,rej)=>{ const q=indexedDB.open('glbStudioPacks',1);
   q.onupgradeneeded=()=>{ if(!q.result.objectStoreNames.contains('packs')) q.result.createObjectStore('packs',{keyPath:'id'}); };
   q.onsuccess=()=>res(q.result); q.onerror=()=>rej(q.error); }); }
+/* v1.37.1: packs can be HUNDREDS of MB (the models live inside them). Listing them used to getAll() every pack on every
+   asset-browser click / search keystroke → clicks seemed to do nothing (Paul, 2026-09-26). Now: ttPackMeta() = names only,
+   cached until the set of pack ids changes (getAllKeys is instant); ttPackGet(id) loads just the one pack a model is in. */
+const _stripPack=(P)=>({ id:P.id, name:P.name, em:P.em, characters:(P.characters||[]).map(c=>({name:c.name, file:c.file, icon:c.icon, id:c.id})),
+  props:(P.props||[]).map(p=>({name:p.name, label:p.label, em:p.em, id:p.id})), sceneProps:(P.sceneProps||[]).map(p=>({name:p.name, em:p.em, id:p.id})) });
+let _packMeta=null;
+async function ttPackMeta(){ try{ const db=await _ttPackDB();
+    const keys=await new Promise((res)=>{ const r=db.transaction('packs','readonly').objectStore('packs').getAllKeys(); r.onsuccess=()=>res(r.result||[]); r.onerror=()=>res([]); });
+    const sig=keys.map(String).sort().join('|'); if(_packMeta && _packMeta.sig===sig) return _packMeta.list;
+    const list=[]; for(const k of keys){ const P=await ttPackGet(k); if(P) list.push(_stripPack(P)); }   // one pack at a time (never all in memory at once)
+    _packMeta={sig, list}; return list; }catch(e){ return []; } }
+async function ttPackGet(id){ try{ const db=await _ttPackDB(); return await new Promise((res)=>{ const r=db.transaction('packs','readonly').objectStore('packs').get(id); r.onsuccess=()=>res(r.result||null); r.onerror=()=>res(null); }); }catch(e){ return null; } }
 async function ttPackGetAll(){ try{ const db=await _ttPackDB(); return await new Promise((res)=>{ const t=db.transaction('packs','readonly'); const r=t.objectStore('packs').getAll(); r.onsuccess=()=>res(r.result||[]); r.onerror=()=>res([]); }); }catch(e){ return []; } }
 function glbFetcherFor(src){
   if(src.type==='hero') return ()=> fetch(HERO_BASE+src.ref+'.glb').then(r=>{ if(!r.ok) throw new Error(r.status); return r.arrayBuffer(); });
   if(src.type==='file') return ()=> fetch(STUDIO_ASSETS+src.ref).then(r=>{ if(!r.ok) throw new Error(r.status); return r.arrayBuffer(); });
   if(src.type==='sample') return async ()=>{ const u=await fetchSampleBytes(src.ref); return u.buffer.slice(u.byteOffset, u.byteOffset+u.byteLength); };
   if(src.type==='lib')  return async ()=>{ await window.StudioLib.ready; const m=await window.StudioLib.getModel(src.ref); const b=m&&m.glb; if(!b) throw new Error('no model'); return b.arrayBuffer?await b.arrayBuffer():b; };
-  if(src.type==='pack') return async ()=>{ const packs=await ttPackGetAll(); const P=packs.find(p=>p.id===src.pack); if(!P) throw new Error('no pack');
+  if(src.type==='pack') return async ()=>{ const P=await ttPackGet(src.pack); if(!P) throw new Error('no pack');
     const list=(src.cat==='char'?P.characters:src.cat==='prop'?P.props:P.sceneProps)||[]; const e=list.find(x=>x.id===src.ref||x.name===src.ref||x.file===src.ref); if(!e||!(e.buf||e.glb)) throw new Error('no entry');
     return e.buf ? (e.buf instanceof ArrayBuffer ? e.buf : (e.buf.buffer||e.buf)) : b64ToBuf(e.glb); };   // Stitcher stores RAW bytes (buf) since v1.9; older packs kept base64 (glb)
   return ()=>Promise.reject(new Error('bad src'));
@@ -3824,10 +3837,10 @@ async function bLibEntries(srcTab){ const out=[];
   if(srcTab==='scene'){ for(const [id,name,em] of SCENE_PROPS) out.push({label:(em||'🌳')+' '+name, src:{type:'file',ref:'sceneprops/'+id+'.glb',fit:1.6}}); }
   else if(srcTab==='held'){ for(const [id,name,em] of HELD_PROPS) out.push({label:(em||'⚔')+' '+name, src:{type:'file',ref:'Props/'+id+'.glb',fit:0.7}}); }
   else if(srcTab==='lib'){ for(const c of SAMPLE_CHARS) out.push({label:c.icon+' '+c.name+' (sample)', src:{type:'sample',ref:c.file,fit:1.1}});
-    if(!window.StudioLib){ for(const P of await ttPackGetAll()) for(const ch of (P.characters||[])) out.push({label:(P.em||'📦')+' '+(ch.icon||'🧍')+' '+(ch.name||ch.file), src:{type:'pack',pack:P.id,cat:'char',ref:(ch.file||ch.name),fit:1.2}}); return out; }
+    if(!window.StudioLib){ for(const P of await ttPackMeta()) for(const ch of (P.characters||[])) out.push({label:(P.em||'📦')+' '+(ch.icon||'🧍')+' '+(ch.name||ch.file), src:{type:'pack',pack:P.id,cat:'char',ref:(ch.file||ch.name),fit:1.2}}); return out; }
     try{ await window.StudioLib.ready; const ms=await window.StudioLib.listModels(); for(const m of ms) out.push({label:'✦ '+(m.name||m.id), src:{type:'lib',ref:m.id,fit:1.1}}); }catch(e){}
-    for(const P of await ttPackGetAll()) for(const ch of (P.characters||[])) out.push({label:(P.em||'📦')+' '+(ch.icon||'🧍')+' '+(ch.name||ch.file), src:{type:'pack',pack:P.id,cat:'char',ref:(ch.file||ch.name),fit:1.2}}); }   // pack characters (unlocked in GLB Stitcher) are characters too
-  else if(srcTab==='pack'){ const packs=await ttPackGetAll();
+    for(const P of await ttPackMeta()) for(const ch of (P.characters||[])) out.push({label:(P.em||'📦')+' '+(ch.icon||'🧍')+' '+(ch.name||ch.file), src:{type:'pack',pack:P.id,cat:'char',ref:(ch.file||ch.name),fit:1.2}}); }   // pack characters (unlocked in GLB Stitcher) are characters too
+  else if(srcTab==='pack'){ const packs=await ttPackMeta();
     for(const P of packs){ const pre=(P.em||'📦')+' ';
       for(const ch of (P.characters||[])) out.push({label:pre+(ch.icon||'🧍')+' '+(ch.name||ch.file), src:{type:'pack',pack:P.id,cat:'char',ref:(ch.file||ch.name),fit:1.2}});
       for(const sp of (P.sceneProps||[])) out.push({label:pre+(sp.em||'🌳')+' '+(sp.name||sp.id), src:{type:'pack',pack:P.id,cat:'scene',ref:(sp.id||sp.name),fit:1.6}});
@@ -3845,13 +3858,13 @@ async function bBuildLibList(){ const el=document.getElementById('bLibList'); if
   else if(bLibSrc==='lib'){ const head=(t)=>{ const h=document.createElement('div'); h.className='mini'; h.style.cssText='width:100%;margin:4px 0 2px;font-weight:700'; h.textContent=t; el.appendChild(h); };
     const tip=(t)=>{ const h=document.createElement('div'); h.className='mini'; h.style.cssText='width:100%;opacity:.75;margin:2px 0'; h.innerHTML=t; el.appendChild(h); };
     head('Sample characters'); for(const c of SAMPLE_CHARS) add(c.icon+' '+c.name, {type:'sample',ref:c.file,fit:1.1});
-    { const packs=(await ttPackGetAll()).filter(P=>(P.characters||[]).length); if(packs.length){ head('📦 Characters from your packs'); for(const P of packs) for(const ch of P.characters) add((P.em||'📦')+' '+(ch.icon||'🧍')+' '+(ch.name||ch.file), {type:'pack',pack:P.id,cat:'char',ref:(ch.file||ch.name),fit:1.2}); } }
+    { const packs=(await ttPackMeta()).filter(P=>(P.characters||[]).length); if(packs.length){ head('📦 Characters from your packs'); for(const P of packs) for(const ch of P.characters) add((P.em||'📦')+' '+(ch.icon||'🧍')+' '+(ch.name||ch.file), {type:'pack',pack:P.id,cat:'char',ref:(ch.file||ch.name),fit:1.2}); } }
     head('✦ Your rigged models'); bAddGlbFileButton(el);
     if(!window.StudioLib) return tip('Your own rigged characters appear here when Tabletop runs inside GLB Studio.');
     try{ await window.StudioLib.ready; const ms=await window.StudioLib.listModels();
       if(!ms.length) return tip('None yet — rig a character in GLB Studio (🧍 <b>Rig</b> → <b>⬇ Export rigged GLB</b> adds it here automatically), or add a rigged <b>.glb</b> file above.');
       for(const m of ms) add('✦ '+(m.name||m.id), {type:'lib',ref:m.id,fit:1.1}); }catch(e){ tip('Library unavailable.'); } }
-  else if(bLibSrc==='pack'){ const packs=await ttPackGetAll(); const rel=packs.filter(P=>(P.sceneProps&&P.sceneProps.length)||(P.props&&P.props.length)||(P.characters&&P.characters.length));
+  else if(bLibSrc==='pack'){ const packs=await ttPackMeta(); const rel=packs.filter(P=>(P.sceneProps&&P.sceneProps.length)||(P.props&&P.props.length)||(P.characters&&P.characters.length));
     if(!rel.length) return note('No expansion packs imported. Import packs in GLB Stitcher and their models appear here.');
     for(const P of rel){ const h=document.createElement('div'); h.className='mini'; h.style.cssText='width:100%;margin:4px 0 2px;font-weight:700'; h.textContent=(P.em||'📦')+' '+(P.name||P.id); el.appendChild(h);
       for(const sp of (P.sceneProps||[])) add((sp.em||'🌳')+' '+(sp.name||sp.id), {type:'pack',pack:P.id,cat:'scene',ref:(sp.id||sp.name),fit:1.6});
@@ -3883,7 +3896,7 @@ function bApplyShade(g, tint, bright){ const b=(bright==null?1:bright); const tc
    highway deck, a roof, a mountainside or another prop (📌 Sit on surfaces, default on) — plus its own lift pr.h
    (planes flying, a helicopter hovering). Before, the base height was baked into the model and scaled with it, so
    shrinking a prop sank it into the board (Paul: "I keep losing the truck… sinking in the board"). */
-const _surfRay=new THREE.Raycaster(), _down=new THREE.Vector3(0,-1,0), _from=new THREE.Vector3();
+const _surfRay=new THREE.Raycaster(); _surfRay.layers.enableAll(); const _unusedR0=0, _down=new THREE.Vector3(0,-1,0), _from=new THREE.Vector3();
 function bSurfaceY(sx, sz, exclude){ if(!bld._surfCands) return TILE_TOP;
   _from.set(sx, 200, sz); _surfRay.set(_from, _down); _surfRay.far=400; _surfRay.camera=camera;   // (sprite labels in the scene need a camera to be ray-tested)
   const hits=_surfRay.intersectObjects(bld._surfCands, true);
@@ -3933,14 +3946,14 @@ function bAssetCatalog(){ const out=[], modern=!(window.TTier) || TTier.has('mod
 const HERO_BASE='assets/heroprops/'; let _heroList=null;
 async function bHeroProps(){ if(!_heroList) _heroList=fetch(HERO_BASE+'heroprops.json',{cache:'no-cache'}).then(r=>r.ok?r.json():[]).catch(()=>[]); return _heroList; }
 const bHeroSrc=(h)=>({type:'hero', ref:h.id, fit:(h.ft||20)/5, axis:h.axis||'len'});
-let _assetCat='All';
-async function bBuildAssetBrowser(){ const list=document.getElementById('bAssetList'), cats=document.getElementById('bAssetCats'); if(!list||!cats) return;
+let _assetCat='All', _assetBuild=0;
+async function bBuildAssetBrowser(){ const list=document.getElementById('bAssetList'), cats=document.getElementById('bAssetCats'); if(!list||!cats) return; const my=++_assetBuild;
   const q=(document.getElementById('bAssetQ').value||'').trim().toLowerCase(), all=bAssetCatalog();
   const libTabs=[['Scene','scene'],['Items','held'],['Characters','lib'],['Packs','pack']];
-  for(const [cat,tab] of libTabs){ try{ for(const e of await bLibEntries(tab)) all.push({cat, label:e.label, pick:()=>bSelectGlbProp(e.src,e.label), src:e.src}); }catch(e){} }
+  for(const [cat,tab] of libTabs){ try{ const es=await bLibEntries(tab); if(my!==_assetBuild) return; for(const e of es) all.push({cat, label:e.label, pick:()=>bSelectGlbProp(e.src,e.label), src:e.src}); }catch(e){} }
   for(const h of await bHeroProps()) all.push({cat:'Hero props', label:(h.em||'🏆')+' '+h.name, pick:()=>bSelectGlbProp(bHeroSrc(h),(h.em||'🏆')+' '+h.name), src:bHeroSrc(h)});
   const CATS=['All','Hero props','Vehicles','Nature','Street','Buildings','Landmarks','Furniture','Scene','Items','Characters','Packs'].filter(c=>c==='All'||all.some(e=>e.cat===c));
-  cats.innerHTML=''; for(const c of CATS){ const b=document.createElement('button'); b.textContent=c; b.className=c===_assetCat?'on':''; b.onclick=()=>{ _assetCat=c; bBuildAssetBrowser(); }; cats.appendChild(b); }
+  cats.innerHTML=''; for(const c of CATS){ const b=document.createElement('button'); b.textContent=c; b.className=c===_assetCat?'on':''; b.onclick=()=>{ _assetCat=c; cats.querySelectorAll('button').forEach(x=>x.className=x===b?'on':''); bBuildAssetBrowser(); }; cats.appendChild(b); }
   list.innerHTML=''; const shown=all.filter(e=>(_assetCat==='All'||e.cat===_assetCat) && (!q || (e.label+' '+e.cat).toLowerCase().includes(q)));
   for(const e of shown.slice(0,400)){ const b=document.createElement('button'); b.className='btn sec bproptool'; b.style.fontSize='11px'; b.textContent=e.label; b.title=e.cat;
     const on=(bld.propGlb && bld.propGlb.name===e.label) || (bld.propKind && (PROP_LABEL[bld.propKind]===e.label)); if(on) b.classList.add('on');
@@ -4287,7 +4300,81 @@ function bRender(){
   bRenderSheetGuides();                                             // multi-sheet rect board: pink dashed lines where the print sheets cut
   if(PLAYB) for(const [,p] of pb.pawns) builderGroup.add(p.mesh);   // keep pawns on top of a re-render
   bInfo();
+  bBatchSchedule();                                                 // ⚡ merge the static board into a few big draws (big maps)
 }
+/* ⚡ STATIC BATCHING (v1.38) — a 48×36" city was ~44k meshes = 90k draw calls a frame (3 fps). Once the board is built (and the
+   user pauses ~⅓ s), every STATIC opaque mesh and every tile outline is merged by (map chunk × identical look) into a few big
+   meshes; the originals move to LAYER 1 = not drawn (cameras/shadows see layer 0) but still ray-picked (ray/_surfRay enableAll),
+   so clicking, double-click take-over and prop seating are unchanged. Skipped: props/minis/pawns (live-edited), transparent,
+   sprites, skinned/instanced, custom shaders, multi-material, anything not depth-tested. Every bRender() rebuilds from scratch,
+   so edits simply re-batch. Small boards (< BATCH_MIN meshes) aren't touched. window.__noBatch=true disables (debug). */
+const BATCH_MIN=1500; let _batchTimer=0, _batchGen=0; window.__batchBusy=false;
+function bBatchSchedule(){ clearTimeout(_batchTimer); const gen=++_batchGen; if(window.__noBatch) return;
+  _batchTimer=setTimeout(()=>{ if(gen===_batchGen && BUILD) try{ bBatchStatic(gen); }catch(e){ console.warn('[batch]', e); } }, 350); }
+function _matLook(m){ const t=(x)=>x?x.uuid:'';
+  return [m.type, m.color&&m.color.getHexString(), m.emissive&&m.emissive.getHexString(), m.emissiveIntensity, m.roughness, m.metalness, m.opacity, m.transparent, m.side,
+    m.vertexColors, m.flatShading, m.alphaTest, m.depthWrite, m.depthTest, m.blending, m.polygonOffset, m.polygonOffsetFactor, m.polygonOffsetUnits, m.toneMapped, m.wireframe, m.fog,
+    t(m.map), t(m.normalMap), t(m.roughnessMap), t(m.metalnessMap), t(m.aoMap), t(m.emissiveMap), t(m.alphaMap), t(m.bumpMap), m.bumpScale, m.envMapIntensity, m.linewidth].join('|'); }
+function _geoSig(g){ return (g.index?'i':'n')+Object.keys(g.attributes).sort().map(k=>{ const a=g.attributes[k]; return k+a.itemSize+(a.normalized?'n':'')+a.array.constructor.name+(a.isInterleavedBufferAttribute?'X':''); }).join(','); }
+// a multi-material mesh → one COMPACT geometry per material group (only the vertices that group uses)
+function _splitByGroup(o){ const g=o.geometry, M=o.material; if(!g.groups || !g.groups.length) return null; const out=[];
+  for(const gr of g.groups){ const m=M[gr.materialIndex]; if(!m) return null; const sub=new THREE.BufferGeometry();
+    if(g.index){ const src=g.index.array, end=Math.min(gr.start+gr.count, src.length), map=new Map(), ia=new Uint32Array(end-gr.start), keep=[];
+      for(let i=gr.start;i<end;i++){ const v=src[i]; let nv=map.get(v); if(nv===undefined){ nv=keep.length; map.set(v,nv); keep.push(v); } ia[i-gr.start]=nv; }
+      for(const k in g.attributes){ const a=g.attributes[k], n=a.itemSize, arr=new a.array.constructor(keep.length*n);
+        for(let j=0;j<keep.length;j++) for(let c=0;c<n;c++) arr[j*n+c]=a.array[keep[j]*n+c];
+        sub.setAttribute(k, new THREE.BufferAttribute(arr, n, a.normalized)); }
+      sub.setIndex(new THREE.BufferAttribute(ia,1)); }
+    else { for(const k in g.attributes){ const a=g.attributes[k], n=a.itemSize; sub.setAttribute(k, new THREE.BufferAttribute(a.array.slice(gr.start*n,(gr.start+gr.count)*n), n, a.normalized)); } }
+    out.push({m, g:sub, own:true}); }
+  return out.length?out:null; }
+function _flipWinding(c){ if(c.index){ const a=c.index.array; for(let i=0;i+2<a.length;i+=3){ const t=a[i+1]; a[i+1]=a[i+2]; a[i+2]=t; } return; }
+  for(const k in c.attributes){ const a=c.attributes[k], n=a.itemSize, A=a.array; for(let t=0;t+2<a.count;t+=3) for(let q=0;q<n;q++){ const x=A[(t+1)*n+q]; A[(t+1)*n+q]=A[(t+2)*n+q]; A[(t+2)*n+q]=x; } } }
+function bBatchStatic(gen){
+  let n=0; builderGroup.traverse(o=>{ if(o.isMesh) n++; }); if(n<BATCH_MIN) return;
+  const t0=performance.now(), skip=new Set();
+  for(const g of (bld._propMeshes||[])) if(g) g.traverse(o=>skip.add(o));
+  if(typeof pb!=='undefined' && PLAYB) for(const [,p] of pb.pawns) p.mesh && p.mesh.traverse(o=>skip.add(o));
+  builderGroup.updateMatrixWorld(true); const inv=new THREE.Matrix4().copy(builderGroup.matrixWorld).invert();
+  let x0=Infinity,x1=-Infinity,z0=Infinity,z1=-Infinity; for(const c of bCells()){ const w=bGridObj().world(c); x0=Math.min(x0,w.x); x1=Math.max(x1,w.x); z0=Math.min(z0,w.z); z1=Math.max(z1,w.z); }
+  const CH=Math.max(8, Math.max(x1-x0, z1-z0)/4);                    // ~4×4 chunks: few draws, yet zoomed-in views still skip the off-screen chunks
+  const buckets=new Map(), sph=new THREE.Vector3(), rel=new THREE.Matrix4();
+  const visible=(o)=>{ for(let q=o;q&&q!==builderGroup;q=q.parent) if(!q.visible) return false; return true; };
+  const okMat=(m, line)=>m && !m.hasOwnProperty('onBeforeCompile') && !m.isShaderMaterial && m.depthTest!==false && (line || !m.transparent);
+  builderGroup.traverse(o=>{
+    if(skip.has(o) || o.userData.noBatch || !(o.isMesh||o.isLine) || o.isSkinnedMesh || o.isInstancedMesh || !visible(o) || !o.material) return;
+    const g0=o.geometry; if(!g0 || !g0.attributes.position || Object.keys(g0.morphAttributes||{}).length) return;
+    const line=!o.isMesh; if(line && Array.isArray(o.material)) return;
+    const parts = Array.isArray(o.material) ? _splitByGroup(o) : [{m:o.material, g:g0}];   // a single material ignores geometry groups (a Box has 6 = 6 draws!)
+    if(!parts || !parts.every(p=>okMat(p.m, line))) return;                                // all of an object's parts batch, or none (transparent windows stay put)
+    for(const {m,g,own} of parts){
+      if(!g.boundingSphere) g.computeBoundingSphere(); sph.copy(g.boundingSphere.center).applyMatrix4(o.matrixWorld);
+      const key=(line?'L':'M')+Math.floor((sph.x-x0)/CH)+','+Math.floor((sph.z-z0)/CH)+'|'+_matLook(m)+'|'+(line?'':_geoSig(g))+'|'+o.castShadow+o.receiveShadow+'|'+o.renderOrder;
+      let B=buckets.get(key); if(!B) buckets.set(key, B={m, line, list:[], cast:o.castShadow, recv:o.receiveShadow, ro:o.renderOrder}); B.list.push({o,g,own}); } });
+  const grp=new THREE.Group(); grp.name='bBatch'; builderGroup.add(grp); let made=0, maxSlice=0; const moved=new Set(), tCollect=performance.now()-t0;
+  const todo=[...buckets.values()].filter(B=>B.list.length>=2 || B.list[0].own).sort((a,b)=>b.list.length-a.list.length); let bi=0;   // biggest first → frames get cheap fastest
+  const step=()=>{ if(gen!=null && gen!==_batchGen){ window.__batchBusy=false; return; }                                // a newer rebuild replaced this board — drop the job
+    const s0=performance.now();
+    while(bi<todo.length && performance.now()-s0<60){ const B=todo[bi++];           // a lone single-material mesh gains nothing
+    const geos=[];
+    for(const {o,g:pg,own} of B.list){ rel.multiplyMatrices(inv, o.matrixWorld);
+      if(B.line){ const p=pg.attributes.position, idx=pg.index, v=new THREE.Vector3(), pts=[], arr=[];   // any line kind → segment pairs
+        const cnt=idx?idx.count:p.count; for(let i=0;i<cnt;i++){ v.fromBufferAttribute(p, idx?idx.getX(i):i).applyMatrix4(rel); pts.push(v.x,v.y,v.z); }
+        const k=pts.length/3, P=(i)=>arr.push(pts[i*3],pts[i*3+1],pts[i*3+2]);
+        if(o.isLineSegments) for(let i=0;i+1<k;i+=2){ P(i); P(i+1); }
+        else { for(let i=0;i+1<k;i++){ P(i); P(i+1); } if(o.isLineLoop && k>2){ P(k-1); P(0); } }
+        const lg=new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(arr,3)); geos.push(lg); }
+      else { const c=own?pg:pg.clone(); c.clearGroups(); c.applyMatrix4(rel); if(rel.determinant()<0) _flipWinding(c); geos.push(c); } }   // mirrored → keep the winding
+    let merged=null; try{ merged=_mergeGeos(geos, false); }catch(e){ merged=null; } geos.forEach(g=>{ if(g!==merged) g.dispose(); });
+    if(!merged) continue;
+    const mesh = B.line ? new THREE.LineSegments(merged, B.m) : new THREE.Mesh(merged, B.m);
+    mesh.castShadow=B.cast; mesh.receiveShadow=B.recv; mesh.renderOrder=B.ro; mesh.raycast=()=>{}; mesh.userData.batch=true; grp.add(mesh); made++;
+    for(const {o} of B.list){ o.layers.set(1); moved.add(o); } }
+    maxSlice=Math.max(maxSlice, performance.now()-s0);
+    if(bi<todo.length) return setTimeout(step, 0);
+    window.__batchBusy=false; try{ renderer.shadowMap.needsUpdate=true; }catch(e){} if(window.bumpRender) bumpRender();
+    window.__batchInfo={meshesBefore:n, merged:moved.size, into:made, chunk:+CH.toFixed(1), ms:Math.round(performance.now()-t0), collectMs:Math.round(tCollect), maxSliceMs:Math.round(maxSlice)}; };
+  window.__batchBusy=true; step(); }
 // BATTLE scale: forests/mountains/settlements become LARGE props (sized in world units, a tile = 1 unit) that
 // span several 5-ft squares — so a single tree or building covers many hexes, as it would on a mini battle map.
 // a flat top-down decal (for 2D board mode) — a circle (tree/boulder canopy) or square (roof) lying on the tile.
@@ -7832,7 +7919,8 @@ const _mixClock = new THREE.Clock();
 let _lastActivity = performance.now();
 function bump(){ _lastActivity = performance.now(); }
 window.bumpRender = bump;   // other paths (build-a-board, piece rebuilds) can request a redraw
-try{ controls.addEventListener('start',bump); controls.addEventListener('change',bump); controls.addEventListener('end',bump); }catch(e){}
+let _camMoveT=0; const _camMoved=()=>{ _camMoveT=performance.now(); };
+try{ controls.addEventListener('start',bump); controls.addEventListener('change',bump); controls.addEventListener('end',bump); controls.addEventListener('change',_camMoved); }catch(e){}
 window.addEventListener('resize', bump);
 ['pointerdown','pointermove','wheel'].forEach(ev=>renderer.domElement.addEventListener(ev, bump, {passive:true}));
 let _idleN=0;
@@ -7844,9 +7932,14 @@ function loop(){
   const dt=_mixClock.getDelta();
   pieces.forEach(g=>{ if(g.userData.animating && g.userData.mixer){ g.userData.mixer.update(dt); active=true; } });
   controls.update();
-  if(!active && (now-_lastActivity)>500){ if((_idleN++ % 3)!==0) return; }   // idle → ~20fps
+  if(!active && window.__batchBusy && (now-_camMoveT)>250 && (now-_lastActivity)>150){ if((_idleN++ % 10)!==0) return; }   // ⚡ board being batched & user idle → ~6fps so the merge finishes fast
+  else if(!active && (now-_lastActivity)>500){ if((_idleN++ % 3)!==0) return; }   // idle → ~20fps
   else _idleN=0;
-  if(_aoOn){ aoEnsure(); } if(_aoOn && _composer) _composer.render(); else renderer.render(scene,camera);
+  // ⚡ v1.38: while ONLY the camera moves the sun's shadow map can't change (it's fitted to the board, not the view) → reuse it;
+  // soft shading (GTAO ≈ doubles the frame) pauses until the camera has been still for ¼ s, then one full frame redraws it.
+  const camOnly = !active && (now-_camMoveT)<250;
+  renderer.shadowMap.autoUpdate = !camOnly;
+  if(_aoOn){ aoEnsure(); } if(_aoOn && _composer && !camOnly) _composer.render(); else renderer.render(scene,camera);
   if(navCube) navCube.render();
 }
 
@@ -8064,7 +8157,10 @@ window.__bDetachAt = (x,y)=>{ try{ return bDetachGenAt({clientX:x,clientY:y}); }
 window.__bGenIds = ()=>{ const out=[]; builderGroup.traverse(o=>{ if(o.userData.gid!=null && o.visible){ const bb=new THREE.Box3().setFromObject(o), p=bb.getCenter(new THREE.Vector3()); out.push({gid:o.userData.gid, f:o.userData.gt.f, x:p.x, y:p.y, z:p.z}); } }); return out; };
 window.__bHero=bHeroProps; window.__bPropBox=(i)=>{ const g=bld._propMeshes&&bld._propMeshes[i]; if(!g) return null; const v=new THREE.Box3().setFromObject(g).getSize(new THREE.Vector3()); return {x:+v.x.toFixed(3),y:+v.y.toFixed(3),z:+v.z.toFixed(3)}; }; window.__bAssets = ()=>bAssetCatalog().map(e=>e.cat+'|'+e.label);
 window.__art = (st)=>{ if(st) bld.artStyle=st; return bld.artStyle||'clean'; };
-window.__scene = ()=>scene;
+window.__scene = ()=>scene; window.__bRebuild = ()=>bRender(); window.__batch = ()=>window.__batchInfo||null;
+window.__perf = (n, noShadow)=>{ n=n||20; const _au=renderer.shadowMap.autoUpdate; if(noShadow) renderer.shadowMap.autoUpdate=false; const c={obj:0,mesh:0,line:0,sprite:0,inst:0,tris:0}; scene.traverse(o=>{ if(!o.visible) return; c.obj++; if(o.isInstancedMesh) c.inst++; if(o.isMesh) c.mesh++; else if(o.isLine) c.line++; else if(o.isSprite) c.sprite++; });   // dev: scene size + real frame cost
+  renderer.info.autoReset=false; renderer.info.reset(); const t0=performance.now(); for(let i=0;i<n;i++){ if(_composer&&_aoOn) _composer.render(); else renderer.render(scene,camera); } renderer.getContext().finish(); const ms=(performance.now()-t0)/n;
+  const r={...c, calls:renderer.info.render.calls/n|0, triangles:renderer.info.render.triangles/n|0, geometries:renderer.info.memory.geometries, textures:renderer.info.memory.textures, msPerFrame:+ms.toFixed(1)}; renderer.info.autoReset=true; renderer.shadowMap.autoUpdate=_au; return r; };
 window.__ao = (on)=>{ if(on!=null) aoSet(on); return {on:_aoOn, composer:!!_composer}; };
 window.__bLvlPad = ()=>{ const p=document.getElementById('bLvlPad'); return {hidden:p.hidden, title:document.getElementById('bLvlT').textContent, a:document.getElementById('bLvlA').textContent, b:document.getElementById('bLvlB').textContent, chips:[...document.querySelectorAll('#bLvlList button')].map(x=>x.textContent+(x.classList.contains('on')?'*':''))}; };
 window.__bShopPdf = async()=>{ const c=TGC[bld.tgc]; if(!c||!c.shop) return null; const sf=bld.boardFlat; bld._exporting=true; setTileFlat(true); bld.boardFlat=true; bRender(); let r; const dl=window.__lastDl; try{ r=await bShopExport(c); } finally { bld._exporting=false; setTileFlat(sf); bld.boardFlat=sf; bRender(); } return r; };
