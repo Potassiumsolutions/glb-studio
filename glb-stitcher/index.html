@@ -1019,7 +1019,7 @@ import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 
 const $ = s => document.querySelector(s);
-const APP_NAME='GLB Stitcher', APP_VERSION='1.10.8', APP_BUILD='2026-09-26';   // version shown in About + footer
+const APP_NAME='GLB Stitcher', APP_VERSION='1.10.9', APP_BUILD='2026-09-26';   // version shown in About + footer
 // Bump APP_BUILD whenever the app or the bundled motion library changes. It is printed to the console and
 // shown in the footer so "am I running the current version?" can be answered by looking, not by guessing —
 // a stale browser tab kept an old build alive twice while the files on disk were already up to date.
@@ -4104,6 +4104,8 @@ function flipReskinRoot(root){
 }
 // Dev hook for headless / in-browser verification (module scope is otherwise unreachable from the console).
 window.__dbg={ get clips(){return clips}, get characters(){return characters}, get scene(){return scene}, get camera(){return camera}, get canvas(){return canvasEl}, heldPropOf, get weaponSel(){return weaponSel}, get weaponClipboard(){return weaponClipboard}, flipReskinRoot };
+// test hooks for the motion audit harness (read/measure only)
+Object.assign(window.__dbg,{ addMotionClip:(m)=>addMotionClip(m), mlActiveSig:()=>mlActiveSig(), sigFitsChar:(a,b)=>sigFitsChar(a,b), libIndex:()=>libIndex, showClip:(i)=>showClip(i), renderFrame:()=>renderFrame() });
 function refreshView(){ applyCharProps(); if(typeof sizeWater==='function') sizeWater(); if(!clips.length){ renderFrame(); return; } if(isEnsemble()) showEnsemble(); else showClip(selIndex); }
 
 // ---------- Ensemble (multiple characters on stage at once) ----------
@@ -6538,6 +6540,49 @@ function floorContactPose(root, spec, floorY){
 }
 function torsoHoriz(root){ const h=root.getObjectByName('Hips'), n=root.getObjectByName('neck')||root.getObjectByName('Spine02'); if(!h||!n) return 0;
   const d=n.getWorldPosition(_gcV1).clone().sub(h.getWorldPosition(_gcV2)); const L=d.length()||1; return 1-Math.min(1,Math.abs(d.y)/L); }   // 0 = standing (vertical), 1 = planked (horizontal)
+// ── TWO-HAND CONTACT (grips, claps, praying hands). Joint angles keep two hands together only on the build the motion was
+// authored on: on wider shoulders or other arm lengths the hands of a two-handed grip drift apart (a wide-shouldered orc's golf
+// grip split by a shoulder-width). The Animator bakes, per frame, where the LEFT hand sits in the RIGHT hand's frame and how far
+// apart the hands are (clip.hands). Here the LEFT arm of THIS character is re-solved — two-bone, keeping its own elbow plane —
+// so the left hand holds that relation, scaled by this character's forearm, in the frames where the hands are actually together
+// (≤12 cm on the template, faded out by 20 cm). The left hand keeps its retargeted orientation relative to the right hand.
+function bakeHandContact(clip, root, hands){
+  const B=n=>root.getObjectByName(n); const L={sh:B('LeftArm'), el:B('LeftForeArm'), ha:B('LeftHand')}, R={sh:B('RightArm'), el:B('RightForeArm'), ha:B('RightHand')};
+  if(!L.sh||!L.el||!L.ha||!R.sh||!R.el||!R.ha||!hands||!hands.dist||!hands.dist.length || window.__noHandContact) return clip;   // __noHandContact: dev A/B switch
+  const dur=clip.duration||1, N=Math.max(4, Math.round(dur*30)); const times=[]; for(let i=0;i<N;i++) times.push((N===1?0:i/(N-1))*dur);
+  const ref=root.clone(true); const refMixer=new THREE.AnimationMixer(ref); refMixer.clipAction(clip).play();
+  const refBones={}; ref.traverse(o=>{ if(o.isBone) refBones[o.name]=o; });
+  const poseAt=t=>{ refMixer.setTime(t); for(const nm in refBones){ const b=B(nm), r=refBones[nm]; if(b){ b.position.copy(r.position); b.quaternion.copy(r.quaternion); b.scale.copy(r.scale); } } root.updateMatrixWorld(true); };
+  const hn=hands.dist.length, samp=t=>{ const f=Math.min(1,Math.max(0,t/dur))*(hn-1), i0=Math.floor(f), i1=Math.min(hn-1,i0+1); return [i0,i1,f-i0]; };
+  const distAt=t=>{ const [i0,i1,a]=samp(t); return hands.dist[i0]+(hands.dist[i1]-hands.dist[i0])*a; };
+  const relAt=t=>{ const [i0,i1,a]=samp(t), r=hands.rel; return new THREE.Vector3(r[i0*3]+(r[i1*3]-r[i0*3])*a, r[i0*3+1]+(r[i1*3+1]-r[i0*3+1])*a, r[i0*3+2]+(r[i1*3+2]-r[i0*3+2])*a); };
+  const W=b=>b.getWorldPosition(new THREE.Vector3()), WQ=b=>b.getWorldQuaternion(new THREE.Quaternion());
+  const setWQ=(b,q)=>{ b.quaternion.copy(b.parent.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(q)); b.updateMatrixWorld(true); };
+  const aimTo=(bone, pivot, cur, want)=>{ const a=cur.clone().sub(pivot), c=want.clone().sub(pivot); if(a.lengthSq()<1e-12||c.lengthSq()<1e-12) return;
+    setWQ(bone, new THREE.Quaternion().setFromUnitVectors(a.normalize(), c.normalize()).multiply(WQ(bone))); };
+  const ik2=(A,T)=>{ const S=W(A.sh), E=W(A.el), H=W(A.ha), a=S.distanceTo(E), b=E.distanceTo(H); const dv=T.clone().sub(S);   // two-bone, keeps the arm's own elbow plane
+    const dd=Math.max(Math.abs(a-b)+1e-4, Math.min(a+b-1e-4, dv.length())), dir=dv.normalize();
+    const pole=E.clone().sub(S); pole.sub(dir.clone().multiplyScalar(pole.dot(dir))); if(pole.lengthSq()<1e-10) pole.set(0,-1,0).addScaledVector(dir, dir.y); pole.normalize();
+    const cosA=Math.min(1,Math.max(-1,(a*a+dd*dd-b*b)/(2*a*dd))), sinA=Math.sqrt(1-cosA*cosA);
+    aimTo(A.sh, S, E, S.clone().addScaledVector(dir, cosA*a).addScaledVector(pole, sinA*a)); root.updateMatrixWorld(true);
+    aimTo(A.el, W(A.el), W(A.ha), S.clone().addScaledVector(dir, dd)); root.updateMatrixWorld(true); };
+  poseAt(0); const kFore=(W(L.el).distanceTo(W(L.ha)))/(hands.fore||1);     // this character's forearm vs the template's → hand spacing scales with the hand
+  const names=['LeftArm','LeftForeArm','LeftHand','RightArm','RightForeArm','RightHand'], rec={}; names.forEach(n=>rec[n]=[]); let touched=false;
+  for(let i=0;i<N;i++){ const t=times[i]; poseAt(t);
+    const d=distAt(t), x=Math.min(1,Math.max(0,(d-0.12)/0.08)), w=1-x*x*(3-2*x);
+    if(w>0.001){ touched=true;
+      const Rq=WQ(R.ha), qRel=Rq.clone().invert().multiply(WQ(L.ha)), rel=relAt(t).multiplyScalar(kFore);
+      const target=()=>{ const T=rel.clone().applyQuaternion(WQ(R.ha)).add(W(R.ha)); return T.lerpVectors(W(L.ha), T, w); };
+      let T=target(); ik2(L, T);
+      // the left arm can't get there (full stretch): the RIGHT hand comes to meet it by the shortfall — keeping its grip orientation
+      const short=W(L.ha).sub(T); if(short.length()>1e-3){ ik2(R, W(R.ha).add(short)); setWQ(R.ha, Rq); T=target(); ik2(L, T); }
+      setWQ(L.ha, WQ(R.ha).multiply(qRel)); }
+    for(const nm of names){ const q=B(nm).quaternion; rec[nm].push(q.x,q.y,q.z,q.w); } }
+  refMixer.stopAllAction(); if(!touched) return clip;
+  const have=new Set(); let nt=clip.tracks.map(t=>{ const nm=t.name.replace('.quaternion',''); if(t.name.endsWith('.quaternion') && rec[nm]){ have.add(nm); return new THREE.QuaternionKeyframeTrack(t.name, times.slice(), rec[nm]); } return t; });
+  for(const nm of names) if(!have.has(nm)) nt.push(new THREE.QuaternionKeyframeTrack(nm+'.quaternion', times.slice(), rec[nm]));
+  const out=new THREE.AnimationClip(clip.name, clip.duration, nt); if(clip.__match) out.__match=clip.__match; return out;
+}
 function bakeFloorContact(clip, root, spec, srcClip){
   const N=Math.max(4, Math.round((clip.duration||1)*30));
   const times=[]; for(let i=0;i<N;i++) times.push((N===1?0:i/(N-1))*(clip.duration||1));
@@ -6706,6 +6751,7 @@ function nlRebuild(c){
   let retClip=retargetMotion({...c.srcMeta, clip:json}, libRig);
   const shortId=(c.srcMeta.id||'').replace(/^ra_[a-z]+_/,'').replace(/_\d+_\d+_\d+$/,'');
   if(FLOOR_CONTACT[shortId]){ try{ const gc=skeletonClone(libRig.root); gc.position.set(0,0,0); gc.rotation.set(0,0,0); gc.scale.set(1,1,1); json.__charRoot=libRig.root; json.__rest=libRig.rest; retClip=bakeFloorContact(retClip, gc, FLOOR_CONTACT[shortId], json); delete json.__charRoot; delete json.__rest; }catch(e){} }
+  if(json.hands && !FLOOR_CONTACT[shortId]){ try{ const gh=skeletonClone(libRig.root); gh.position.set(0,0,0); gh.rotation.set(0,0,0); gh.scale.set(1,1,1); retClip=bakeHandContact(retClip, gh, json.hands); }catch(e){ console.warn('hand-contact bake failed:', e); } }
   c.mixer.stopAllAction();
   c.action=c.mixer.clipAction(retClip); c.action.clampWhenFinished=true; c.duration=retClip.duration;
   computeTravel(c); finalizeAdvance(c); c._norm=true; recomputeAllNorm(); computeSharedFrame();
@@ -6737,6 +6783,7 @@ async function addMotionClip(meta){
   const shortId=(meta.id||'').replace(/^ra_[a-z]+_/,'').replace(/_\d+_\d+_\d+$/,'');
   if(FLOOR_CONTACT[shortId]){ try{ const gcRoot=skeletonClone(libRig.root); gcRoot.position.set(0,0,0); gcRoot.rotation.set(0,0,0); gcRoot.scale.set(1,1,1);
     const _m=retClip.__match; clipJSON.__charRoot=libRig.root; clipJSON.__rest=libRig.rest; retClip=bakeFloorContact(retClip, gcRoot, FLOOR_CONTACT[shortId], clipJSON); delete clipJSON.__charRoot; delete clipJSON.__rest; if(_m) retClip.__match=_m; }catch(e){ console.warn('floor-contact bake failed:', e); } }
+  if(clipJSON.hands && !FLOOR_CONTACT[shortId]){ try{ const gh=skeletonClone(libRig.root); gh.position.set(0,0,0); gh.rotation.set(0,0,0); gh.scale.set(1,1,1); retClip=bakeHandContact(retClip, gh, clipJSON.hands); }catch(e){ console.warn('hand-contact bake failed:', e); } }   // keep two-handed grips / claps together on THIS character's build
   const root=skeletonClone(libRig.root);
   root.position.set(0,0,0); root.rotation.set(0,0,0); root.scale.set(1,1,1);   // rig root may be mid-frame-scaled; start the clone neutral (else baseScale double-applies)
   root.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.receiveShadow=false; o.frustumCulled=false; } });
@@ -6900,6 +6947,8 @@ function renderMotionLib(){
   { const ids=new Set(libIndex.map(m=>m.id)), fingers=!!rigSig && ('|'+rigSig+'|').includes('|LeftHandIndex1|');
     const twin=id=>/^ra_biped_/.test(id)?id.replace(/^ra_biped_/,'ra_bipedhand_'):/^ra_bipedhand_/.test(id)?id.replace(/^ra_bipedhand_/,'ra_biped_'):null;
     base=base.filter(m=>{ const t=twin(m.id); if(!t||!ids.has(t)) return true; return /^ra_bipedhand_/.test(m.id)===fingers; }); }
+  // FINGER RIGS get finger motions ONLY (Paul): a plain motion with no finger twin would leave the hands frozen
+  if(('|'+(rigSig||'')+'|').includes('|LeftHandIndex1|')) base=base.filter(m=>/^ra_bipedhand_/.test(m.id) || ('|'+(m.sig||'')+'|').includes('|LeftHandIndex1|'));
   // ---- category chips (hidden while building a sequence — that list is a flat flow ranking) ----
   if(bar){
     if(seq){ bar.style.display='none'; bar.innerHTML=''; }
@@ -7314,13 +7363,18 @@ async function importPackFromText(text, srcName){
 async function importPackFiles(files){ for(const f of (files||[])){ try{ await importPackFromText(await f.text(), f.name); }catch(e){ console.error(e); } } }
 async function removePack(id){ try{ await packDelete(id); }catch(e){ console.warn(e); } location.reload(); }
 
+// the installed-pack list folds away (remembered on this device); the import drop box always stays visible
+function packListOpen(){ try{ return localStorage.getItem('stitcher.packList')!=='closed'; }catch(e){ return true; } }
 function renderPacksUI(){
   const box=$('#packBox'); if(!box) return;
   let h='<div style="border:1px dashed var(--line,#252c37);border-radius:8px;padding:8px;margin:10px 0">'
     +'<div style="font-size:12px;font-weight:600;margin-bottom:5px">🎁 Expansion packs</div>'
     +'<div class="drop" id="packDrop" style="padding:9px;font-size:12px">Import an expansion <b>.json</b> pack<br><span class="hint" style="margin:0">drop it here or click to choose</span></div>'
     +'<input type="file" id="packInput" accept=".json,application/json" hidden multiple>';
-  if(importedPacks.length){ h+='<div style="margin-top:6px;display:flex;flex-direction:column;gap:4px">';
+  if(importedPacks.length){ const open=packListOpen();
+    h+='<div id="packToggle" title="Show or hide your installed packs" style="margin-top:6px;display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none;font-size:12px;color:var(--muted,#8b97a8)">'
+      +'<span>'+(open?'▾':'▸')+'</span><span style="flex:1">'+importedPacks.length+' pack'+(importedPacks.length===1?'':'s')+' installed</span><span style="color:var(--accent,#5b8cff)">'+(open?'Hide':'Show')+'</span></div>';
+    h+='<div id="packList" style="margin-top:6px;display:'+(open?'flex':'none')+';flex-direction:column;gap:4px">';
     for(const p of importedPacks){ const c=p.counts||{};
       const bits=[c.characters?c.characters+' characters':'', c.motions?c.motions+' motions':'', c.sceneProps?c.sceneProps+' scene props':'', c.props?c.props+' hand props':'', c.scenes?c.scenes+' scenes':'', p.built?'built '+p.built:''].filter(Boolean).join(' · ');
       h+='<div style="display:flex;align-items:center;gap:6px;font-size:12px;background:var(--panel2,#161b23);border:1px solid var(--line,#252c37);border-radius:6px;padding:4px 8px">'
@@ -7333,6 +7387,7 @@ function renderPacksUI(){
   box.innerHTML=h;
   const drop=$('#packDrop'), inp=$('#packInput');
   if(drop && inp && typeof wireDrop==='function') wireDrop(drop, inp, importPackFiles);
+  const tg=$('#packToggle'); if(tg) tg.onclick=()=>{ try{ localStorage.setItem('stitcher.packList', packListOpen()?'closed':'open'); }catch(e){} renderPacksUI(); };
   box.querySelectorAll('button[data-rm]').forEach(b=>b.onclick=()=>{ if(confirm('Remove this expansion pack? The app will reload.')) removePack(b.dataset.rm); });
 }
 

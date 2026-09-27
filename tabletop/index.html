@@ -8083,13 +8083,14 @@ if(appCfg){
   for(const id in GAMES){ const v=BGC.validateDef(GAMES[id]); if(!v.ok) console.warn('[Tabletop] def incomplete', id, v.missing); }
   console.log('[Tabletop] ready — games:', Object.keys(GAMES).join(', '));
   await bTakeHandoff();
+  window.addEventListener('ksol-shown', ()=>{ bTakeHandoff(); });   // GLB Studio keeps this tab alive → check again whenever it's shown
 }
 // 🪄 “Use in Tabletop” from the Generate tab: open Build a Board with that AI model ready to drop
 async function bTakeHandoff(){ let h=null; try{ h=JSON.parse(localStorage.getItem('studio.handoff')||'null'); }catch(e){}
   if(!h || h.to!=='tabletop' || Date.now()-h.t>120000 || !window.StudioLib) return;
   localStorage.removeItem('studio.handoff');
   try{ const m=(await bAiModels()).find(x=>x.id===h.id); if(!m) return;
-    const gsel=document.getElementById('gameSel'); gsel.value=BUILDER_ID; await selectGame(BUILDER_ID);
+    if(!BUILD){ const gsel=document.getElementById('gameSel'); gsel.value=BUILDER_ID; await selectGame(BUILDER_ID); }   // keep a board that's already open
     bLibSrc='ai'; document.querySelectorAll('#bLibSrcSeg button').forEach(x=>x.classList.toggle('on',x.dataset.src==='ai'));
     bSelectGlbProp(bAiSrc(m), (m.skeleton==='prop'?'🏺 ':'🧍 ')+m.name);
     document.getElementById('bLibWrap')?.scrollIntoView({block:'center'});

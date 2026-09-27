@@ -67,7 +67,7 @@
 <main>
   <aside>
     <div>
-      <h1>🐾 Rig Animator <span class="appver">v1.19.34</span></h1>
+      <h1>🐾 Rig Animator <span class="appver">v1.19.35</span></h1>
       <div class="hint" style="margin-top:0">Procedurally generate original animations for your <b>biped</b>, <b>quadruped</b> and <b>bird</b> rigs — organized by category (boxing, fencing, football, dancing, running, walking, jumping, climbing…) — then export them into the GLB Stitcher motion library.</div>
     </div>
 
@@ -135,7 +135,7 @@
         </g>
       </svg>
       <div>
-        <div><b>Rig Animator</b> v1.19.34 · part of GLB Studio</div>
+        <div><b>Rig Animator</b> v1.19.35 · part of GLB Studio</div>
         <div class="appfoot-sub">© <span class="cred-year">2026</span> Paul A.T. Ramey · <b>KSOL Designs</b> · <a href="https://www.ksoldesigns.com" target="_blank" rel="noopener">ksoldesigns.com</a></div>
       </div>
     </div>
@@ -2495,6 +2495,7 @@ function handAlign(Ar, local, dir){
 const GRIP_AXIS={ handshake:V(0,1,0), thumb:V(0,0,-1), power:V(0,0,1) };            // hand axis the prop runs along, per grip type (power: haft toward the PINKY)
 const _tgE=new THREE.Vector3(), _tgH=new THREE.Vector3();
 function twoHandGrip(kind, along){
+  if(window.__phys && kind!=='thumb'){ animRoot.updateMatrixWorld(false); window.__phys.grip=Math.max(window.__phys.grip||0, boneByName[B_LARM.hand].getWorldPosition(new THREE.Vector3()).distanceTo(boneByName[B_RARM.hand].getWorldPosition(new THREE.Vector3()))); }   // physics-check probe (dev): hands apart on a two-handed grip
   const d=along.clone().normalize();
   for(const Ar of [B_LARM,B_RARM]){
     const pc=handDir(Ar, V(-Ar.s,0,0));                                             // the hand's CURRENT palm normal (from the arm's twist-stable roll)
@@ -2662,7 +2663,8 @@ const _ikS=new THREE.Vector3(),_ikE=new THREE.Vector3(),_ikH=new THREE.Vector3()
 const _sgE=new THREE.Vector3(), _sgH=new THREE.Vector3(), _sgP=new THREE.Vector3(), _sgR=new THREE.Vector3();
 function reachIK(Ar, target, pole){
   if(!(Ar===B_LARM || Ar===B_RARM)){ _reachIKCore(Ar, target, pole); return; }
-  let tgt=PHYS_GUARDS.reachLine ? handClear(target,[Ar],{shoulderR:0}) : (PHYS_GUARDS.targetClear ? bodyClear(target) : target);   // a hand can be ON the body, never IN it — and its reach line stays clear of the chest (DEFAULT for every hand target, so a prompted motion inherits it)
+  let tgt=PHYS_GUARDS.reachLine ? handClear(target,[Ar],{shoulderR:0}) : (PHYS_GUARDS.targetClear ? bodyClear(target) : target);
+  if(window.__phys) window.__phys.reach[Ar.hand]=tgt.clone();   // physics-check probe (dev): the hand's final requested point this frame   // a hand can be ON the body, never IN it — and its reach line stays clear of the chest (DEFAULT for every hand target, so a prompted motion inherits it)
   for(let pass=0; pass<3; pass++){
     _reachIKCore(Ar, tgt, pole);
     if(pass===2 || !PHYS_GUARDS.segment) break;
@@ -2745,6 +2747,30 @@ function flexAxisLocal(Ar){
   v=w.applyQuaternion(q.clone().invert()).normalize(); _flexCache.map[Ar.arm]=v; return v;
 }
 function grip(target, pole){ const t=PHYS_GUARDS.reachLine ? handClear(target,[B_LARM,B_RARM],{shoulderR:0}) : target; reachIK(B_LARM, t, pole); reachIK(B_RARM, t, pole); }   // BOTH hands to one point (bat / club / ball) — cleared ONCE for both shoulders so the hands stay together
+// BOTH hands on ONE grip, stacked along it (lead hand nearer the butt, trail hand ~5 cm toward the head). grip() sends both
+// hands to one point, but when that point is beyond one arm's reach (a golf backswing: the lead arm is straight across the
+// chest) that hand stops short and the hands came apart ~15 cm. Here the grip moves to where the limiting arm got to, and
+// the other hand closes onto it. `down` = the shaft's bias from the chest→hands line toward the club head.
+// REACH-DRIVEN BEND. A motion that sends the hands low (pick up, dig, touch toes, hands on knees) must bring the SHOULDERS
+// down to them — a fixed lean left the hands stopping 30-80 cm short of the floor or tool they were sent to (and wrenched the
+// arm reaching for it). pose(h) builds the body for a bend amount h∈[0,1] (hip hinge + knees, feet planted); solveBend finds
+// the SMALLEST h at which every target is within a near-straight arm (bisection → continuous frame to frame), then leaves
+// the body in that pose. targets() is re-read after each pose (targets may ride on the body, e.g. the knees).
+function armLen(Ar){ const a=boneByName[Ar.arm].getWorldPosition(new THREE.Vector3()), e=boneByName[Ar.fore].getWorldPosition(new THREE.Vector3()), h=boneByName[Ar.hand].getWorldPosition(new THREE.Vector3()); return a.distanceTo(e)+e.distanceTo(h); }
+function solveBend(pose, targets, reach){ reach=reach??0.96; const _s=new THREE.Vector3();
+  const worst=h=>{ pose(h); animRoot.updateMatrixWorld(true); let w=-1e9; for(const [Ar,T] of targets()) w=Math.max(w, boneByName[Ar.arm].getWorldPosition(_s).distanceTo(T) - armLen(Ar)*reach); return w; };
+  const ok=h=>worst(h)<=0;
+  let h=0; if(!ok(0)){ if(ok(1)){ let lo=0, hi=1; for(let i=0;i<12;i++){ const m=(lo+hi)/2; if(ok(m)) hi=m; else lo=m; } h=hi; }
+    else { let a=0, b=1; for(let i=0;i<14;i++){ const m1=a+(b-a)/3, m2=b-(b-a)/3; if(worst(m1)<=worst(m2)) b=m2; else a=m1; } h=(a+b)/2; } }   // out of reach at every bend: take the bend that gets CLOSEST (bending toward a high target only makes it worse)
+  pose(h); animRoot.updateMatrixWorld(true); return h; }
+function gripTogether(target, pole, down, axis){
+  let g=target.clone(); const pL=new THREE.Vector3(), pR=new THREE.Vector3(), c=new THREE.Vector3();
+  for(let it=0; it<3; it++){ grip(g, pole); animRoot.updateMatrixWorld(false);
+    boneByName[B_LARM.hand].getWorldPosition(pL); boneByName[B_RARM.hand].getWorldPosition(pR);
+    const eL=pL.distanceTo(g), eR=pR.distanceTo(g); if(Math.max(eL,eR)<0.01) break; g=(eL>eR?pL:pR).clone(); }
+  boneByName['Spine02'].getWorldPosition(c); const d=axis ? axis.clone().normalize() : g.clone().sub(c).normalize(); if(down && !axis) d.add(down).normalize();   // butt → head of the club (or an explicit hilt axis: the SWORD hand goes toward the blade)
+  reachIK(B_LARM, g.clone().addScaledVector(d,-0.025), pole); reachIK(B_RARM, g.clone().addScaledVector(d,0.025), pole);
+}
 function shaft(top, bot, pole){ reachIK(B_RARM, top, pole); reachIK(B_LARM, bot, pole); }        // hands SPACED along a shaft (broom / rake / shovel / rope)
 // Boxing arm configs — world directions, s=Ar.s flips L/R (char faces +Z, +X=left). Elbow down, glove at cheek.
 const BX_GU=s=>V(0.15*s,-0.95,0.12),  BX_GF=s=>V(-0.10*s,0.90,0.35);
@@ -2769,7 +2795,7 @@ function boxStance(A, drive, o){
     plantFeet((o.lead??0.20)*A, (o.rear??-0.20)*A, {width:0.105, footY:[0, heel]}));
   footAim(B_RLEG, footDir(B_RLEG, reachableSole(B_RLEG, heel), 0.70+0.5*drive), 0);   // rear foot pivots out
 }
-function guard(A, drive){ boxStance(A, drive); guardArm(B_LARM); guardArm(B_RARM); leanF(0.08*A); }
+function guard(A, drive, o){ boxStance(A, drive, o); guardArm(B_LARM); guardArm(B_RARM); leanF(0.08*A); }
 // The fencing guard is a very different shape from the boxing one: the feet sit at RIGHT ANGLES to each
 // other (lead foot down the line of attack, rear foot turned ~65 deg out), roughly two foot-lengths apart,
 // with BOTH knees deeply flexed so the hips sit low directly between them. The body is bladed almost
@@ -2815,9 +2841,9 @@ function kneeFlex(L){
   _kfK.sub(_kfH);
   return _kfK.angleTo(_kfA);
 }
-function settleKnee(target, plant, legs){
+function settleKnee(target, plant, legs, iters){
   const set = legs || BIPED_LEGS;                     // pass the WEIGHT-BEARING legs when only one is down
-  for(let i=0;i<4;i++){
+  for(let i=0;i<(iters||4);i++){
     plant();
     let k=0; for(const L of set) k += kneeFlex(L); k /= set.length;
     const err=target-k;
@@ -2950,6 +2976,17 @@ function fightStance(A, o){
     plantFeet((o.lead??0.20)*A, (o.rear??-0.20)*A, {width:0.105, footY:[0, heel]}));
   leanF((o.lean??0.10)*A);
 }
+// KNEE OVER FOOT: a knee is a hinge — it can only bend in the plane its foot points along. plantFeet bends every knee
+// toward world-forward (pole +Z), which is right for a square stance, but in a TURNED stance (fencing ~50°) the feet point
+// elsewhere and the knee folded sideways across the foot. Re-solve the leg to the same planted ankle with the knee aimed
+// along the foot's heading (heading = world yaw to point the foot; null = keep the heading it has), then re-seat the foot.
+function kneeOverFoot(L, heading){
+  animRoot.updateMatrixWorld(false);
+  const a=boneByName[L.foot].getWorldPosition(new THREE.Vector3()), toe=boneByName[L.toe].getWorldPosition(new THREE.Vector3());
+  const d=toe.sub(a); const h=Math.hypot(d.x,d.z)||1e-6;
+  if(heading!=null){ d.x=Math.sin(heading)*h; d.z=Math.cos(heading)*h; }
+  legIK(L, a, V(d.x,0,d.z).normalize()); footAim(L, d.normalize(), 0);
+}
 function fenceGuard(A, o){
   o=o||{};
   bstand();
@@ -2957,10 +2994,13 @@ function fenceGuard(A, o){
   sw('Hips', AX.y, turn);
   sw('Spine02', AX.y, -turn*0.30);                     // shoulders squared back a little toward the target
   if(o.z) animRoot.position.z += o.z;
+  if(o.y) animRoot.position.y += o.y;                  // a starting drop for the knee solve (a lunge sits ~15 cm lower than the guard)
   const heel=o.rearHeel??0;
-  settleKnee((o.knee??1.20)*A, () =>                    // ~69 deg — a fencer sits LOW between the feet
-    plantFeet((o.rear??-0.26)*A, (o.lead??0.30)*A, {width:0.10, footY:[heel, 0]}));
-  footAim(B_LLEG, footDir(B_LLEG, reachableSole(B_LLEG, heel), 2.0), 0);   // rear foot turned ~63 deg out
+  settleKnee((o.knee??1.20)*A, () => {                 // ~69 deg — a fencer sits LOW between the feet  (o.kneeLegs: settle on those legs only)
+    plantFeet((o.rear??-0.26)*A, (o.lead??0.30)*A, {width:0.10, footY:[heel, 0]});
+    footAim(B_LLEG, footDir(B_LLEG, reachableSole(B_LLEG, heel), 2.0), 0);   // rear foot turned ~63 deg out
+    kneeOverFoot(B_LLEG, null);                          // rear knee bends out over the turned-out rear foot
+    kneeOverFoot(B_RLEG, 0); }, o.kneeLegs, o.iters);    // lead foot and knee point straight down the line at the opponent (both bent sideways across the feet before)
 }
 function bipedGait(t,P,dur,o){ o=o||{}; bstandBare();
   const legAmp=o.legAmp??0.55,kneeAmp=o.kneeAmp??0.7,armAmp=o.armAmp??0.5,bob=o.bob??0.03,lean=o.lean??0,dir=o.dir??1,footAmp=o.footAmp??0.35,sway=o.sway??0.04,knee0=o.knee0??0,bodyTilt=o.bodyTilt??0,frontKick=o.frontKick??0,hipSway=o.hipSway??sway,shDrive=o.shDrive??0.22,elbow0=o.elbow0??0.25*armAmp,elbowAmp=o.elbowAmp??0.25*armAmp,footTuck=o.footTuck??0,footFront=o.footFront??0.9,footInline=o.footInline??0.4,A=P.amp;
@@ -3015,7 +3055,7 @@ function bipedStrafe(t,P,dur,dir,o){
   bstand();
   leanS(travel*0.07*A);
   BIPED_SPINE.forEach(b=>sw(b,AX.x,(0.16*A)/3));                       // chest over the hips, not upright
-  BIPED_ARMS.forEach(Ar=>{ armO(Ar,0.62*A); armF(Ar,0.30*A); elb(Ar,0.75*A); });
+  BIPED_ARMS.forEach(Ar=>{ armO(Ar,0.85*A); armF(Ar,0.10*A); elb(Ar,0.55*A); });   // defensive-slide arms: WIDE to the sides, hands low and ready (forward-raised arms read as "zombie arms" on the move)
   const lead = travel>0 ? B_LLEG : B_RLEG;                             // the foot that steps out first
   const swingOf = L => (L===lead) ? (cyc<0.5 ? Math.sin(TAU*cyc*0.5*2) : 0)
                                   : (cyc>=0.5 ? Math.sin(TAU*(cyc-0.5)*0.5*2) : 0);
@@ -3159,6 +3199,107 @@ function reachableSole(L, solePitch){
 //   zL/zR = each foot's world fore/aft position (0 ≈ under the hips; split them for a lunge or a stride)
 //   y     = floor height, or [yL,yR] to raise one foot (a step, a kerb)
 //   footY = ankle angle in RADIANS, + = toe up from flat (dorsiflex), − = toe down (plantarflex)
+// PLANK geometry, solved from THIS rig's proportions (cached per skeleton). A straight body from the ankles (up on the
+// toes) to the shoulders, with the arms straight down to the floor: shoulder height − ankle height = arm length − toe
+// height, and it equals (hips→shoulder + hips→ankle)·cos(pitch). The old fixed 1.5 rad pitch made the body horizontal and
+// left the feet ~0.5 m in the air.
+let _plankC=null;
+function plankTheta(){
+  if(_plankC && _plankC.bb===boneByName) return _plankC.th;
+  bstand(); animRoot.updateMatrixWorld(true);
+  const P=n=>{ const v=new THREE.Vector3(); boneByName[n].getWorldPosition(v); return v; };
+  const h=P('Hips'), sh=P(B_LARM.arm), wr=P(B_LARM.hand), an=P(B_LLEG.foot);
+  const Ls=sh.y-h.y, Ll=h.y-an.y, Ar=sh.distanceTo(wr), TOE=0.06;
+  const c=clamp((0.05 + 0.96*Ar - TOE)/(Ls+Ll), 0.10, 0.60);
+  _plankC={ bb:boneByName, th:Math.acos(c), Lt:Ls+Ll, Ar }; bstand(); return _plankC.th;
+}
+// Pose the body k of the way from standing into the plank (arms are posed by the caller). o.extraY adds to the root height
+// (squat / push-up dip), o.z = forward shift at the full plank, o.knee = extra knee bend.
+function plankBody(k, A, o){ o=o||{};
+  // o.dip: a push-up lowers the chest by PIVOTING on the toes (more pitch), not by sinking the whole body through the floor
+  const th0=plankTheta(), th=th0 + (o.dip ? o.dip/(_plankC.Lt*Math.sin(th0)) : 0);
+  sw('Hips',AX.x,th*k*A); setRootY(0); animRoot.position.z += (o.z??0.30)*k*A;
+  [B_LLEG,B_RLEG].forEach(L=>kneeB(L,(0.05+(o.knee||0))*A));   // foot stays neutral: at the plank's pitch that already stands it on its toes
+  animRoot.updateMatrixWorld(true);
+  // rest the toes on the floor (blended in with k, so the standing end is untouched)
+  const v=new THREE.Vector3(); let toe=Infinity;
+  for(const L of [B_LLEG,B_RLEG]){ boneByName[L.toe].getWorldPosition(v); toe=Math.min(toe,v.y); }
+  setRootY(((0.03-toe)*k + (o.extraY||0))*A); animRoot.updateMatrixWorld(true);
+}
+// Standing ⇄ plank the way a person actually does it (Get Down / Get Up, and the Push-Up / Plank entries). k: 0 standing → 1 plank.
+//  0    → 0.35  SQUAT & REACH   feet planted, hips drop, torso folds, hands travel down to the floor in front of the feet.
+//  0.35 → 0.65  HANDS & KNEES   knees come down to the floor under the hips, shins flat behind them, hands under the shoulders.
+//  0.65 → 1     LEGS BACK       the knees lift and straighten as the feet slide back along the floor into the plank.
+// Every contact is placed explicitly (IK), so no limb swings through the air. Ends exactly in the Push-Up top pose.
+function floorTransition(k, A){
+  const V3=THREE.Vector3, _v=new V3(), W=n=>{ boneByName[n].getWorldPosition(_v); return _v.clone(); };
+  // references: the plank (end) pose and the rig's leg segments
+  bstand(); const soleRef=W(B_LLEG.toe).sub(W(B_LLEG.foot));
+  const restDors=(()=>{ const a=W(B_LLEG.foot), sh=W(B_LLEG.knee).sub(a).normalize(), ft=soleRef.clone().normalize(); return 90-Math.acos(Math.max(-1,Math.min(1,sh.dot(ft))))*180/Math.PI; })(); const th=plankTheta(); const hipsRest=W('Hips'), thigh=W(B_LLEG.up).distanceTo(W(B_LLEG.knee)), shin=W(B_LLEG.knee).distanceTo(W(B_LLEG.foot));
+  plankBody(1, A); const refA={L:W(B_LLEG.foot), R:W(B_RLEG.foot)}, refH=W('Hips');
+  bstand();
+  const p1=smooth(clamp(k/0.35,0,1)), p2=smooth(clamp((k-0.35)/0.30,0,1)), p3=smooth(clamp((k-0.65)/0.35,0,1));
+  // ---- body: hips pitch + height + forward position per phase ----
+  const QP=1.40;                                                    // hands & knees: torso about level
+  const pitch = QP*p2*(1-p3) + th*p3;
+  const hipsY = (hipsRest.y - 0.45*p1)*(1-p2) + (thigh+0.07)*p2*(1-p3) + refH.y*p3;
+  const hipsZ = 0.05*p2*(1-p3) + refH.z*p3;
+  sw('Hips',AX.x,pitch*A); leanF(1.3*p1*(1-p2)*A);
+  animRoot.updateMatrixWorld(true);
+  const hc=W('Hips'); animRoot.position.y += (hipsY-hc.y)*A; animRoot.position.z += (hipsZ-hc.z)*A; animRoot.updateMatrixWorld(true);
+  // ---- legs: ankles IK-placed on the floor; sole kept FLAT while squatting (heel lifts only past the ankle's limit), then
+  //      left neutral to the shin (kneeling: toes tucked under; plank: up on the toes) ----
+  for(const [L,nm] of [[B_LLEG,'L'],[B_RLEG,'R']]){
+    const side=W(L.up).x;
+    const stand=new V3(side, GROUND_ANKLE, 0), kneel=new V3(side, 0.09, hipsZ - shin*0.95), plank=refA[nm];
+    const tgt = p3>0 ? kneel.clone().lerp(plank, p3) : stand.clone().lerp(kneel, p2);
+    const pole = new V3(0, -1*p2*(1-p3), 1-p2*(1-p3)*0.8);
+    legIK(L, tgt, pole.normalize());
+    const flat=1-p2;                                                   // squat phase: sole flat on the floor
+    if(flat>0){ animRoot.updateMatrixWorld(true); const an=W(L.foot), to=W(L.toe);
+      const phi=Math.atan2(to.y-an.y, to.z-an.z), want=Math.atan2(soleRef.y, soleRef.z);
+      sw(L.foot, AX.x, (phi-want)*flat); capDorsi(L, 35, restDors); }
+  }
+  animRoot.updateMatrixWorld(true);
+  // ---- hands: hang → floor in front of the feet → under the shoulders ----
+  [[B_LARM,-1],[B_RARM,1]].forEach(([Ar,s])=>{                      // animator space: the LEFT arm is on −X
+    const shp=W(Ar.arm);
+    const hang=V(0.16*s, 0.62, 0.12), front=V(0.17*s, 0.05, 0.40), under=V(shp.x, 0.05, shp.z);
+    const reach = p2<=0 ? hang.clone().lerp(front, p1) : front.clone().lerp(under, Math.max(p2,p3));
+    reachIK(Ar, reach, V(-(0.35*(1-p2)+0.05*p2)*s, -1*(1-p2)-0.15*p2, -0.5*(1-p2)-1*p2));
+    flatHand(Ar, smooth(clamp((p1-0.55)/0.4,0,1))); });
+  sw(B_HEAD,AX.x,-0.3*k*A);
+}
+// WHOLE-BODY FLOOR for tumbling moves: groundClamp only looks at the soles, so an inverted body (a flip's head, a roll's
+// shoulders) went straight through the floor. Measures the lowest of head, shoulders, elbows, hands, hips, knees and feet.
+//  mode 'up'   → only lift (a flip may be in the air, never under the floor)
+//  mode 'roll' → lift, and while the body is tipped past ~50° also bring it DOWN onto the floor (a roll rolls on the ground)
+function bodyFloor(mode){
+  if(!animRoot) return; animRoot.updateMatrixWorld(true);
+  const v=new THREE.Vector3(); let lo=Infinity;
+  const pts=['Head','head_end','Hips','Spine02',B_LARM.arm,B_RARM.arm,B_LARM.fore,B_RARM.fore,B_LARM.hand,B_RARM.hand];
+  for(const L of BIPED_LEGS) pts.push(L.knee, L.foot, L.toe);
+  for(const n of pts){ const b=boneByName[n]; if(!b) continue; b.getWorldPosition(v); lo=Math.min(lo, v.y - (n==='Head'||n==='head_end'?0.10:n==='Hips'||n==='Spine02'?0.12:0.05)); }
+  if(!isFinite(lo)) return;
+  let d = 0.01 - lo;                                                  // + = lift
+  if(mode==='roll'){ const q=new THREE.Quaternion(); boneByName.Hips.getWorldQuaternion(q);
+    const up=new THREE.Vector3(0,1,0).applyQuaternion(q); const tip=smooth(clamp((0.64-up.y)/0.4,0,1));   // 0 upright → 1 tipped/inverted
+    if(d<0) d*=tip; }                                                 // bring a tipped body down onto the floor
+  else if(d<0) d=0;
+  animRoot.position.y += d; animRoot.updateMatrixWorld(true);
+}
+// ANKLE LIMIT: when the shin tips further over the foot than an ankle can bend (deep squat, kneeling down), a person lifts
+// the heel. Measures the shank-to-foot angle (90° = neutral, smaller = toes toward the shin) and turns the foot just enough
+// to keep dorsiflexion ≤ maxDeg, trying both directions and keeping the one that opens the angle.
+function capDorsi(L, maxDeg, restDeg){   // restDeg = this reading in the standing pose (bone layout makes neutral ≠ 90°)
+  const v=new THREE.Vector3(), W=n=>{ boneByName[n].getWorldPosition(v); return v.clone(); };
+  const dors=()=>{ animRoot.updateMatrixWorld(true); const a=W(L.foot), sh=W(L.knee).sub(a).normalize(), ft=W(L.toe).sub(a).normalize();
+    return 90 - Math.acos(Math.max(-1,Math.min(1,sh.dot(ft))))*180/Math.PI; };
+  const lim=maxDeg+(restDeg||0), d0=dors(); if(d0<=lim) return;
+  const need=(d0-lim)*Math.PI/180;
+  sw(L.foot,AX.x,need); if(dors()<d0) return;                         // that direction opened it
+  sw(L.foot,AX.x,-2*need); animRoot.updateMatrixWorld(true);
+}
 function plantFeet(zL, zR, o){
   o=o||{}; animRoot.updateMatrixWorld(true);
   const w=o.width??0.078, y=o.y??GROUND_ANKLE, fy=o.footY??0, pick=(v,i)=>Array.isArray(v)?v[i]:v;
@@ -3167,7 +3308,10 @@ function plantFeet(zL, zR, o){
   // canted 30 deg while it was still on the floor.
   boneByName['Hips'].getWorldQuaternion(_pfQ);
   _pfF.set(0,0,1).applyQuaternion(_pfQ);
-  const pelvisYaw = Math.atan2(_pfF.x, _pfF.z);
+  // A pelvis tipped forward past ~60° (ape hunch, deep toe-touch) has its forward axis pointing DOWN, so its heading flipped
+  // and the feet were planted facing backwards — read the heading from the pelvis's SIDE axis there (a forward tip leaves it level).
+  let pelvisYaw = Math.atan2(_pfF.x, _pfF.z);
+  if(Math.hypot(_pfF.x,_pfF.z) < 0.5){ const r=new THREE.Vector3(1,0,0).applyQuaternion(_pfQ); pelvisYaw = Math.atan2(-r.z, r.x); }
   [[B_LLEG,zL],[B_RLEG,zR]].forEach(([L,z],i)=>{
     const want=pick(fy,i);
     // A raised heel pivots the foot over the toe, so the ankle must rise by however far the toe would
@@ -3639,7 +3783,7 @@ const BIPED_MOTIONS=[
     leanF((0.16*crouch + 0.10*absorb - 0.05*push)*A);      // torso folds to load, stands tall to launch
     setRootY(cy*A);                                        // COM trajectory — crouch dip, 1" arc, landing absorb
     animRoot.updateMatrixWorld(true);
-    [B_LLEG,B_RLEG].forEach(L=>{ kneeB(L,0.28*A); legF(L,-0.05*A); });                  // flight pose: soft knee
+    [B_LLEG,B_RLEG].forEach(L=>{ legIK(L, V(L.s*0.078, GROUND_ANKLE + Math.max(0,cy)*A + 0.012*A, 0.015), AX.z); footAim(L, footDir(L,-0.15*A,0), 0); });   // flight pose: feet carried under the hips, knees soft and FORWARD (local knee/thigh angles splayed them out ~25 cm)
     landFeet(1-smooth(clamp((cy-dTo)/0.018,0,1)), 0, 0, {width:0.078, dorsiAir:-0.15*A, dorsi:-(0.32*anklePush + 0.28*landToe)*A});   // planted while the body is low, freed only through the 1" arc — BLENDED (a switch slid the feet 25 cm)
     // ── UPPER BODY — a boxer's bounce is a WHOLE-body action, not just the legs ──
     const launch = push + 0.7*feetUp;                     // going up: push-off + air
@@ -3663,8 +3807,8 @@ const BIPED_MOTIONS=[
     animRoot.position.y += 0.05*p*A; }},                                   // legs load, then drive the punch UP
   {id:'hookL', name:'Left Hook', cat:'Boxing', type:'stay', dur:0.7, build:(t,P)=>{ guard(P.amp); const u=(t/0.7*P.speed)%1, p=bump(u,0.45,0.4), A=P.amp;
     hook(B_LARM,p,A); twist(-0.45*p*A); sw('Hips',AX.y,-0.32*p*A); legF(B_LLEG,-0.1*p*A); }},
-  {id:'hookR', name:'Right Hook', cat:'Boxing', type:'stay', dur:0.7, build:(t,P)=>{ const A=P.amp, u=(t/0.7*P.speed)%1, p=bump(u,0.45,0.4); guard(A,p);
-    hook(B_RARM,p,A); twist(0.5*p*A); sw('Hips',AX.y,0.35*p*A); legF(B_RLEG,-0.12*p*A); }},
+  {id:'hookR', name:'Right Hook', cat:'Boxing', type:'stay', dur:0.7, build:(t,P)=>{ const A=P.amp, u=(t/0.7*P.speed)%1, p=bump(u,0.45,0.4); guard(A,p,{turn:0.40-0.35*p});   // the hips turn through the punch INSIDE the stance, so the feet stay planted under it (turning the hips and swinging the rear thigh AFTER the plant lifted the rear foot ~26 cm and bent that knee backwards)
+    hook(B_RARM,p,A); twist(0.5*p*A); }},
   {id:'bodyshot', name:'Body Rip', cat:'Boxing', type:'stay', dur:0.7, build:(t,P)=>{ const A=P.amp, u=(t/0.7*P.speed)%1, p=bump(u,0.45,0.4); guard(A,p*0.5);
     hook(B_LARM,p*0.85,A); armF(B_LARM,-0.2*p*A); leanF(0.3*p*A); twist(-0.32*p*A); sw('Hips',AX.y,-0.22*p*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.2*p*A)); }},   // low hook to the ribs: drop + lean in
   {id:'slip', name:'Slip & Weave', cat:'Boxing', type:'stay', dur:1.0, build:(t,P)=>{ guard(P.amp); const A=P.amp, ph=TAU*(t/1.0)*P.speed, s=Math.sin(ph);
@@ -3697,7 +3841,10 @@ const BIPED_MOTIONS=[
   // leads the timing here.
   {id:'lunge', name:'Fencing Lunge', cat:'Fencing', type:'stay', dur:1.1, build:(t,P)=>{ const A=P.amp;
     const u=(t/1.1*P.speed)%1, arm=bump(u,0.42,0.42), p=bump(u,0.52,0.44);
-    fenceGuard(A,{knee:1.20+0.30*p, lead:0.30+0.46*p, rear:-0.26-0.05*p, rearHeel:-0.34*p, z:0.30*p*A});
+    // Height is solved from the REAR leg: it straightens (~7°) as the lunge lands, and the front knee then sits over the front
+    // foot with its shin near vertical. The old version averaged both knees to a deep 86° target — the rear knee stayed at ~50°
+    // and the front one at ~70°, the reverse of a lunge — and the stride (1.07 m) was wider than the legs could span.
+    fenceGuard(A,{knee:(1.10*(1-p)+0.12*p), kneeLegs:[B_LLEG], iters:16, y:-0.20*p*A, lead:0.30+0.36*p, rear:-0.26-0.05*p, rearHeel:0, z:0.30*p*A});   // rear foot stays FLAT (fencing rule) — the lifted heel left the rear toes 6 cm off the floor
     leanF(0.10*p*A);
     reachF(B_RARM,(0.7+0.32*arm),A); elb(B_RARM,(0.35-0.30*arm)*A);        // point drives out, elbow straightens
     armF(B_LARM,-0.3*A); armO(B_LARM,(1.15-0.45*p)*A); elb(B_LARM,1.3*A); }},   // rear arm flung back
@@ -4061,13 +4208,21 @@ const BIPED_MOTIONS=[
     plantFeet(0.08, 0.08, {footY:0.10}); }},
   {id:'dishes', name:'Wash the Dishes', cat:'Household', type:'stay', dur:0.6, build:(t,P)=>{ bstand(); const A=P.amp, ph=TAU*(t/0.6)*P.speed;
     // The scrubbing hand travels a real ~15 cm circle over the basin; the other hand holds the plate steady.
-    leanF(0.18*A); sw(B_HEAD,AX.x,0.20*A); animRoot.updateMatrixWorld(true);
-    reachIK(B_RARM, V(0.10+0.10*Math.cos(ph)*A, 0.98+0.07*Math.sin(ph)*A, 0.30), V(0,-0.4,0.7));
-    reachIK(B_LARM, V(-0.11, 0.96, 0.28), V(0,-0.4,0.7));
-    handRoll(B_RARM, Math.PI); handRoll(B_LARM, Math.PI);        // palms face DOWN into the basin
+    const sc=V(0.10+0.10*Math.cos(ph)*A, 0.98+0.07*Math.sin(ph)*A, 0.30), pl=V(-0.11, 0.96, 0.28);
+    solveBend(h=>{ bstand(); leanF((0.18+0.35*h)*A); animRoot.position.z -= 0.04*h*A; settleKnee(0.10*A, () => plantFeet(0.03,0.03,{width:0.10}), null, 4); },
+      ()=>[[B_RARM,sc],[B_LARM,pl]]);                                   // lean over the sink just far enough to reach it (solved)
+    sw(B_HEAD,AX.x,0.20*A);
+    reachIK(B_RARM, sc, V(0,-0.4,0.7));
+    reachIK(B_LARM, pl, V(0,-0.4,0.7));
+    if(rigKey==='bipedhand') [B_RARM,B_LARM].forEach(Ar=>handFrame(Ar,{fingers:V(0,-0.35,1), palm:V(0,-1,0.15)}));   // palms DOWN into the basin (the 180° roll below is for the mesh-hand rig — it turned fingered hands palm-up)
+    else { handRoll(B_RARM, Math.PI); handRoll(B_LARM, Math.PI); }        // palms face DOWN into the basin
     wristW(B_RARM, Math.sin(ph)*0.35*A); idleSway(t,P,0.6);}},
   {id:'opendoor', name:'Open the Door', cat:'Household', type:'stay', dur:1.4, build:(t,P)=>{ bstand(); const A=P.amp, u=t/1.4, reach=ramp(u,0,0.35), pull=ramp(u,0.45,0.9);
-    reachF(B_RARM,reach,A); armF(B_RARM,-0.3*pull*A); elb(B_RARM,(0.3+0.8*pull)*A); leanF((0.15*reach-0.2*pull)*A); legF(B_RLEG,-0.3*pull*A); kneeB(B_RLEG,0.3*pull*A); twist(-0.2*pull*A); }},
+    // Pulling a door: the feet stay PLANTED in a small stagger and the pull comes from sitting back onto the rear foot (the old
+    // thigh-back + knee-bend on an unplanted leg folded that knee backwards).
+    animRoot.position.z -= 0.05*pull*A; leanF((0.15*reach-0.12*pull)*A); twist(-0.2*pull*A);
+    settleKnee((0.08+0.20*pull)*A, () => plantFeet(0.06, -0.10, {width:0.09}));
+    reachF(B_RARM,reach,A); armF(B_RARM,-0.3*pull*A); elb(B_RARM,(0.3+0.8*pull)*A); }},
   {id:'closedoor', name:'Close the Door', cat:'Household', type:'stay', dur:1.2, build:(t,P)=>{ bstand(); const A=P.amp, u=t/1.2, reach=ramp(u,0,0.35), push=ramp(u,0.4,0.85);
     reachF(B_RARM,(0.5*reach+0.3*push),A); armF(B_RARM,0.3*push*A); elb(B_RARM,(0.5-0.4*push)*A); leanF((0.15+0.25*push)*A); legF(B_LLEG,0.3*push*A); kneeB(B_LLEG,0.3*push*A); }},
   // Sweeping shifts the weight sideways with the stroke — the broom does not travel on its own.
@@ -4076,14 +4231,19 @@ const BIPED_MOTIONS=[
     // long way across the floor, the arms mostly following the shaft.
     fightStance(A,{knee:0.40, lead:0.10, rear:-0.12, turn:0.14, lean:0.28, x:s*0.06*A});
     twist(s*0.38*A); sw('Hips',AX.y,s*0.20*A); sw(B_HEAD,AX.x,0.2*A);
-    shaft(V(0.05+0.34*s,1.02,0.36), V(0.12+0.55*s,0.42,0.62), V(0,-0.4,0.6));
-    handRoll(B_RARM, Math.PI); handRoll(B_LARM, Math.PI); }},   // broom held diagonally, sweeps side-to-side; palms roll to grip the shaft
+    const bt=V(0.03+0.16*s,1.10,0.30), bb=V(0.06+0.20*s,0.86,0.42); shaft(bt, bb, V(0,-0.4,0.6));   // both hands on the handle at waist/chest (the lower hand was sent to 42 cm — ~80 cm out of reach)
+    if(rigKey==='bipedhand') twoHandGrip('power', bb.clone().sub(bt));   // both fists wrap the broom handle, head below (the 180° roll turned fingered hands inside out)
+    else { handRoll(B_RARM, Math.PI); handRoll(B_LARM, Math.PI); } }},   // broom held diagonally, sweeps side-to-side; palms roll to grip the shaft
   // Bending to pick something up: hips hinge BACK as the chest goes down (that counterweight is what keeps
   // you balanced over your feet), knees bend, feet stay planted, hands reach the floor in front.
-  {id:'pickup', name:'Pick Up Object', cat:'Household', type:'stay', dur:1.5, build:(t,P)=>{ bstand(); const A=P.amp, u=t/1.5, down=Math.sin(Math.PI*clamp((u-0.05)/0.9,0,1));
-    setRootY(-0.20*down*A); animRoot.position.z -= 0.12*down*A;
-    leanF(0.85*down*A); plantFeet(0.02, 0.02);
-    [B_LARM,B_RARM].forEach(Ar=>reachIK(Ar, V(Ar.s*0.12, GROUND_ANKLE+0.10*(1-down), 0.30), V(0,-0.4,0.7))); }},
+  {id:'pickup', name:'Pick Up Object', cat:'Household', type:'stay', dur:1.5, build:(t,P)=>{ const A=P.amp, u=t/1.5, down=Math.sin(Math.PI*clamp((u-0.05)/0.9,0,1));
+    // The hands travel from hanging to the object on the floor; the hip hinge + knee bend are SOLVED so the body goes down
+    // exactly as far as the hands need (the fixed lean left them ~70 cm short of the floor they were sent to).
+    const tg=Ar=>V(Ar.s*0.12, 0.84+(0.22-0.84)*down, 0.10+0.22*down);        // object on the floor (+10 cm template allowance — see solveBend)
+    solveBend(h=>{ bstand(); setRootY(-0.42*h*A); animRoot.position.z -= 0.18*h*A; sw('Hips',AX.x,1.30*h*A); leanF(0.30*h*A); plantFeet(0.02, 0.02); },
+      ()=>[[B_LARM,tg(B_LARM)],[B_RARM,tg(B_RARM)]]);
+    [B_LARM,B_RARM].forEach(Ar=>reachIK(Ar, tg(Ar), V(0,-0.4,0.7))); }},
+
   {id:'drink', name:'Take a Drink', cat:'Household', type:'stay', dur:1.8, build:(t,P)=>{ bstand(); const A=P.amp, u=t/1.8, r=eio(clamp((u<0.5?u/0.5:(1-(u-0.5)/0.5)),0,1));
     handToHead(B_RARM,r,A); sw(B_HEAD,AX.x,-0.2*r*A);  idleSway(t,P,1.8);}},   // cup rises to the mouth, head tips back
   // —— Combat ——
@@ -4115,11 +4275,11 @@ const BIPED_MOTIONS=[
   // as shoulder angles let the elbow drift out where nothing could be held).
   {id:'shieldblock', name:'Shield Block', cat:'Combat', type:'stay', dur:0.9, build:(t,P)=>{ const A=P.amp, p=bump((t/0.9*P.speed)%1,0.5,0.45);
     fightStance(A,{knee:0.60, dropKnee:0.22*p, lead:0.18, rear:-0.26-0.06*p, turn:0.42, lean:0.16+0.08*p});
-    reachIK(B_LARM, V(-0.02-0.05*p, 1.26+0.11*p, 0.33-0.03*p), V( 0.7,-1,-0.2));   // shield boss, elbow tucked under
+    reachIK(B_LARM, V(-0.03-0.04*p, 1.20+0.07*p, 0.42+0.02*p), V( 0.7,-1,-0.2));   // shield boss at chin height, a forearm ahead of the face (it sat ~25 cm from the head bone — inside a real face; the fist vanished into the Elf's head)
     handFrame(B_LARM, {thumb:V(0.2,1,0), palm:V(0.3,-0.1,-1)});                       // shield fist: handle across the palm, face out of the knuckles
     reachIK(B_RARM, V(-0.21, 1.01, -0.11-0.04*p),              V(-0.4,-1,-0.5));   // sword hand cocked behind the hip
     sw(B_LARM.sh,AX.x,-0.20*p*A);                                                  // lead shoulder into the shield
-    sw(B_HEAD,AX.x, 0.22*p*A); sw(B_HEAD,AX.y,-0.12*p*A); }},                      // chin down behind the rim
+    sw(B_HEAD,AX.x, 0.14*p*A); sw(B_HEAD,AX.y,-0.12*p*A); }},                      // chin down behind the rim
   {id:'dodgeroll', name:'Dodge Roll', cat:'Combat', type:'stay', dur:0.9, build:(t,P)=>{ bstand(); const A=P.amp;
     const u=((t/0.9)*P.speed)%1, roll=eio(clamp((u-0.15)/0.7,0,1)), tuck=Math.sin(Math.PI*clamp((u-0.05)/0.9,0,1));
     setRootY((-0.26*tuck)*A); animRoot.position.z += 0.30*roll*A;
@@ -4128,7 +4288,7 @@ const BIPED_MOTIONS=[
     [B_LLEG,B_RLEG].forEach(L=>{ legF(L,(0.6+tuck*0.9)*A); kneeB(L,(0.7+tuck*1.0)*A); footFlex(L,-0.30*tuck); });   // tucked, toes softly pointed — body-relative, the body is upside down here
     landFeet(1-smooth(clamp((tuck-0.12)/0.22,0,1)), 0.02, 0.02, {width:0.085, dorsiAir:-0.30});   // planted at both ends, blended (the if/else slid the feet 19 cm)
     [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,tuck*1.0*A); elb(Ar,(0.3+tuck*1.5)*A); armO(Ar,-0.25*tuck*A); });
-    groundClamp(0,'up'); }},                                               // a roll rides over the floor, never through it
+    groundClamp(0,'up');  bodyFloor('roll'); }},                                               // a roll rides over the floor, never through it
   {id:'thrust', name:'Spear Thrust', cat:'Combat', type:'stay', dur:0.8, build:(t,P)=>{ const A=P.amp, u=(t/0.8*P.speed)%1, chamber=ramp(u,0,0.35), p=bump(u,0.55,0.35);
     fightStance(A,{dropKnee:0.34*p, lead:0.20+0.26*p, rear:-0.22, rearHeel:-0.30*p, z:0.20*p*A, lean:0.22*p});
     reachF(B_RARM,(0.3+0.7*p),A); elb(B_RARM,(0.9*chamber*(1-p))*A);          // rear hand: drawn back (elbow cocked) → drives the spear forward
@@ -4187,16 +4347,25 @@ const BIPED_MOTIONS=[
     // A knee-slapping belly laugh: bent forward at the waist, head bobbing, one hand slapping the thigh up
     // and down on each burst while the other braces the opposite knee.
     const slap=Math.abs(Math.sin(TAU*(t/0.4)*P.speed));
-    leanF((0.42+0.08*b)*A); sw(B_HEAD,AX.x,(0.16-0.16*b)*A); sw('Spine02',AX.x,b*0.06*A);
+    // Bent over from the HIPS (spine flexion alone tipped the head only ~7 cm and the hands could not get below hip height —
+    // they hung at the thighs): the pelvis hinges ~30°, the back rounds on top of it, the seat goes back over the heels for
+    // balance and the knees soften, so the hands can actually reach the knees.
+    sw('Hips',AX.x,(0.80+0.05*b)*A); animRoot.position.z -= 0.10*A;
+    leanF((0.22+0.08*b)*A); sw(B_HEAD,AX.x,(0.02-0.20*b)*A); sw('Spine02',AX.x,b*0.06*A);   // the head comes UP on each burst of laughter
+    settleKnee(0.50*A, () => plantFeet(0.03, 0.03, {width:0.10}));
     animRoot.updateMatrixWorld(true);
     const _rk=new THREE.Vector3(); boneByName['RightLeg'].getWorldPosition(_rk);
-    reachIK(B_RARM, V(_rk.x+0.02, _rk.y+0.06+0.26*(1-slap), _rk.z+0.12), V(-0.5,-0.45,-0.6)); handRoll(B_RARM, Math.PI);   // slaps the knee
+    reachIK(B_RARM, V(_rk.x+0.02, _rk.y+0.10+0.20*(1-slap), _rk.z+0.10), V(-0.5,-0.45,-0.6)); if(rigKey==='bipedhand') handFrame(B_RARM,{fingers:V(0,-0.55,1), palm:V(0,-1,-0.35)}); else handRoll(B_RARM, Math.PI);   // slaps the knee
     const _lk=new THREE.Vector3(); boneByName['LeftLeg'].getWorldPosition(_lk);
-    reachIK(B_LARM, V(_lk.x-0.02, _lk.y+0.07, _lk.z+0.12), V(0.5,-0.45,-0.6)); handRoll(B_LARM, Math.PI); }},           // braces the other knee
+    reachIK(B_LARM, V(_lk.x-0.02, _lk.y+0.10, _lk.z+0.10), V(0.5,-0.45,-0.6)); if(rigKey==='bipedhand') handFrame(B_LARM,{fingers:V(0,-0.55,1), palm:V(0,-1,-0.35)}); else handRoll(B_LARM, Math.PI); }},   // palms ON the knees (the fingered hand frame is anatomical — the 180° roll tuned for the mesh-hand rig turned these hands inside out)           // braces the other knee
   {id:'angry', name:'Angry Stomp', cat:'Emotes', type:'stay', dur:0.8, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/0.8*P.speed)%1, stomp=Math.max(0,Math.sin(Math.PI*clamp(u/0.5,0,1)));
     legF(B_RLEG,stomp*0.6*A); kneeB(B_RLEG,stomp*0.9*A); [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,0.4*A); armO(Ar,-0.2*A); elb(Ar,1.6*A); }); leanF(0.15*A); sw(B_HEAD,AX.x,0.1*A); }},
   {id:'bow', name:'Take a Bow', cat:'Emotes', type:'stay', dur:1.6, build:(t,P)=>{ bstand(); const A=P.amp, k=eio(clamp((t<0.9?t:1.6-t)/0.6,0,1));
-    leanF(0.9*k*A); sw(B_HEAD,AX.x,0.3*k*A); armF(B_LARM,-0.3*k*A); armF(B_RARM,0.3*k*A); armO(B_RARM,-0.3*k*A);  idleSway(t,P,1.6);}},
+    // A bow is a HIP HINGE: the pelvis tips forward over PLANTED feet and the seat moves back so the weight stays over them
+    // (spine curl alone barely moved the head).
+    idleSway(t,P,1.6); sw('Hips',AX.x,0.60*k*A); leanF(0.30*k*A); animRoot.position.z -= 0.08*k*A; animRoot.position.y -= 0.035*k*A;
+    settleKnee((0.08+0.10*k)*A, () => plantFeet(0.02, 0.02, {width:0.085}), null, 8);   // soft knees, soles ON the floor
+    sw(B_HEAD,AX.x,0.3*k*A); armF(B_LARM,-0.3*k*A); armF(B_RARM,0.3*k*A); armO(B_RARM,-0.3*k*A); }},
   {id:'facepalm', name:'Facepalm', cat:'Emotes', type:'stay', dur:1.6, build:(t,P)=>{ bstand(); const A=P.amp, k=eio(clamp(t/0.7,0,1));
     handToHead(B_RARM,k,A); sw(B_HEAD,AX.x,0.2*k*A); leanF(0.15*k*A);  idleSway(t,P,1.6);}},
   {id:'ponder', name:'Ponder', cat:'Emotes', type:'stay', dur:2.4, build:(t,P)=>{ bstand(); const A=P.amp;
@@ -4218,9 +4387,17 @@ const BIPED_MOTIONS=[
     const shL=new THREE.Vector3(); boneByName[B_LARM.arm].getWorldPosition(shL);
     reachIK(B_LARM, shL.clone().add(V(B_LARM.s*0.11, -0.45, 0.03)), V(B_LARM.s*0.5, -0.7, -0.3)); }},   // off arm relaxed at the side
   // —— Work ——
-  {id:'shovel', name:'Shovel Dig', cat:'Work', type:'stay', dur:1.4, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.4*P.speed)%1, dig=ramp(u,0,0.4), lift=ramp(u,0.4,0.7), toss=ramp(u,0.7,1);
-    leanF((0.5*dig - 0.3*lift)*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.5*dig*A)); twist(0.3*toss*A);
-    const by=0.30+0.65*lift+0.25*toss, bz=0.70-0.45*toss; shaft(V(-0.05,1.00+0.15*lift+0.1*toss,0.25+0.1*toss), V(0.05+0.45*toss,by,bz), V(0,-0.4,0.6)); }},   // shovel digs LOW and forward → lifts → tosses aside (the hands travel ~0.8 m)
+  {id:'shovel', name:'Shovel Dig', cat:'Work', type:'stay', dur:1.4, build:(t,P)=>{ const A=P.amp, u=(t/1.4*P.speed)%1, rec=ramp(u,0.88,1), dig=ramp(u,0,0.4)*(1-rec), lift=ramp(u,0.4,0.65)*(1-rec), toss=ramp(u,0.65,0.88)*(1-rec);   // rec: the shovel comes back down to the dig so the loop closes
+    // shovel digs LOW and forward → lifts → tosses aside (the hands travel ~0.8 m). The body bends to the LOW hand: hip hinge +
+    // knees, feet planted in a stagger — SOLVED from the reach (a fixed lean + unplanted knee bend left the lower hand ~80 cm short)
+    // lower hand low on the handle (knee-thigh), top hand back by the hip — the blade is at the END of the ~1 m tool. The top hand
+    // rides WITH the body (it was fixed at 1.0 m in space, so once the body sank to the dig it ended up over the head)
+    const by=0.60+0.28*lift+0.08*toss, bz=0.50-0.20*toss, bot=V(0.05+0.40*toss,by,bz), top=bot.clone().add(V(-0.10-0.04*toss, 0.28, -0.24+0.04*toss));   // toss at waist/chest height, off to the side
+    solveBend(h=>{ bstand(); leanF((0.25*dig-0.2*lift)*A); sw('Hips',AX.x,1.10*h*A); animRoot.position.z -= 0.14*h*A;
+        settleKnee((0.15+0.95*h)*A, () => plantFeet(0.10,-0.12,{width:0.10}), null, 8); twist(0.3*toss*A); },
+      ()=>[[B_RARM,top],[B_LARM,bot]]);
+    shaft(top, bot, V(0,-0.4,0.6)); }},
+
   // Swinging a hammer drives from the legs and drops the body into the strike — the arms only steer it.
   {id:'hammer', name:'Swing Hammer', cat:'Work', type:'stay', dur:0.7, build:(t,P)=>{ const A=P.amp, u=(t/0.7*P.speed)%1, up=ramp(u,0,0.4), down=ramp(u,0.4,0.6);
     fightStance(A,{knee:0.40, dropKnee:0.30*down, lead:0.12, rear:-0.14, turn:0.22, lean:0.08+0.26*down, rearHeel:-0.22*up});
@@ -4237,12 +4414,19 @@ const BIPED_MOTIONS=[
     const wr=(-0.5*up + 0.25*down)*A; handDev(B_RARM, wr); twoHandGrip('power', handDir(B_RARM, V(0,0,1))); }},   // deviation on the lead hand: cocked back at the top, snapped ~30° through at impact; then BOTH fists re-aligned to the haft
   // Safe lifting technique: squat DOWN to the load with the back near-neutral, then drive up with the legs.
   // The crate stays close to the body and rises with the hips rather than being hauled by the back.
-  {id:'liftcrate', name:'Lift Crate', cat:'Work', type:'stay', dur:1.6, build:(t,P)=>{ bstand(); const A=P.amp, u=t/1.6,
-      squat=Math.sin(Math.PI*clamp((u-0.05)/0.55,0,1)), lift=ramp(u,0.5,1);
-    setRootY(-0.30*squat*A); animRoot.position.z -= 0.10*squat*A;
-    leanF((0.42*squat - 0.10*lift)*A); plantFeet(0.02, 0.02, {width:0.095});
-    const boxY=GROUND_ANKLE+0.10 + 0.55*lift*A;                            // the crate rises as the legs drive
-    [B_LARM,B_RARM].forEach(Ar=>reachIK(Ar, V(Ar.s*0.20, boxY, 0.26), V(0,-0.5,0.6))); }},
+  {id:'liftcrate', name:'Lift Crate', cat:'Work', type:'stay', dur:1.6, build:(t,P)=>{ bstand(); const A=P.amp, u=(((t/1.6)*P.speed)%1+1)%1, sq=(a,b)=>smooth(clamp((u-a)/(b-a),0,1)),
+      // squat & grip → the LEGS drive the crate up (body and crate rise together — the old timing stood the body up first and left
+      // the hands reaching for a crate still on the floor) → hold → squat to set it down → release and stand: ends where it starts
+      squat = u<0.26 ? sq(0,0.22) : u<0.60 ? 1-sq(0.26,0.52) : u<0.89 ? sq(0.60,0.86) : 1-sq(0.89,1.0),
+      lift  = u<0.26 ? 0 : u<0.60 ? sq(0.26,0.52) : 1-sq(0.60,0.86);
+    // a real lift: deep squat with the hips BACK and a hip hinge so the shoulders come down over the crate (the spine lean alone left
+    // the hands at knee height, 44 cm above the handles); the crate's handles sit ~35 cm up
+    setRootY(-0.40*squat*A); animRoot.position.z -= 0.12*squat*A; sw('Hips',AX.x,0.45*squat*A);
+    leanF((0.20*squat - 0.10*lift)*A); plantFeet(0.02, 0.02, {width:0.095});
+    const boxY=GROUND_ANKLE+0.20 + 0.50*lift*A;                            // the crate rises as the legs drive
+    const grab = u<0.26 ? sq(0,0.22) : u<0.86 ? 1 : 1-sq(0.86,0.95);       // reach: 0 = arms hanging, 1 = hands on the crate (grip at the bottom, held through lift + set-down, let go at the bottom, then stand)
+    [B_LARM,B_RARM].forEach(Ar=>{ animRoot.updateMatrixWorld(false); const hang=boneByName[Ar.hand].getWorldPosition(new THREE.Vector3());
+      reachIK(Ar, hang.lerp(V(Ar.s*0.20, boxY, 0.26), grab), V(0,-0.5,0.6)); }); }},   // the hands travel DOWN to the crate with the body (a floor-level target while standing wrenched the shoulders 169°)
   // Carrying a load: shorter steps, wider base, longer stance (stability), trunk leans back slightly to
   // counter the weight held in front, and the arms are OUT of the swing entirely — they hold the box.
   {id:'carry', name:'Carry a Load', cat:'Work', type:'move', dur:1.1, build:(t,P)=>{ const A=P.amp;
@@ -4256,7 +4440,7 @@ const BIPED_MOTIONS=[
     // pushing is a LEG press against the object: the rear leg extends as the drive goes in
     fightStance(A,{knee:0.58-0.20*drive, lead:0.16, rear:-0.26, turn:0.05, lean:0.55,
       rearHeel:-0.32, z:0.05*drive*A});
-    [B_LARM,B_RARM].forEach(Ar=>reachIK(Ar, V(Ar.s*0.17, 1.06, 0.40+0.05*drive*A), V(0,-0.3,0.8))); }},   // both hands brace forward on the object
+    [B_LARM,B_RARM].forEach(Ar=>reachIK(Ar, V(Ar.s*0.17, 1.06, 0.40+0.05*drive*A), V(Ar.s*0.35,-1,-0.25))); [B_LARM,B_RARM].forEach(Ar=>handFrame(Ar,{fingers:V(0,1,0.2), palm:V(0,0.1,1)})); }},   // PALMS flat against the load, fingers up; ELBOWS DOWN and a little out under the hands (the pole pointed forward, so the elbows rose up and out like wings)
   // Hauling a rope: you sit BACK against the load, drive with the legs and let your own weight do the
   // work — the body travels backwards as the rope comes in.
   {id:'pullrope', name:'Pull Rope', cat:'Work', type:'stay', dur:1.0, build:(t,P)=>{ const A=P.amp, u=(t/1.0*P.speed)%1, pull=Math.max(0,Math.sin(TAU*u));
@@ -4281,19 +4465,22 @@ const BIPED_MOTIONS=[
       footAim(L, footDir(L, step? 0.0997*k : 0), 0); }); }},   // flat on the tread; toe up as it rises
   // Raking is a whole-body haul: reach out over the lead foot, then rock the weight BACK onto the rear
   // foot as the head of the rake is dragged in.
-  {id:'rake', name:'Rake the Ground', cat:'Work', type:'stay', dur:1.2, build:(t,P)=>{ const A=P.amp, u=(t/1.2*P.speed)%1, reach=ramp(u,0,0.4), pull=ramp(u,0.45,0.9);
-    fightStance(A,{knee:0.38, dropKnee:0.24*pull, lead:0.16, rear:-0.18, turn:0.18,
-      lean:0.30*reach-0.12*pull, rearHeel:-0.20*reach, z:(0.07*reach-0.05*pull)*A});
-    const rz=0.85-0.55*pull; shaft(V(0.0,1.05+0.05*reach,0.20+0.25*reach), V(0.08,0.42+0.1*reach,rz), V(0,-0.4,0.6)); }},   // rake head reaches far out then hauls back to the feet
+  {id:'rake', name:'Rake the Ground', cat:'Work', type:'stay', dur:1.2, build:(t,P)=>{ const A=P.amp, u=(t/1.2*P.speed)%1, rec=ramp(u,0.86,1), reach=ramp(u,0,0.4)*(1-rec), pull=ramp(u,0.45,0.86)*(1-rec);   // rec: back to the start for the next stroke (loop closes)
+    const rz=0.55-0.30*pull, top=V(0.0,1.10+0.04*reach,0.18+0.22*reach), bot=V(0.08,0.86-0.06*reach,rz);   // hands at waist/chest on the long handle (the lower hand was sent to 42 cm, ~70 cm out of reach)
+    // rake head reaches far out then hauls back to the feet; the lean + knee bend are SOLVED so the low hand can hold the handle
+    solveBend(h=>fightStance(A,{knee:0.38+0.40*h, dropKnee:0.24*pull, lead:0.16, rear:-0.18, turn:0.18,
+        lean:0.30*reach-0.12*pull+0.70*h, rearHeel:-0.20*reach, z:(0.07*reach-0.05*pull)*A}), ()=>[[B_RARM,top],[B_LARM,bot]]);
+    shaft(top, bot, V(0,-0.4,0.6)); }},
+
   // The universal exhausted pose: bent forward, hands braced on the knees, chest heaving.
   {id:'catchbreath', name:'Catch Breath', cat:'Work', type:'stay', dur:2.0, build:(t,P)=>{ bstand(); const A=P.amp,
       b=Math.sin(TAU*t/1.4*P.speed);                                       // the breathing cycle
     // hands on the knees means the knees have to BE somewhere — bent about 45 deg, not standing straight
-    fightStance(A,{knee:0.78+b*0.05, lead:0.02, rear:-0.02, turn:0.0, lean:0.80, z:-0.06*A});
-    sw('Spine',AX.x,(0.10+b*0.05)*A); sw(B_HEAD,AX.x,0.26*A);
-    animRoot.updateMatrixWorld(true);
-    BIPED_LEGS.forEach((L,i)=>{ boneByName[L.knee].getWorldPosition(_gHip);   // hands find the knees
-      reachIK(BIPED_ARMS[i], V(_gHip.x*1.15, _gHip.y+0.05, _gHip.z+0.06), V(BIPED_ARMS[i].s*0.6,-0.3,-0.7)); }); }},
+    const kt=i=>{ boneByName[BIPED_LEGS[i].knee].getWorldPosition(_gHip); return V(_gHip.x*1.15, _gHip.y+0.05, _gHip.z+0.06); };
+    solveBend(h=>{ fightStance(A,{lead:0.02, rear:-0.02, turn:0.0, lean:0.80+1.00*h, knee:0.78+b*0.05+0.30*h, z:(-0.06-0.10*h)*A}); sw('Spine',AX.x,(0.10+b*0.05)*A); },
+      ()=>[[BIPED_ARMS[0],kt(0)],[BIPED_ARMS[1],kt(1)]]);   // the bend is SOLVED until the hands actually reach the knees (they stopped ~28 cm short)
+    sw(B_HEAD,AX.x,0.26*A);
+    BIPED_LEGS.forEach((L,i)=>reachIK(BIPED_ARMS[i], kt(i), V(BIPED_ARMS[i].s*0.6,-0.3,-0.7))); }},
   // —— Sports ——
   // Dribbling is a PUSH, not a wave: the hand stays over the ball and pumps it down at about hip height
   // while the body sits low in an athletic stance and the off arm shields. `armF` alone barely swings this
@@ -4305,8 +4492,13 @@ const BIPED_MOTIONS=[
     const s1=B_RARM.s;
     // A real dribble pumps the hand ~35 cm: forward-up at the top of the bounce, driving down over the ball
     // at the bottom. The whole forearm swings down, not just the wrist.
-    setArm(B_RARM, V(0.20*s1, -0.30-0.55*d, 0.90-0.45*d), V(0.06*s1, -0.10-0.70*d, 0.92-0.40*d));
-    wristW(B_RARM, (0.15+0.40*d)*A); handRoll(B_RARM, Math.PI);                        // palm faces DOWN over the ball
+    // The ball comes up to about the waist and the hand rides it down to mid-thigh: ~30 cm of pump, upper arm near the side,
+    // hand out to the side and a little ahead. (setArm swung the whole arm up to shoulder height — a zombie reach — and a 180°
+    // hand roll turned the palm UP.) Palm DOWN on the ball, the wrist extended as the ball arrives and flexing over it on the push.
+    animRoot.updateMatrixWorld(true); const hp=boneByName['Hips'].getWorldPosition(new THREE.Vector3());
+    reachIK(B_RARM, V(hp.x+0.30*s1, hp.y+0.08-0.30*d*A, hp.z+0.26+0.06*d*A), V(0.4*s1,-0.2,-1));
+    animRoot.updateMatrixWorld(false); const e=boneByName[B_RARM.fore].getWorldPosition(new THREE.Vector3()), h=boneByName[B_RARM.hand].getWorldPosition(new THREE.Vector3());
+    handFrame(B_RARM, {fingers:h.sub(e).normalize().add(V(0,0.35-0.95*d,0.25)), palm:V(0,-1,-0.1)});
     const s2=B_LARM.s;
     setArm(B_LARM, V(0.34*s2, -0.60, 0.52), V(-0.35*s2, -0.20, 0.72)); }},            // off arm shields across
   // Jump shot: gather and dip, rise, and release the ball at the TOP of the jump — the shot happens at the
@@ -4340,11 +4532,11 @@ const BIPED_MOTIONS=[
     // the downswing sweeps out and forward past the trail hip, the finish is above the lead shoulder.
     const addr=chestV(0.02,0.60,0.45), top=chestV(-0.30,1.66,0.20), fin=chestV(0.30,1.74,0.26);
     const g=orbitAt([[0,addr],[0.22,chestV(-0.32,1.05,0.40)],[0.45,top],[0.55,chestV(-0.36,1.12,0.38)],[0.65,addr],[0.78,chestV(0.34,1.15,0.38)],[0.9,fin],[1,fin]], u, {arms:[B_LARM,B_RARM]});   // orbitAt: both shoulders' reach lines kept clear of the chest
-    grip(g, V(0,-0.4,-1));
+    gripTogether(g, V(0,-0.4,-1), V(0,-0.35,0));                          // both hands ON the grip (the lead arm could not reach the shared point at the top and the hands split ~15 cm)
     twoHandGrip('power', handsAway(V(0,-0.35,0))); }},                                              // both fists on the grip, shaft down-and-out to the ball (level over the shoulder at the top)   // pole back-down: the hands hang straight BELOW the shoulders at address and impact, so a 'down' pole was parallel to the reach and the bend plane flipped through impact
   // A bat swing is a rotation off a STRIDE: the front foot steps toward the pitch, the hips clear, the
   // rear heel releases, and the hands come last.
-  {id:'batswing', name:'Bat Swing', cat:'Sports', type:'stay', dur:0.9, build:(t,P)=>{ const A=P.amp, u=(t/0.9*P.speed)%1, load=ramp(u,0,0.35), swing=ramp(u,0.35,0.65);
+  {id:'batswing', name:'Bat Swing', cat:'Sports', type:'stay', dur:0.9, build:(t,P)=>{ const A=P.amp, u=(t/0.9*P.speed)%1, rec=ramp(u,0.82,1), load=ramp(u,0,0.35)*(1-rec), swing=ramp(u,0.35,0.65)*(1-rec);   // rec: back into the stance so the loop closes
     fightStance(A,{knee:0.46, lead:0.14+0.16*swing, rear:-0.20, turn:0.55*load-0.80*swing,
       rearHeel:-0.45*swing, z:0.08*swing*A, lean:0.10});
     twist((-0.5*load + 1.4*swing)*A);                                            // shoulders coil RIGHT with the hands, then whip LEFT through contact (was inverted)
@@ -4355,21 +4547,32 @@ const BIPED_MOTIONS=[
     // …and they go OUT past the trail shoulder on the way back and again on the way forward: every straight
     // segment between the front and the cocked position runs right under the shoulder joint.
     const outR=chestV(-0.36,1.22,0.32), mid=chestV(-0.12,1.16,0.44);
-    grip(orbitAt([[0,chestV(-0.05,1.15,0.30)],[0.18,outR],[0.35,cock],[0.46,chestV(-0.36,1.22,0.34)],[0.56,mid],[0.65,contact],[1.0,follow]], u, {arms:[B_LARM,B_RARM]}), V(0,-1,0));
+    // STANCE first: the hands start cocked by the rear shoulder with the bat up (it began level out front, pointing at the pitcher)
+    gripTogether(orbitAt([[0,chestV(-0.30,1.32,0.14)],[0.18,chestV(-0.36,1.34,0.12)],[0.35,cock],[0.46,chestV(-0.36,1.22,0.34)],[0.56,mid],[0.65,contact],[0.82,follow],[1.0,chestV(-0.30,1.32,0.14)]], u, {arms:[B_LARM,B_RARM]}), V(0,-1,0), V(0,0.25,0));   // fists stacked on the handle (21 cm apart before)
     twoHandGrip('power', handsAway(V(0,0.25,0))); }},                                               // both fists stacked on the bat, barrel out from the body (up over the shoulder at the cock, out front at contact)   // orbitAt: the lead arm's reach line is kept in FRONT of the chest through the load   // pole straight DOWN: the hands pass through down-forward at contact, and a pole the hand path crosses flips the bend plane (bat spun 144° in one frame)
   // A pitch is: balance on the back leg with the lead knee driven up, then STRIDE toward the plate while
   // the hips open, the trunk follows and the arm lags and whips over last. The stride is most of it — the
   // old version kicked a leg but the body never went anywhere.
   {id:'pitch', name:'Pitch', cat:'Sports', type:'stay', dur:1.1, build:(t,P)=>{ const A=P.amp;
-    const u=(t/1.1*P.speed)%1, wind=ramp(u,0,0.4), kick=Math.sin(Math.PI*clamp((u-0.18)/0.38,0,1)), stride=ramp(u,0.42,0.72), rel=bump(u,0.70,0.20);
+    // rec: the pitcher walks back onto the rubber so the loop CLOSES on the set position (it ended 36 cm down the mound
+    // with straight legs and snapped back every loop). Everything that was held to the end fades out with it.
+    const u=(t/1.1*P.speed)%1, rec=ramp(u,0.84,1), k=1-rec, wind=ramp(u,0,0.4)*k, kick=Math.sin(Math.PI*clamp((u-0.18)/0.38,0,1)), stride=ramp(u,0.42,0.72)*k, rel=bump(u,0.70,0.20);
     bstandBare();
-    setRootY(-0.035*A); animRoot.position.z += 0.22*stride*A;
+    setRootY((0.008-0.043*stride)*A); animRoot.position.z += 0.22*stride*A;   // TALL set position (~18° knees — the -0.035 drop put both knees at ~50° and the pitcher sat in a crouch); the hips lower only as the stride lengthens
     sw('Hips',AX.y,(-0.55*wind + 0.95*stride)*A);                           // coil CLOSED (hips turn right, left hip to the plate), then the hips clear left
     animRoot.updateMatrixWorld(true);
     plantFeet(0.16+0.36*stride*A, -0.16, {width:0.10, footY:[0, -0.34*stride]});   // LEFT foot strides to the plate; the right foot stays on the rubber, heel releasing
-    if(kick>0.05 && stride<0.5){ legF(B_LLEG,(kick*1.25)*A); kneeB(B_LLEG,(kick*1.55)*A); footFlex(B_LLEG,-0.25); }
+    if(kick>0 || rec>0){   // LEG LIFT by IK: thigh ~65° up, knee ~90°, the foot hanging just ahead of the knee's line. Local thigh/knee angles on
+      // top of the planted leg folded the knee ~120° and rolled it 85° sideways (the legs crossed and the body looked to collapse).
+      animRoot.updateMatrixWorld(false); const H=boneByName[B_LLEG.up].getWorldPosition(new THREE.Vector3()), F=boneByName[B_LLEG.foot].getWorldPosition(new THREE.Vector3());
+      const yaw=(-0.55*wind+0.95*stride)*A, fw=V(Math.sin(yaw),0,Math.cos(yaw));
+      const top=H.clone().addScaledVector(fw,0.15).add(V(0,-0.49,0));
+      const tgt=F.clone().lerp(top, clamp(kick*A,0,1)).add(V(0,0.05*Math.sin(Math.PI*rec),0));   // + a small step up as the lead foot comes back to the rubber
+      const fb=boneByName[B_LLEG.foot], q0=fb.quaternion.clone();
+      legIK(B_LLEG, tgt, fw.clone().add(V(0,0.3,0)));
+      footFlex(B_LLEG,-0.25*A); fb.quaternion.copy(q0.slerp(fb.quaternion.clone(), clamp(kick,0,1))); fb.updateMatrixWorld(true); }
     reachUp(B_RARM,wind*0.6,A); reachHigh(B_RARM,rel,A); elb(B_RARM,(1.35*wind - 1.05*rel)*A); armO(B_RARM,-0.3*rel*A);
-    twist((-0.45*wind + 0.75*ramp(u,0.62,0.85))*A); leanF((0.10+0.32*rel)*A);   // shoulders coil further than the hips, then unwind through the release and STAY open
+    twist((-0.45*wind + 0.75*ramp(u,0.62,0.85)*k)*A); leanF((0.10+0.32*rel)*A);   // shoulders coil further than the hips, then unwind through the release and STAY open
     groundClamp(0,'up'); }},
   {id:'bowl', name:'Bowl a Roll', cat:'Sports', type:'stay', dur:1.1, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.1*P.speed)%1, back=ramp(u,0,0.45), fwd=ramp(u,0.45,0.75);
     armF(B_RARM,(-1.3*back + 1.6*fwd)*A); elb(B_RARM,0.1*A); legF(B_LLEG,0.5*fwd*A); kneeB(B_LLEG,0.5*fwd*A); leanF(0.4*fwd*A); armO(B_LARM,0.4*A); }},
@@ -4424,8 +4627,7 @@ const BIPED_MOTIONS=[
     twist(-0.18*fire*A); sw(B_HEAD,AX.y,0.15*A); }},
   {id:'mgchannel', name:'Channel Overhead', cat:'Magic', type:'stay', dur:2.2, build:(t,P)=>{ bstand(); const A=P.amp, ph=TAU*(t/2.2)*P.speed, pulse=0.5-0.5*Math.cos(ph*2);
     setRootY(0.02*pulse*A);                                                      // rises on the gather
-    reachIK(B_LARM, V(-0.16,1.92+0.05*pulse,0.10), V(0,-1,0.2));
-    reachIK(B_RARM, V( 0.16,1.92+0.05*pulse,0.10), V(0,-1,0.2));
+    [B_LARM,B_RARM].forEach(Ar=>reachIK(Ar, V(Ar.s*0.16,1.92+0.05*pulse,0.10), V(Ar.s*0.6,-0.3,0.3)));   // each hand overhead on its OWN side, elbows out (the hands were swapped: arms crossed overhead, 156° upper-arm twist)
     wristW(B_LARM,-0.3*A); wristW(B_RARM,-0.3*A);
     sw(B_HEAD,AX.x,-0.28*A); BIPED_SPINE.forEach(s=>sw(s,AX.x,-0.05*A));         // head up, slight backbend
     idleSway(t,P,2.2); }},
@@ -4434,7 +4636,8 @@ const BIPED_MOTIONS=[
     leanF(0.14*present*A); setRootY(-0.10*present*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.3*present*A));
     reachIK(B_LARM, V( 0.34-0.22*present,1.30-0.44*open,0.16+0.20*present), V( 0.9,0.1,0.4));   // hands trace out+down, each on its OWN side (they were authored crossed); elbows bow OUT (a down pole is parallel to this reach)
     reachIK(B_RARM, V(-0.34+0.22*present,1.30-0.44*open,0.16+0.20*present), V(-0.9,0.1,0.4));  // then hover over a low circle
-    handRoll(B_LARM,1.4*present*A); handRoll(B_RARM,-1.4*present*A);             // palms roll to face down
+    [B_LARM,B_RARM].forEach(Ar=>{ const hb=boneByName[Ar.hand], q0=hb.quaternion.clone(); handFrame(Ar,{fingers:V(Ar.s*0.2,-0.25,1), palm:V(0,-1,0)});
+      hb.quaternion.copy(q0.slerp(hb.quaternion.clone(), present)); hb.updateMatrixWorld(true); });   // palms turn to face DOWN over the circle (solved — the fixed 80° roll wrung the upper arm 103°)
     sw(B_HEAD,AX.x,0.30*present*A); plantFeet(0.05,0.05,{width:0.10}); }},
   {id:'mgward', name:'Ward Shield', cat:'Magic', type:'stay', dur:1.2, build:(t,P)=>{ const A=P.amp, u=(t/1.2*P.speed)%1, up=eio(clamp(u/0.35,0,1));
     fightStance(A,{turn:0.42*up, knee:0.5, dropKnee:0.16*up, rearHeel:-0.20*up, lean:-0.10*up});
@@ -4456,8 +4659,8 @@ const BIPED_MOTIONS=[
     sw(B_HEAD,AX.x,-(0.15+0.25*drink)*A);                                        // head tips back to drink
     armF(B_LARM,0.1*A); idleSway(t,P,1.6); }},
   {id:'mgincant', name:'Incantation', cat:'Magic', type:'stay', dur:2.0, build:(t,P)=>{ bstand(); const A=P.amp, ph=TAU*(t/2.0)*P.speed;
-    reachIK(B_LARM, V(-0.14+0.06*Math.sin(ph),1.24+0.05*Math.sin(ph*2),0.30+0.04*Math.cos(ph)), V(0,-1,0.3));   // hands weave patterns
-    reachIK(B_RARM, V( 0.14-0.06*Math.sin(ph),1.24-0.05*Math.sin(ph*2+1),0.30+0.04*Math.cos(ph+1)), V(0,-1,0.3));
+    reachIK(B_LARM, V( 0.14+0.06*Math.sin(ph),1.24+0.05*Math.sin(ph*2),0.30+0.04*Math.cos(ph)), V( 0.4,-1,0.3));   // hands weave patterns, each on its OWN side (they were swapped: forearms through each other)
+    reachIK(B_RARM, V(-0.14-0.06*Math.sin(ph),1.24-0.05*Math.sin(ph*2+1),0.30+0.04*Math.cos(ph+1)), V(-0.4,-1,0.3));
     wristW(B_LARM,Math.sin(ph*2)*0.5*A); wristW(B_RARM,-Math.sin(ph*2)*0.5*A);
     sw(B_HEAD,AX.x,0.22*A); leanF(0.08*A); idleSway(t,P,2.0); }},
   {id:'mgblast', name:'Blast Recoil', cat:'Magic', type:'stay', dur:1.1, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.1*P.speed)%1;
@@ -4468,9 +4671,8 @@ const BIPED_MOTIONS=[
     setRootY(-0.10*push*A); animRoot.position.z -= 0.18*push*A;
     plantFeet(0.06*A, -0.34*push*A, {width:0.10}); sw(B_HEAD,AX.x,-0.2*push*A); }},
   {id:'mglevitate', name:'Levitate', cat:'Magic', type:'stay', dur:2.2, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/2.2*P.speed)%1, rise=0.5-0.5*Math.cos(TAU*u);
-    reachIK(B_LARM, V(-0.20,1.10+0.55*rise,0.34), V(0,-1,0.3));
-    reachIK(B_RARM, V( 0.20,1.10+0.55*rise,0.34), V(0,-1,0.3));
-    handRoll(B_LARM,-1.5*A); handRoll(B_RARM,1.5*A);                             // palms up, drawing it up
+    [B_LARM,B_RARM].forEach(Ar=>{ reachIK(Ar, V(Ar.s*0.20,1.10+0.55*rise,0.34), V(Ar.s*0.4,-1,0.3));   // each hand on its OWN side (they were swapped: arms crossed)
+      handFrame(Ar,{fingers:V(Ar.s*0.25,0.15,1), palm:V(0,1,0)}); });                                   // palms UP, drawing it up (solved, not a fixed roll)
     sw(B_HEAD,AX.x,-0.30*rise*A); setRootY(0.03*rise*A); idleSway(t,P,2.2); }},
   {id:'mghex', name:'Hex', cat:'Magic', type:'stay', dur:1.4, build:(t,P)=>{ const A=P.amp, u=(t/1.4*P.speed)%1, thrust=eio(clamp(u/0.4,0,1)), hold=clamp((u-0.4)/0.6,0,1), trem=Math.sin(TAU*u*8)*hold;
     fightStance(A,{turn:0.30, knee:0.42, lean:0.18*thrust, z:0.06*thrust*A, rearHeel:-0.18*thrust});
@@ -4642,9 +4844,12 @@ const BIPED_MOTIONS=[
     armO(B_LARM,0.5*A); armF(B_LARM,-0.2*A); elb(B_LARM,0.6*A);               // off hand flared for flair
     sw(B_HEAD,AX.y,0.15*Math.sin(ph)*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.15*A)); idleSway(t,P,1.2); }},
   {id:'pirparry', name:'Parry & Riposte', cat:'Pirate', type:'stay', dur:1.0, build:(t,P)=>{ const A=P.amp, u=(t/1.0*P.speed)%1, riposte=bump(u,0.7,0.25);
-    fenceGuard(A,{});
-    reachIK(B_RARM, V(-0.10,1.45,0.30).lerp(V(0.05,1.35,0.62),riposte), V(0.2,-1,0.2));   // parry high-across → thrust
-    handRoll(B_RARM,0.5*A); if(riposte>0.1) animRoot.position.z += 0.10*riposte*A; sw(B_HEAD,AX.y,0.3*A); }},
+    fenceGuard(A,{z:0.10*riposte*A, lead:0.30+0.12*riposte});                // the lunge-in rides the stance (feet stay planted; the old root jump slid them and popped at 0.1)
+    animRoot.updateMatrixWorld(true); const S=boneByName[B_RARM.arm].getWorldPosition(new THREE.Vector3());
+    // parry: the sword hand a forearm ahead of its shoulder, across the high line, elbow down; riposte: the arm extends straight down
+    // the line (the parry target sat ~17 cm from the shoulder and wrenched the upper arm ~100°)
+    reachIK(B_RARM, S.clone().add(V(0.08,0.04,0.30)).lerp(S.clone().add(V(0.02,-0.02,0.42)),riposte), V(B_RARM.s*0.3,-1,0));
+    handRoll(B_RARM,0.5*A); sw(B_HEAD,AX.y,0.3*A); }},
   {id:'pirgrog', name:'Swig of Grog', cat:'Pirate', type:'stay', dur:1.8, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.8*P.speed)%1;
     const raise=eio(clamp(u/0.35,0,1)), swig=bump(u,0.55,0.3), wipe=ramp(u,0.75,0.95);
     animRoot.updateMatrixWorld(true); const H=new THREE.Vector3(); boneByName['Head'].getWorldPosition(H);
@@ -4679,10 +4884,12 @@ const BIPED_MOTIONS=[
     { const H=new THREE.Vector3(); boneByName['Head'].getWorldPosition(H); const hc=new THREE.Vector3(); boneByName[B_LARM.hand].getWorldPosition(hc);
       reachIK(B_LARM, orbitLerp(hc, V(H.x+0.16,H.y-0.01,H.z+0.03), smooth(clamp((u-0.44)/0.36,0,1)), {arms:[B_LARM]}), V(0.8,-0.2,-0.5)); }   // hand ON the ear (outside the head sphere), rising over 0.58 s on its own clock (riding `cover` took 5 frames); pole out-back
     sw(B_HEAD,AX.x,(0.2*reach -0.2*cover)*A); animRoot.position.z -= 0.1*cover*A; }},
-  {id:'pirdig', name:'Dig for Treasure', cat:'Pirate', type:'stay', dur:1.4, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.4*P.speed)%1, toss=bump(u,0.7,0.25);
-    leanF(0.3*A); setRootY(-0.1*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.3*A));
-    shaft(V(0.0,0.75,0.42).lerp(V(0.18,1.15,0.30),toss), V(0.0,0.75,0.42).lerp(V(0.18,1.15,0.30),toss).add(V(0,-0.30,-0.05)), V(0,-1,0.2));  // shovel: drive down → lift & toss
-    sw('Hips',AX.y,0.2*toss*A); sw(B_HEAD,AX.x,0.25*A); plantFeet(0.12,-0.06,{width:0.12}); }},
+  {id:'pirdig', name:'Dig for Treasure', cat:'Pirate', type:'stay', dur:1.4, build:(t,P)=>{ const A=P.amp, u=(t/1.4*P.speed)%1, toss=bump(u,0.7,0.25);
+    const hi=V(0.0,0.75,0.42).lerp(V(0.18,1.15,0.30),toss), lo=hi.clone().add(V(0,-0.30,-0.05));   // shovel: drive down → lift & toss
+    solveBend(h=>{ bstand(); leanF((0.3+0.30*h)*A); sw('Hips',AX.x,0.90*h*A); sw('Hips',AX.y,0.2*toss*A); animRoot.position.z -= 0.10*h*A;
+        settleKnee((0.30+0.80*h)*A, () => plantFeet(0.12,-0.06,{width:0.12}), null, 6); }, ()=>[[B_RARM,hi],[B_LARM,lo]]);   // bend SOLVED from the reach (the hands were ~45 cm short of the shovel)
+    shaft(hi, lo, V(0,-1,0.2)); sw(B_HEAD,AX.x,0.25*A); }},
+
   {id:'pirsalute', name:'Cutlass Salute', cat:'Pirate', type:'stay', dur:1.4, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.4*P.speed)%1;
     const present=eio(clamp(u/0.3,0,1))*(1-ramp(u,0.7,0.95));
     animRoot.updateMatrixWorld(true); const H=new THREE.Vector3(); boneByName['Head'].getWorldPosition(H);
@@ -4713,10 +4920,16 @@ const BIPED_MOTIONS=[
     legF(B_RLEG,0.2*k*A); legO(B_RLEG,0.75*k*A); kneeB(B_RLEG,1.95*k*A);      // right foot tucks to the inner thigh
     reachIK(B_LARM, V(0.05,1.92+sway,0.05), V(0,-1,0)); reachIK(B_RARM, V(-0.05,1.92+sway,0.05), V(0,-1,0));  // palms together overhead
     sw('Hips',AX.z,sway*2); sw(B_HEAD,AX.x,-0.05*A); }},
-  {id:'fitstretch', name:'Toe-Touch Stretch', cat:'Fitness', type:'stay', dur:2.2, build:(t,P)=>{ bstand(); const A=P.amp, down=Math.sin(Math.PI*clamp((t/2.2*P.speed)%1/0.85,0,1));
-    sw('Hips',AX.x,0.5*down*A); BIPED_SPINE.forEach(s=>sw(s,AX.x,0.18*down*A));   // hinge at the hips, fold down
-    reachIK(B_LARM, V(-0.12,0.15+0.85*(1-down),0.26), V(0,-1,0.4)); reachIK(B_RARM, V(0.12,0.15+0.85*(1-down),0.26), V(0,-1,0.4));  // reach the toes
-    sw(B_HEAD,AX.x,0.2*down*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.1*A)); plantFeet(0.02,0.02,{width:0.09}); }},
+  {id:'fitstretch', name:'Toe-Touch Stretch', cat:'Fitness', type:'stay', dur:2.2, build:(t,P)=>{ const A=P.amp, down=Math.sin(Math.PI*clamp((t/2.2*P.speed)%1/0.85,0,1));
+    // hinge at the hips with near-straight legs until the fingers reach the toes — the fold is SOLVED from the reach (a fixed
+    // fold left the hands ~70 cm above the toes)
+    const tg=Ar=>V(Ar.s*0.12, 0.95+(0.32-0.95)*down, 0.10+0.18*down);        // toes (+ the short-arm template allowance)
+    solveBend(h=>{ bstand(); sw('Hips',AX.x,1.75*h*A); BIPED_SPINE.forEach(sp=>sw(sp,AX.x,0.28*h*A)); animRoot.position.z -= 0.16*h*A; setRootY(-0.05*h*A);
+        settleKnee(0.10*A, () => plantFeet(0.02,0.02,{width:0.09}), null, 6); },
+      ()=>[[B_LARM,tg(B_LARM)],[B_RARM,tg(B_RARM)]]);
+    reachIK(B_LARM, tg(B_LARM), V(0,-1,0.4)); reachIK(B_RARM, tg(B_RARM), V(0,-1,0.4));
+    sw(B_HEAD,AX.x,0.2*down*A); }},
+
   {id:'fitsidestretch', name:'Overhead Side Stretch', cat:'Fitness', type:'stay', dur:2.4, build:(t,P)=>{ bstand(); const A=P.amp, side=Math.sin(TAU*(t/2.4)*P.speed);
     leanS(side*0.35*A); sw('Spine02',AX.z,side*0.2*A);                        // lean to the side
     reachUp(side>0?B_RARM:B_LARM, 0.95*Math.abs(side), A);                    // raise the opposite arm overhead
@@ -4729,10 +4942,9 @@ const BIPED_MOTIONS=[
     if(p<DN) k=eio(p/DN);                                  // stand → plank
     else if(p>UP) k=eio((1-p)/(1-UP));                     // plank → stand
     else { k=1; const q=(p-DN)/(UP-DN); low=0.5-0.5*Math.cos(TAU*2*q); }   // two reps at the bottom (~90° elbow)
-    sw('Hips',AX.x,1.5*k*A); setRootY((-0.55*k -0.12*low)*A); animRoot.position.z += 0.30*k*A;
+    if(k<1){ floorTransition(k, A); return; }              // get down / get up the way a person does (squat, hands down, walk back)
     const crouch=Math.sin(Math.PI*k)*(1-k);               // knees bend through the lower/rise, straighten at the plank
-    [B_LLEG,B_RLEG].forEach(L=>{ kneeB(L,(0.05+0.9*crouch)*A); sw(L.foot,AX.x,0.8*k*A); });
-    animRoot.updateMatrixWorld(true);
+    plankBody(k, A, { dip:0.12*low, knee:0.9*crouch });
     // Hands: blend from the standing reach into the plant UNDER each shoulder (read live X/Z). At the plank the reach
     // is straight down onto the pinned hands, so the chest dip FOLDS the elbows (~145°→~90°). Pole leans BACK toward
     // the feet (perpendicular to the down reach) → elbows tuck toward the feet, NOT flared out to the sides.
@@ -4744,43 +4956,18 @@ const BIPED_MOTIONS=[
   // Entry/transition: stand → crouch → hands to the floor → walk into the plank. Ends EXACTLY in the Push-Up /
   // Plank start pose, so sequencing "Get Down to Floor → Push-Up" flows (the character lowers into position
   // instead of the whole body pitching down in one blend).
-  {id:'floordown', name:'Get Down to Floor', cat:'Fitness', type:'stay', dur:1.4, build:(t,P)=>{ bstand(); const A=P.amp;
-    const k=smooth(clamp(t/1.4,0,1));                       // 0 standing → 1 full plank (= Push-Up top pose)
-    sw('Hips',AX.x,1.5*k*A); setRootY(-0.55*k*A); animRoot.position.z += 0.30*k*A;
-    const crouch=Math.sin(Math.PI*k);                      // knees bend as it lowers, then straighten into the plank
-    [B_LLEG,B_RLEG].forEach(L=>{ kneeB(L,(0.05+0.85*crouch*(1-k))*A); sw(L.foot,AX.x,0.8*k*A); });
-    animRoot.updateMatrixWorld(true);
-    // Blend the hands from the standing reach into the Push-Up top plant (under the shoulders, pole back to the feet).
-    const _sp=new THREE.Vector3(), lp=k, oy=0.62*(1-k)+0.05*k;
-    const pole=(s)=>V(0.35*s*(1-lp)+0.05*s*lp, -1*(1-lp)-0.15*lp, -0.5*(1-lp)-1*lp);
-    boneByName[B_LARM.arm].getWorldPosition(_sp); reachIK(B_LARM, V(-0.16*(1-lp)+_sp.x*lp, oy, 0.12*(1-lp)+_sp.z*lp), pole(1));
-    boneByName[B_RARM.arm].getWorldPosition(_sp); reachIK(B_RARM, V( 0.16*(1-lp)+_sp.x*lp, oy, 0.12*(1-lp)+_sp.z*lp), pole(-1));
-    flatHand(B_LARM, smooth(clamp((lp-0.55)/0.4,0,1))); flatHand(B_RARM, smooth(clamp((lp-0.55)/0.4,0,1)));
-    sw(B_HEAD,AX.x,-0.3*k*A); }},
-  // Exit/transition: the reverse — STARTS in the plank (Push-Up/Plank end pose) and stands back up. Sequence
-  // "Push-Up → Get Up from Floor" and the character rises out of the plank instead of snapping upright.
-  {id:'floorup', name:'Get Up from Floor', cat:'Fitness', type:'stay', dur:1.4, build:(t,P)=>{ bstand(); const A=P.amp;
-    const k=smooth(clamp(1 - t/1.4,0,1));                   // 1 plank (= Push-Up top pose) at the start → 0 standing at the end
-    sw('Hips',AX.x,1.5*k*A); setRootY(-0.55*k*A); animRoot.position.z += 0.30*k*A;
-    const crouch=Math.sin(Math.PI*k);
-    [B_LLEG,B_RLEG].forEach(L=>{ kneeB(L,(0.05+0.85*crouch*(1-k))*A); sw(L.foot,AX.x,0.8*k*A); });
-    animRoot.updateMatrixWorld(true);
-    const _sp=new THREE.Vector3(), lp=k, oy=0.62*(1-k)+0.05*k;
-    const pole=(s)=>V(0.35*s*(1-lp)+0.05*s*lp, -1*(1-lp)-0.15*lp, -0.5*(1-lp)-1*lp);
-    boneByName[B_LARM.arm].getWorldPosition(_sp); reachIK(B_LARM, V(-0.16*(1-lp)+_sp.x*lp, oy, 0.12*(1-lp)+_sp.z*lp), pole(1));
-    boneByName[B_RARM.arm].getWorldPosition(_sp); reachIK(B_RARM, V( 0.16*(1-lp)+_sp.x*lp, oy, 0.12*(1-lp)+_sp.z*lp), pole(-1));
-    flatHand(B_LARM, smooth(clamp((lp-0.55)/0.4,0,1))); flatHand(B_RARM, smooth(clamp((lp-0.55)/0.4,0,1)));
-    sw(B_HEAD,AX.x,-0.3*k*A); }},
+  {id:'floordown', name:'Get Down to Floor', cat:'Fitness', type:'stay', dur:1.4, build:(t,P)=>{ floorTransition(smooth(clamp(t/1.4,0,1)), P.amp); }},
+  // Exit/transition: the exact reverse — STARTS in the plank (Push-Up/Plank end pose) and stands back up.
+  {id:'floorup', name:'Get Up from Floor', cat:'Fitness', type:'stay', dur:1.4, build:(t,P)=>{ floorTransition(smooth(clamp(1-t/1.4,0,1)), P.amp); }},
   // Self-contained (same reason as Push-Up): a bare horizontal plank tips ~86° against any standing pose at the
   // seam/loop. Stand → get down → HOLD the plank → get up → stand; starts and ends standing so it blends cleanly.
   {id:'fitplank', name:'Plank Hold', cat:'Fitness', type:'stay', dur:3.4, build:(t,P)=>{ bstand(); const A=P.amp;
     const p=(t/3.4*P.speed)%1, DN=0.22, UP=0.78; let k;
     if(p<DN) k=eio(p/DN); else if(p>UP) k=eio((1-p)/(1-UP)); else k=1;
+    if(k<1){ floorTransition(k, A); return; }
     const tr=Math.sin(TAU*(t/3.4)*P.speed*6)*0.006*k;   // faint hold tremor, only while planked
-    sw('Hips',AX.x,1.5*k*A); setRootY((-0.50*k+tr)*A); animRoot.position.z += 0.28*k*A;
     const crouch=Math.sin(Math.PI*k)*(1-k);
-    [B_LLEG,B_RLEG].forEach(L=>{ kneeB(L,(0.05+0.9*crouch)*A); sw(L.foot,AX.x,0.8*k*A); });
-    animRoot.updateMatrixWorld(true);
+    plankBody(k, A, { extraY:tr, knee:0.9*crouch, z:0.28 });
     // Straight-arm plank = the push-up TOP: each hand planted UNDER its shoulder (read live), arm vertical, palm flat (2026-09-23 —
     // the old fixed target sat behind the elbow, sloping the forearm backward so a flat palm needed >90° of wrist extension).
     const _sp=new THREE.Vector3(), oy=0.62*(1-k)+0.05*k, py=-1*(1-k)-0.15*k, pz=-0.5*(1-k)-1*k;
@@ -4791,10 +4978,8 @@ const BIPED_MOTIONS=[
   {id:'fitburpee', name:'Burpee', cat:'Fitness', type:'stay', dur:1.6, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.6*P.speed)%1;
     const squat=bump(u,0.14,0.14), jump=bump(u,0.86,0.1);
     const inPlank=eio(clamp((u-0.28)/0.12,0,1))*(1-eio(clamp((u-0.55)/0.12,0,1)));
-    sw('Hips',AX.x,1.5*inPlank*A);
-    setRootY((-0.34*squat*(1-inPlank) -0.42*inPlank +0.03*jump)*A);
-    if(inPlank>0.2){ animRoot.position.z += 0.28*inPlank*A; [B_LLEG,B_RLEG].forEach(L=>{ kneeB(L,0.05*A); sw(L.foot,AX.x,0.8*inPlank*A); });
-      animRoot.updateMatrixWorld(true); }
+    if(inPlank<=0.2){ sw('Hips',AX.x,plankTheta()*inPlank*A); setRootY((-0.34*squat*(1-inPlank) -0.42*inPlank +0.03*jump)*A); }
+    if(inPlank>0.2){ plankBody(inPlank, A, { z:0.28, extraY:-0.34*squat*(1-inPlank) }); }
     else { leanF(0.3*squat*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.2*A)); [B_LARM,B_RARM].forEach(Ar=>reachUp(Ar,jump,A)); plantFeet(0.02,0.02,{width:0.11}); }
     // hands: wherever the arms hang/reach → planted on the floor for the plank, as ONE continuous blend (the switch popped ~45°)
     animRoot.updateMatrixWorld(true);
@@ -4918,7 +5103,8 @@ const BIPED_MOTIONS=[
     setRootY(Math.abs(Math.sin(TAU*(t/0.5)*P.speed))*0.01*A); sw(B_HEAD,AX.x,-0.1*A); }},
   {id:'chbow', name:'Take a Bow', cat:'Cheer', type:'stay', dur:1.8, build:(t,P)=>{ bstand(); const A=P.amp, bow=Math.sin(Math.PI*clamp((t/1.8*P.speed)%1/0.85,0,1));
     sw('Hips',AX.x,0.5*bow*A); BIPED_SPINE.forEach(s=>sw(s,AX.x,0.18*bow*A));   // fold forward at the waist
-    sw(B_HEAD,AX.x,0.2*bow*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.05*A));
+    sw(B_HEAD,AX.x,0.2*bow*A); animRoot.position.z -= 0.08*bow*A; animRoot.position.y -= 0.035*bow*A;
+    settleKnee((0.08+0.10*bow)*A, () => plantFeet(0.02, 0.02, {width:0.085}), null, 8);          // legs re-planted under the hinge (tipping the Hips bone tipped the legs too — the body pivoted on its feet like a plank)
     // Right arm sweeps out in a flourish as the body folds; left hand tucks low across the belly. Shoulder-relative
     // reachIK so the sweep retargets faithfully — the old armO/armF sweep rode out to the side on other rigs.
     animRoot.updateMatrixWorld(true);
@@ -4936,8 +5122,12 @@ const BIPED_MOTIONS=[
     reachIK(B_LARM, V(-0.10,1.40+0.45*lift+shake,0.14), V(0,-1,0.2)); reachIK(B_RARM, V(0.10,1.40+0.45*lift+shake,0.14), V(0,-1,0.2));  // hoist a trophy overhead
     sw(B_HEAD,AX.x,-0.2*lift*A); setRootY(0.02*lift*A); BIPED_SPINE.forEach(s=>sw(s,AX.x,-0.04*lift*A)); }},
   {id:'chhighfive', name:'High Five', cat:'Cheer', type:'stay', dur:1.2, build:(t,P)=>{ bstand(); const A=P.amp, up=Math.sin(Math.PI*clamp((t/1.2*P.speed)%1/0.7,0,1));
-    reachIK(B_RARM, V(0.10,1.55+0.10*up,0.30*up+0.10), V(0,-1,0.3)); handRoll(B_RARM,1.2*A);   // hand up to slap
-    armF(B_LARM,0.15*A); setRootY(0.03*up*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.1*(1-up)*A)); sw(B_HEAD,AX.x,-0.1*up*A); }},
+    setRootY(0.03*up*A); animRoot.updateMatrixWorld(true); const S=boneByName[B_RARM.arm].getWorldPosition(new THREE.Vector3());
+    // STRAIGHT front-to-back: the hand stays in line with its own shoulder — cocked up beside the head, then driven straight forward
+    // and up to meet the other hand, open palm facing forward (it swept across the body to the far side)
+    reachIK(B_RARM, S.clone().add(V(B_RARM.s*0.04, 0.22+0.10*up, 0.02+0.36*up)), V(B_RARM.s*0.5,-1,-0.2));
+    handFrame(B_RARM, {fingers:V(0,1,0.2*up), palm:V(0,0.1,1)});
+    armF(B_LARM,0.15*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.1*(1-up)*A)); sw(B_HEAD,AX.x,-0.1*up*A); }},
   {id:'chdab', name:'Dab', cat:'Cheer', type:'stay', dur:1.0, build:(t,P)=>{ bstand(); const A=P.amp, k=Math.sin(Math.PI*clamp((t/1.0*P.speed)%1/0.7,0,1));
     reachHigh(B_RARM,0.9*k,A);                                                  // right arm up and out
     armO(B_LARM,0.6*k*A); armF(B_LARM,0.7*k*A); elb(B_LARM,1.4*k*A);            // left arm across
@@ -5000,22 +5190,55 @@ const BIPED_MOTIONS=[
     bipedGait(t,P,1.6,{legAmp:0.22, kneeAmp:0.6, armAmp:0.1, bob:0.02, sway:0.03, lean:0.35, knee0:0.3});
     const A=P.amp; BIPED_SPINE.forEach(s=>sw(s,AX.x,0.12*A));                 // hunch from knee0 + the spine (a root offset sank the feet 8 cm)
     [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,0.2*A); elb(Ar,0.5*A); }); sw(B_HEAD,AX.x,0.2*A); }},
-  {id:'injcrawl', name:'Crawl', cat:'Injured', type:'stay', dur:1.8, build:(t,P)=>{ bstand(); const A=P.amp, ph=TAU*((t/1.8*P.speed)%1), lr=Math.sin(ph);
-    sw('Hips',AX.x,1.4*A); setRootY(-0.45*A); animRoot.position.z += 0.26*A;    // on hands and knees
-    [B_LLEG,B_RLEG].forEach(L=>{ kneeB(L,1.5*A); legF(L,-0.1*A); });
-    animRoot.updateMatrixWorld(true);
-    reachIK(B_LARM, V(-0.16,0.05,0.30+0.10*Math.max(0,lr)), V(0,-1,0.3)); reachIK(B_RARM, V(0.16,0.05,0.30+0.10*Math.max(0,-lr)), V(0,-1,0.3));  // contralateral reach
-    sw(B_HEAD,AX.x,-0.3*A); }},
+  {id:'injcrawl', name:'Crawl', cat:'Injured', type:'stay', dur:1.8, build:(t,P)=>{ bstand(); const A=P.amp, u=(((t/1.8)*P.speed)%1+1)%1;
+    // Hands-and-knees crawl, solved from its CONTACTS (it used to be angles — hips tipped 80°, knees bent by a number — and the
+    // knees hung well above the floor, like a skydiver): the KNEES rest on the floor directly under the hip joints (thighs
+    // vertical), the shins and insteps lie back along the floor, the HANDS are flat under the shoulders with the arms near
+    // straight, so the back is close to level. Contralateral: right hand + left knee swing together, then left hand + right
+    // knee; each limb swings ~30% of the cycle and slides back through stance (an in-place loop).
+    const KY=0.045, HANDY=0.035, pos=V(), q=V();
+    const step=ph=>{ ph=((ph%1)+1)%1; const SW=0.30; if(ph<SW){ const x=ph/SW; return {z:-0.5+smooth(x), up:Math.sin(Math.PI*x)}; } return {z:0.5-(ph-SW)/(1-SW), up:0}; };
+    const len=(a,b)=>boneByName[a].getWorldPosition(pos).distanceTo(boneByName[b].getWorldPosition(q));
+    const L1=len(B_LLEG.up,B_LLEG.knee), L2=len(B_LLEG.knee,B_LLEG.foot), AL=len(B_LARM.arm,B_LARM.fore)+len(B_LARM.fore,B_LARM.hand);
+    animRoot.position.z -= 0.15*A; animRoot.position.x += 0.012*Math.sin(TAU*u)*A;
+    // HEIGHT FROM CONTACT + TRUNK ANGLE FROM CONTACT: the hip joints sit one thigh-length above knees resting on the floor, and the
+    // trunk is tipped exactly far enough that the shoulders sit a near-straight arm (95%) above hands flat on the floor — solved
+    // (a few secant steps on the pelvis pitch), so any body proportions land on all fours instead of hovering or humping.
+    const hipB=boneByName['Hips'], hq0=hipB.quaternion.clone(), roll=0.04*Math.sin(TAU*u)*A, H0=V(), S0=V();
+    let pitch=1.20, drop=0;
+    for(let it=0; it<5; it++){ hipB.quaternion.copy(hq0); sw('Hips',AX.x,pitch); sw('Hips',AX.z,roll); animRoot.updateMatrixWorld(true);
+      const hy=(boneByName[B_LLEG.up].getWorldPosition(pos).y + boneByName[B_RLEG.up].getWorldPosition(q).y)/2; drop=(KY + L1*0.985) - hy;
+      boneByName[B_LARM.arm].getWorldPosition(pos); boneByName[B_RARM.arm].getWorldPosition(q); S0.copy(pos).add(q).multiplyScalar(0.5);
+      hipB.getWorldPosition(H0); const err=(HANDY + AL*0.95) - (S0.y + drop); if(Math.abs(err)<0.003) break;
+      pitch -= clamp(err/Math.max(0.15, S0.z-H0.z), -0.3, 0.3); }
+    animRoot.position.y += drop; animRoot.updateMatrixWorld(true);
+    for(const [L,ph] of [[B_LLEG,u+0.5],[B_RLEG,u]]){
+      const st=step(ph), H=boneByName[L.up].getWorldPosition(new THREE.Vector3());
+      const K=V(H.x, KY+0.035*st.up*A, H.z+0.10*st.z*A), ay=0.08+0.02*st.up*A;
+      const ank=V(H.x+L.s*0.01, ay, K.z-Math.sqrt(Math.max(1e-4, L2*L2-(ay-K.y)*(ay-K.y))));
+      legIK(L, ank, K.clone().sub(H.clone().lerp(ank,0.5)).normalize());
+      animRoot.updateMatrixWorld(false); const kn=boneByName[L.knee].getWorldPosition(new THREE.Vector3()), an=boneByName[L.foot].getWorldPosition(new THREE.Vector3());
+      footAim(L, an.sub(kn).normalize().add(V(0,-0.36,0)).normalize(), 0);   // instep down along the floor behind the shin (toes pointed)
+    }
+    for(const [Ar,ph] of [[B_LARM,u],[B_RARM,u+0.5]]){ const st=step(ph), S=boneByName[Ar.arm].getWorldPosition(new THREE.Vector3());
+      reachIK(Ar, V(S.x*0.95, HANDY+0.06*st.up*A, S.z+0.04+0.12*st.z*A), V(0.25*Ar.s,0,-1));     // hand under the shoulder, elbow back
+      flatHand(Ar, 1-st.up, V(0,0,1)); }                                                   // palm flat on the floor while it bears weight
+    sw(B_HEAD,AX.x,-0.55*A); }},                                                   // neck extended: eyes on the floor ahead, not straight down
   {id:'injdrag', name:'Drag Self', cat:'Injured', type:'stay', dur:2.0, build:(t,P)=>{ bstand(); const A=P.amp, pull=Math.sin(TAU*((t/2.0*P.speed)%1));
     sw('Hips',AX.x,1.55*A); setRootY(-0.72*A); animRoot.position.z += 0.2*A;    // lying prone
     [B_LLEG,B_RLEG].forEach(L=>{ kneeB(L,0.2*A); sw(L.foot,AX.x,0.6*A); });      // legs trail
     animRoot.updateMatrixWorld(true);
     reachIK(B_LARM, V(-0.18,0.05,0.40+0.12*Math.max(0,pull)), V(0,-1,0.3)); reachIK(B_RARM, V(0.18,0.05,0.40+0.12*Math.max(0,-pull)), V(0,-1,0.3));  // claw forward
     sw(B_HEAD,AX.x,-0.2*A); }},
-  {id:'injbreath', name:'Catch Breath', cat:'Injured', type:'stay', dur:2.0, build:(t,P)=>{ bstand(); const A=P.amp, pant=Math.sin(TAU*(t/0.7)*P.speed);
-    leanF(0.45*A); settleKnee(0.75*A, () => plantFeet(0.03, 0.03, {width:0.11}));      // bent over, hands on knees — height solved from the bent knees (the feet were 15 cm under the floor)
-    reachIK(B_LARM, V(-0.16,0.72,0.30), V(-0.2,-1,0.2)); reachIK(B_RARM, V(0.16,0.72,0.30), V(0.2,-1,0.2));
-    BIPED_SPINE.forEach(s=>sw(s,AX.x,0.04*pant*A)); sw(B_HEAD,AX.x,0.2*A); }},
+  {id:'injbreath', name:'Catch Breath', cat:'Injured', type:'stay', dur:2.0, build:(t,P)=>{ const A=P.amp, pant=Math.sin(TAU*(t/0.7)*P.speed);
+    // bent over, HANDS ON THE KNEES: the knees are found on the body and the hip hinge is SOLVED until the hands reach them
+    // (the targets were fixed 20 cm above the knees and the arms still fell ~30 cm short)
+    const kt=Ar=>{ const k=boneByName[Ar===B_LARM?B_LLEG.knee:B_RLEG.knee].getWorldPosition(new THREE.Vector3()); return V(k.x*1.1, k.y+0.09, k.z+0.08); };
+    solveBend(h=>{ bstand(); leanF(0.45*A); sw('Hips',AX.x,1.10*h*A); animRoot.position.z -= 0.12*h*A; settleKnee((0.75+0.25*h)*A, () => plantFeet(0.03, 0.03, {width:0.11}), null, 6); },
+      ()=>[[B_LARM,kt(B_LARM)],[B_RARM,kt(B_RARM)]]);
+    reachIK(B_LARM, kt(B_LARM), V(-0.2,-1,0.2)); reachIK(B_RARM, kt(B_RARM), V(0.2,-1,0.2));
+    BIPED_SPINE.forEach(sp=>sw(sp,AX.x,0.04*pant*A)); sw(B_HEAD,AX.x,0.2*A); }},
+
   {id:'injwound', name:'Clutch Wound', cat:'Injured', type:'stay', dur:2.2, build:(t,P)=>{ bstand(); const A=P.amp, w=Math.sin(TAU*(t/2.2)*P.speed);
     leanF(0.2*A); sw('Spine02',AX.z,0.14*A); sw('Hips',AX.z,-0.06*A);           // hunched to one side
     reachIK(B_RARM, V(-0.06,1.10,0.16), V(0.2,-1,0.2)); handRoll(B_RARM,1.0*A);  // hand clamps the gut
@@ -5069,8 +5292,10 @@ const BIPED_MOTIONS=[
     sw(B_HEAD,AX.x,-0.1*k*A); }},
   {id:'gndsquat', name:'Resting Squat', cat:'Ground', type:'stay', dur:1.6, build:(t,P)=>{ bstand(); const A=P.amp, k=eio(clamp((t/1.6*P.speed)%1/0.6,0,1)), b=Math.sin(TAU*(t/1.6)*P.speed)*0.006;
     setRootY((-0.52+b)*k*A); leanF(0.3*k*A);                                   // very deep squat
-    reachIK(B_LARM, V(-0.16,0.62,0.30), V(0,-1,0.3)); reachIK(B_RARM, V(0.16,0.62,0.30), V(0,-1,0.3));   // forearms on the knees
-    plantFeet(0.04,0.04,{width:0.16, footY:[-0.10*k,-0.10*k]}); sw(B_HEAD,AX.x,0.1*A); }},
+    plantFeet(0.04,0.04,{width:0.16, footY:[-0.10*k,-0.10*k]}); animRoot.updateMatrixWorld(true);
+    [B_LARM,B_RARM].forEach(Ar=>{ const S=boneByName[Ar.arm].getWorldPosition(new THREE.Vector3()), kn=boneByName[Ar===B_LARM?B_LLEG.knee:B_RLEG.knee].getWorldPosition(new THREE.Vector3());
+      reachIK(Ar, S.add(V(0,-0.42,0.06)).lerp(V(kn.x*0.9, kn.y+0.06, kn.z+0.12), k), V(0,-1,0.3)); });   // hands start hanging and travel to rest just past the knees as the squat sinks (the fixed knee-height targets pulled at the standing arms)
+    sw(B_HEAD,AX.x,0.1*A); }},
   {id:'gndkneel1', name:'Kneel (one knee)', cat:'Ground', type:'stay', dur:1.6, build:(t,P)=>{ bstand(); const A=P.amp, k=eio(clamp((t/1.6*P.speed)%1/0.7,0,1));
     setRootY(-0.34*k*A);
     legF(B_RLEG,-0.1*k*A); kneeB(B_RLEG,1.7*k*A); legF(B_LLEG,0.5*k*A); kneeB(B_LLEG,1.0*k*A);   // right knee down, left foot planted
@@ -5122,7 +5347,7 @@ const BIPED_MOTIONS=[
     setRootY(-0.35*tuck*A); animRoot.position.z += 0.4*roll*A;
     [B_LLEG,B_RLEG].forEach(L=>{ legF(L,1.0*tuck*A); kneeB(L,1.8*tuck*A); });   // tuck through the roll
     [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,1.0*tuck*A); elb(Ar,(0.3+1.5*tuck)*A); });
-    groundClamp(0,'up'); landFeet(Math.max(1-smooth(u/0.12), smooth((u-0.75)/0.15)), 0.06, 0.06, {width:0.11}); }},   // planted at both ends, blended
+    groundClamp(0,'up'); landFeet(Math.max(1-smooth(u/0.12), smooth((u-0.75)/0.15)), 0.06, 0.06, {width:0.11});  bodyFloor('roll'); }},   // planted at both ends, blended
   {id:'pkland', name:'Precision Land', cat:'Parkour', type:'stay', dur:1.2, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.2*P.speed)%1, crouch=eio(clamp(u/0.3,0,1))*(1-0.6*ramp(u,0.4,1));
     setRootY(-0.42*crouch*A); leanF(0.35*crouch*A);
     reachIK(B_RARM, V(0.14,0.30+0.9*(1-crouch),0.34), V(0,-1,0.3));            // one hand down to the ground (superhero landing)
@@ -5152,7 +5377,7 @@ const BIPED_MOTIONS=[
     sw('Hips',AX.x, -TAU*spin*A); setRootY((-0.22*crouch + 0.55*air)*A);       // full backward rotation, big air
     [B_LLEG,B_RLEG].forEach(L=>{ kneeB(L,(0.6*crouch + 1.8*air)*A); legF(L,1.2*air*A); });   // tuck knees to chest
     [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,1.0*air*A); reachUp(Ar,0.5*crouch,A); });
-    if(air<0.1 && u>0.85) plantFeet(0.02,0.02,{width:0.10}); }},
+    bodyFloor('up'); if(air<0.1 && u>0.85) plantFeet(0.02,0.02,{width:0.10}); }},
   {id:'pkkipup', name:'Kip-Up', cat:'Parkour', type:'stay', dur:1.2, build:(t,P)=>{ bstand(); const A=P.amp, u=(t/1.2*P.speed)%1;
     const lie=1-eio(clamp((u-0.4)/0.4,0,1)), snap=bump(u,0.5,0.2);
     sw('Hips',AX.x,-1.5*lie*A); setRootY((-0.72*lie + 0.1*snap)*A);            // start supine → snap up to the feet
@@ -5189,7 +5414,7 @@ const BIPED_MOTIONS=[
   {id:'swslashh', name:'Horizontal Slash', cat:'Swordplay', type:'stay', dur:0.8, build:(t,P)=>{ const A=P.amp, u=(t/0.8*P.speed)%1, wind=eio(clamp(u/0.35,0,1)), cut=eio(clamp((u-0.35)/0.4,0,1));
     fightStance(A,{turn:0.3, knee:0.36, lead:0.16, rear:-0.18, rearHeel:-0.2*cut, z:0.05*cut*A, lean:0.1*cut});
     const rp=orbitAt([[0,V(0.10,1.28,0.25)],[0.35,V(-0.30,1.30,0.05)],[0.75,V(0.36,1.26,0.44)],[1,V(0.36,1.26,0.44)]], u, {arms:[B_LARM,B_RARM]});   // level sweep right → left, orbiting the torso for BOTH shoulders (the lead upper arm crossed the chest at the wind)
-    reachIK(B_RARM, rp, V(0,-1,0.2)); reachIK(B_LARM, handClear(rp.clone().add(V(-0.10,-0.02,-0.04)),[B_LARM],{shoulderR:0.25}), V(0,-1,0.2));   // two-handed
+    gripTogether(rp, V(0,-1,0.2));                                                                    // two-handed: both fists stacked on the hilt (13 cm apart before)
     { const d=handsAway(); d.y*=0.3; twoHandGrip('handshake', d); }                                 // both fists round the hilt, blade LEVEL and out from the body
     sw('Hips',AX.y,(-0.2*wind +0.4*cut)*A); twist((-0.25*wind+0.35*cut)*A); }},   // body coils RIGHT with the wind-up, opens LEFT with the cut (was inverted)
   {id:'swthrust', name:'Lunging Stab', cat:'Swordplay', type:'stay', dur:0.8, build:(t,P)=>{ const A=P.amp, u=(t/0.8*P.speed)%1, chamber=ramp(u,0,0.35), stab=bump(u,0.55,0.35);
@@ -5198,19 +5423,23 @@ const BIPED_MOTIONS=[
     twist((-0.15*chamber+0.25*stab)*A); }},
   {id:'swblockh', name:'High Block', cat:'Swordplay', type:'stay', dur:1.0, build:(t,P)=>{ const A=P.amp, u=(t/1.0*P.speed)%1, up=eio(clamp(u/0.3,0,1)), press=Math.sin(TAU*u*3)*0.02*up;
     fightStance(A,{turn:0.1, knee:0.4, dropKnee:0.15*up, lean:-0.05*up});
-    reachIK(B_RARM, V(0.20,1.72+press,0.15), V(0,-1,0.2)); reachIK(B_LARM, V(-0.20,1.72+press,0.15), V(0,-1,0.2));   // blade level overhead, catching a strike
-    twoHandGrip('handshake', handsAxis());                                                           // both hands along the level blade
+    const hb=V(-1,0.12,0.10).normalize();                                                             // hilt → blade: level across overhead, to the left
+    gripTogether(V(0.14,1.68+press,0.16), V(0,-1,0.2), null, hb);                                     // both fists stacked on the hilt (they were 40 cm apart along the blade)
+    twoHandGrip('handshake', hb);
     sw(B_HEAD,AX.x,-0.1*up*A); }},
   {id:'swblocks', name:'Side Parry', cat:'Swordplay', type:'stay', dur:0.9, build:(t,P)=>{ const A=P.amp, par=Math.sin(Math.PI*clamp((t/0.9*P.speed)%1/0.7,0,1));
     fightStance(A,{turn:0.3, knee:0.4, lean:0.05});
     const c=V(0.08,1.35,0.40), side=V(-0.28,1.42,0.32);
-    reachIK(B_RARM, c.clone().lerp(side,par), V(0,-1,0.2)); reachIK(B_LARM, c.clone().lerp(side,par).add(V(-0.08,-0.10,-0.04)), V(0,-1,0.2));   // deflect across to the left
+    gripTogether(c.clone().lerp(side,par), V(0,-1,0.2), null, V(0,1,0.15));                         // deflect across to the left, both fists stacked on the vertical hilt (13 cm apart before)
     twoHandGrip('handshake', V(0,1,0.15));                                                          // blade held vertical, both fists round the hilt
     twist(-0.2*par*A); sw(B_HEAD,AX.y,-0.1*par*A); }},
   {id:'swclash', name:'Blade Clash', cat:'Swordplay', type:'stay', dur:1.6, build:(t,P)=>{ const A=P.amp, str=0.5+0.5*Math.sin(TAU*(t/1.6)*P.speed);
     fightStance(A,{turn:0.2, knee:0.5, dropKnee:0.15, lean:0.25+0.05*str, z:0.05*A});
-    reachIK(B_RARM, V(0.10,1.45,0.42+0.03*str), V(0,-1,0.2)); reachIK(B_LARM, V(-0.06,1.40,0.44+0.03*str), V(0,-1,0.2));   // blades locked, straining push
-    twoHandGrip('handshake', V(0,0.5,0.85));                                                        // both fists round the hilt, blade forward-up into the bind
+    // Both hands on ONE hilt, stacked along it (sword hand at the guard, the other just below it toward the pommel), both wrapping
+    // from the SAME side so the palms face the same way — they were side by side 16 cm apart with the palms facing each other.
+    const hd=V(0,0.5,0.85).normalize(), g=V(0.02,1.42,0.43+0.03*str);
+    reachIK(B_RARM, g.clone().addScaledVector(hd,0.045), V(0,-1,0.2)); reachIK(B_LARM, g.clone().addScaledVector(hd,-0.045), V(0,-1,0.2));   // blades locked, straining push
+    [B_RARM,B_LARM].forEach(Ar=>handFrame(Ar,{fingers:hd, palm:V(1,0,0)}));                        // same grip frame for both fists, blade forward-up into the bind
     BIPED_SPINE.forEach(s=>sw(s,AX.x,0.05*A)); sw(B_HEAD,AX.x,-0.05*A); [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.06*str*A)); }},
   {id:'swbash', name:'Pommel Bash', cat:'Swordplay', type:'stay', dur:0.8, build:(t,P)=>{ const A=P.amp, u=(t/0.8*P.speed)%1, wind=ramp(u,0,0.35), bash=bump(u,0.55,0.3);
     fightStance(A,{turn:0.3+0.3*bash, knee:0.36, lead:0.14+0.2*bash, rear:-0.2, z:0.12*bash*A, lean:0.2*bash});
@@ -5236,14 +5465,21 @@ const BIPED_MOTIONS=[
     reachIK(B_LARM, V(-0.10,1.16+0.04*rise,0.34), V(0,-1,0.3)); reachIK(B_RARM, V(0.10,1.16+0.04*rise,0.34), V(0,-1,0.3));
     sw(B_HEAD,AX.x,-0.04*A); setRootY((-0.28+0.10*rise)*A); }},
   // ——— Great Ape — knuckle-walk locomotion + display (biped bone names → also plays on the 🦍 ape rig) ———
-  {id:'ape_knuckle', name:'Knuckle Walk', cat:'Great Ape', type:'move', dur:1.3, build:(t,P)=>{ bstand(); const A=P.amp; const cyc=(t/1.3)*P.speed;
-    leanF(1.15*A);                                          // torso pitched down toward horizontal (quadrupedal)
-    sw(B_NECK,AX.x,-0.6*A); sw(B_HEAD,AX.x,-0.4*A);         // head & neck up to look ahead while bent over
-    BIPED_ARMS.forEach((Ar,i)=>{ const s=Math.sin(TAU*(cyc+(i?0.5:0)));   // arms = front supports, alternating
-      armF(Ar,(0.12+s*0.42)*A); armO(Ar,0.12*A); elb(Ar,(0.22+Math.max(0,s)*0.26)*A); });
-    BIPED_LEGS.forEach((L,i)=>{ const s=Math.sin(TAU*(cyc+(i?0:0.5)));    // hind legs, diagonal to the arms
-      legF(L,(0.45+s*0.30)*A); kneeB(L,(0.95-Math.max(0,s)*0.30)*A); legO(L,0.12*A); });
-    setRootY(-0.42*A + Math.abs(Math.sin(TAU*cyc*2))*0.02*A);             // low, bent-over body
+// GREAT APE contacts. An ape's arms are ~0.91 of its leg length (this template's are 0.63 — measured on "Ape Rigged v2"), so
+// with joint-angle retargeting its hands reach ~40% further than the template's: a knuckle CONTACT is targeted ~20 cm above
+// the floor on the template, and lands on the floor on the ape. The feet are planted and the height is solved from them
+// (these were posed by angles and the shins/feet sank ~30 cm through the floor).
+  {id:'ape_knuckle', name:'Knuckle Walk', cat:'Great Ape', type:'move', dur:1.3, build:(t,P)=>{ const A=P.amp, cyc=(t/1.3)*P.speed, u=((cyc%1)+1)%1;
+    // diagonal gait: left hand with right foot, then right hand with left foot; each limb swings ~32% of the cycle, then bears weight
+    const step=ph=>{ ph=((ph%1)+1)%1; const SW=0.32; if(ph<SW){ const x=ph/SW; return {z:-0.5+smooth(x), up:Math.sin(Math.PI*x)}; } return {z:0.5-(ph-SW)/(1-SW), up:0}; };
+    const fL=step(u), fR=step(u+0.5), hL=step(u+0.5), hR=step(u);
+    const kn=(Ar,st)=>{ const S=boneByName[Ar.arm].getWorldPosition(new THREE.Vector3()); return V(S.x*1.25, 0.20+0.08*st.up*A, S.z+0.12+0.20*st.z*A); };
+    solveBend(h=>{ bstand(); sw('Hips',AX.x,(0.55+1.00*h)*A); leanF(0.30*A); animRoot.position.z -= (0.08+0.08*h)*A;
+        settleKnee((0.80+0.90*h)*A, () => { plantFeet((0.16*fL.z-0.04)*A, (0.16*fR.z-0.04)*A, {width:0.15});
+          for(const [L,st] of [[B_LLEG,fL],[B_RLEG,fR]]) if(st.up>0){ animRoot.updateMatrixWorld(false); const a=boneByName[L.foot].getWorldPosition(new THREE.Vector3()); legIK(L, a.add(V(0,0.08*st.up*A,0)), AX.z); } }, null, 6); },
+      ()=>[[B_LARM,kn(B_LARM,hL)],[B_RARM,kn(B_RARM,hR)]]);
+    sw(B_NECK,AX.x,-0.6*A); sw(B_HEAD,AX.x,-0.4*A);                  // head & neck up to look ahead while bent over
+    [[B_LARM,hL],[B_RARM,hR]].forEach(([Ar,st])=>reachIK(Ar, kn(Ar,st), V(Ar.s*0.3,0,-1)));   // elbows back, arms as front supports
   }},
   {id:'ape_chestbeat', name:'Chest Beat', cat:'Great Ape', type:'action', dur:2.4, build:(t,P)=>{ bstand(); const A=P.amp;
     leanF(0.20*A); [B_LLEG,B_RLEG].forEach(L=>{ legO(L,0.20*A); kneeB(L,0.22*A); });    // wide braced stance
@@ -5252,13 +5488,95 @@ const BIPED_MOTIONS=[
       armF(Ar,(0.9+0.45*pound)*A); armO(Ar,-0.45*A); elb(Ar,(1.5+0.25*pound)*A); });    // hands to the chest, pounding
     sw(B_HEAD,AX.x,-0.12*A); setRootY(-0.05*A + Math.abs(Math.sin(TAU*f))*0.015*A);
   }},
-  {id:'ape_idle', name:'Hunched Idle', cat:'Great Ape', type:'idle', dur:4.5, build:(t,P)=>{ bstand(); const A=P.amp; const a=TAU*(t/4.5)*P.speed;
-    leanF(0.90*A); sw(B_NECK,AX.x,-0.40*A); sw(B_HEAD,AX.x,-0.30*A);                     // hunched, resting on knuckles
-    BIPED_ARMS.forEach(Ar=>{ armF(Ar,0.14*A); armO(Ar,0.14*A); elb(Ar,0.26*A); });
-    BIPED_LEGS.forEach(L=>{ legF(L,0.40*A); kneeB(L,0.85*A); legO(L,0.14*A); });
-    setRootY(-0.42*A);
-    BIPED_SPINE.forEach(s=>sw(s,AX.x,Math.sin(a)*0.012*A)); sw(B_HEAD,AX.y,Math.sin(a*0.6)*0.20*A);  // breathe + look around
+  {id:'ape_idle', name:'Hunched Idle', cat:'Great Ape', type:'idle', dur:4.5, build:(t,P)=>{ const A=P.amp; const a=TAU*(t/4.5)*P.speed;
+    // hunched, resting on the knuckles (see GREAT APE contacts above): feet planted, knees deep, knuckles down ahead of the feet
+    const kn=Ar=>{ const S=boneByName[Ar.arm].getWorldPosition(new THREE.Vector3()); return V(S.x*1.25, 0.20, S.z+0.14); };
+    solveBend(h=>{ bstand(); sw('Hips',AX.x,(0.45+1.05*h)*A); leanF(0.30*A); animRoot.position.z -= (0.06+0.10*h)*A;
+        settleKnee((0.90+0.90*h)*A, () => plantFeet(0.02,0.02,{width:0.16}), null, 6);
+        BIPED_SPINE.forEach(sp=>sw(sp,AX.x,Math.sin(a)*0.012*A)); },                        // breathe
+      ()=>[[B_LARM,kn(B_LARM)],[B_RARM,kn(B_RARM)]]);
+    sw(B_NECK,AX.x,-0.40*A); sw(B_HEAD,AX.x,-0.30*A); sw(B_HEAD,AX.y,Math.sin(a*0.6)*0.20*A);   // head up, looking around
+    [B_LARM,B_RARM].forEach(Ar=>reachIK(Ar, kn(Ar), V(Ar.s*0.3,0,-1)));
   }},
+  // ═════ GOBLIN (Fantasy pack) — built from contacts: feet planted with the height solved from the knees, hands placed by IK on the
+  // body (so the hand-rub is a real two-hand contact the Stitcher keeps together on any build), balance over the feet.
+  {id:'gobidle', name:'Goblin Idle', cat:'Goblin', type:'stay', dur:3.0, build:(t,P)=>{ const A=P.amp, u=(((t/3.0)*P.speed)%1+1)%1, w=TAU*u*4;
+    bstand(); sw('Hips',AX.x,0.42*A); leanF(0.30*A); sw('Spine02',AX.x,0.14*A); animRoot.position.z -= 0.07*A;   // HUNCHED: hip hinge + rounded back (a spine lean alone barely showed); seat back over the heels for balance
+    settleKnee((0.62+0.04*Math.sin(TAU*u*2))*A, () => plantFeet(0.05,-0.03,{width:0.13}), null, 6);   // crouched, a little bounce of the knees
+    [B_LARM,B_RARM].forEach(Ar=>sw(Ar.sh,AX.z,Ar.s*0.12*A));                                     // shoulders hunched up
+    animRoot.updateMatrixWorld(true); const C=boneByName['Spine02'].getWorldPosition(new THREE.Vector3()).add(V(0,-0.20,0.22));
+    const r=0.022*A;                                                                              // hands WRING each other: small opposed circles, palms together
+    reachIK(B_RARM, C.clone().add(V(-0.030, r*Math.sin(w), r*Math.cos(w))), V(-0.4,-1,-0.2));
+    reachIK(B_LARM, C.clone().add(V( 0.030,-r*Math.sin(w),-r*Math.cos(w))), V( 0.4,-1,-0.2));
+    [B_LARM,B_RARM].forEach(Ar=>handFrame(Ar,{fingers:V(0,0.35,1), palm:V(-Ar.s,0,0)}));          // palms face each other
+    const look=Math.sin(TAU*u)*0.6+Math.sin(TAU*u*3)*0.15;                                         // shifty glances left/right
+    sw(B_NECK,AX.y,look*0.45*A); sw(B_HEAD,AX.y,look*0.35*A); sw(B_HEAD,AX.x,-0.22*A); }},        // head up out of the hunch
+  {id:'gobscurry', name:'Goblin Scurry', cat:'Goblin', type:'move', dur:0.52, build:(t,P)=>{ const A=P.amp;
+    // a quick, low, hunched run: short fast strides, arms pumping close to the body, head up
+    gaitRun(t,P,0.52,{duty:0.56,hip:0.52,knee:0.70,lean:0.34,armSwing:28,elbow0:1.45,flight:0.006,pelvisRot:6});   // short, low steps — the heel stays down behind (a sprinter's heel-flick read wrong for a scurry)
+    sw('Spine02',AX.x,0.14*A); sw(B_NECK,AX.x,-0.22*A); sw(B_HEAD,AX.x,-0.20*A); }},
+  {id:'gobcackle', name:'Goblin Cackle', cat:'Goblin', type:'stay', dur:1.6, build:(t,P)=>{ const A=P.amp, u=(((t/1.6)*P.speed)%1+1)%1, b=Math.max(0,Math.sin(TAU*u*4)), w=TAU*u*6;
+    // a wicked cackle: hunched, rubbing its hands together, the head tipping back and the shoulders jumping on every burst
+    bstand(); sw('Hips',AX.x,(0.38-0.10*b)*A); leanF((0.26-0.08*b)*A); animRoot.position.z -= 0.06*A;   // hunched (hip hinge), straightening a little on each burst
+    settleKnee((0.55+0.06*b)*A, () => plantFeet(0.04,-0.02,{width:0.13}), null, 6);
+    [B_LARM,B_RARM].forEach(Ar=>sw(Ar.sh,AX.z,Ar.s*(0.10+0.10*b)*A));
+    animRoot.updateMatrixWorld(true); const C=boneByName['Spine02'].getWorldPosition(new THREE.Vector3()).add(V(0,-0.16,0.22));
+    const r=0.03*A; reachIK(B_RARM, C.clone().add(V(-0.030, r*Math.sin(w), r*Math.cos(w))), V(-0.4,-1,-0.2));
+    reachIK(B_LARM, C.clone().add(V( 0.030,-r*Math.sin(w),-r*Math.cos(w))), V( 0.4,-1,-0.2));
+    [B_LARM,B_RARM].forEach(Ar=>handFrame(Ar,{fingers:V(0,0.35,1), palm:V(-Ar.s,0,0)}));
+    sw(B_NECK,AX.x,-0.20*b*A); sw(B_HEAD,AX.x,(-0.10-0.30*b)*A); sw(B_HEAD,AX.z,0.08*Math.sin(TAU*u*2)*A); }},
+  {id:'gobstab', name:'Goblin Sneak Stab', cat:'Goblin', type:'stay', dur:0.9, build:(t,P)=>{ const A=P.amp, u=(((t/0.9)*P.speed)%1+1)%1, p=bump(u,0.42,0.30);
+    // crouched low, the dagger hand chambered at the hip darts forward-and-up into the belly of a taller foe; the off hand guards low
+    fightStance(A,{knee:0.72+0.16*p, lead:0.14+0.14*p, rear:-0.20, turn:0.30-0.22*p, lean:0.28+0.14*p, rearHeel:-0.20*p, z:0.10*p*A});
+    animRoot.updateMatrixWorld(true); const S=boneByName[B_RARM.arm].getWorldPosition(new THREE.Vector3());
+    reachIK(B_RARM, S.clone().add(V(-0.04,-0.34,0.02)).lerp(S.clone().add(V(0.06,-0.10,0.40)),p), V(-0.5,-1,-0.2));   // hip → belly-high thrust
+    const L=boneByName[B_LARM.arm].getWorldPosition(new THREE.Vector3()); reachIK(B_LARM, L.add(V(0.02,-0.26,0.22)), V(0.5,-1,0));
+    twist(0.30*p*A); sw(B_HEAD,AX.x,-0.15*A); }},
+  // ═════ GIANT (Fantasy pack) — heavy: a wide base, slow weight shifts, the arms carried away from a big body. Contacts solved
+  // (feet planted, height from the knees; the ground pound's fists are placed by IK, two-handed, and the body bends to reach the ground).
+  {id:'giantidle', name:'Giant Idle', cat:'Giant', type:'stay', dur:4.0, build:(t,P)=>{ const A=P.amp, u=(((t/4.0)*P.speed)%1+1)%1, br=Math.sin(TAU*u*2), sh=Math.sin(TAU*u);
+    bstand(); animRoot.position.x += 0.035*sh*A;                                             // slow weight shift foot to foot
+    sw('Hips',AX.z,-0.03*sh*A); leanF(0.04*A);
+    settleKnee((0.30+0.03*br)*A, () => plantFeet(0.02,0.02,{width:0.16}), null, 6);           // wide, soft-kneed stance
+    sw('Spine02',AX.x,-0.05*br*A); [B_LARM,B_RARM].forEach(Ar=>{ sw(Ar.sh,AX.z,Ar.s*0.05*(1+br)*A); armO(Ar,0.28*A); armF(Ar,0.05*A); elb(Ar,0.35*A); });   // deep breaths lift the chest + shoulders; arms held off the big body
+    sw(B_NECK,AX.y,0.25*Math.sin(TAU*u+1)*A); sw(B_HEAD,AX.x,0.05*A); }},
+  {id:'giantwalk', name:'Giant Stomp Walk', cat:'Giant', type:'move', dur:1.5, build:(t,P)=>{ const A=P.amp;
+    // slow, heavy strides: a big side-to-side pelvis roll carries the weight over each planted foot, the arms swing wide of the body
+    gaitNorm(t,P,1.5,{hip:0.80,knee:0.85,ankle:0.8,crouch:0.12,lean:0.06,armSwing:16,elbow0:0.40,elbowAmp:0.10,armOut:0.38,shDrive:0.15,pelvisRot:6,pelvisList:6,headBob:1.4});
+    sw(B_HEAD,AX.x,0.05*A); }},
+  {id:'giantpound', name:'Giant Ground Pound', cat:'Giant', type:'stay', dur:1.8, build:(t,P)=>{ const A=P.amp, u=(((t/1.8)*P.speed)%1+1)%1;
+    // both fists raised together overhead → hammered down onto the ground in front (the knees drive the body down after them) → recover
+    const up=ramp(u,0,0.40), smash=ramp(u,0.40,0.52), back=ramp(u,0.72,1.0);
+    const top=V(0,1.95,0.05), hit=V(0,0.30,0.48);                                             // ground contact target (+ allowance for longer arms)
+    const T=top.clone().lerp(hit,smash).lerp(V(0,1.05,0.30),back).lerp(V(0,1.05,0.30),(1-up)*(1-smash)*(1-back));   // start/end: fists together in front of the belly
+    solveBend(h=>{ bstand(); sw('Hips',AX.x,1.00*h*A); leanF(0.20*h*A); animRoot.position.z -= 0.12*h*A;
+        settleKnee((0.30+0.80*h)*A, () => plantFeet(0.10,-0.10,{width:0.17}), null, 8); }, ()=>[[B_LARM,T],[B_RARM,T]]);
+    gripTogether(T, V(0,-1,0), null, V(1,0,0));                                                 // the two fists locked together side by side
+    sw(B_HEAD,AX.x,(-0.20*up+0.35*smash)*A); }},
+  {id:'giantroar', name:'Giant Roar', cat:'Giant', type:'stay', dur:2.2, build:(t,P)=>{ const A=P.amp, u=(((t/2.2)*P.speed)%1+1)%1, r=bump(u,0.45,0.35);
+    // chest thrown out, fists pulled wide and low, head thrown back on the roar
+    bstand(); BIPED_SPINE.forEach(sp=>sw(sp,AX.x,-0.06*r*A)); animRoot.position.z += 0.02*r*A;
+    settleKnee((0.30+0.15*r)*A, () => plantFeet(0.08,-0.10,{width:0.17}), null, 6);
+    animRoot.updateMatrixWorld(true);
+    [B_LARM,B_RARM].forEach(Ar=>{ const S=boneByName[Ar.arm].getWorldPosition(new THREE.Vector3()); reachIK(Ar, S.add(V(Ar.s*(0.22+0.20*r), -0.38+0.10*r, 0.14)), V(Ar.s*0.6,-0.6,-0.4)); });
+    sw(B_NECK,AX.x,-0.25*r*A); sw(B_HEAD,AX.x,-0.35*r*A); }},
+  // ═════ TROLL (Fantasy pack) — hunched and loose-limbed: long arms hanging forward, a swaying lumber, claw swipes. Feet planted, height solved.
+  {id:'trollidle', name:'Troll Idle', cat:'Troll', type:'stay', dur:3.6, build:(t,P)=>{ const A=P.amp, u=(((t/3.6)*P.speed)%1+1)%1, sw1=Math.sin(TAU*u), sn=Math.max(0,Math.sin(TAU*u*3));
+    bstand(); sw('Hips',AX.x,0.30*A); leanF(0.26*A); sw('Spine02',AX.x,0.10*A); animRoot.position.z -= 0.06*A; animRoot.position.x += 0.03*sw1*A;
+    settleKnee((0.50+0.04*sw1)*A, () => plantFeet(0.03,-0.03,{width:0.15}), null, 6);          // hunched, sway from foot to foot
+    [B_LARM,B_RARM].forEach((Ar,i)=>{ armF(Ar,(0.22+0.05*Math.sin(TAU*u+i*2))*A); armO(Ar,0.10*A); elb(Ar,0.30*A); });   // long arms hang forward, swinging a little
+    sw(B_NECK,AX.x,-0.30*A); sw(B_HEAD,AX.x,(-0.10+0.10*sn)*A); sw(B_HEAD,AX.y,0.30*Math.sin(TAU*u*0.5+0.4)*A); }},   // head up out of the hunch, sniffing the air
+  {id:'trolllumber', name:'Troll Lumber', cat:'Troll', type:'move', dur:1.3, build:(t,P)=>{ const A=P.amp;
+    gaitNorm(t,P,1.3,{hip:0.75,knee:1.0,ankle:0.7,crouch:0.30,lean:0.24,armSwing:30,elbow0:0.35,elbowAmp:0.15,armOut:0.18,shDrive:0.30,pelvisRot:8,pelvisList:5,headBob:1.3});
+    sw('Spine02',AX.x,0.12*A); sw(B_NECK,AX.x,-0.28*A); }},                                       // hunched lumber, big loose arm swing, head up
+  {id:'trollswipe', name:'Troll Claw Swipe', cat:'Troll', type:'stay', dur:1.1, build:(t,P)=>{ const A=P.amp, u=(((t/1.1)*P.speed)%1+1)%1, wind=ramp(u,0,0.35), cut=ramp(u,0.35,0.55), rec=ramp(u,0.70,1.0);
+    // the right claw winds up high and back, rakes down and across the body, then comes back to guard; the body leans into it
+    fightStance(A,{knee:0.55, lead:0.14, rear:-0.20, turn:(0.35*wind-0.60*cut)*(1-rec), lean:0.18+0.22*cut*(1-rec), rearHeel:-0.2*cut*(1-rec)});
+    animRoot.updateMatrixWorld(true); const S=boneByName[B_RARM.arm].getWorldPosition(new THREE.Vector3());
+    const guardP=S.clone().add(V(0.05,-0.30,0.30)), cock=S.clone().add(V(-0.20,0.30,-0.05)), rake=S.clone().add(V(0.45,-0.45,0.35));
+    reachIK(B_RARM, orbitAt([[0,guardP],[0.35,cock],[0.55,rake],[0.70,rake],[1,guardP]], u, {arms:[B_RARM]}), V(-0.6,-0.4,-0.3));
+    const L=boneByName[B_LARM.arm].getWorldPosition(new THREE.Vector3()); reachIK(B_LARM, L.add(V(0.05,-0.30,0.28)), V(0.6,-0.8,0));
+    twist((-0.25*wind+0.45*cut)*(1-rec)*A); sw(B_HEAD,AX.x,-0.15*A); }},
 ];
 
 // The biped template is stored in centimetres (Hips y≈93); normalize to metres so the proxy + our metre-scale
@@ -7051,6 +7369,10 @@ const R_=(r,l,o)=>Object.assign({R:r,L:l||'relax'},o||{}), B_=(p,o)=>Object.assi
 const STRIKE=(g,h)=>({auto:'strike',guard:g||'guard',hit:h||'fist'}), SWING=(g,h)=>({auto:'swing',grip:g||'power',tight:h||'powertight'});
 const THROW=(g,r,a)=>({auto:'throw',grip:g,release:r||'release',after:a||'relax'}), CONTACT=(o,c)=>({auto:'contact',open:o,close:c});
 const HAND_SPECS={
+  // Goblin (Fantasy pack): open palms rubbing together; curled claws on the run; a fist on the dagger
+  gobidle:B_('relax'), gobcackle:B_('relax'), gobscurry:B_('loosefist'), gobstab:R_('power','relax'),
+  giantidle:B_('relax'), giantwalk:B_('loosefist'), giantpound:B_('fist'), giantroar:B_('fist'),
+  trollidle:B_('relax'), trolllumber:B_('relax'), trollswipe:R_('open','relax'),
   // Walking — relaxed cascade, arm-swing inertia does the rest
   stroll:B_('relax'), stride:B_('relax'), brisk:B_('brisk'), creep:B_('sneak'), backpedal:B_('relax'), trudge:B_('relax',{loose:1.1}), strut:B_('relax'),
   limp:B_('relax'), shuffleL:B_('relax'), shuffleR:B_('relax'),
@@ -7492,6 +7814,11 @@ function bakeClip(m, D, params){
   // the ground and a horse's long neck short of it.
   let noseRest=null; if(m.nose && boneByName['headend']) noseRest=1;   // the fraction comes from the builder's INTENT (QHD_FRAC), not the template's reach
   const lieF=[];
+  // TWO-HAND CONTACT channel: per frame, where the LEFT hand sits in the RIGHT hand's frame (m) and how far apart they are.
+  // Joint angles only keep a grip/clap together on THIS template's build — the Stitcher uses this to re-solve each
+  // character's left arm so the hands stay together on wider shoulders / other arm lengths (see bakeHandContact there).
+  const handOn=(rigKey==='biped'||rigKey==='bipedhand') && boneByName['LeftHand'] && boneByName['RightHand'] && boneByName['LeftForeArm'];
+  const hRel=[], hDist=[]; let hFore=0; const _hL=new THREE.Vector3(), _hR=new THREE.Vector3(), _hQ=new THREE.Quaternion();
   const FL=footLockPlan(m, D, params, times);
   const BAL=ballisticPlan(m);
   for(let i=0;i<n;i++){ setRootY(0); animRoot.position.set(0,0,0); m.build(times[i], params); armClearance(); animRoot.updateMatrixWorld(false);
@@ -7499,6 +7826,9 @@ function bakeClip(m, D, params){
     if(BAL){ animRoot.updateMatrixWorld(true); BAL.sample(); }
     if(noseRest) noseF.push(+QHD_FRAC.toFixed(4));
     if(m.lie) lieF.push(+QLIE_FRAC.toFixed(4));
+    if(handOn){ animRoot.updateMatrixWorld(true); boneByName['LeftHand'].getWorldPosition(_hL); boneByName['RightHand'].getWorldPosition(_hR); boneByName['RightHand'].getWorldQuaternion(_hQ);
+      if(!hFore) hFore=boneByName['LeftForeArm'].getWorldPosition(new THREE.Vector3()).distanceTo(_hL);
+      const d=_hL.sub(_hR); hDist.push(+d.length().toFixed(4)); d.applyQuaternion(_hQ.invert()); hRel.push(+d.x.toFixed(4), +d.y.toFixed(4), +d.z.toFixed(4)); }
     for(const bn of boneList){ const b=boneByName[bn]; q[bn].push(b.quaternion.x,b.quaternion.y,b.quaternion.z,b.quaternion.w); sc[bn].push(b.scale.x,b.scale.y,b.scale.z); }
     root.push(animRoot.position.x, animRoot.position.y, animRoot.position.z);
   }
@@ -7529,6 +7859,7 @@ function bakeClip(m, D, params){
   const out={ name:'RigAnimator|'+m.name, duration:D, tracks, uuid:crypto.randomUUID(), blendMode:2500 };
   if(noseRest && noseF.length===n) out.nose={ times:times.slice(), frac:noseF };
   if(m.lie && lieF.length===n) out.lie={ times:times.slice(), frac:lieF };
+  if(handOn && hDist.length===n && Math.min(...hDist)<0.15) out.hands={ times:times.slice(), rel:hRel, dist:hDist, fore:+hFore.toFixed(4) };   // only motions where the hands meet
   if(physFlights && physFlights.length) out.physics={ ballistic:physFlights };
   if(FL && FL.moved) (out.physics=out.physics||{}).footLock=FL.moved;               // frames where a planted foot was held / stepped   // what the gravity layer did (for audits)   // lying intent: the Stitcher rests the belly/flank on the floor when this is 1
   return out;
@@ -7611,6 +7942,17 @@ window.__ra = {
     if(!rest||!pose) return {bone, err:'no bone'};
     return { bone, rest, pose, dX:+(pose.x-rest.x).toFixed(3), dY:+(pose.y-rest.y).toFixed(3), dZ:+(pose.z-rest.z).toFixed(3) }; },
   bones(k){ setRig(k); return Object.keys(boneByName); },
+  // physics probe: pose rig k at t with the probes armed; returns bone positions + reach misses + grip spread
+  phys(k, id, t, names){ if(rigKey!==k) setRig(k); const m=RIGS[k].motions.find(x=>x.id===id); if(!m) return null; window.__phys={reach:{},grip:0};
+    resetPose(); setRootY(0); animRoot.position.set(0,0,0); m.build(t,{speed:1,amp:1}); animRoot.updateMatrixWorld(true);
+    const P={}; for(const n of names){ const b=boneByName[n]; if(b){ const v=b.getWorldPosition(new THREE.Vector3()); P[n]=[v.x,v.y,v.z]; } }
+    const miss={}; for(const [h,tg] of Object.entries(window.__phys.reach)){ miss[h]=boneByName[h].getWorldPosition(new THREE.Vector3()).distanceTo(tg); }
+    const out={P, miss, grip:window.__phys.grip}; window.__phys=null; return out; },
+  // render probe: pose rig k at motion time t, park the camera (yaw/pitch/dist around a target height), stop playback; returns bone world positions
+  snap(k, id, t, c){ c=c||{}; if(rigKey!==k) setRig(k); const m=RIGS[k].motions.find(x=>x.id===id); if(!m) return null; motion=m; playing=false; tNow=t;
+    if(c.bg!=null) scene.background=new THREE.Color(c.bg); cam.yaw=(c.yaw||0)*Math.PI/180; cam.pitch=(c.pitch??8)*Math.PI/180; cam.dist=c.dist||2.6; cam.target.set(c.tx||0, c.ty??0.9, c.tz||0); applyCam();
+    setRootY(0); m.build(t,{speed:1,amp:1}); animRoot.updateMatrixWorld(true); renderer.render(scene,camera);
+    const out={}; for(const n of (c.bones||[])){ const bb=boneByName[n]; if(bb){ const v=bb.getWorldPosition(new THREE.Vector3()); out[n]=[+v.x.toFixed(3),+v.y.toFixed(3),+v.z.toFixed(3)]; } } return out; },
   // travel probe: net root displacement of a motion over its duration (world units), to verify direction fixes
   travelOf(k,motionId){ setRig(k); const m=RIGS[k].motions.find(x=>x.id===motionId); if(!m) return null;
     const s=(t)=>{ setRootY(0); animRoot.position.set(0,0,0); m.build(t,{speed:1,amp:1}); animRoot.updateMatrixWorld(false); return {x:animRoot.position.x,y:animRoot.position.y,z:animRoot.position.z}; };

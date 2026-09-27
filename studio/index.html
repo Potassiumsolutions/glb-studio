@@ -26,6 +26,8 @@
   .flow b{color:#9fb4d4}
   main{flex:1;position:relative;min-height:0}
   iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:var(--bg)}
+  iframe.toolframe{display:none}
+  iframe.toolframe.on{display:block}
   /* library drawer */
   #drawer{position:absolute;top:0;right:0;height:100%;width:min(380px,86vw);background:var(--bar);border-left:1px solid var(--line);box-shadow:-16px 0 40px rgba(0,0,0,.4);transform:translateX(100%);transition:transform .18s ease;z-index:20;display:flex;flex-direction:column}
   #drawer.open{transform:none}
@@ -51,6 +53,10 @@
   #about.open,#upgrades.open{display:flex}
   .updrop{border:1.5px dashed var(--line);border-radius:12px;padding:20px;text-align:center;color:var(--muted);font-size:13px;cursor:pointer;background:#12161d;transition:border-color .15s;display:block}
   .updrop:hover,.updrop.hot{border-color:var(--accent)}
+  .modtoggle{display:flex;align-items:center;gap:8px;margin-top:16px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:#151b25;cursor:pointer;user-select:none;font-weight:700;font-size:13px}
+  .modtoggle:hover{border-color:#33405a}
+  .modtoggle .mt-sub{flex:1;color:var(--muted);font-weight:500;font-size:12px}
+  .modtoggle .mt-act{color:var(--accent);font-size:12px}
   .modcard{display:flex;align-items:center;gap:12px;border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-top:12px;background:#12161d}
   .modcard .mic{font-size:26px;width:40px;text-align:center}
   .modcard .mmeta{flex:1;min-width:0}
@@ -102,10 +108,10 @@
       <span class="dot">◆</span> Library:&nbsp;<b id="cModels">0</b>&nbsp;models&nbsp;·&nbsp;<b id="cMotions">0</b>&nbsp;motions
     </div>
     <div class="lib" id="upgradesBtn" title="Unlock expansion packs" style="gap:6px">✨&nbsp;Upgrades</div>
+    <div class="lib" id="restartBtn" title="Restart this tab: clears what you're working on in it and frees its memory" style="gap:6px">⟳&nbsp;Restart&nbsp;tab</div>
     <div class="lib" id="aboutBtn" title="How KSOL Designs GLB Studio works" style="gap:6px">❔&nbsp;About</div>
   </header>
   <main>
-    <iframe id="frame" title="tool"></iframe>
     <aside id="drawer">
       <div class="dhead"><b>◆ Studio Library</b><span class="x" id="drawerX">✕</span></div>
       <div class="dbody">
@@ -214,6 +220,7 @@
         <p class="lead">The <b>🎲 Tabletop</b> tab comes free with square boards, three classic games and the map builder. Expansion packs add hex boards, more terrain, battle-scale maps and race games; the <b>🪄 AI Generate</b> add-on unlocks the Generate tab — download the <span class="pill2">.studiokey</span> from <a href="https://www.patreon.com/KsolDesigns" target="_blank" rel="noopener">Patreon</a>, import it here, and it unlocks on this device.</p>
         <label class="updrop" id="keyDrop">Import an upgrade <b>.studiokey</b><br><span class="tag" style="margin:0">drop it here or click to choose</span>
           <input type="file" id="keyInput" accept=".studiokey,.json,application/json" hidden></label>
+        <div class="modtoggle" id="modToggle" title="Show or hide the list of add-ons and packs"><span id="modArrow">▾</span> Add-ons &amp; packs <span class="mt-sub" id="modSum"></span><span class="mt-act" id="modAct">Hide list</span></div>
         <div id="modList"></div>
         <div class="callout" style="margin-top:16px">Get keys at <a href="https://www.patreon.com/KsolDesigns" target="_blank" rel="noopener">patreon.com/KsolDesigns</a>. Unlocks are stored in this browser; re-import a key anytime.</div>
       </div>
@@ -229,16 +236,30 @@
     tabletop: '../tabletop/index.html',
     generate: '../ai-generate/index.html',
   };
-  const frame = document.getElementById('frame');
+  // KEEP-ALIVE: one iframe per tool, created the first time its tab is opened and then only hidden/shown, so
+  // whatever you were working on in a tab is still there when you come back. Hidden (display:none) tools don't
+  // render, so they cost memory but not CPU; ⟳ Restart tab reloads just the current one.
+  const frames = {};
+  let frame = null, curTool = null;
+  // Cache-bust the tool document: Pages serves it with max-age=600, and an iframe navigation happily takes the
+  // cached copy, so a freshly deployed tool could sit unseen for ten minutes (longer when retried inside that window).
+  const toolURL = tool => TOOLS[tool] + '?b=' + Math.floor(Date.now()/60000);
   const tabs = [...document.querySelectorAll('.tab')];
   function show(tool){
     if(!TOOLS[tool]) tool='stitch';
     tabs.forEach(t=>t.classList.toggle('on', t.dataset.tool===tool));
-    // Cache-bust the tool document: Pages serves it with max-age=600, and an iframe navigation happily takes the
-    // cached copy, so a freshly deployed tool could sit unseen for ten minutes (longer when retried inside that window).
-    frame.src = TOOLS[tool] + '?b=' + Math.floor(Date.now()/60000);
-    location.hash = tool;
+    let f = frames[tool], wasOpen = !!f;
+    if(!f){ f=document.createElement('iframe'); f.className='toolframe'; f.title=tool; f.src=toolURL(tool);
+      document.querySelector('main').insertBefore(f, document.getElementById('drawer')); frames[tool]=f; }
+    for(const k in frames){ const on = k===tool; frames[k].classList.toggle('on', on); if(on) frames[k].id='frame'; else if(frames[k].id==='frame') frames[k].removeAttribute('id'); }
+    frame = f; curTool = tool; location.hash = tool;
+    // an already-open tool re-checks for a hand-off (Generate → Rig this / Use in Tabletop) when it's shown again
+    if(wasOpen){ try{ f.contentWindow.dispatchEvent(new f.contentWindow.Event('ksol-shown')); }catch(e){} }
   }
+  function restartTool(tool){ const f=frames[tool]; if(f){ f.src = TOOLS[tool] + '?b=' + Date.now(); } }
+  document.getElementById('restartBtn').addEventListener('click', ()=>{
+    const name=(tabs.find(t=>t.dataset.tool===curTool)||{}).textContent||'this tab';
+    if(confirm('Restart '+name.replace(/\s+\d+\s*$/,'').trim()+'?\n\nAnything unsaved in this tab is cleared (your Studio Library is kept).')) restartTool(curTool); });
   tabs.forEach(t=>t.addEventListener('click', ()=>show(t.dataset.tool)));
   show((location.hash||'#stitch').slice(1));
 
@@ -283,20 +304,28 @@
   };
   const ttExp = ()=>{ try{ return new Set(JSON.parse(localStorage.getItem('studio.tabletop.exp')||'[]').filter(id=>EXPANSIONS[id])); }catch(e){ return new Set(); } };
   const ttSave = s => localStorage.setItem('studio.tabletop.exp', JSON.stringify([...s]));
-  const reloadTabletop = ()=>{ if(['tabletop','generate'].includes(location.hash.slice(1))){ try{ frame.contentWindow.location.reload(); }catch(e){ show('tabletop'); } } };
+  const reloadTabletop = (id)=>{ const tool=(EXPANSIONS[id]&&EXPANSIONS[id].tab)||'tabletop'; if(frames[tool]) restartTool(tool); };   // re-open the tool the key unlocks (only if it's already open)
   const upgrades = document.getElementById('upgrades');
   document.getElementById('upgradesBtn').addEventListener('click', ()=>{ renderExpList(); upgrades.classList.add('open'); });
   document.getElementById('upgradesX').addEventListener('click', ()=>upgrades.classList.remove('open'));
   upgrades.addEventListener('click', e=>{ if(e.target===upgrades) upgrades.classList.remove('open'); });
+  // the list can be folded away (remembered on this device); the key drop box above always stays visible
+  const modOpen=()=>{ try{ return localStorage.getItem('studio.upgradesList')!=='closed'; }catch(e){ return true; } };
+  function paintModToggle(){ const open=modOpen(), n=Object.keys(EXPANSIONS).length, have=ttExp().size;
+    document.getElementById('modList').style.display = open ? '' : 'none';
+    document.getElementById('modArrow').textContent = open ? '▾' : '▸';
+    document.getElementById('modAct').textContent = open ? 'Hide list' : 'Show list';
+    document.getElementById('modSum').textContent = n+' available · '+have+' unlocked'; }
+  document.getElementById('modToggle').addEventListener('click', ()=>{ try{ localStorage.setItem('studio.upgradesList', modOpen()?'closed':'open'); }catch(e){} paintModToggle(); });
   function renderExpList(){
-    const box=document.getElementById('modList'); box.innerHTML=''; const on=ttExp();
+    const box=document.getElementById('modList'); box.innerHTML=''; const on=ttExp(); paintModToggle();
     for(const id in EXPANSIONS){ const X=EXPANSIONS[id], have=on.has(id);
       const card=document.createElement('div'); card.className='modcard';
       card.innerHTML=`<div class="mic">${X.icon}</div>
         <div class="mmeta"><div class="mnm">${X.name}</div><div class="msub">${X.blurb}</div></div>
         <span class="modbadge ${have?'on':'off'}">${have?'Unlocked':'Locked'}</span>`;
       if(have){ const rm=document.createElement('span'); rm.className='x'; rm.textContent='Remove'; rm.style.marginLeft='10px'; rm.style.cursor='pointer';
-        rm.onclick=()=>{ if(confirm('Lock '+X.name+' again? (re-import the key to unlock it)')){ const s=ttExp(); s.delete(id); ttSave(s); renderExpList(); reloadTabletop(); } };
+        rm.onclick=()=>{ if(confirm('Lock '+X.name+' again? (re-import the key to unlock it)')){ const s=ttExp(); s.delete(id); ttSave(s); renderExpList(); reloadTabletop(id); } };
         card.appendChild(rm); }
       box.appendChild(card);
     }
@@ -307,7 +336,7 @@
     if(!K || (K.format!=='ksol-studio-expansion' && K.format!=='ksol-studio-module') || !EXPANSIONS[id]){ alert('“'+name+'” isn’t a GLB Studio expansion key.'); return; }
     const X=EXPANSIONS[id], s=ttExp();
     if(s.has(id)){ alert(X.name+' is already unlocked.'); return; }
-    s.add(id); ttSave(s); renderExpList(); reloadTabletop();
+    s.add(id); ttSave(s); renderExpList(); reloadTabletop(id);
     alert('✅ Unlocked '+X.icon+' '+X.name+(X.tab==='generate'?' — open the 🪄 Generate tab to use it.':' — open the 🎲 Tabletop tab to use it.'));
   }
   (function wireKeyImport(){

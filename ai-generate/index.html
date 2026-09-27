@@ -27,6 +27,7 @@
   .seg .opt{flex:1;border:1px solid var(--line);background:#151b25;border-radius:9px;padding:8px;cursor:pointer;text-align:left}
   .seg .opt .t{font-weight:700}
   .seg .opt .s{font-size:11.5px;color:var(--muted);margin-top:2px}
+  #tierSeg{flex-direction:column}   /* three quality tiers: one per row, so each has room for its when-to-use guidance */
   .seg .opt.on{border-color:var(--accent);background:linear-gradient(135deg,rgba(91,140,255,.18),rgba(55,208,160,.12))}
   .row{display:flex;align-items:center;gap:8px;margin-top:8px}
   .row label{color:var(--muted);font-size:12px;min-width:92px}
@@ -67,6 +68,9 @@
   #tips ul{margin:4px 0 6px;padding-left:18px;color:#c3ccd9;font-size:12px}
   #actions{position:absolute;left:12px;top:12px;display:none;gap:6px;flex-wrap:wrap;max-width:calc(100% - 24px)}
   #info{position:absolute;right:12px;bottom:12px;font-size:12px;color:var(--muted);background:rgba(17,21,29,.85);border:1px solid var(--line);border-radius:8px;padding:6px 10px;display:none;max-width:320px}
+  #bright{display:inline-flex;align-items:center;gap:6px;background:rgba(17,21,29,.85);border:1px solid var(--line);border-radius:8px;padding:2px 8px;font-size:12px;color:var(--muted)}
+  #bright input[type=range]{width:110px} #brV{min-width:34px;color:var(--text)} #bright .btn,#brLbl{white-space:nowrap}
+  @media (max-width:520px){ #bright{flex-wrap:wrap;row-gap:4px} #bright input[type=range]{width:76px} #brLbl{display:none} }
   #info .warn{color:var(--warn);margin-top:4px}
   #empty{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);text-align:center;pointer-events:none;padding:20px}
   #empty .big{font-size:42px}
@@ -140,14 +144,18 @@
     <h2><span class="num">3</span> Quality</h2>
     <div class="hint" style="margin:-2px 0 8px">💲 Prices are what <b>fal.ai</b> charges <b>your own fal.ai account</b> to run the TRELLIS 3D AI, per model you make. Nothing else in GLB Studio has a per-use cost.</div>
     <div class="seg" id="tierSeg">
-      <div class="opt on" data-v="draft"><div class="t">⚡ Draft <span class="rec">best for game pieces</span></div><div class="s"><b class="pr" id="prDraft">$0.02</b> · good shape, softer paint · ~30 s–2 min</div></div>
-      <div class="opt" data-v="hero"><div class="t">💎 Hero <span class="rec" style="background:#2a2440;color:#cbb8ff">close-ups</span></div><div class="s"><b class="pr" id="prHero">$0.25–0.35</b> · sharp detail &amp; textures · ~1–3 min</div></div>
+      <div class="opt" data-v="draft"><div class="t">⚡ Draft <span class="rec">quick check</span></div><div class="s"><b class="pr" id="prDraft">$0.02</b> · fastest; softer paint — try a picture out first · ~30 s–2 min</div></div>
+      <div class="opt on" data-v="standard"><div class="t">⚖ Standard <span class="rec" style="background:#1f3a2e;color:#9be3bf">big / bulky characters · game pieces</span></div><div class="s"><b class="pr" id="prStd">$0.02</b> · clean paint all over (never bare spots), more detail than Draft · ~1–3 min</div></div>
+      <div class="opt" data-v="hero"><div class="t">💎 Hero <span class="rec" style="background:#2a2440;color:#cbb8ff">slim characters · close-ups</span></div><div class="s"><b class="pr" id="prHero">$0.25–0.35</b> · sharpest detail &amp; textures. Bulky, heavily folded bodies can come back with unpainted patches (filled automatically, but they can look smeared) — use Standard for those · ~1–3 min</div></div>
     </div>
+    <div id="heroWarn" class="hint" style="display:none;margin:8px 0 2px;padding:8px 10px;border:1px solid #6b5520;background:#2a2312;border-radius:8px;color:#f3d892">⚠ <b>Hero on large or bulky models</b> (giants, big bellies, arms close to the body): the AI can leave <b>holes</b> — patches it couldn't paint. GLB Studio <b>fills them automatically</b> from the surrounding colours, but big ones can look smeared. <b>⚖ Standard never leaves holes</b> and costs about 2¢.</div>
     <div class="row" id="resRow" style="display:none"><label>Detail</label>
       <select id="res"><option value="512">Standard</option><option value="1024" selected>High</option><option value="1536">Ultra</option></select></div>
     <div class="row"><label>Texture</label><select id="tex"></select></div>
     <div class="row"><label>Save size</label>
       <select id="size"><option value="game" selected>Game-ready (small, fast)</option><option value="detail">High detail (bigger file)</option><option value="raw">Original (no shrinking)</option></select></div>
+    <div class="row"><label>Colours</label>
+      <select id="brMode"><option value="auto" selected>Match my picture (lighten if dark)</option><option value="off">As the AI made them</option></select></div>
     <div class="row"><label>Name</label><input type="text" id="name" placeholder="AI model"></div>
 
     <h2><span class="num">4</span> Generate</h2>
@@ -170,13 +178,16 @@
 
   <section id="stage">
     <div id="view">
-      <div id="empty"><div><div class="big">🪄</div><div style="font-size:15px;color:#cdd7e6;margin:6px 0">Turn a picture into a textured 3D model</div><div>Pick a picture on the left, choose Draft or Hero, and press Generate.<br>Your models are saved to the ◆ Studio Library.</div></div></div>
+      <div id="empty"><div><div class="big">🪄</div><div style="font-size:15px;color:#cdd7e6;margin:6px 0">Turn a picture into a textured 3D model</div><div>Pick a picture on the left, choose a quality, and press Generate.<br>Your models are saved to the ◆ Studio Library.</div></div></div>
       <div id="actions">
         <button class="btn sm" id="aDl">⬇ Download .glb</button>
         <button class="btn sm" id="aRig">🧍 Rig this</button>
         <button class="btn sm" id="aTt">🎲 Use in Tabletop</button>
         <button class="btn sm" id="aRen">✎ Rename</button>
         <button class="btn sm bad" id="aDel">🗑 Delete</button>
+        <span id="bright" title="Make the model's colours lighter or darker. Drag to preview, then Save.">☀<span id="brLbl"> Brightness</span> <input type="range" id="brR" min="-40" max="100" step="5" value="0"> <b id="brV">0%</b>
+          <button class="btn sm" id="brAuto" title="Match the brightness of the picture it was made from">✨ Match picture</button>
+          <button class="btn sm pri" id="brSave" style="display:none">💾 Save</button><button class="btn sm" id="brUndo" style="display:none" title="Back to the saved look">↺</button></span>
       </div>
       <div id="info"></div>
       <img id="srcThumb" alt="">
@@ -189,7 +200,7 @@
 <div class="modal" id="keyModal"><div class="sheet">
   <div class="hd"><b>⚙ Connect fal.ai: 3 quick steps</b><span class="x" data-close>✕</span></div>
   <div class="bd">
-    <div>The 3D models are made by <b>TRELLIS</b> (an image-to-3D AI) running on <b>fal.ai</b>, using <b>your own fal.ai account</b>. fal.ai bills you directly per model: about <b>2¢</b> per Draft, 25–35¢ per Hero. <b>No subscription, no monthly fee</b>: you pay only for what you make, and nothing is charged unless you press Generate. Setup takes about 2 minutes, one time only.</div>
+    <div>The 3D models are made by <b>TRELLIS</b> (an image-to-3D AI) running on <b>fal.ai</b>, using <b>your own fal.ai account</b>. fal.ai bills you directly per model: about <b>2¢</b> per Draft or Standard, 25–35¢ per Hero. <b>No subscription, no monthly fee</b>: you pay only for what you make, and nothing is charged unless you press Generate. Setup takes about 2 minutes, one time only.</div>
     <div class="step"><span class="sn">1</span><div class="sb"><b>Make a free fal.ai account</b><div class="hint">Sign up with Google or email. No card is needed to sign up.</div></div>
       <a class="btn sm" href="https://fal.ai/login" target="_blank" rel="noopener">Open fal.ai ↗</a></div>
     <div class="step"><span class="sn">2</span><div class="sb"><b>Add a little credit</b><div class="hint">On the <b>Billing</b> page, add a card and top up. <b>$5</b> makes about 250 Draft models.</div></div>
@@ -212,7 +223,13 @@
     <ol>
       <li><b>Picture:</b> drop, paste (Ctrl+V) or choose a picture, then drag a box around the part you want. One object, plain background, whole thing in frame.</li>
       <li><b>What is it?</b> 🏺 <b>Prop</b> for buildings, trees, vehicles, statues. 🧍 <b>Character</b> if you'll rig and animate it: use a <b>front view in a T-pose</b> (arms out). <b>📋 Copy a picture prompt</b> gives you a ready-made prompt for Gemini or any picture AI.</li>
-      <li><b>Quality:</b> ⚡ <b>Draft</b> is fine for game pieces seen on a map. 💎 <b>Hero</b> is sharper, for close-ups, films and showpieces.</li>
+      <li><b>Quality — which to pick:</b>
+        <ul style="margin:4px 0 0 18px;padding:0">
+          <li>⚖ <b>Standard</b> (2¢, the default) — <b>big or bulky characters and game pieces</b>. Always painted all over.</li>
+          <li>💎 <b>Hero</b> (25–35¢) — <b>slim characters and close-ups</b>, films and showpieces: the sharpest detail. On bulky, heavily folded bodies (a giant's belly and armpits) the AI can leave patches unpainted; they're filled from the surrounding colours automatically, but big ones can look smeared, so use Standard for those.</li>
+          <li>⚡ <b>Draft</b> (2¢) — a <b>quick check</b> that a picture works before spending more.</li>
+        </ul></li>
+      <li><b>☀ Colours:</b> the AI tends to paint models <b>darker</b> than your picture. With <b>Colours: Match my picture</b> (the default) GLB Studio lightens them to match automatically — free, on your device. Any model can be fine-tuned with the <b>☀ Brightness</b> slider above the viewer (<b>✨ Match picture</b> suggests a setting), then <b>💾 Save</b>.</li>
       <li><b>Generate.</b> The first model of a session can wait about a minute while fal.ai starts up; after that a Draft takes about 30 seconds.</li>
       <li>The model is shrunk to game size and saved to your <b>◆ Studio Library</b>. Then use <b>🧍 Rig this</b> (characters), <b>🎲 Use in Tabletop</b>, or <b>⬇ Download .glb</b>.</li>
     </ol>
@@ -245,7 +262,7 @@
     <div class="payg" style="margin-bottom:12px">💲 <b>Pay only for what you make</b><span>No subscription · no monthly fee · Draft models about 2¢ each</span></div>
     <div style="font-size:14.5px;color:#d7e0ee">Turn any picture into a <b>textured 3D model</b> right inside GLB Studio — then rig it, animate it, film it, or drop it on your Tabletop maps.</div>
     <ul>
-      <li><b>⚡ Draft</b> models for about <b>2 cents</b> each, <b>💎 Hero</b> models with sharp textures for about 30 cents</li>
+      <li><b>⚖ Standard</b> and <b>⚡ Draft</b> models for about <b>2 cents</b> each, <b>💎 Hero</b> models with the sharpest textures for about 30 cents</li>
       <li><b>Two separate costs:</b> the add-on is a one-time purchase that unlocks this tab. Each model you make is billed by <b>fal.ai</b> to your own fal.ai account (the TRELLIS 3D AI runs there). No subscription; you pay only for what you make.</li>
       <li>Crop the picture, pick Prop or Character, and the model lands in your Studio Library</li>
       <li>Auto-shrinks models so they stay fast in games · 🧍 <b>Rig this</b> and 🎲 <b>Use in Tabletop</b> in one click</li>
@@ -311,7 +328,7 @@ async function testKey(k){
 // TRELLIS.2 is billed in units: 512 → 5, 1024 → 6, 1536 → 7 units.
 const LIVE = { trellis:0.02, trellis2:0.05, live:false };
 const HERO_UNITS = {512:5, 1024:6, 1536:7};
-const PRICE = { draft:()=>LIVE.trellis, hero:()=>+(LIVE.trellis2*HERO_UNITS[+$('#res').value]).toFixed(4) };
+const PRICE = { draft:()=>LIVE.trellis, standard:()=>LIVE.trellis, hero:()=>+(LIVE.trellis2*HERO_UNITS[+$('#res').value]).toFixed(4) };
 const usd = v => v==null ? '—' : '$'+(v>0 && v<0.1 ? v.toFixed(3).replace(/0$/,'') : v.toFixed(2));
 async function loadPrices(){ const k=getKey();
   if(k && !MOCK){ try{ const r=await fetch('https://api.fal.ai/v1/models/pricing?endpoint_id=fal-ai/trellis&endpoint_id=fal-ai/trellis-2',{headers:{Authorization:'Key '+k}});
@@ -320,19 +337,19 @@ async function loadPrices(){ const k=getKey();
       LIVE.live=true; } }catch(e){} }
   paintPrices(); }
 function paintPrices(){
-  $('#prDraft').textContent = usd(LIVE.trellis);
+  $('#prDraft').textContent = usd(LIVE.trellis); if($('#prStd')) $('#prStd').textContent = usd(LIVE.trellis);
   const hs=Object.values(HERO_UNITS).map(u=>LIVE.trellis2*u); $('#prHero').textContent = usd(Math.min(...hs))+'–'+usd(Math.max(...hs)).slice(1);
   const names={512:'Standard',1024:'High',1536:'Ultra'};
   [...$('#res').options].forEach(o=>o.textContent=names[o.value]+' — '+usd(LIVE.trellis2*HERO_UNITS[o.value]));
   $('#priceSrc').textContent = LIVE.live ? '✔ live fal.ai prices' : 'list prices';
   updateGo(); }
-let kind='prop', tier='draft';
+let kind='prop', tier='standard';   // Standard: same price as Draft, fully painted, more detail — the sensible default
 function seg(id, cb){ const el=$(id); el.querySelectorAll('.opt').forEach(o=>o.onclick=()=>{ el.querySelectorAll('.opt').forEach(x=>x.classList.toggle('on',x===o)); cb(o.dataset.v); }); }
 seg('#kindSeg', v=>{ kind=v; $('#tips').style.display = v==='char'?'block':'none'; });
-seg('#tierSeg', v=>{ tier=v; fillTex(); $('#resRow').style.display = v==='hero'?'flex':'none'; updateGo(); });
+seg('#tierSeg', v=>{ tier=v; fillTex(); $('#resRow').style.display = v==='hero'?'flex':'none'; $('#heroWarn').style.display = v==='hero'?'block':'none'; updateGo(); });   // Hero: warn about holes on big models
 $('#res').onchange=updateGo;
 function fillTex(){ const opts = tier==='hero' ? [['1024','1024'],['2048','2048 (default)'],['4096','4096 (largest)']] : [['512','512'],['1024','1024 (default)'],['2048','2048 (sharpest)']];
-  const def = tier==='hero' ? '2048' : '1024';
+  const def = (tier==='hero'||tier==='standard') ? '2048' : '1024';   // Standard = the Draft model at its sharpest settings
   $('#tex').innerHTML = opts.map(([v,t])=>`<option value="${v}" ${v===def?'selected':''}>${t}</option>`).join(''); }
 fillTex();
 // remember each person's last choices (kind, quality, detail, texture, save size) on this device
@@ -369,7 +386,7 @@ const histModal=$('#histModal');
 histModal.addEventListener('click', e=>{ if(e.target===histModal || e.target.hasAttribute('data-close')) histModal.classList.remove('open'); });
 $('#histBtn').onclick=()=>{ const L=costLog().slice().reverse();
   $('#histBody').innerHTML = L.length ? '<table class="hist"><tr><th>When</th><th>Model</th><th>Quality</th><th class="n">Cost</th></tr>'+
-    L.map(e=>`<tr class="${e.ok?'':'x'}"><td>${new Date(e.t).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}</td><td>${esc(e.name)}</td><td>${e.tier==='hero'?'💎 Hero'+(e.res?' '+e.res:''):e.tier==='draft'?'⚡ Draft':esc(e.tier)}</td><td class="n">${e.ok?usd(e.usd):(e.why||'not made')+' · $0'}</td></tr>`).join('')+'</table>'
+    L.map(e=>`<tr class="${e.ok?'':'x'}"><td>${new Date(e.t).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}</td><td>${esc(e.name)}</td><td>${e.tier==='hero'?'💎 Hero'+(e.res?' '+e.res:''):e.tier==='draft'?'⚡ Draft':e.tier==='standard'?'⚖ Standard':esc(e.tier)}</td><td class="n">${e.ok?usd(e.usd):(e.why||'not made')+' · $0'}</td></tr>`).join('')+'</table>'
     : '<div class="hint">Nothing generated on this device yet.</div>';
   histModal.classList.add('open'); };
 $('#histClear').onclick=()=>{ if(confirm('Clear the cost history on this device? (Your fal.ai billing page keeps its own record.)')){ localStorage.removeItem(LOG_LS); paintCosts(); $('#histBtn').click(); } };
@@ -462,12 +479,16 @@ async function generate(){
       const tex = +$('#tex').value;
       const input = tier==='hero'
         ? { image_url, resolution:+$('#res').value, texture_size:tex, decimation_target: $('#size').value==='raw'?500000:($('#size').value==='detail'?200000:100000) }
+        : tier==='standard'
+        // STANDARD: the same TRELLIS as Draft (a fully painted texture — no bare spots), run at its best settings: ~2× the refinement steps,
+        // less mesh reduction and the big texture. fal.ai charges TRELLIS per model, so it costs the same as Draft.
+        ? { image_url, texture_size:tex, mesh_simplify:0.90, ss_sampling_steps:25, slat_sampling_steps:25 }
         : { image_url, texture_size:tex, mesh_simplify:0.95 };
       setStatus('Sending the picture to fal.ai…','',10);
       const sub = await falJSON('https://queue.fal.run/'+app, { method:'POST', headers:{ Authorization:'Key '+key, 'Content-Type':'application/json' }, body:JSON.stringify(input) });
       cancelUrl = sub.cancel_url; submitted=true;
       const statusUrl = sub.status_url, respUrl = sub.response_url;
-      const est = tier==='hero' ? 90 : 35;
+      const est = tier==='hero' ? 90 : tier==='standard' ? 60 : 35;
       tick=setInterval(()=>{ const s=(performance.now()-t0)/1000; const pct=Math.min(88, 12+76*s/est);
         const txt=$('#stTxt'); if(txt && txt.dataset.phase) txt.innerHTML = txt.dataset.phase+` <span style="color:var(--muted)">${Math.round(s)} s</span>`; $('#stBar').style.width=pct+'%'; }, 500);
       const phase=t=>{ const el=$('#stTxt'); el.dataset.phase=t; el.innerHTML=t; };
@@ -490,18 +511,23 @@ async function generate(){
     }
     const rawSize = glbBytes.length;
     const size=$('#size').value;
+    const thumb = await makeThumbFromImage();
+    const target = $('#brMode').value==='auto' ? await pictureLuma(thumb) : null;   // how bright the subject looks in the picture
+    let bright=0;
     if(size!=='raw'){
       setStatus('Shrinking it for games…','',94);
-      try{ glbBytes = await optimizeModel(glbBytes, size==='game'?{tris:40000,tex:1024}:{tris:150000,tex:2048}); }
+      try{ const r = await optimizeModel(glbBytes, size==='game'?{tris:40000,tex:1024,target}:{tris:150000,tex:2048,target}); glbBytes=r.bytes; bright=r.bright; }
       catch(e){ console.warn('[aigen] optimize failed — keeping the original', e); }
+    } else if(target){
+      try{ const r = await brightenGlb(glbBytes, {target}); glbBytes=r.bytes; bright=r.bright; }
+      catch(e){ console.warn('[aigen] brighten failed — keeping the original', e); }
     }
     setStatus('Saving to your Studio Library…','',97);
-    const thumb = await makeThumbFromImage();
     const secs=Math.round((performance.now()-t0)/1000);
-    const meta={ ai:'trellis', tier, res: tier==='hero'?+$('#res').value:null, tex:+$('#tex').value, usd: MOCK?0:price, secs, made:Date.now() };
+    const meta={ ai:'trellis', tier, res: tier==='hero'?+$('#res').value:null, tex:+$('#tex').value, usd: MOCK?0:price, secs, made:Date.now(), bright };
     const id = await StudioLib.addModel({ name, skeleton: kind==='char'?'unrigged':'prop', glb:glbBytes, thumb, meta });
     await showModel(id);
-    setStatus(`✔ Done in ${secs} s · cost ${MOCK?'$0 (test)':usd(price)} · ${fmtMB(glbBytes.length)}${size!=='raw'&&rawSize>glbBytes.length?` (shrunk from ${fmtMB(rawSize)})`:''}`, '', 100);
+    setStatus(`✔ Done in ${secs} s · cost ${MOCK?'$0 (test)':usd(price)} · ${fmtMB(glbBytes.length)}${size!=='raw'&&rawSize>glbBytes.length?` (shrunk from ${fmtMB(rawSize)})`:''}${bright?` · lightened +${bright}% to match your picture`:''}`, '', 100);
   }catch(e){
     if(submitted && !charged && !MOCK) logCost({t:Date.now(), name, tier, res: tier==='hero'?+$('#res').value:null, usd:0, ok:false, why: e.name==='AbortError'?'cancelled':'failed'});
     if(e.name==='AbortError') setStatus('Cancelled.'+(cancelUrl?' (If fal.ai had already started, it may still bill for it.)':''), 'err');
@@ -512,6 +538,121 @@ async function generate(){
   }
 }
 const fmtMB = n => n>=1e6 ? (n/1e6).toFixed(1)+' MB' : Math.max(1,Math.round(n/1024))+' KB';
+// TEXTURE HOLE FILL (push-pull). TRELLIS leaves parts of its texture atlas unpainted — alpha 0 and usually black — and an opaque
+// material shows them as black blotches (a generated giant was covered in them). Standard fix = texture padding: average the painted
+// texels down a mip pyramid, then pull colour back up into every empty texel, so each hole takes the colour of what surrounds it.
+function fillHoles(px,w,h){ const lv=[]; let W=w,H=h;
+  let r=new Float32Array(W*H),g=new Float32Array(W*H),bl=new Float32Array(W*H),k=new Float32Array(W*H); let holes=0;
+  for(let i=0,j=0;i<W*H;i++,j+=4){ const on=px[j+3]>=24?1:0; if(!on) holes++; k[i]=on; r[i]=px[j]*on; g[i]=px[j+1]*on; bl[i]=px[j+2]*on; }
+  if(!holes) return 0; lv.push({W,H,r,g,b:bl,k});
+  while(W>1||H>1){ const w2=Math.max(1,W>>1), h2=Math.max(1,H>>1), R=new Float32Array(w2*h2),G=new Float32Array(w2*h2),B=new Float32Array(w2*h2),K=new Float32Array(w2*h2), p=lv[lv.length-1];
+    for(let y=0;y<h2;y++) for(let x=0;x<w2;x++){ const o=y*w2+x; for(let dy=0;dy<2;dy++) for(let dx=0;dx<2;dx++){ const sx=Math.min(W-1,x*2+dx), sy=Math.min(H-1,y*2+dy), q=sy*W+sx; R[o]+=p.r[q]; G[o]+=p.g[q]; B[o]+=p.b[q]; K[o]+=p.k[q]; } }
+    lv.push({W:w2,H:h2,r:R,g:G,b:B,k:K}); W=w2; H=h2; }
+  for(let l=lv.length-2;l>=0;l--){ const c=lv[l], p=lv[l+1];   // pull: an empty texel takes its parent's average colour
+    for(let y=0;y<c.H;y++) for(let x=0;x<c.W;x++){ const o=y*c.W+x; if(c.k[o]>0) continue; const q=Math.min(p.H-1,y>>1)*p.W+Math.min(p.W-1,x>>1), pk=p.k[q]||1;
+      c.r[o]=p.r[q]/pk; c.g[o]=p.g[q]/pk; c.b[o]=p.b[q]/pk; c.k[o]=1; } }
+  const L0=lv[0]; for(let i=0,j=0;i<w*h;i++,j+=4){ if(px[j+3]>=24) continue; const kk=L0.k[i]||1; px[j]=L0.r[i]/kk; px[j+1]=L0.g[i]/kk; px[j+2]=L0.b[i]/kk; }
+  return holes; }
+// Draw a bitmap into a 2D canvas as FULLY OPAQUE while keeping the colour of fully-transparent texels (a 2D canvas alone would zero them).
+// Reads the pixels un-premultiplied through WebGL2, sets alpha to 255, then putImageData. Returns false if WebGL2 isn't available.
+function opaqueInto(c, bmp, w, h){ try{
+  const gc=new OffscreenCanvas(w,h), gl=gc.getContext('webgl2',{premultipliedAlpha:false, antialias:false}); if(!gl) return false;
+  gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL,false); gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL,gl.NONE);
+  const tx=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,tx); gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,bmp);
+  const fb=gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER,fb); gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,tx,0);
+  const px=new Uint8ClampedArray(w*h*4); gl.readPixels(0,0,w,h,gl.RGBA,gl.UNSIGNED_BYTE,px);
+  fillHoles(px,w,h);                                  // paint the texels TRELLIS left empty (alpha≈0, black) from their neighbours
+  for(let i=3;i<px.length;i+=4) px[i]=255;
+  c.getContext('2d').putImageData(new ImageData(px,w,h),0,0);
+  gl.deleteFramebuffer(fb); gl.deleteTexture(tx); const lose=gl.getExtension('WEBGL_lose_context'); if(lose) lose.loseContext(); return true;
+}catch(e){ console.warn('[aigen] opaque texture path failed', e); return false; } }
+// ---- BRIGHTNESS. The TRELLIS AI (⚖ Standard and ⚡ Draft most of all) paints its models noticeably darker than the picture it was given.
+// "Match my picture" measures how bright the subject is in the picture and how bright the model's painted surface is, then lifts the
+// colour texture with a curve (a gamma lift of the brightness, colours kept in proportion) until it's just under the picture — it only ever LIGHTENS, never darkens, and highlights
+// barely clip. The ☀ slider in the viewer uses exactly the same curve: previewed live in the shader, baked into the texture on Save.
+const s2l=v=>v<=0.04045?v/12.92:Math.pow((v+0.055)/1.055,2.4), l2s=v=>v<=0.0031308?v*12.92:1.055*Math.pow(v,1/2.4)-0.055;
+const pctToG = p => Math.pow(2, p/100), gToPct = g => Math.round(100*Math.log2(g)/5)*5;   // slider % ↔ curve strength (+100% = gamma 2)
+const lumL=(r,g,b)=>0.2126*r+0.7152*g+0.0722*b;
+function liftLin(r, g, b, gg){ const Y=lumL(r,g,b); if(!(Y>1e-5)) return [r,g,b]; const k=Math.pow(Y,1/gg-1); return [Math.min(1,r*k),Math.min(1,g*k),Math.min(1,b*k)]; }
+function gammaPx(px, g){ const D=new Float32Array(256); for(let i=0;i<256;i++) D[i]=s2l(i/255);
+  const N=4096, E=new Uint8ClampedArray(N+1); for(let i=0;i<=N;i++) E[i]=Math.round(255*l2s(i/N));
+  for(let i=0;i<px.length;i+=4){ const o=liftLin(D[px[i]],D[px[i+1]],D[px[i+2]],g); px[i]=E[Math.round(o[0]*N)]; px[i+1]=E[Math.round(o[1]*N)]; px[i+2]=E[Math.round(o[2]*N)]; } }
+function gammaCanvas(c, w, h, g){ const x=c.getContext('2d'), d=x.getImageData(0,0,w,h); gammaPx(d.data, g); x.putImageData(d,0,0); }
+function gammaFactors(doc, g){ for(const m of doc.getRoot().listMaterials()){ if(m.getBaseColorTexture()) continue;   // textured: the texture carries it
+  const f=m.getBaseColorFactor(), o=liftLin(f[0],f[1],f[2],g); m.setBaseColorFactor([o[0],o[1],o[2],f[3]]); } }
+const luma=(r,g,b)=>0.299*r+0.587*g+0.114*b;
+// straight (un-premultiplied) RGBA of an image, via WebGL (a 2D canvas would premultiply and lose colour under low alpha)
+function readPx(bmp, w, h){ try{ const gc=new OffscreenCanvas(w,h), gl=gc.getContext('webgl2',{premultipliedAlpha:false, antialias:false});
+    if(gl){ gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL,false); gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL,gl.NONE);
+      const tx=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,tx); gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,bmp);
+      const fb=gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER,fb); gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,tx,0);
+      const px=new Uint8ClampedArray(w*h*4); gl.readPixels(0,0,w,h,gl.RGBA,gl.UNSIGNED_BYTE,px);
+      gl.deleteFramebuffer(fb); gl.deleteTexture(tx); const lose=gl.getExtension('WEBGL_lose_context'); if(lose) lose.loseContext(); return px; } }catch(e){}
+  const c=new OffscreenCanvas(w,h), x=c.getContext('2d'); x.drawImage(bmp,0,0,w,h); return x.getImageData(0,0,w,h).data; }
+// How bright is the SUBJECT of the picture (0–1)? Uses the saved thumbnail: strip the dark letterbox bars, flood-fill the background in
+// from the edges, average what's left. null when it can't tell (no picture, or no clear subject).
+async function pictureLuma(thumb){ if(!thumb) return null; try{
+  const im=await createImageBitmap(await (await fetch(thumb)).blob()); const W=im.width, H=im.height, c=new OffscreenCanvas(W,H), x=c.getContext('2d'); x.drawImage(im,0,0);
+  const d=x.getImageData(0,0,W,H).data; im.close&&im.close();
+  const pad=i=>Math.abs(d[i]-13)+Math.abs(d[i+1]-17)+Math.abs(d[i+2]-25)<24;           // the #0d1119 letterbox the thumbnail is drawn on
+  const rowPad=y=>{ for(let xx=0;xx<W;xx++) if(!pad((y*W+xx)*4)) return false; return true; }, colPad=xx=>{ for(let y=0;y<H;y++) if(!pad((y*W+xx)*4)) return false; return true; };
+  let x0=0,x1=W-1,y0=0,y1=H-1; while(y0<y1&&rowPad(y0)) y0++; while(y1>y0&&rowPad(y1)) y1--; while(x0<x1&&colPad(x0)) x0++; while(x1>x0&&colPad(x1)) x1--;
+  if(x1-x0<20||y1-y0<20) return null;
+  const bg=new Uint8Array(W*H), q=[];
+  const seed=(xx,y)=>{ const k=y*W+xx; if(!bg[k]){ bg[k]=1; q.push(k); } };   // flood through small colour steps only: follows a shaded backdrop, stops at the subject's edge
+  for(let xx=x0;xx<=x1;xx++){ seed(xx,y0); seed(xx,y1); } for(let y=y0;y<=y1;y++){ seed(x0,y); seed(x1,y); }
+  const near=(a,b)=>{ const dr=d[a]-d[b],dg=d[a+1]-d[b+1],db=d[a+2]-d[b+2]; return dr*dr+dg*dg+db*db<12*12; };
+
+  while(q.length){ const k=q.pop(), xx=k%W, y=(k/W)|0;
+    for(const [nx,ny] of [[xx+1,y],[xx-1,y],[xx,y+1],[xx,y-1]]){ if(nx<x0||nx>x1||ny<y0||ny>y1) continue; const j=ny*W+nx;
+      if(!bg[j] && near(k*4,j*4)){ bg[j]=1; q.push(j); } } }
+  let sum=0, n=0, all=0; for(let y=y0;y<=y1;y++) for(let xx=x0;xx<=x1;xx++){ all++; const k=y*W+xx; if(bg[k]) continue; const i=k*4; sum+=luma(d[i],d[i+1],d[i+2])/255; n++; }
+  if(n<all*0.05||n>all*0.97) return null;
+  return sum/n; }catch(e){ console.warn('[aigen] picture brightness', e); return null; } }
+// How much to lighten a model so its painted surface is as bright as the picture's subject. Samples the colour texture at points
+// spread over the surface (weighted by area, so a big belly counts more than a fingernail); unpainted texels are skipped.
+async function autoGamma(doc, target){ const none={g:1, pct:0}; if(!target) return none;
+  const cache=new Map(), S=[]; let W=0;
+  for(const mesh of doc.getRoot().listMeshes()) for(const p of mesh.listPrimitives()){
+    const m=p.getMaterial(), t=m&&m.getBaseColorTexture(), uv=p.getAttribute('TEXCOORD_0'), po=p.getAttribute('POSITION'); if(!t||!uv||!po||!t.getImage()) continue;
+    let T=cache.get(t); if(!T){ const bmp=await createImageBitmap(new Blob([t.getImage()],{type:t.getMimeType()||'image/png'}),{premultiplyAlpha:'none',colorSpaceConversion:'none'});
+      T={w:bmp.width, h:bmp.height, px:readPx(bmp,bmp.width,bmp.height)}; bmp.close&&bmp.close(); cache.set(t,T); }
+    const f=m.getBaseColorFactor(), ix=p.getIndices(), n=ix?ix.getCount():po.getCount(), step=Math.max(1,Math.floor(n/3/40000));
+    const A=[0,0,0],B=[0,0,0],C=[0,0,0],ua=[0,0],ub=[0,0],uc=[0,0];
+    for(let k=0;k+2<n;k+=3*step){ const i0=ix?ix.getScalar(k):k, i1=ix?ix.getScalar(k+1):k+1, i2=ix?ix.getScalar(k+2):k+2;
+      po.getElement(i0,A); po.getElement(i1,B); po.getElement(i2,C);
+      const ex=B[0]-A[0],ey=B[1]-A[1],ez=B[2]-A[2], fx=C[0]-A[0],fy=C[1]-A[1],fz=C[2]-A[2];
+      const cx=ey*fz-ez*fy, cy=ez*fx-ex*fz, cz=ex*fy-ey*fx, area=Math.sqrt(cx*cx+cy*cy+cz*cz); if(!(area>0)) continue;
+      uv.getElement(i0,ua); uv.getElement(i1,ub); uv.getElement(i2,uc);
+      let u=(ua[0]+ub[0]+uc[0])/3, v=(ua[1]+ub[1]+uc[1])/3; u-=Math.floor(u); v-=Math.floor(v);
+      const o=(Math.min(T.h-1,(v*T.h)|0)*T.w+Math.min(T.w-1,(u*T.w)|0))*4; if(T.px[o+3]<24) continue;
+      S.push(s2l(T.px[o]/255)*f[0], s2l(T.px[o+1]/255)*f[1], s2l(T.px[o+2]/255)*f[2], area); W+=area; } }
+  if(!W) return none;
+  const mean=g=>{ let s=0; for(let i=0;i<S.length;i+=4){ const o=liftLin(S[i],S[i+1],S[i+2],g); s+=S[i+3]*luma(l2s(o[0]),l2s(o[1]),l2s(o[2])); } return s/W; };
+  // aim a little UNDER the picture: the picture already has its lighting baked in, and the viewer / Tabletop / films light the model again
+  const cur=mean(1), want=target*0.8;
+  console.info('[aigen] brightness: model', cur.toFixed(3), 'picture', target.toFixed(3));
+  if(cur>=want*0.95) return {...none, cur, target};
+  let lo=1, hi=2; if(mean(hi)<want) lo=hi; else for(let i=0;i<18;i++){ const mid=(lo+hi)/2; if(mean(mid)<want) lo=mid; else hi=mid; }
+  const pct=Math.min(100, gToPct(lo)); if(pct<10) return {...none, cur, target};
+  return { g:pctToG(pct), pct, cur, target };
+}
+// Lighten a whole model file (the viewer's Save, or "Original (no shrinking)" models): by a set amount {g}, or to match a picture {target}.
+async function brightenGlb(bytes, {g, target}){
+  const {core,exts,mo}=await _gt();
+  const io=new core.WebIO().registerExtensions(exts.ALL_EXTENSIONS).registerDependencies({'meshopt.decoder':mo.MeshoptDecoder});
+  const doc=await io.readBinary(bytes);
+  const G = g ? {g, pct:gToPct(g)} : await autoGamma(doc, target); if(G.g===1) return {bytes, bright:0};
+  for(const t of new Set(doc.getRoot().listMaterials().map(m=>m.getBaseColorTexture()).filter(Boolean))){ const im=t.getImage(); if(!im) continue;
+    const bmp=await createImageBitmap(new Blob([im],{type:t.getMimeType()||'image/png'}),{premultiplyAlpha:'none',colorSpaceConversion:'none'});
+    const w=bmp.width, h=bmp.height, px=readPx(bmp,w,h); bmp.close&&bmp.close(); gammaPx(px, G.g);
+    const c=new OffscreenCanvas(w,h); c.getContext('2d').putImageData(new ImageData(px,w,h),0,0);
+    const blob=await c.convertToBlob({type:'image/webp', quality:0.92});
+    t.setImage(new Uint8Array(await blob.arrayBuffer())).setMimeType('image/webp').setURI('');
+    doc.createExtension(exts.EXTTextureWebP).setRequired(true); }
+  gammaFactors(doc, G.g);
+  return { bytes: await io.writeBinary(doc), bright: G.pct };
+}
 async function makeThumbFromImage(){ if(!img) return null; const c=new OffscreenCanvas(160,160), g=c.getContext('2d'); g.fillStyle='#0d1119'; g.fillRect(0,0,160,160);
   const k=Math.min(160/crop.w,160/crop.h); g.drawImage(img,crop.x,crop.y,crop.w,crop.h,(160-crop.w*k)/2,(160-crop.h*k)/2,crop.w*k,crop.h*k);
   const b=await c.convertToBlob({type:'image/jpeg',quality:0.8}); return await new Promise(r=>{ const fr=new FileReader(); fr.onload=()=>r(fr.result); fr.readAsDataURL(b); }); }
@@ -524,28 +665,38 @@ async function _gt(){ if(_gtLibs) return _gtLibs; const V='4.5.0';
   const exts=await import(`https://esm.sh/@gltf-transform/extensions@${V}?deps=@gltf-transform/core@${V}`);
   const mo=await import('https://esm.sh/meshoptimizer@1.2.0'); await mo.MeshoptSimplifier.ready;
   _gtLibs={core,funcs,exts,mo}; return _gtLibs; }
-async function optimizeModel(bytes, {tris, tex}){
+async function optimizeModel(bytes, {tris, tex, target}){
   const {core,funcs,exts,mo}=await _gt();
   const io=new core.WebIO().registerExtensions(exts.ALL_EXTENSIONS).registerDependencies({'meshopt.decoder':mo.MeshoptDecoder});
   const doc=await io.readBinary(bytes);
+  const G = await autoGamma(doc, target);             // measured on the model as the AI made it, before any shrinking
+  const baseTex = new Set(doc.getRoot().listMaterials().map(m=>m.getBaseColorTexture()).filter(Boolean));
   let n=0; for(const m of doc.getRoot().listMeshes()) for(const p of m.listPrimitives()){ const ix=p.getIndices(), po=p.getAttribute('POSITION'); n += ix ? ix.getCount()/3 : (po?po.getCount()/3:0); }
   await doc.transform(funcs.dedup(), funcs.weld());
   if(n>tris) await doc.transform(funcs.simplify({simplifier:mo.MeshoptSimplifier, ratio:tris/n, error:0.005}));
   await doc.transform(funcs.prune());
   const webp = doc.createExtension(exts.EXTTextureWebP).setRequired(true);   // WebP: ~5–10× smaller than PNG, read by every modern browser + three.js
+  // Which textures belong ONLY to opaque materials? TRELLIS bakes an alpha channel into its texture atlas that an opaque material never
+  // uses — but a 2D canvas stores PREMULTIPLIED colour, so every texel with alpha 0 lost its colour and rendered BLACK (a generated giant
+  // came out covered in black blotches). For those textures the pixels are read un-premultiplied (WebGL) and made fully opaque first.
+  const usedByBlend=new Set(); for(const m of doc.getRoot().listMaterials()) if(m.getAlphaMode()!=='OPAQUE') for(const x of [m.getBaseColorTexture(),m.getEmissiveTexture(),m.getNormalTexture(),m.getMetallicRoughnessTexture(),m.getOcclusionTexture()]) if(x) usedByBlend.add(x);
   for(const t of doc.getRoot().listTextures()){ const im=t.getImage(); if(!im) continue; const mime=t.getMimeType()||'image/png';
-    try{ const bmp=await createImageBitmap(new Blob([im],{type:mime})); const big=Math.max(bmp.width,bmp.height), kk=Math.min(1, tex/big);
-      const w=Math.max(1,Math.round(bmp.width*kk)), h=Math.max(1,Math.round(bmp.height*kk));
-      const c=new OffscreenCanvas(w,h); c.getContext('2d').drawImage(bmp,0,0,w,h);
+    try{ const probe=await createImageBitmap(new Blob([im],{type:mime})); const big=Math.max(probe.width,probe.height), kk=Math.min(1, tex/big);
+      const w=Math.max(1,Math.round(probe.width*kk)), h=Math.max(1,Math.round(probe.height*kk)); probe.close&&probe.close();
+      const bmp=await createImageBitmap(new Blob([im],{type:mime}), {premultiplyAlpha:'none', colorSpaceConversion:'none', resizeWidth:w, resizeHeight:h, resizeQuality:'high'});
+      const c=new OffscreenCanvas(w,h);
+      if(!usedByBlend.has(t) && opaqueInto(c, bmp, w, h)){ /* straight RGB kept, alpha forced to 255 */ } else c.getContext('2d').drawImage(bmp,0,0,w,h);
+      const lit = G.g!==1 && baseTex.has(t); if(lit) gammaCanvas(c, w, h, G.g);
       // colour maps a little lossier; normal / roughness maps near-lossless so lighting data isn't smeared
       const isColour = doc.getRoot().listMaterials().some(m=>m.getBaseColorTexture()===t||m.getEmissiveTexture()===t);
       const outMime = 'image/webp';
       const blob=await c.convertToBlob({type:outMime, quality:isColour?0.86:0.95});
-      if(blob.size < im.byteLength || kk<1){ t.setImage(new Uint8Array(await blob.arrayBuffer())).setMimeType(outMime).setURI(''); }
+      if(blob.size < im.byteLength || kk<1 || lit){ t.setImage(new Uint8Array(await blob.arrayBuffer())).setMimeType(outMime).setURI(''); }
       bmp.close&&bmp.close();
     }catch(e){ console.warn('[aigen] texture shrink skipped', e); } }
+  if(G.g!==1) gammaFactors(doc, G.g);
   if(!doc.getRoot().listTextures().some(t=>t.getMimeType()==='image/webp')) webp.dispose();
-  return await io.writeBinary(doc);
+  return { bytes: await io.writeBinary(doc), bright: G.pct };
 }
 
 /* ---------------- viewer ---------------- */
@@ -561,6 +712,13 @@ const camera=new THREE.PerspectiveCamera(40,1,0.01,200); camera.position.set(2.2
 const controls=new OrbitControls(camera, renderer.domElement); controls.target.set(0,0.6,0); controls.enableDamping=true;
 const loader=new GLTFLoader(); loader.setMeshoptDecoder(MeshoptDecoder);
 let current=null, currentId=null, currentMeta=null;
+// ☀ live preview: the same lift as the bake, applied to the colour right after the texture is read
+const BR_U={value:1};
+function patchBright(root){ root.traverse(o=>{ if(!o.isMesh) return; for(const mat of (Array.isArray(o.material)?o.material:[o.material])){ if(!mat||mat.userData.brPatched) continue; mat.userData.brPatched=true;
+  mat.onBeforeCompile=sh=>{ sh.uniforms.uBrInv=BR_U; sh.fragmentShader='uniform float uBrInv;\n'+sh.fragmentShader.replace('#include <map_fragment>','#include <map_fragment>\n\t{ float Yb=max(dot(diffuseColor.rgb, vec3(0.2126,0.7152,0.0722)),1e-5); diffuseColor.rgb=min(diffuseColor.rgb*pow(Yb,uBrInv-1.0), vec3(1.0)); }'); };
+  mat.customProgramCacheKey=()=>'ksolBright'; mat.needsUpdate=true; } }); }
+function setBrPct(p, note){ p=Math.max(-40,Math.min(100,Math.round(p/5)*5)); $('#brR').value=p; BR_U.value=1/pctToG(p);
+  $('#brV').textContent=note || ((p>0?'+':'')+p+'%'); $('#brSave').style.display=$('#brUndo').style.display = p ? '' : 'none'; }
 function resize(){ const w=view.clientWidth, h=view.clientHeight; if(!w||!h) return; renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix(); }
 new ResizeObserver(resize).observe(view); resize();
 renderer.setAnimationLoop(()=>{ controls.update(); renderer.render(scene,camera); });
@@ -574,7 +732,7 @@ async function showModel(id){
   const buf = await m.glb.arrayBuffer();
   const gltf = await new Promise((res,rej)=>loader.parse(buf,'',res,rej));
   if(current){ scene.remove(current); current.traverse(o=>{ if(o.geometry) o.geometry.dispose(); }); }
-  current=gltf.scene; currentId=id; currentMeta=m;
+  current=gltf.scene; currentId=id; currentMeta=m; patchBright(current); setBrPct(0);
   // stand it on the grid, centred, and frame the camera round it
   const box=new THREE.Box3().setFromObject(current), size=box.getSize(new THREE.Vector3()), ctr=box.getCenter(new THREE.Vector3());
   const s = 1.6/Math.max(size.x,size.y,size.z,1e-6); current.scale.setScalar(s);
@@ -589,7 +747,7 @@ async function showModel(id){
     if(ratio<0.55) warn='⚠ The arms look close to the body. Rigging works best when the picture shows a T-pose or A-pose (arms away from the body).';
     if(size.z>size.y*0.8) warn='⚠ This doesn\'t look like a standing character — check the picture shows the whole body from the front.'; }
   const info=$('#info'); info.style.display='block';
-  const mt=m.meta||{}; info.innerHTML = `<b style="color:var(--text)">${esc(m.name)}</b><br>${m.skeleton==='unrigged'?'🧍 Character (not rigged yet)':'🏺 Prop'} · ${Math.round(tris).toLocaleString()} triangles · ${fmtMB(m.size||0)}`+(mt.tier?`<br>💲 <b class="pr">${usd(mt.usd)}</b> · ${mt.tier==='hero'?'💎 Hero '+(mt.res||''):'⚡ Draft'} · made in ${mt.secs} s`:'')+(warn?`<div class="warn">${warn}</div>`:'');
+  const mt=m.meta||{}; info.innerHTML = `<b style="color:var(--text)">${esc(m.name)}</b><br>${m.skeleton==='unrigged'?'🧍 Character (not rigged yet)':'🏺 Prop'} · ${Math.round(tris).toLocaleString()} triangles · ${fmtMB(m.size||0)}`+(mt.tier?`<br>💲 <b class="pr">${usd(mt.usd)}</b> · ${mt.tier==='hero'?'💎 Hero '+(mt.res||''):mt.tier==='standard'?'⚖ Standard':'⚡ Draft'} · made in ${mt.secs} s`+(mt.bright?` · ☀ ${mt.bright>0?'+':''}${mt.bright}%`:''):'')+(warn?`<div class="warn">${warn}</div>`:'');
   const t=$('#srcThumb'); if(m.thumb){ t.src=m.thumb; t.style.display='block'; } else t.style.display='none';
   renderShelf();
 }
@@ -606,6 +764,22 @@ $('#aRen').onclick=async ()=>{ if(!currentMeta) return; const nm=prompt('New nam
   // StudioLib has no rename: re-save under the new name, then drop the old record
   const id=await StudioLib.addModel({name:nm.trim().slice(0,60), skeleton:currentMeta.skeleton, glb:currentMeta.glb, thumb:currentMeta.thumb, meta:currentMeta.meta});
   await StudioLib.deleteModel(currentId); await showModel(id); };
+$('#brR').oninput=e=>setBrPct(+e.target.value);
+$('#brUndo').onclick=()=>setBrPct(0);
+$('#brAuto').onclick=async ()=>{ if(!currentMeta) return; const b=$('#brAuto'); b.disabled=true; $('#brV').textContent='…';
+  try{ const tgt=await pictureLuma(currentMeta.thumb); if(!tgt){ setBrPct(0,'no picture to match'); return; }
+    const {core,exts,mo}=await _gt(); const io=new core.WebIO().registerExtensions(exts.ALL_EXTENSIONS).registerDependencies({'meshopt.decoder':mo.MeshoptDecoder});
+    const G=await autoGamma(await io.readBinary(new Uint8Array(await currentMeta.glb.arrayBuffer())), tgt);
+    if(G.pct) setBrPct(G.pct); else setBrPct(0,'already matches ✓'); }
+  catch(e){ console.warn('[aigen] match picture', e); setBrPct(0); } finally{ b.disabled=false; } };
+$('#brSave').onclick=async ()=>{ const p=+$('#brR').value; if(!currentMeta||!p) return; const b=$('#brSave'); b.disabled=true; b.textContent='Saving…';
+  try{ const r=await brightenGlb(new Uint8Array(await currentMeta.glb.arrayBuffer()), {g:pctToG(p)});
+    const meta={...(currentMeta.meta||{}), bright:((currentMeta.meta||{}).bright||0)+p};
+    // StudioLib has no update: save the lightened copy, then drop the old record (same as Rename)
+    const id=await StudioLib.addModel({name:currentMeta.name, skeleton:currentMeta.skeleton, glb:r.bytes, thumb:currentMeta.thumb, meta});
+    await StudioLib.deleteModel(currentId); await showModel(id); }
+  catch(e){ console.warn('[aigen] brightness save', e); alert('Could not save the new brightness: '+(e.message||e)); }
+  finally{ b.disabled=false; b.textContent='💾 Save'; } };
 $('#aDel').onclick=async ()=>{ if(!currentMeta||!confirm('Delete “'+currentMeta.name+'” from your Studio Library?')) return;
   await StudioLib.deleteModel(currentId); if(current) scene.remove(current); current=null; currentId=null; currentMeta=null;
   $('#actions').style.display='none'; $('#info').style.display='none'; $('#srcThumb').style.display='none'; $('#empty').style.display='grid'; renderShelf(); };

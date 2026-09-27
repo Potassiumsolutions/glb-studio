@@ -63,7 +63,7 @@
 <body>
 <div id="app">
   <div class="side">
-    <h1>Character Rigger <span class="appver">v1.3.0</span></h1>
+    <h1>Character Rigger <span class="appver">v1.3.1</span></h1>
     <div class="tag">Rig your own textured characters onto a standard, retargetable skeleton for the GLB Stitcher.</div>
 
     <div class="card">
@@ -105,7 +105,7 @@
 
     <div class="card">
       <h2>2 · Fit the skeleton</h2>
-      <div class="step"><span class="n">A</span><span class="t">Snap to a view below (Front / Side / Top / Iso) <b>or drag empty space to orbit</b> freely. Right-drag (or Shift+drag) pans, wheel zooms. Then <b>drag the joints</b> onto your character — joints move in the plane you’re looking at.</span></div>
+      <div class="step"><span class="n">A</span><span class="t">Snap to a view below (Front / Side / Top / Iso) <b>or drag empty space to orbit</b> freely. Right-drag pans; <b>Shift+drag a window</b> (or Shift+click joints) to select several joints and drag them together, wheel zooms. Then <b>drag the joints</b> onto your character — joints move in the plane you’re looking at.</span></div>
       <div class="step"><span class="n">B</span><span class="t">Use <b>Iso</b> to check depth. Turn on <b>Mirror L/R</b> to rig one side and mirror it.</span></div>
       <button class="btn ghost" id="autoFit">↻ Re-fit skeleton to mesh</button>
       <button class="btn ghost" id="flipMesh">🔄 Flip mesh 180° (if it faces backward)</button>
@@ -156,7 +156,7 @@
         </g>
       </svg>
       <div>
-        <div><b>Character Rigger</b> v1.3.0 · part of GLB Studio</div>
+        <div><b>Character Rigger</b> v1.3.1 · part of GLB Studio</div>
         <div class="appfoot-sub">© <span class="cred-year">2026</span> Paul A.T. Ramey · <b>KSOL Designs</b> · <a href="https://www.ksoldesigns.com" target="_blank" rel="noopener">ksoldesigns.com</a></div>
       </div>
     </div>
@@ -346,6 +346,7 @@ let jointPos=[];                                 // world positions of the 24 jo
 let jointGroup=new THREE.Group(); scene.add(jointGroup);
 let boneLines=null, jointMeshes=[];
 let selJoint=-1;
+let multiSel=new Set();   // joints picked with Shift+window / Shift+click → dragged together
 const JOINT_R=0.028;
 
 function resize(){
@@ -403,7 +404,8 @@ $('#symMode').addEventListener('click', e=>{ const b=e.target.closest('button');
 // ---------- mesh loading ----------
 const loader=new GLTFLoader();
 const fbxLoader=new FBXLoader();
-function loadMeshFromFile(file){
+let _meshFileName=null;   // the loaded model's file name → default export name ("Elf" → "Elf_rigged")
+function loadMeshFromFile(file){ _meshFileName=(file&&file.name)||null;
   if(/\.fbx$/i.test(file.name)){   // Mixamo / ActorCore character FBX → re-rig its mesh onto our skeleton
     file.arrayBuffer().then(buf=>{ let obj; try{ obj=fbxLoader.parse(buf,''); }catch(e){ console.error(e); setStatus('Could not read that FBX.'); return; } _handleMeshScene({scene:obj}, file); });
     return;
@@ -464,11 +466,13 @@ meshInput.onchange=e=>{ if(e.target.files[0]) loadMeshFromFile(e.target.files[0]
 ;['dragleave','drop'].forEach(ev=>meshDrop.addEventListener(ev,e=>{e.preventDefault();meshDrop.classList.remove('over');}));
 meshDrop.addEventListener('drop',e=>{ const f=e.dataTransfer.files[0]; if(f) loadMeshFromFile(f); });
 // 🪄 hand-off from the Generate tab (“Rig this”): load that Studio Library model as soon as the tool is up
-setTimeout(async ()=>{ let h=null; try{ h=JSON.parse(localStorage.getItem('studio.handoff')||'null'); }catch(e){}
+async function rigTakeHandoff(){ let h=null; try{ h=JSON.parse(localStorage.getItem('studio.handoff')||'null'); }catch(e){}
   if(!h || h.to!=='rig' || Date.now()-h.t>120000 || !window.StudioLib) return;
   localStorage.removeItem('studio.handoff');
   try{ await StudioLib.ready; const m=await StudioLib.getModel(h.id); if(m&&m.glb) loadMeshFromFile(new File([m.glb], (m.name||'model')+'.glb', {type:'model/gltf-binary'})); }
-  catch(e){ console.warn('[rig] Generate hand-off failed', e); } }, 300);
+  catch(e){ console.warn('[rig] Generate hand-off failed', e); } }
+setTimeout(rigTakeHandoff, 300);
+window.addEventListener('ksol-shown', rigTakeHandoff);   // GLB Studio keeps this tab alive → check again whenever it's shown
 
 // ---------- skeleton fit + rendering ----------
 // ---- whole-skeleton transform (applied on top of the auto-fit result) ----
@@ -493,6 +497,42 @@ function syncXfUI(){ const set=(id,v)=>{ const e=$('#'+id); if(e) e.value=v; }; 
   set('xfW',skXf.sx); lab('xfWv',skXf.sx.toFixed(2)); set('xfH',skXf.sy); lab('xfHv',skXf.sy.toFixed(2)); set('xfL',skXf.sz); lab('xfLv',skXf.sz.toFixed(2));
   set('xfYaw',deg(skXf.yaw)); lab('xfYawv',deg(skXf.yaw)+'°'); set('xfPitch',deg(skXf.pitch)); lab('xfPitchv',deg(skXf.pitch)+'°'); set('xfRoll',deg(skXf.roll)); lab('xfRollv',deg(skXf.roll)+'°');
   set('xfX',skXf.ox); set('xfY',skXf.oy); set('xfZ',skXf.oz); }
+// MESH-AWARE LIMB FIT (biped). Scaling the template by height is right for standard proportions but misses on bulky or
+// stylised bodies (an AI-generated orc: the arm chain ran level at shoulder height while the arms slope down, the wrists and
+// fingers floated above the hands, and the legs splayed so the ankles sat outside the boots). This measures the mesh:
+//   arms — each chain is stretched out to the real fingertips, then the elbow and wrist are centred in the arm's cross-section
+//          (the fingers follow the wrist); legs — the knee and ankle are centred in each leg's cross-section, the toe in the foot.
+// Only joints the mesh clearly supports are moved; anything ambiguous keeps the template position.
+function smartFitBiped(){
+  if(!meshGeo || !IDX || window.__noSmartFit) return; const P=meshGeo.attributes.position, NV=P.count, bb=meshGeo.boundingBox;   // __noSmartFit: dev A/B switch
+  const H=bb.max.y-bb.min.y, cx=(bb.max.x+bb.min.x)/2, step=Math.max(1, Math.floor(NV/150000));
+  const J=n=>IDX[n]!=null?jointPos[IDX[n]]:null, med=a=>{ if(!a.length) return null; a.sort((m,n)=>m-n); return a[a.length>>1]; };
+  const slice=(test)=>{ const ys=[], zs=[], xs=[]; for(let v=0; v<NV; v+=step){ const x=P.getX(v), y=P.getY(v), z=P.getZ(v); if(test(x,y,z)){ xs.push(x); ys.push(y); zs.push(z); } } return ys.length>=12 ? {x:med(xs), y:med(ys), z:med(zs), n:ys.length} : null; };
+  for(const pre of ['Left','Right']){
+    // ── ARM ──
+    const sh=J(pre+'Arm'), fo=J(pre+'ForeArm'), ha=J(pre+'Hand'); if(!sh||!fo||!ha) continue;
+    const sg=Math.sign(ha.x-cx)||1, out=x=>sg*(x-cx), xs=out(sh.x), band=y=>y>bb.min.y+0.50*H;
+    const armNames=BONE_NAMES.filter(n=>n===pre+'ForeArm' || n.startsWith(pre+'Hand'));
+    let tip=-1e9; for(let v=0; v<NV; v+=step){ const y=P.getY(v); if(band(y)){ const o=out(P.getX(v)); if(o>tip) tip=o; } }
+    let tTip=-1e9; for(const n of armNames) tTip=Math.max(tTip, out(J(n).x));
+    if(tip>xs+0.12*H && tTip>xs+0.05*H){ const fingered=armNames.some(n=>/Hand(Thumb|Index|Middle|Ring|Pinky)/.test(n)); const f=((fingered ? tip*0.985 : tip-0.10*H)-xs)/(tTip-xs);   /* fingered chain ends at the fingertips; a plain rig ends at the WRIST, a hand-length (~10% of height) short of them */
+      if(f>0.6 && f<3.2) for(const n of armNames){ const p=J(n); p.x=cx+sg*(xs+(out(p.x)-xs)*f); } }
+    const w=0.012*H; let dHand=null;
+    for(const n of [pre+'ForeArm', pre+'Hand']){ const p=J(n), px=p.x;
+      const c=slice((x,y,z)=>Math.abs(x-px)<w && band(y) && Math.abs(y-p.y)<0.16*H); if(!c) continue;
+      if(n===pre+'Hand') dHand={dy:c.y-p.y, dz:c.z-p.z}; p.y=c.y; p.z=c.z; }
+    if(dHand) for(const n of BONE_NAMES) if(n.startsWith(pre+'Hand') && n!==pre+'Hand'){ const p=J(n); p.y+=dHand.dy; p.z+=dHand.dz; }
+    { const k=(fo.x-sh.x)/((ha.x-sh.x)||1); fo.y=sh.y+(ha.y-sh.y)*k; fo.z=sh.z+(ha.z-sh.z)*k; }   /* straight T-pose arm: the elbow ON the shoulder→wrist line (off it, the rest pose has a bend and the upper arm rolled past its limit — giant) */
+    // ── LEG ──
+    const up=J(pre+'UpLeg'), kn=J(pre+'Leg'), an=J(pre+'Foot'), toe=J(pre+'ToeBase'); if(!up||!kn||!an) continue;
+    const ls=Math.sign(up.x-cx)||1, side=x=>ls*(x-cx)>0.01*H;
+    for(const p of [kn, an]){ const py=p.y; const c=slice((x,y,z)=>Math.abs(y-py)<0.012*H && side(x) && Math.abs(x-p.x)<0.14*H); if(c){ p.x=c.x; p.z=c.z; } }
+    { const k=(up.y-kn.y)/((up.y-an.y)||1); kn.x=up.x+(an.x-up.x)*k; kn.z=up.z+(an.z-up.z)*k; }   /* side view too: a knee set off the line bakes a bend into the rest pose and the shin rolled 40°+ in runs (troll) */   // straight-standing rest: the knee lies ON the hip→ankle line seen from the front (a trouser flap pulled one knee inward → that leg twisted 40-57° in runs)
+    if(toe){ const foot=[]; for(let v=0; v<NV; v+=step){ const x=P.getX(v), y=P.getY(v); if(y<bb.min.y+0.05*H && side(x) && Math.abs(x-an.x)<0.10*H) foot.push([x,P.getZ(v)]); }
+      if(foot.length>=12){ const zs=foot.map(q=>q[1]).sort((m,n)=>m-n), zf=zs[Math.floor(zs.length*0.92)], zb=zs[Math.floor(zs.length*0.08)];
+        /* the TOES are on the side the foot reaches furthest from the ankle (the template toe sat BEHIND the ankle: backwards feet) */ const zTip=(zf-an.z)>(an.z-zb)?zf:zb; toe.x=med(foot.map(q=>q[0])); toe.z=an.z+(zTip-an.z)*0.7; } }
+  }
+}
 function autoFit(){
   if(!meshGeo){ setStatus('Load a mesh first.'); return; }
   let raw=templateWorldPositions();               // template joint positions (cm)
@@ -523,6 +563,7 @@ function autoFit(){
     jointPos=raw.map(p=>new THREE.Vector3((p.x-sMin.x-sSize.x/2)*s, (p.y-sMin.y)*s+mMin.y, (p.z-sMin.z-sSize.z/2)*s));
     const cx=(bb.max.x+bb.min.x)/2, cz=(bb.max.z+bb.min.z)/2, hx=jointPos[0].x, hz=jointPos[0].z;
     for(const p of jointPos){ p.x+=cx-hx; p.z+=cz-hz; }
+    smartFitBiped();   // then put the limb joints INSIDE the actual limbs (a height-scaled template misses on bulky bodies). Safe for both biped rigs: both export the ksolRestPose T-pose flag, so the Stitcher retargets against the fitted rest (a plain rig WITHOUT the flag plays raw template angles and needs the template directions exactly).
   } else if(hasWings){
     // WINGED QUAD: fit the BODY (core bones) into the mesh's BODY region (a vertex scan that trims off the tall,
     // wide wing mass), then trace each wing-bone chain out along the actual detected wing mesh. sMin/sSize here are
@@ -616,7 +657,7 @@ function autoFit(){
   }
   fitBase=jointPos.map(p=>p.clone());             // freeze this as the base the whole-skeleton sliders transform
   skXf={sx:1,sy:1,sz:1,yaw:0,pitch:0,roll:0,ox:0,oy:0,oz:0}; syncXfUI();
-  selJoint=-1; buildSkeletonView();
+  selJoint=-1; multiSel.clear(); buildSkeletonView();
 }
 function buildSkeletonView(){
   // clear
@@ -634,7 +675,7 @@ function buildSkeletonView(){
     if(side==='C'){ const dx=jointPos[i].x - jointPos[0].x; side = dx>0.02?'L' : dx<-0.02?'R' : 'C'; }   // name has no L/R (bird) → color by X side
     const col = side==='L'?0x38d39f : side==='R'?0xff8a5b : 0xffd15b;
     const m=new THREE.Mesh(jgeo, new THREE.MeshBasicMaterial({color:col, depthTest:false}));
-    m.position.copy(jointPos[i]); m.renderOrder=11; m.userData.joint=i; jointGroup.add(m); jointMeshes.push(m);
+    m.position.copy(jointPos[i]); m.renderOrder=11; m.userData.joint=i; m.userData.col=col; m.userData.base=/(Thumb|Index|Middle|Ring|Pinky|Finger)/i.test(b.name)?0.38:0.72; m.scale.setScalar(m.userData.base); jointGroup.add(m); jointMeshes.push(m);
   });
   refreshSkeleton();
 }
@@ -644,7 +685,8 @@ function refreshSkeleton(){
     TEMPLATE.forEach((b,i)=>{ if(b.parent){ const a=jointPos[i], p=jointPos[IDX[b.parent]];
       arr[k++]=a.x;arr[k++]=a.y;arr[k++]=a.z; arr[k++]=p.x;arr[k++]=p.y;arr[k++]=p.z; } });
     boneLines.geometry.attributes.position.needsUpdate=true; boneLines.geometry.computeBoundingSphere(); }
-  jointMeshes.forEach((m,i)=>{ m.position.copy(jointPos[i]); m.scale.setScalar(i===selJoint?1.6:1); });
+  jointMeshes.forEach((m,i)=>{ m.position.copy(jointPos[i]); const ms=multiSel.has(i), bs=m.userData.base||1; m.scale.setScalar(bs*(i===selJoint?1.6:ms?1.3:1));   // dots: fingers small, others 0.72×
+    if(m.userData.col!=null) m.material.color.setHex(ms?0xffffff:m.userData.col); });
 }
 // biped / quadruped skeleton toggle
 $('#rigSeg').addEventListener('click', e=>{
@@ -701,31 +743,51 @@ let drag=null;   // {joint, mirror, plane}
 renderer.domElement.addEventListener('contextmenu', e=>e.preventDefault());   // right-drag pans, so suppress the menu
 renderer.domElement.addEventListener('pointerdown', e=>{
   const p=ndc(e); ray.setFromCamera(p, camera);
-  // LEFT-click on a joint = edit that joint (view-plane constrained)
-  if(e.button===0 && !e.shiftKey && moveMode && jointMeshes.length){
+  // LEFT-click on a joint = edit that joint (view-plane constrained). Shift+click toggles it in the multi-selection;
+  // dragging a joint that is part of a multi-selection moves the whole selection together in the view plane.
+  if(e.button===0 && moveMode && jointMeshes.length && jointGroup.visible){
     const hit=ray.intersectObjects(jointMeshes, false)[0];
-    if(hit){ selJoint=hit.object.userData.joint; refreshSkeleton(); showSel();
+    if(hit){ const j=hit.object.userData.joint;
+      if(e.shiftKey){ if(multiSel.has(j)) multiSel.delete(j); else multiSel.add(j); selJoint=j; refreshSkeleton(); showSel(); return; }
+      if(!multiSel.has(j)) multiSel.clear();                       // plain click on an unselected joint = work on just that one
+      selJoint=j; refreshSkeleton(); showSel();
+      const group = multiSel.size>1 ? [...multiSel] : [j];
       const fwd=new THREE.Vector3(); camera.getWorldDirection(fwd);
-      const plane=new THREE.Plane().setFromNormalAndCoplanarPoint(fwd, jointPos[selJoint].clone());
-      const mName=MIRROR[BONE_NAMES[selJoint]]; const mj=($('#mirror').checked && mName!=null)?IDX[mName]:-1;
-      drag={joint:selJoint, mirror:mj, plane, start:jointPos[selJoint].clone(), mstart:mj>=0?jointPos[mj].clone():null};
+      const plane=new THREE.Plane().setFromNormalAndCoplanarPoint(fwd, jointPos[j].clone());
+      // Symmetric: the mirror partner of each moving joint follows (X flipped) — unless that partner is itself selected
+      const moving=new Set(group), mirrors=[];
+      if($('#mirror').checked) for(const g of group){ const mn=MIRROR[BONE_NAMES[g]]; const mj=mn!=null?IDX[mn]:-1;
+        if(mj!=null && mj>=0 && !moving.has(mj) && !mirrors.includes(mj)) mirrors.push(mj); }
+      drag={ joints:group, starts:group.map(i=>jointPos[i].clone()), mirrors, mstarts:mirrors.map(i=>jointPos[i].clone()), plane, start:jointPos[j].clone() };
       renderer.domElement.setPointerCapture(e.pointerId); return; }
   }
-  // RIGHT / MIDDLE / Shift+Left = pan
-  if(e.button===2 || e.button===1 || (e.button===0 && e.shiftKey)){
+  // Shift + LEFT on empty space = drag a selection window (adds every joint inside it)
+  if(e.button===0 && e.shiftKey && jointMeshes.length && jointGroup.visible){
+    const host=renderer.domElement.parentElement; let box=document.getElementById('selBox');
+    if(!box){ box=document.createElement('div'); box.id='selBox'; box.style.cssText='position:absolute;pointer-events:none;border:1.5px dashed #ffd15b;background:rgba(255,209,91,.10);z-index:20;display:none'; host.appendChild(box); }
+    drag={box:true, sx:e.clientX, sy:e.clientY};
+    renderer.domElement.setPointerCapture(e.pointerId); return;
+  }
+  // RIGHT / MIDDLE = pan
+  if(e.button===2 || e.button===1){
     drag={pan:true, sx:e.clientX, sy:e.clientY, px:viewState.panX, py:viewState.panY};
     renderer.domElement.setPointerCapture(e.pointerId); renderer.domElement.style.cursor='move'; return;
   }
   // LEFT on empty space = orbit the view freely
   if(e.button===0){
-    drag={orbit:true, sx:e.clientX, sy:e.clientY, az:viewState.az, pol:viewState.pol};
+    drag={orbit:true, sx:e.clientX, sy:e.clientY, az:viewState.az, pol:viewState.pol, moved:false};
     renderer.domElement.setPointerCapture(e.pointerId); renderer.domElement.style.cursor='grabbing';
   }
 });
 renderer.domElement.addEventListener('pointermove', e=>{
   if(!drag) return;
+  if(drag.box){ const host=renderer.domElement.parentElement, hr=host.getBoundingClientRect(), box=document.getElementById('selBox');
+    const x0=Math.min(drag.sx,e.clientX), y0=Math.min(drag.sy,e.clientY), x1=Math.max(drag.sx,e.clientX), y1=Math.max(drag.sy,e.clientY);
+    Object.assign(box.style,{display:'block', left:(x0-hr.left+host.scrollLeft)+'px', top:(y0-hr.top+host.scrollTop)+'px', width:(x1-x0)+'px', height:(y1-y0)+'px'});
+    drag.ex=e.clientX; drag.ey=e.clientY; return; }
   if(drag.orbit){
     const dx=e.clientX-drag.sx, dy=e.clientY-drag.sy;
+    if(Math.abs(dx)+Math.abs(dy)>3) drag.moved=true;
     viewState.az = drag.az - dx*0.0075;
     viewState.pol = Math.max(-1.45, Math.min(1.45, drag.pol + dy*0.0075));
     $('#viewbar').querySelectorAll('button').forEach(b=>b.classList.remove('on'));   // free view — no button is "on"
@@ -742,22 +804,35 @@ renderer.domElement.addEventListener('pointermove', e=>{
   const hitPt=new THREE.Vector3();
   if(ray.ray.intersectPlane(drag.plane, hitPt)){
     const delta=hitPt.clone().sub(drag.start);     // movement within the view plane only
-    jointPos[drag.joint].copy(drag.start).add(delta);
-    if(drag.mirror>=0 && drag.mstart){             // mirror the edit onto the opposite-side joint (flip the X of the movement)
+    drag.joints.forEach((ji,k)=>jointPos[ji].copy(drag.starts[k]).add(delta));   // every selected joint moves together
+    if(drag.mirrors.length){                       // mirror the edit onto the opposite-side joints (flip the X of the movement)
       const md=delta.clone(); md.x=-md.x;          // mirror the X component
-      jointPos[drag.mirror].copy(drag.mstart).add(md);
+      drag.mirrors.forEach((mi,k)=>jointPos[mi].copy(drag.mstarts[k]).add(md));
     }
     refreshSkeleton(); showSel();
   }
 });
 renderer.domElement.addEventListener('pointerup', ()=>{
+  if(drag && drag.box){ const box=document.getElementById('selBox'); if(box) box.style.display='none';
+    if(drag.ex!=null && (Math.abs(drag.ex-drag.sx)>3 || Math.abs(drag.ey-drag.sy)>3)){
+      const r=renderer.domElement.getBoundingClientRect(), x0=Math.min(drag.sx,drag.ex), x1=Math.max(drag.sx,drag.ex), y0=Math.min(drag.sy,drag.ey), y1=Math.max(drag.sy,drag.ey);
+      const v=new THREE.Vector3(); let n=0;
+      jointPos.forEach((p,i)=>{ v.copy(p).project(camera); const sx=r.left+(v.x+1)/2*r.width, sy=r.top+(1-v.y)/2*r.height;
+        if(sx>=x0 && sx<=x1 && sy>=y0 && sy<=y1){ multiSel.add(i); n++; } });
+      if(n && selJoint<0) selJoint=[...multiSel][0];
+      refreshSkeleton(); showSel(); setStatus(n ? (multiSel.size+' joints selected — drag any of them to move them together (Shift+click adds/removes one, Esc clears).') : 'No joints inside that window.'); }
+    drag=null; renderer.domElement.style.cursor=''; return; }
+  if(drag && drag.orbit && !drag.moved && multiSel.size){ multiSel.clear(); refreshSkeleton(); showSel(); }   // click on empty space clears the multi-selection
   if(drag && !drag.pan && fitBase){ fitBase=jointPos.map(p=>p.clone()); skXf={sx:1,sy:1,sz:1,yaw:0,pitch:0,roll:0,ox:0,oy:0,oz:0}; syncXfUI(); }   // bake a joint edit into the base so the whole-skeleton sliders re-baseline (edits persist)
   drag=null; renderer.domElement.style.cursor=''; });
+window.addEventListener('keydown', e=>{ if(e.key==='Escape' && multiSel.size){ multiSel.clear(); refreshSkeleton(); showSel(); } });
 renderer.domElement.addEventListener('wheel', e=>{ e.preventDefault();
   viewState.zoom = Math.max(0.2, Math.min(6, viewState.zoom*(e.deltaY<0?1.1:1/1.1)));
   updateCamera();
 }, {passive:false});
-function showSel(){ if(selJoint<0){ $('#selinfo').style.display='none'; return; }
+function showSel(){ if(multiSel.size>1){ const el=$('#selinfo'); el.style.display='block';
+    el.innerHTML='<b>'+multiSel.size+' joints selected</b> · drag any of them to move them together · Shift+click adds/removes · Esc clears'; return; }
+  if(selJoint<0){ $('#selinfo').style.display='none'; return; }
   const el=$('#selinfo'); el.style.display='block'; const p=jointPos[selJoint];
   el.innerHTML=`<b>${BONE_NAMES[selJoint]}</b> · x ${p.x.toFixed(2)} y ${p.y.toFixed(2)} z ${p.z.toFixed(2)}`; }
 
@@ -984,10 +1059,10 @@ $('#bindPreview').onclick=()=>{
 // Armature wrapper for export. Fingered biped rigs are fitted to T-pose meshes (Mixamo-style rest), so they carry a
 // `ksolRestPose:'tpose'` flag (glTF extras) that tells the GLB Stitcher to use its world-aligned retarget for them.
 function exportHolder(skinned){ const h=new THREE.Group(); h.name='Armature'; h.add(skinned);
-  if(rigType==='bipedhand') h.userData.ksolRestPose='tpose'; return h; }
+  if(rigType==='bipedhand' || rigType==='biped') h.userData.ksolRestPose='tpose'; return h; }   // PLAIN biped too: without the flag the Stitcher played the template's raw joint angles on it — knees bent backwards (jogs, lunges, kneels), zombie arms on walks, forearms through each other, a 111° boxing forearm twist (0 of 19 such faults with the flag)
 $('#exportBtn').onclick=async ()=>{
   if(!meshGeo){ setStatus('Load a mesh first.'); return; }
-  const nm=(($('#meshInfo').textContent.match(/Loaded (.+?)\n/)||[])[1]||'character').replace(/\.[^.]+$/,'')+'_rigged';
+  const nm=(_meshFileName || ($('#meshInfo').textContent.match(/Loaded (.+?)\n/)||[])[1] || 'character').replace(/\.[^.]+$/,'').trim()+'_rigged';   // meshInfo has no newline → it was always "character_rigged"
   // 1) Ask WHERE to save FIRST — do this on the click so the user gesture is still valid; gives a native Save-As popup.
   let handle=null, picker=!!window.showSaveFilePicker;
   if(picker){
