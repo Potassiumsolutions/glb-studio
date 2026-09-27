@@ -3652,11 +3652,15 @@ function newCharacter(sig, restH, name, mesh){
 // name). Same skeleton AND same model = same character (per-animation exports of one model, library clips cloned
 // from the rig); a different model with the same skeleton becomes its own character, named after its file.
 function meshSig(root){ let n=0, v=0; root.traverse(o=>{ if(o.isMesh && o.geometry && o.geometry.attributes && o.geometry.attributes.position){ n++; v+=o.geometry.attributes.position.count; } }); return n+':'+v; }
+// Default size relative to a person (glTF extras ksolSize on any node, e.g. 0.55 for a goblin, 2 for a giant). Every rig is
+// normalised to the same height, so without it a goblin would stand as tall as a giant; the size slider still overrides it.
+function ksolSizeOf(root){ let v=0; root.traverse(o=>{ const k=o.userData&&+o.userData.ksolSize; if(!v && k>=0.3 && k<=3) v=k; }); return v; }
 function assignCharacter(c, nameHint){
   const sig = c.hips ? skelSig(c.root) : ('mesh:'+(c.restH||0).toFixed(2));
   const ms = meshSig(c.root);
   let ch=characters.find(x=>x.sig===sig && (!x.mesh || x.mesh===ms));
-  if(!ch) ch=newCharacter(sig, c.restH, nameHint, ms);   // name a NEW character after its file/sample (single load only)
+  if(!ch){ ch=newCharacter(sig, c.restH, nameHint, ms);   // name a NEW character after its file/sample (single load only)
+    const ks=ksolSizeOf(c.root); if(ks) ch.relativeScale=ks; }   // a creature can carry its own default size (a goblin is small, a giant big)
   if(!ch.mesh) ch.mesh=ms;
   c.charId=ch.id;
   if(ch.restH==null) ch.restH=c.restH;
