@@ -17,3 +17,17 @@ scratchpad/
 
 # stray local reference docs
 *.docx
+
+# Paul's machine only: junction to D:\Claude\GLB Stitcher\Expansion Packs (paid packs) so the local Studio can auto-update installed packs. NEVER commit.
+local-packs/
+
+# motion review page + rendered clips (local only)
+_review/
+
+# local backup copies made while editing (committed by mistake once — 298be39). Never ship.
+*.bak-*
+*.bak
+*.bak-v01
+
+# Paul's working folder, not part of the app
+Facial Stuff/

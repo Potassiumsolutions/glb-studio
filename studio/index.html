@@ -51,6 +51,12 @@
   /* About / instructions */
   #about,#upgrades{position:absolute;inset:0;z-index:40;background:rgba(4,6,10,.72);display:none;align-items:flex-start;justify-content:center;overflow:auto;padding:34px 18px}
   #about.open,#upgrades.open{display:flex}
+  #about,#upgrades{scrollbar-width:auto;scrollbar-color:#5b6b85 #0f141b}
+  #about::-webkit-scrollbar,#upgrades::-webkit-scrollbar{width:12px}
+  #about::-webkit-scrollbar-thumb,#upgrades::-webkit-scrollbar-thumb{background:#5b6b85;border-radius:6px;border:2px solid #0f141b}
+  #about::-webkit-scrollbar-track,#upgrades::-webkit-scrollbar-track{background:#0f141b}
+  .vers{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
+  .vers span{font-size:11.5px;color:#cfe0f5;background:#16202e;border:1px solid #2a3a52;border-radius:6px;padding:1px 7px}
   .updrop{border:1.5px dashed var(--line);border-radius:12px;padding:20px;text-align:center;color:var(--muted);font-size:13px;cursor:pointer;background:#12161d;transition:border-color .15s;display:block}
   .updrop:hover,.updrop.hot{border-color:var(--accent)}
   .modtoggle{display:flex;align-items:center;gap:8px;margin-top:16px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:#151b25;cursor:pointer;user-select:none;font-weight:700;font-size:13px}
@@ -101,6 +107,7 @@
       <div class="tab" data-tool="animate"><span>🐾</span> Animate <span class="n">2</span></div>
       <div class="tab" data-tool="stitch"><span>🎬</span> Stitch <span class="n">3</span></div>
       <div class="tab" data-tool="tabletop"><span>🎲</span> Tabletop <span class="n">4</span></div>
+      <div class="tab" data-tool="mapview" title="Maestro — Top Down Motion for Maps: characters, tokens and props run their own paths on a board — record a video or export the play"><span>🎼</span> Maestro <span class="n">5</span></div>
     </nav>
     <span class="flow">Picture → <b>3D</b> → rig &amp; animate → film it or play it on the <b>Tabletop</b></span>
     <div class="spacer"></div>
@@ -108,6 +115,7 @@
       <span class="dot">◆</span> Library:&nbsp;<b id="cModels">0</b>&nbsp;models&nbsp;·&nbsp;<b id="cMotions">0</b>&nbsp;motions
     </div>
     <div class="lib" id="upgradesBtn" title="Unlock expansion packs" style="gap:6px">✨&nbsp;Upgrades</div>
+    <div class="lib" id="newVerBtn" title="GLB Studio was updated since this page opened. Reload to use the new version (your Studio Library is kept)." style="display:none;gap:6px;border-color:var(--accent);color:#fff;font-weight:700">🆕&nbsp;New&nbsp;version&nbsp;—&nbsp;reload</div>
     <div class="lib" id="restartBtn" title="Restart this tab: clears what you're working on in it and frees its memory" style="gap:6px">⟳&nbsp;Restart&nbsp;tab</div>
     <div class="lib" id="aboutBtn" title="How KSOL Designs GLB Studio works" style="gap:6px">❔&nbsp;About</div>
   </header>
@@ -127,7 +135,7 @@
   <div id="about">
     <div class="sheet">
       <div class="sheet-hd">
-        <div><h1>◆ KSOL Designs GLB Studio — how it works</h1><div class="sub">Generate → Rig → Animate → Stitch → Tabletop, with one shared library</div></div>
+        <div><h1>◆ KSOL Designs GLB Studio — how it works</h1><div class="sub">Generate → Rig → Animate → Stitch → Tabletop → Maestro, with one shared library</div><div class="vers" id="aboutVers"></div></div>
         <span class="x" id="aboutX">✕ Close</span>
       </div>
       <div class="sheet-body">
@@ -235,6 +243,7 @@
     stitch:   '../glb-stitcher/index.html',
     tabletop: '../tabletop/index.html',
     generate: '../ai-generate/index.html',
+    mapview:  '../map-view/index.html',
   };
   // KEEP-ALIVE: one iframe per tool, created the first time its tab is opened and then only hidden/shown, so
   // whatever you were working on in a tab is still there when you come back. Hidden (display:none) tools don't
@@ -260,6 +269,64 @@
   document.getElementById('restartBtn').addEventListener('click', ()=>{
     const name=(tabs.find(t=>t.dataset.tool===curTool)||{}).textContent||'this tab';
     if(confirm('Restart '+name.replace(/\s+\d+\s*$/,'').trim()+'?\n\nAnything unsaved in this tab is cleared (your Studio Library is kept).')) restartTool(curTool); });
+  // VERSIONS in the About header: read each tool's own version (its header badge / APP_VERSION) from its page + the newest file date
+  async function fillVersions(){ const box=document.getElementById('aboutVers'); if(!box || box.dataset.done) return; box.dataset.done='1';
+    const NAMES={generate:'🪄 Generate', rig:'🧍 Rigger', animate:'🐾 Animator', stitch:'🎬 Stitcher', tabletop:'🎲 Tabletop', mapview:'🎼 Maestro'}; const out=[]; let newest=0;
+    for(const [k,u] of Object.entries(TOOLS)){ try{ const r=await fetch(u+'?v='+Date.now(),{cache:'no-store'}); if(!r.ok) continue; const t=await r.text();
+        const lm=Date.parse(r.headers.get('last-modified')||''); if(lm>newest) newest=lm;
+        const m=t.match(/class="(?:app)?ver">\s*v?([0-9][0-9.]*)/) || t.match(/APP_VERSION\s*=\s*['"]v?([0-9][0-9.]*)/); if(m) out.push(`${NAMES[k]||k} v${m[1]}`); }catch(e){} }
+    box.innerHTML=out.map(x=>`<span>${x}</span>`).join('')+(newest?`<span>updated ${new Date(newest).toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'})}</span>`:''); }
+  document.getElementById('aboutBtn').addEventListener('click', ()=>setTimeout(fillVersions,0));
+
+  // 🔄 LOCAL PACK AUTO-UPDATE (the author's own machine only). ../local-packs is a git-ignored folder link to the pack build folder
+  // (D:\Claude\GLB Stitcher\Expansion Packs), so it exists only where the packs are built — never on GitHub Pages or a customer's
+  // copy (fetch 404 → nothing happens). At start-up every INSTALLED pack (IndexedDB glbStudioPacks) whose file there is newer than
+  // the copy in this browser is re-read and stored exactly as a manual re-import would (character / scene-prop GLBs as raw bytes),
+  // then the tools that are already open restart so they pick up the new build.
+  (async function packAutoUpdate(){
+    if(!/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) return;
+    let man=null; try{ const r=await fetch('../local-packs/_manifest.json',{cache:'no-store'}); if(!r.ok) return; man=await r.json(); }catch(e){ return; }
+    if(!Array.isArray(man)) return;
+    const open=()=>new Promise((res,rej)=>{ const q=indexedDB.open('glbStudioPacks',1); q.onupgradeneeded=()=>{ if(!q.result.objectStoreNames.contains('packs')) q.result.createObjectStore('packs',{keyPath:'id'}); }; q.onsuccess=()=>res(q.result); q.onerror=()=>rej(q.error); });
+    let db; try{ db=await open(); }catch(e){ return; }
+    const all=await new Promise((res,rej)=>{ const r=db.transaction('packs','readonly').objectStore('packs').getAll(); r.onsuccess=()=>res(r.result||[]); r.onerror=()=>rej(r.error); });
+    const when=P=>Date.parse(P._localModified||'') || Date.parse(String(P.built||'').replace(' ','T')) || 0;
+    const todo=[];
+    for(const P of all){ const m=man.find(x=>x.id===P.id); if(!m||!m.file) continue;
+      try{ const h=await fetch('../local-packs/'+encodeURIComponent(m.file),{method:'HEAD',cache:'no-store'}); if(!h.ok) continue;
+        const lm=h.headers.get('last-modified'); if(lm && Date.parse(lm) > when(P)+60000) todo.push({m, lm, name:P.name||m.pack}); }catch(e){} }
+    if(!todo.length) return;
+    const note=document.createElement('div'); note.style.cssText='position:fixed;right:14px;bottom:14px;z-index:9999;background:#12202e;border:1px solid #2f5f8a;color:#dfeaf7;border-radius:10px;padding:9px 13px;font:13px system-ui,sans-serif;box-shadow:0 6px 24px #0008;max-width:360px';
+    document.body.appendChild(note); const say=t=>{ note.textContent=t; };
+    const b64=x=>{ const bin=atob(x), u=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u[i]=bin.charCodeAt(i); return u.buffer; };
+    let done=0;
+    for(const {m, lm, name} of todo){
+      try{ say('🔄 Updating “'+name+'” to its new build … ('+(done+1)+'/'+todo.length+')');
+        const P=await (await fetch('../local-packs/'+encodeURIComponent(m.file),{cache:'no-store'})).json();
+        for(const ch of (P.characters||[])) if(ch && ch.glb){ ch.buf=b64(ch.glb); delete ch.glb; }
+        for(const sp of (P.sceneProps||[])) if(sp && sp.glb){ sp.buf=b64(sp.glb); delete sp.glb; }
+        P._localModified=lm;
+        await new Promise((res,rej)=>{ const t=db.transaction('packs','readwrite'); t.objectStore('packs').put(P); t.oncomplete=res; t.onerror=()=>rej(t.error); });
+        done++; console.info('[studio] pack updated from local build:', name, lm);
+      }catch(e){ console.warn('[studio] pack auto-update failed', name, e); } }
+    if(done){ for(const k in frames) restartTool(k);
+      say('✅ '+done+' pack'+(done===1?'':'s')+' updated to the newest local build: '+todo.slice(0,done).map(t=>t.name).join(', ')); setTimeout(()=>note.remove(), 9000); }
+    else note.remove();
+  })();
+  // 🆕 NEW VERSION CHECK: tools stay open (keep-alive), so a tab opened before an update keeps running the old code until the
+  // page is reloaded. Once a minute (only while the page is visible) peek at each file's version stamp (ETag / Last-Modified);
+  // when one changes, show the reload button. HEAD requests only — nothing is downloaded.
+  (function(){
+    const files=['index.html','studio-lib.js', ...Object.values(TOOLS)], base={}; let found=false, busy=false;
+    const stamp=async u=>{ try{ const r=await fetch(u+'?v='+Date.now(), {method:'HEAD', cache:'no-store'}); if(!r.ok) return null;
+      return r.headers.get('etag')||r.headers.get('last-modified')||r.headers.get('content-length'); }catch(e){ return null; } };
+    const check=async()=>{ if(found || busy || document.hidden) return; busy=true;
+      try{ for(const f of files){ const s=await stamp(f); if(s==null) continue; if(!(f in base)){ base[f]=s; continue; }
+        if(s!==base[f]){ found=true; document.getElementById('newVerBtn').style.display='flex'; break; } } } finally{ busy=false; } };
+    document.getElementById('newVerBtn').addEventListener('click', ()=>{
+      if(confirm('Reload GLB Studio to use the new version?\n\nAnything unsaved in the open tabs is cleared (your Studio Library is kept).')) location.reload(); });
+    window.__newVerCheck=check; check(); setInterval(check, 60000); document.addEventListener('visibilitychange', check);
+  })();
   tabs.forEach(t=>t.addEventListener('click', ()=>show(t.dataset.tool)));
   show((location.hash||'#stitch').slice(1));
 
@@ -350,8 +417,8 @@
   document.addEventListener('keydown', e=>{ if(e.key==='Escape'){ about.classList.remove('open'); upgrades.classList.remove('open'); drawer.classList.remove('open'); } });
   const fmtDate = t => new Date(t).toLocaleDateString(undefined,{month:'short',day:'numeric'});
   const kb = n => n>=1e6 ? (n/1e6).toFixed(1)+' MB' : Math.max(1,Math.round(n/1024))+' KB';
-  const SK_LABEL = {prop:'🪄 AI prop', unrigged:'🪄 AI character · not rigged yet', '':'model'};
-  const SK_ICON = {biped:'🧍', quadruped:'🐾', quad:'🐾', bird:'🐦', prop:'🏺', unrigged:'🧍'};
+  const SK_LABEL = {prop:'🪄 AI prop', unrigged:'🪄 AI character · not rigged yet', mapchar:'🎼 Maestro character (clip chain)', board:'🎼 Maestro board', '':'model'};
+  const SK_ICON = {biped:'🧍', quadruped:'🐾', quad:'🐾', bird:'🐦', prop:'🏺', unrigged:'🧍', mapchar:'🎼', board:'🗺'};
   async function refresh(){
     const [models, motions] = await Promise.all([StudioLib.listModels(), StudioLib.listMotions()]);
     document.getElementById('cModels').textContent = models.length;
@@ -362,8 +429,9 @@
       const row=document.createElement('div'); row.className='row';
       row.innerHTML = `<div class="ic">${SK_ICON[m.skeleton]||'🧍'}</div>
         <div class="meta"><div class="nm">${m.name}</div><div class="sub">${SK_LABEL[m.skeleton]||(m.skeleton||'model')} · ${kb(m.size||0)} · ${fmtDate(m.createdAt)}</div></div>
-        <span class="del" data-id="${m.id}">Delete</span>`;
-      row.querySelector('.del').onclick=async()=>{ await StudioLib.deleteModel(m.id); };
+        ${(m.skeleton&&m.skeleton!=='prop'&&m.skeleton!=='unrigged'&&m.skeleton!=='mapchar'&&m.skeleton!=='board')?'<span class="del edit" title="Open this rig in 🧍 Rig to adjust its skeleton, then 💾 Save over it" style="color:#8fd;margin-right:6px">Edit rig</span>':''}<span class="del" data-id="${m.id}">Delete</span>`;
+      row.querySelector('.del:not(.edit)').onclick=async()=>{ await StudioLib.deleteModel(m.id); };
+      const ed=row.querySelector('.edit'); if(ed) ed.onclick=()=>{ localStorage.setItem('studio.handoff', JSON.stringify({to:'rig', id:m.id, t:Date.now()})); try{ drawer.classList.remove('open'); }catch(e){} show('rig'); };
       ml.appendChild(row);
     }
     const tl = document.getElementById('motionList');

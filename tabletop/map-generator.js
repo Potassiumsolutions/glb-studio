@@ -346,10 +346,13 @@
        when the map is Extended, before the new land is generated. ---- */
     const locked = new Set(), castleExits = [], castleFeeds = [];
     let structure = null, castleAnchor = null;
-    const wantCastle = opts.castle !== false && !FILL && NC >= 256 && (mtn.length > 0 || rng() < 0.4);
+    // opts.castle === true (the 🏰 Castle theme with 💧/🌊 ticked) → ALWAYS a castle, at opts.castleW × castleH when given
+    const forceCastle = opts.castle === true;
+    const wantCastle = forceCastle ? (!FILL && NC >= 64) : (opts.castle !== false && !FILL && NC >= 256 && (mtn.length > 0 || rng() < 0.4));
     if (wantCastle) {
-      const cw = 8 + ri(3), ch = 8 + ri(3), OUT = 2, RW = cw + 2 * OUT, RH = ch + 2 * OUT;
+      const cw = (opts.castleW | 0) >= 8 ? (opts.castleW | 0) : 8 + ri(3), ch = (opts.castleH | 0) >= 8 ? (opts.castleH | 0) : 8 + ri(3), OUT = 2, RW = cw + 2 * OUT, RH = ch + 2 * OUT;
       const cand = keys.filter(k => !waterSet.has(k) && !mtnSet.has(k));
+      let ctrKey = keys[0]; { const cx = keys.reduce((t, k) => t + pos[k].x, 0) / keys.length, cz = keys.reduce((t, k) => t + pos[k].z, 0) / keys.length; let bd = Infinity; for (const k of keys) { const dd = (pos[k].x - cx) ** 2 + (pos[k].z - cz) ** 2; if (dd < bd) { bd = dd; ctrKey = k; } } }
       const stride = Math.max(1, Math.floor(cand.length / 400));
       let best = null, bestS = -Infinity, bestBad = 0, bestOn = 0;
       for (let i = 0; i < cand.length; i += stride) {
@@ -357,10 +360,11 @@
         let bad = 0, off = 0, on = 0;
         for (const c of reg) { const k = keyOf(c); if (!cset.has(k)) { off++; continue; } on++; if (waterSet.has(k) || mtnSet.has(k)) bad++; }
         const dm = mtn.length ? Math.sqrt(nearBlob(a, mtn)) : 0;                   // castles guard the hills
-        const s = -(4 * bad + 0.3 * off + 0.35 * dm) + rng() * 3;
+        let s = -(4 * bad + 0.3 * off + 0.35 * dm) + rng() * 3;
+        if (forceCastle) { s -= 3 * off + 0.5 * Math.sqrt(d2(a, ctrKey)); }       // the 🏰 theme's castle: whole on the board, near the middle
         if (s > bestS) { bestS = s; best = a; bestBad = bad; bestOn = on; }
       }
-      if (best && bestBad <= bestOn * 0.2) {
+      if (best && (forceCastle || bestBad <= bestOn * 0.2)) {
         castleAnchor = best;
         const reg = regionCells(gridKind, cellOf[best], RW, RH);
         // the moat's feed stream heads toward the nearest lake, else downhill (away from the mountains)

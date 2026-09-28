@@ -63,7 +63,7 @@
 <body>
 <div id="app">
   <div class="side">
-    <h1>Character Rigger <span class="appver">v1.3.1</span></h1>
+    <h1>Character Rigger <span class="appver">v1.4.0</span></h1>
     <div class="tag">Rig your own textured characters onto a standard, retargetable skeleton for the GLB Stitcher.</div>
 
     <div class="card">
@@ -78,6 +78,7 @@
       <div class="seg" id="rigSeg">
         <button data-rig="biped" class="on">🧍 Biped</button>
         <button data-rig="bipedhand">🖐 Biped + Fingers</button>
+        <button data-rig="bipedfairy">🧚 Fairy / Angel</button>
         <button data-rig="quad">🐕 Quad</button>
         <button data-rig="bird">🐦 Bird</button>
         <button data-rig="snake">🐍 Snake</button>
@@ -134,7 +135,10 @@
       <h2>3 · Skin &amp; export</h2>
       <div class="row"><label>Skin falloff</label><input type="range" id="falloff" min="1.5" max="6" step="0.25" value="3"><span class="val" id="falloffV">3.0</span></div>
       <button class="btn ghost" id="bindPreview">⚙ Bind &amp; preview weights</button>
+      <button class="btn" id="saveOverBtn" style="display:none">💾 Save over the original</button>
+      <label class="row" id="keepOrigRow" style="display:none;margin-top:8px" title="On: the rigged character is saved as a NEW Studio Library entry and the unrigged 🪄 Generate model stays too. Off: the rigged character replaces it."><input type="checkbox" id="keepOrig"> <span style="flex:1;color:var(--text)">Keep the unrigged model in the library too</span></label>
       <button class="btn" id="exportBtn" disabled>⬇ Export rigged GLB</button>
+      <button class="btn" id="openStitchBtn" style="display:none" title="Open the character you just saved in 🎬 Stitch, ready for motions">🎬 Open in Stitcher</button>
       <div class="hint" id="exportInfo" style="margin-top:8px"></div>
     </div>
 
@@ -156,7 +160,7 @@
         </g>
       </svg>
       <div>
-        <div><b>Character Rigger</b> v1.3.1 · part of GLB Studio</div>
+        <div><b>Character Rigger</b> v1.4.0 · part of GLB Studio</div>
         <div class="appfoot-sub">© <span class="cred-year">2026</span> Paul A.T. Ramey · <b>KSOL Designs</b> · <a href="https://www.ksoldesigns.com" target="_blank" rel="noopener">ksoldesigns.com</a></div>
       </div>
     </div>
@@ -207,9 +211,16 @@ const BIPED_PRIMARY_CHILD={ Hips:'Spine02', Spine02:'Spine01', Spine01:'Spine', 
 // motions retarget 1:1. Names match Mixamo (Left/RightHand{Thumb,Index,Middle,Ring,Pinky}1..3).
 const BIPED_HAND_FINGERS=[{"name":"LeftHandThumb1","parent":"LeftHand","t":[-2.163,4.492,1.793],"q":[0,0,0,1]},{"name":"LeftHandThumb2","parent":"LeftHandThumb1","t":[-1.33,4.181,1.808],"q":[0,0,0,1]},{"name":"LeftHandThumb3","parent":"LeftHandThumb2","t":[-1.228,3.861,1.669],"q":[0,0,0,1]},{"name":"LeftHandIndex1","parent":"LeftHand","t":[0.037,12.578,-0.537],"q":[0,0,0,1]},{"name":"LeftHandIndex2","parent":"LeftHandIndex1","t":[0.886,3.785,-0.189],"q":[0,0,0,1]},{"name":"LeftHandIndex3","parent":"LeftHandIndex2","t":[0.778,3.321,-0.166],"q":[0,0,0,1]},{"name":"LeftHandMiddle1","parent":"LeftHand","t":[2.909,12.425,-0.62],"q":[0,0,0,1]},{"name":"LeftHandMiddle2","parent":"LeftHandMiddle1","t":[0.823,3.515,-0.175],"q":[0,0,0,1]},{"name":"LeftHandMiddle3","parent":"LeftHandMiddle2","t":[0.788,3.365,-0.168],"q":[0,0,0,1]},{"name":"LeftHandRing1","parent":"LeftHand","t":[4.922,11.315,-0.464],"q":[0,0,0,1]},{"name":"LeftHandRing2","parent":"LeftHandRing1","t":[0.82,3.502,-0.175],"q":[0,0,0,1]},{"name":"LeftHandRing3","parent":"LeftHandRing2","t":[0.753,3.216,-0.16],"q":[0,0,0,1]},{"name":"LeftHandPinky1","parent":"LeftHand","t":[7.069,9.561,-0.015],"q":[0,0,0,1]},{"name":"LeftHandPinky2","parent":"LeftHandPinky1","t":[0.942,4.023,-0.201],"q":[0,0,0,1]},{"name":"LeftHandPinky3","parent":"LeftHandPinky2","t":[0.591,2.524,-0.126],"q":[0,0,0,1]},{"name":"RightHandThumb1","parent":"RightHand","t":[2.299,4.397,1.858],"q":[0,0,0,1]},{"name":"RightHandThumb2","parent":"RightHandThumb1","t":[1.455,4.115,1.861],"q":[0,0,0,1]},{"name":"RightHandThumb3","parent":"RightHandThumb2","t":[1.344,3.8,1.719],"q":[0,0,0,1]},{"name":"RightHandIndex1","parent":"RightHand","t":[0.401,12.576,-0.412],"q":[0,0,0,1]},{"name":"RightHandIndex2","parent":"RightHandIndex1","t":[-0.753,3.815,-0.159],"q":[0,0,0,1]},{"name":"RightHandIndex3","parent":"RightHandIndex2","t":[-0.661,3.348,-0.14],"q":[0,0,0,1]},{"name":"RightHandMiddle1","parent":"RightHand","t":[-2.473,12.523,-0.523],"q":[0,0,0,1]},{"name":"RightHandMiddle2","parent":"RightHandMiddle1","t":[-0.7,3.543,-0.148],"q":[0,0,0,1]},{"name":"RightHandMiddle3","parent":"RightHandMiddle2","t":[-0.67,3.391,-0.142],"q":[0,0,0,1]},{"name":"RightHandRing1","parent":"RightHand","t":[-4.525,11.482,-0.397],"q":[0,0,0,1]},{"name":"RightHandRing2","parent":"RightHandRing1","t":[-0.697,3.53,-0.147],"q":[0,0,0,1]},{"name":"RightHandRing3","parent":"RightHandRing2","t":[-0.64,3.242,-0.135],"q":[0,0,0,1]},{"name":"RightHandPinky1","parent":"RightHand","t":[-6.735,9.799,0.014],"q":[0,0,0,1]},{"name":"RightHandPinky2","parent":"RightHandPinky1","t":[-0.801,4.055,-0.169],"q":[0,0,0,1]},{"name":"RightHandPinky3","parent":"RightHandPinky2","t":[-0.502,2.544,-0.106],"q":[0,0,0,1]}];
 const BIPED_HAND_TEMPLATE=[...BIPED_TEMPLATE, ...BIPED_HAND_FINGERS];
+// 🧚 FAIRY / ANGEL (winged biped, 2026-09-27): the fingered biped + two wings a side on the upper chest — FWing (fore / upper) and
+// HWing (hind / lower), each root → 1 → 2 → End. An angel's single pair uses the FWing chains. Every biped + finger motion still
+// plays on it (the Stitcher matches bones by name); the wings get their own flight motions.
+const FAIRY_WINGS=[{"name":"LeftFWing","parent":"Spine","t":[3.972,6.795,-9.489],"q":[0,0,0,1]},{"name":"LeftFWing1","parent":"LeftFWing","t":[24.125,22.408,-6.313],"q":[0,0,0,1]},{"name":"LeftFWing2","parent":"LeftFWing1","t":[27.14,20.052,-2.523],"q":[0,0,0,1]},{"name":"LeftFWingEnd","parent":"LeftFWing2","t":[25.086,11.927,-1.191],"q":[0,0,0,1]},{"name":"LeftHWing","parent":"Spine","t":[3.885,-3.168,-10.338],"q":[0,0,0,1]},{"name":"LeftHWing1","parent":"LeftHWing","t":[17.795,-17.568,-7.661],"q":[0,0,0,1]},{"name":"LeftHWing2","parent":"LeftHWing1","t":[17.768,-22.72,-6.092],"q":[0,0,0,1]},{"name":"LeftHWingEnd","parent":"LeftHWing2","t":[7.784,-22.81,-4.013],"q":[0,0,0,1]},{"name":"RightFWing","parent":"Spine","t":[-4.027,6.859,-9.42],"q":[0,0,0,1]},{"name":"RightFWing1","parent":"RightFWing","t":[-23.871,22.79,-5.897],"q":[0,0,0,1]},{"name":"RightFWing2","parent":"RightFWing1","t":[-26.857,20.482,-2.055],"q":[0,0,0,1]},{"name":"RightFWingEnd","parent":"RightFWing2","t":[-24.91,12.325,-0.758],"q":[0,0,0,1]},{"name":"RightHWing","parent":"Spine","t":[-4.114,-3.105,-10.268],"q":[0,0,0,1]},{"name":"RightHWing1","parent":"RightHWing","t":[-18.202,-17.282,-7.349],"q":[0,0,0,1]},{"name":"RightHWing2","parent":"RightHWing1","t":[-18.23,-22.433,-5.78],"q":[0,0,0,1]},{"name":"RightHWingEnd","parent":"RightHWing2","t":[-8.215,-22.683,-3.874],"q":[0,0,0,1]}];
+const BIPED_FAIRY_TEMPLATE=[...BIPED_HAND_TEMPLATE, ...FAIRY_WINGS];
 const BIPEDHAND_PRIMARY_CHILD={ ...BIPED_PRIMARY_CHILD, LeftHand:'LeftHandMiddle1', RightHand:'RightHandMiddle1',
   LeftHandThumb1:'LeftHandThumb2', LeftHandThumb2:'LeftHandThumb3', LeftHandIndex1:'LeftHandIndex2', LeftHandIndex2:'LeftHandIndex3', LeftHandMiddle1:'LeftHandMiddle2', LeftHandMiddle2:'LeftHandMiddle3', LeftHandRing1:'LeftHandRing2', LeftHandRing2:'LeftHandRing3', LeftHandPinky1:'LeftHandPinky2', LeftHandPinky2:'LeftHandPinky3',
   RightHandThumb1:'RightHandThumb2', RightHandThumb2:'RightHandThumb3', RightHandIndex1:'RightHandIndex2', RightHandIndex2:'RightHandIndex3', RightHandMiddle1:'RightHandMiddle2', RightHandMiddle2:'RightHandMiddle3', RightHandRing1:'RightHandRing2', RightHandRing2:'RightHandRing3', RightHandPinky1:'RightHandPinky2', RightHandPinky2:'RightHandPinky3' };
+const BIPEDFAIRY_PRIMARY_CHILD={ ...BIPEDHAND_PRIMARY_CHILD };
+for(const sd of ['Left','Right']) for(const w of ['FWing','HWing']) Object.assign(BIPEDFAIRY_PRIMARY_CHILD, { [sd+w]:sd+w+'1', [sd+w+'1']:sd+w+'2', [sd+w+'2']:sd+w+'End' });
 const QUAD_PRIMARY_CHILD={ Hips:'chest', chest:'head', head:'headend', tail:'tailstart', tailstart:'tail1', tail1:'tail2', tail2:'tail3',
   backleg:'backleg0', backleg0:'backleg1', backleg1:'backleg2', R_backleg:'R_backleg0', R_backleg0:'R_backleg1', R_backleg1:'R_backleg2',
   frontleg:'frontleg0', frontleg0:'frontleg1', frontleg1:'frontleg2', R_frontleg:'R_frontleg0', R_frontleg0:'R_frontleg1', R_frontleg1:'R_frontleg2' };
@@ -290,6 +301,7 @@ const JELLYFISH_TEMPLATE=[{"name":"apex","parent":null,"t":[0,1.7,0],"q":[0,0,0,
 const JELLYFISH_PRIMARY_CHILD={"spoke0":"rim0","rim0":"ten0a","ten0a":"ten0b","spoke1":"rim1","rim1":"ten1a","ten1a":"ten1b","spoke2":"rim2","rim2":"ten2a","ten2a":"ten2b","spoke3":"rim3","rim3":"ten3a","ten3a":"ten3b","spoke4":"rim4","rim4":"ten4a","ten4a":"ten4b","spoke5":"rim5","rim5":"ten5a","ten5a":"ten5b","spoke6":"rim6","rim6":"ten6a","ten6a":"ten6b","spoke7":"rim7","rim7":"ten7a","ten7a":"ten7b"};
 const RIGS={ biped:{tpl:BIPED_TEMPLATE, pc:BIPED_PRIMARY_CHILD, label:'biped', bones:24},
              bipedhand:{tpl:BIPED_HAND_TEMPLATE, pc:BIPEDHAND_PRIMARY_CHILD, label:'biped + fingers (standard finger naming)', bones:54},
+             bipedfairy:{tpl:BIPED_FAIRY_TEMPLATE, pc:BIPEDFAIRY_PRIMARY_CHILD, label:'biped + fingers + wings (fairy / angel)', bones:70},
              quad :{tpl:QUAD_TEMPLATE,  pc:QUAD_PRIMARY_CHILD,  label:'quadruped', bones:28},
              bird :{tpl:BIRD_TEMPLATE,  pc:BIRD_PRIMARY_CHILD,  label:'bird', bones:35},
              eleph:{tpl:ELEPHANT_TEMPLATE, pc:ELEPHANT_PRIMARY_CHILD, label:'elephant', bones:38},
@@ -405,7 +417,12 @@ $('#symMode').addEventListener('click', e=>{ const b=e.target.closest('button');
 const loader=new GLTFLoader();
 const fbxLoader=new FBXLoader();
 let _meshFileName=null;   // the loaded model's file name → default export name ("Elf" → "Elf_rigged")
-function loadMeshFromFile(file){ _meshFileName=(file&&file.name)||null;
+// Where the model came from, so an edited rig can be SAVED BACK over it: a file handle (📂 click-to-open or drag-and-drop in
+// Chrome/Edge) and/or the Studio Library entry it was opened from. _reopened = the file already carried this rig.
+let _srcHandle=null, _srcLibId=null, _srcUnrigged=false, _reopened=false, _reopenPending=false;
+function loadMeshFromFile(file, src){ offerStitch(null); _meshFileName=(file&&file.name)||null; _srcHandle=(src&&src.handle)||null; _srcLibId=(src&&src.libId)||null; _srcUnrigged=!!(src&&src.unrigged); _reopened=false;
+  // an unrigged 🪄 Generate model: export REPLACES its library entry unless "Keep the unrigged model" is ticked (off by default)
+  { const kr=$('#keepOrigRow'); if(kr) kr.style.display=(_srcLibId && _srcUnrigged) ? '' : 'none'; const kc=$('#keepOrig'); if(kc) kc.checked=false; } _palmsNote='';
   if(/\.fbx$/i.test(file.name)){   // Mixamo / ActorCore character FBX → re-rig its mesh onto our skeleton
     file.arrayBuffer().then(buf=>{ let obj; try{ obj=fbxLoader.parse(buf,''); }catch(e){ console.error(e); setStatus('Could not read that FBX.'); return; } _handleMeshScene({scene:obj}, file); });
     return;
@@ -422,12 +439,17 @@ function _handleMeshScene(gltf, file){
     let autoFinger=false;
     { const inBones=[]; gltf.scene.traverse(o=>{ if(o.isBone) inBones.push(o.name||''); });
       const hasFingers = inBones.some(n=>/(Hand(Thumb|Index|Middle|Ring|Pinky))|Finger|_(Thumb|Index|Mid|Ring|Pinky)\d/i.test(n));
-      if(hasFingers && (rigType==='biped'||rigType==='bipedhand')){
+      if(hasFingers && (rigType==='biped'||rigType==='bipedhand') && !/Wing/.test(inBones.join(' '))){
         setRig('bipedhand'); autoFinger=true;
         $('#rigSeg')?.querySelectorAll('button').forEach(x=>x.classList.toggle('on', x.dataset.rig===rigType));
         const hn=$('#skelHeading'); if(hn) hn.textContent = RIGS[rigType].label;
       }
     }
+    // RE-OPENING A RIG: pick the rig type whose every bone is in the file (the largest such rig), whatever type is selected
+    { const have=new Set(); gltf.scene.traverse(o=>{ if(o.isBone) have.add(o.name||''); });
+      let best=null, bn=0; if(have.size) for(const k of Object.keys(RIGS)){ const names=(k==='bird' ? (birdPose==='flight'?BIRD_TEMPLATE:BIRD_GROUND_TEMPLATE) : RIGS[k].tpl).map(b=>b.name);
+        if(names.length>bn && names.every(n=>have.has(n))){ best=k; bn=names.length; } }
+      if(best){ _reopenPending=true; if(best!==rigType){ setRig(best); syncRigUI(); } } else _reopenPending=false; }
     if(meshObj){ scene.remove(meshObj); }
     // bake world transform into geometry, then normalize to ~2u tall with feet on the ground
     src.updateWorldMatrix(true,true);
@@ -454,22 +476,33 @@ function _handleMeshScene(gltf, file){
         const off=new THREE.Vector3(-ctr.x,-bb.min.y,-ctr.z), w=new THREE.Vector3();
         BONE_NAMES.forEach((n,i)=>{ byName[n].getWorldPosition(w); jointPos[i].copy(w).add(off).multiplyScalar(s); });
         fitBase=jointPos.map(p=>p.clone()); resetSkXf(); refreshSkeleton(); reopened=true; } }
-    if(reopened) $('#meshInfo').innerHTML+='<br>🦴 <b>existing rig restored</b> — drag joints to adjust, then Export again';
+    _reopenPending=false; _reopened=reopened;
+    if(reopened) $('#meshInfo').innerHTML+='<br>🦴 <b>existing rig restored</b> — drag joints to adjust, then <b>💾 Save over the original</b> (or Export a copy)';
+    if(_palmsNote) $('#meshInfo').innerHTML+='<br>'+_palmsNote;
+    syncSaveOver();
     applyView('front');
     $('#exportBtn').disabled=false;
     setStatus('Mesh loaded. Pick a view and drag the joints onto the character.');
 }
 const meshDrop=$('#meshDrop'), meshInput=$('#meshInput');
-meshDrop.onclick=()=>meshInput.click();
+meshDrop.onclick=async()=>{   // 📂 open with a FILE HANDLE where the browser allows it, so the edited rig can be saved straight back
+  if(window.showOpenFilePicker){ try{ const [h]=await window.showOpenFilePicker({types:[{description:'3D model', accept:{'model/gltf-binary':['.glb'], 'model/gltf+json':['.gltf'], 'application/octet-stream':['.fbx']}}]});
+      const f=await h.getFile(); loadMeshFromFile(f, {handle:h}); return; }
+    catch(e){ if(e && e.name==='AbortError') return; } }
+  meshInput.click(); };
 meshInput.onchange=e=>{ if(e.target.files[0]) loadMeshFromFile(e.target.files[0]); };
 ;['dragover','dragenter'].forEach(ev=>meshDrop.addEventListener(ev,e=>{e.preventDefault();meshDrop.classList.add('over');}));
 ;['dragleave','drop'].forEach(ev=>meshDrop.addEventListener(ev,e=>{e.preventDefault();meshDrop.classList.remove('over');}));
-meshDrop.addEventListener('drop',e=>{ const f=e.dataTransfer.files[0]; if(f) loadMeshFromFile(f); });
+meshDrop.addEventListener('drop',e=>{ const f=e.dataTransfer.files[0]; if(!f) return;
+  const it=e.dataTransfer.items && e.dataTransfer.items[0], hp=(it && it.getAsFileSystemHandle) ? it.getAsFileSystemHandle() : null;   // Chrome/Edge: a dropped file keeps a handle too
+  if(hp) hp.then(h=>loadMeshFromFile(f, {handle:(h&&h.kind==='file')?h:null})).catch(()=>loadMeshFromFile(f)); else loadMeshFromFile(f); });
 // 🪄 hand-off from the Generate tab (“Rig this”): load that Studio Library model as soon as the tool is up
 async function rigTakeHandoff(){ let h=null; try{ h=JSON.parse(localStorage.getItem('studio.handoff')||'null'); }catch(e){}
   if(!h || h.to!=='rig' || Date.now()-h.t>120000 || !window.StudioLib) return;
   localStorage.removeItem('studio.handoff');
-  try{ await StudioLib.ready; const m=await StudioLib.getModel(h.id); if(m&&m.glb) loadMeshFromFile(new File([m.glb], (m.name||'model')+'.glb', {type:'model/gltf-binary'})); }
+  // the Generate tab asks "No fingers / With fingers" before handing over → open with that skeleton chosen
+  if(h.rig && RIGS[h.rig] && h.rig!==rigType){ setRig(h.rig); syncRigUI(); }
+  try{ await StudioLib.ready; const m=await StudioLib.getModel(h.id); if(m&&m.glb) loadMeshFromFile(new File([m.glb], (m.name||'model')+'.glb', {type:'model/gltf-binary'}), {libId:h.id, unrigged:m.skeleton==='unrigged'}); }
   catch(e){ console.warn('[rig] Generate hand-off failed', e); } }
 setTimeout(rigTakeHandoff, 300);
 window.addEventListener('ksol-shown', rigTakeHandoff);   // GLB Studio keeps this tab alive → check again whenever it's shown
@@ -507,15 +540,53 @@ function smartFitBiped(){
   if(!meshGeo || !IDX || window.__noSmartFit) return; const P=meshGeo.attributes.position, NV=P.count, bb=meshGeo.boundingBox;   // __noSmartFit: dev A/B switch
   const H=bb.max.y-bb.min.y, cx=(bb.max.x+bb.min.x)/2, step=Math.max(1, Math.floor(NV/150000));
   const J=n=>IDX[n]!=null?jointPos[IDX[n]]:null, med=a=>{ if(!a.length) return null; a.sort((m,n)=>m-n); return a[a.length>>1]; };
-  const slice=(test)=>{ const ys=[], zs=[], xs=[]; for(let v=0; v<NV; v+=step){ const x=P.getX(v), y=P.getY(v), z=P.getZ(v); if(test(x,y,z)){ xs.push(x); ys.push(y); zs.push(z); } } return ys.length>=12 ? {x:med(xs), y:med(ys), z:med(zs), n:ys.length} : null; };
+  const M=_fitMask;   // winged biped: wing vertices take no part in the body fit
+  const slice=(test)=>{ const ys=[], zs=[], xs=[]; for(let v=0; v<NV; v+=step){ if(M && M[v]) continue; const x=P.getX(v), y=P.getY(v), z=P.getZ(v); if(test(x,y,z)){ xs.push(x); ys.push(y); zs.push(z); } } return ys.length>=12 ? {x:med(xs), y:med(ys), z:med(zs), n:ys.length} : null; };
+  // ── BODY (2026-09-27, learned from hand-corrected rigs) ──
+  // Body depth: when the mesh has a big part behind or in front of the body (wings, a cape) the height-scaled template leaves the spine
+  // outside the torso. The middle of the torso's depth at chest and hip height is measured; a clear offset (over 3.5% of the height)
+  // moves the whole skeleton forward / back onto it.
+  { const zc=(y0,y1,xw)=>{ const zs=[]; for(let v=0; v<NV; v+=step){ if(M && M[v]) continue; const y=(P.getY(v)-bb.min.y)/H; if(y<y0||y>y1||Math.abs(P.getX(v)-cx)>xw*H) continue; zs.push(P.getZ(v)); }
+      if(zs.length<20) return null; zs.sort((a,b)=>a-b); return (zs[Math.floor(zs.length*0.1)]+zs[Math.floor(zs.length*0.9)])/2; };
+    const zChest=zc(0.60,0.64,0.06), zHip=zc(0.50,0.54,0.05), hz=J('Hips');
+    if(zChest!=null && zHip!=null && hz){ const dz=(zChest+zHip)/2-hz.z; if(Math.abs(dz)>0.035*H) for(const q of jointPos) q.z+=dz; window.__bodyFit={dz:+(dz/H).toFixed(3)}; } }
+  // Hip height from the CROTCH: the shortest walk over the skin from one ankle to the other goes up the inside of one leg, across the
+  // crotch and down the other — its highest point is the crotch, and the hip joints sit 4.3% of the height above it (the approved Man
+  // sample and a hand-corrected elf agree to 1 mm). A templated hip height put short-legged goblins' hips in the belly and a
+  // long-legged fairy's in her thighs. The knees then sit 48% of the way up from the ankle, the spine is re-spaced up to the neck.
+  let crotch=null;
+  try{ const G=_meshGraph(), all=new Uint8Array(G.n).fill(1);
+    for(let v=0; v<G.n; v++){ if(M && M[v]) all[v]=0; else if(P.getY(v)<bb.min.y+0.3*H && Math.abs(P.getX(v)-cx)<0.012*H) all[v]=0; }   // feet / shins that touch are not a path between the legs
+    const seedsAt=pre2=>{ const f=J(pre2+'Foot'); if(!f) return []; const sg=Math.sign(f.x-cx)||(pre2==='Left'?1:-1), out=[];
+      for(const v of G.reps){ if(!all[v]) continue; const x=P.getX(v); if((x-cx)*sg<0.02*H) continue; if(P.getY(v)<bb.min.y+0.05*H) out.push(v); } return out; };   // the sole of that foot (the template's ankle can sit outside the mesh at this point)
+    const L=seedsAt('Left'), R=seedsAt('Right');
+    if(L.length && R.length){ const dL=_meshDijkstra(G,L,all), dR=_meshDijkstra(G,R,all); let best=Infinity; for(const v of R) best=Math.min(best,dL[v]);
+      let mv=Infinity, top=null; if(isFinite(best)) for(const v of G.reps){ if(!all[v]) continue; const s2=dL[v]+dR[v]; if(s2-best<0.01*H && Math.abs(dL[v]-dR[v])<mv){ mv=Math.abs(dL[v]-dR[v]); top=v; } }
+      if(top!=null){ const cy=(P.getY(top)-bb.min.y)/H; if(cy>0.30 && cy<0.62) crotch=P.getY(top); } } }catch(e){ console.warn('crotch', e); }
+  if(crotch!=null && J('LeftUpLeg') && J('RightUpLeg') && J('Hips')){
+    const upY=crotch+0.043*H, hips=J('Hips'), nk=J('neck'), dy=upY-J('LeftUpLeg').y;
+    const sp=['Spine02','Spine01','Spine'].map(J), fr=sp.map(q=>q&&nk ? (q.y-hips.y)/((nk.y-hips.y)||1) : 0);
+    J('LeftUpLeg').y=upY; J('RightUpLeg').y=upY; hips.y=upY+0.042*H;
+    sp.forEach((q,k)=>{ if(q&&nk) q.y=hips.y+fr[k]*(nk.y-hips.y); });
+    for(const pre2 of ['Left','Right']){ const kn=J(pre2+'Leg'), an=J(pre2+'Foot'); if(kn&&an) kn.y=an.y+0.48*(upY-an.y); }
+    window.__bodyFit=Object.assign(window.__bodyFit||{}, {crotch:+((crotch-bb.min.y)/H).toFixed(3), hipDy:+(dy/H).toFixed(3)}); }
   for(const pre of ['Left','Right']){
     // ── ARM ──
     const sh=J(pre+'Arm'), fo=J(pre+'ForeArm'), ha=J(pre+'Hand'); if(!sh||!fo||!ha) continue;
     const sg=Math.sign(ha.x-cx)||1, out=x=>sg*(x-cx), xs=out(sh.x), band=y=>y>bb.min.y+0.50*H;
     const armNames=BONE_NAMES.filter(n=>n===pre+'ForeArm' || n.startsWith(pre+'Hand'));
-    let tip=-1e9; for(let v=0; v<NV; v+=step){ const y=P.getY(v); if(band(y)){ const o=out(P.getX(v)); if(o>tip) tip=o; } }
+    let tip=-1e9, tipV=-1; for(let v=0; v<NV; v+=step){ if(M && M[v]) continue; const y=P.getY(v); if(band(y)){ const o=out(P.getX(v)); if(o>tip){ tip=o; tipV=v; } } }
+    // SLOPED ARMS (arms angled down, not a level T): swing the template arm chain about the shoulder onto the line to the
+    // fingertips first, then stretch it ALONG that line. A level T-pose (under 8°) keeps the original x-only stretch.
+    let sloped=false;
+    if(tipV>=0){ const T=new THREE.Vector3(P.getX(tipV),P.getY(tipV),P.getZ(tipV)), end=J(pre+'HandMiddle3')||J(pre+'Hand');
+      const dT=end.clone().sub(sh).normalize(), dM=T.clone().sub(sh).normalize(), ang=dT.angleTo(dM);
+      if(ang>0.14 && dM.y<-0.1){ sloped=true; const q=new THREE.Quaternion().setFromUnitVectors(dT,dM);
+        for(const n of armNames){ const p=J(n); p.sub(sh).applyQuaternion(q).add(sh); }
+        const L=T.distanceTo(sh), Lt=J(armNames.find(n=>/HandMiddle3$/.test(n))||pre+'Hand').distanceTo(sh), f=(armNames.some(n=>/HandMiddle3$/.test(n)) ? L*0.93 : L-0.10*H)/Lt;
+        if(f>0.6 && f<3.2) for(const n of armNames){ const p=J(n); p.sub(sh).multiplyScalar(f).add(sh); } } }
     let tTip=-1e9; for(const n of armNames) tTip=Math.max(tTip, out(J(n).x));
-    if(tip>xs+0.12*H && tTip>xs+0.05*H){ const fingered=armNames.some(n=>/Hand(Thumb|Index|Middle|Ring|Pinky)/.test(n)); const f=((fingered ? tip*0.985 : tip-0.10*H)-xs)/(tTip-xs);   /* fingered chain ends at the fingertips; a plain rig ends at the WRIST, a hand-length (~10% of height) short of them */
+    if(!sloped && tip>xs+0.12*H && tTip>xs+0.05*H){ const fingered=armNames.some(n=>/Hand(Thumb|Index|Middle|Ring|Pinky)/.test(n)); const f=((fingered ? tip*0.985 : tip-0.10*H)-xs)/(tTip-xs);   /* fingered chain ends at the fingertips; a plain rig ends at the WRIST, a hand-length (~10% of height) short of them */
       if(f>0.6 && f<3.2) for(const n of armNames){ const p=J(n); p.x=cx+sg*(xs+(out(p.x)-xs)*f); } }
     const w=0.012*H; let dHand=null;
     for(const n of [pre+'ForeArm', pre+'Hand']){ const p=J(n), px=p.x;
@@ -526,12 +597,357 @@ function smartFitBiped(){
     // ── LEG ──
     const up=J(pre+'UpLeg'), kn=J(pre+'Leg'), an=J(pre+'Foot'), toe=J(pre+'ToeBase'); if(!up||!kn||!an) continue;
     const ls=Math.sign(up.x-cx)||1, side=x=>ls*(x-cx)>0.01*H;
-    for(const p of [kn, an]){ const py=p.y; const c=slice((x,y,z)=>Math.abs(y-py)<0.012*H && side(x) && Math.abs(x-p.x)<0.14*H); if(c){ p.x=c.x; p.z=c.z; } }
+    for(const p of [kn, an]){ const py=p.y, px0=(p===an ? kn.x : p.x); const c=slice((x,y,z)=>Math.abs(y-py)<0.012*H && side(x) && Math.abs(x-px0)<0.14*H); if(c){ p.x=c.x; p.z=c.z; } }   // the ankle is looked for under the fitted KNEE (feet close together fell outside a window on the template's wide stance)
+    up.x=cx+ls*(0.5*Math.abs(kn.x-cx)+0.025*H);   // hip joint over the thigh: the template's hips were a third too wide (corrected rigs: ½·knee offset + 2.5% of the height)
     { const k=(up.y-kn.y)/((up.y-an.y)||1); kn.x=up.x+(an.x-up.x)*k; kn.z=up.z+(an.z-up.z)*k; }   /* side view too: a knee set off the line bakes a bend into the rest pose and the shin rolled 40°+ in runs (troll) */   // straight-standing rest: the knee lies ON the hip→ankle line seen from the front (a trouser flap pulled one knee inward → that leg twisted 40-57° in runs)
-    if(toe){ const foot=[]; for(let v=0; v<NV; v+=step){ const x=P.getX(v), y=P.getY(v); if(y<bb.min.y+0.05*H && side(x) && Math.abs(x-an.x)<0.10*H) foot.push([x,P.getZ(v)]); }
+    if(toe){ const foot=[]; for(let v=0; v<NV; v+=step){ if(M && M[v]) continue; const x=P.getX(v), y=P.getY(v); if(y<bb.min.y+0.05*H && side(x) && Math.abs(x-an.x)<0.10*H) foot.push([x,P.getZ(v)]); }
       if(foot.length>=12){ const zs=foot.map(q=>q[1]).sort((m,n)=>m-n), zf=zs[Math.floor(zs.length*0.92)], zb=zs[Math.floor(zs.length*0.08)];
         /* the TOES are on the side the foot reaches furthest from the ankle (the template toe sat BEHIND the ankle: backwards feet) */ const zTip=(zf-an.z)>(an.z-zb)?zf:zb; toe.x=med(foot.map(q=>q[0])); toe.z=an.z+(zTip-an.z)*0.7; } }
   }
+}
+// ---------- MESH-MEASURED HANDS (🖐 Biped + Fingers) ----------
+// The finger joints used to be the template's (Mixamo's) hand scaled to the character's height and slid onto the wrist:
+// right for a Mixamo-proportioned hand held out straight, wrong for anything else — a drooping goblin hand had its finger
+// chains floating level above the real fingers, and on the Man the thumb chain hung outside the thumb, so a thumbs-up
+// stretched the skin like rubber. fitHandsFromMesh() reads each hand off the mesh:
+//   · the hand = the skin beyond the wrist, flood-filled over the surface from the wrist ring;
+//   · walking distance over the surface from the wrist → every digit TIP is a local maximum of it;
+//   · the thumb = the tip pointing furthest from the other digits; the fingers are ordered from the thumb side;
+//   · each digit's skin = the skin closer (over the surface) to its tip than to any other tip; the WEB between two digits
+//     is where those regions first meet, and the knuckle sits a little behind it;
+//   · joints = centres of the digit's cross-section rings at Mixamo proportions measured back from the tip, so each joint
+//     lies INSIDE its finger even when the finger droops or curls; the thumb base (CMC) sits halfway from wrist to thumb knuckle.
+// A hand it cannot read (a mitten, fewer than three digits) keeps the template placement.
+function _meshGraph(){
+  const P=meshGeo.attributes.position, n=P.count;
+  const rep=new Int32Array(n), key=new Map(), reps=[];
+  for(let v=0;v<n;v++){ const k=P.getX(v).toFixed(5)+','+P.getY(v).toFixed(5)+','+P.getZ(v).toFixed(5);
+    let r=key.get(k); if(r===undefined){ r=v; key.set(k,v); reps.push(v); } rep[v]=r; }
+  const idx=meshGeo.index ? meshGeo.index.array : null, nt=idx ? Math.floor(idx.length/3) : Math.floor(n/3);
+  const tri=t=>idx ? [rep[idx[t*3]],rep[idx[t*3+1]],rep[idx[t*3+2]]] : [rep[t*3],rep[t*3+1],rep[t*3+2]];
+  const M=_fitMask, skipT=t=>{ if(!M) return false; const [a,b,c]=tri(t); return M[a]||M[b]||M[c]; };   // winged biped: the wings are cut off the body graph
+  if(M){ for(let k=reps.length-1;k>=0;k--) if(M[reps[k]]) reps.splice(k,1); }
+  const deg=new Int32Array(n); for(let t=0;t<nt;t++){ if(skipT(t)) continue; const [a,b,c]=tri(t); deg[a]+=2; deg[b]+=2; deg[c]+=2; }
+  const start=new Int32Array(n+1); for(let v=0;v<n;v++) start[v+1]=start[v]+deg[v];
+  const nbr=new Int32Array(start[n]), elen=new Float32Array(start[n]), fill=new Int32Array(n);
+  const L=(a,b)=>Math.hypot(P.getX(a)-P.getX(b), P.getY(a)-P.getY(b), P.getZ(a)-P.getZ(b));
+  const link=(a,b)=>{ const i=start[a]+fill[a]++; nbr[i]=b; elen[i]=L(a,b); };
+  for(let t=0;t<nt;t++){ if(skipT(t)) continue; const [a,b,c]=tri(t); link(a,b); link(a,c); link(b,a); link(b,c); link(c,a); link(c,b); }
+  return {P, n, rep, reps, start, nbr, elen};
+}
+// shortest surface distance from the seeds over the vertices allowed by mask (welded rep indices)
+function _meshDijkstra(G, seeds, mask){
+  const cost=new Float64Array(G.n).fill(Infinity), hc=[], hv=[];
+  const push=(c,v)=>{ hc.push(c); hv.push(v); let i=hc.length-1; while(i>0){ const p=(i-1)>>1; if(hc[p]<=hc[i]) break; [hc[p],hc[i]]=[hc[i],hc[p]]; [hv[p],hv[i]]=[hv[i],hv[p]]; i=p; } };
+  const pop=()=>{ const c=hc[0], v=hv[0]; const lc=hc.pop(), lv=hv.pop(); if(hc.length){ hc[0]=lc; hv[0]=lv; let i=0; for(;;){ const l=2*i+1, r=l+1; let m=i; if(l<hc.length&&hc[l]<hc[m]) m=l; if(r<hc.length&&hc[r]<hc[m]) m=r; if(m===i) break; [hc[m],hc[i]]=[hc[i],hc[m]]; [hv[m],hv[i]]=[hv[i],hv[m]]; i=m; } } return [c,v]; };
+  for(const s of seeds){ cost[s]=0; push(0,s); }
+  while(hc.length){ const [c,u]=pop(); if(c>cost[u]) continue;
+    for(let i=G.start[u]; i<G.start[u+1]; i++){ const w=G.nbr[i]; if(!mask[w]) continue; const nc=c+G.elen[i]; if(nc<cost[w]){ cost[w]=nc; push(nc,w); } } }
+  return cost;
+}
+function fitHandsFromMesh(noLevel){
+  if(!meshGeo || !IDX || IDX.LeftHandIndex1==null || window.__noHandFit) return null;   // __noHandFit: dev A/B switch
+  const level=[];                  // hands whose palm must be turned DOWN first (see PALMS below)
+  const G=_meshGraph(), {P}=G, bb=meshGeo.boundingBox, H=bb.max.y-bb.min.y, V=THREE.Vector3;
+  const pv=v=>new V(P.getX(v),P.getY(v),P.getZ(v));
+  const J=nm=>jointPos[IDX[nm]];
+  const report={};
+  for(const pre of ['Left','Right']){
+    const W=J(pre+'Hand').clone(), E=J(pre+'ForeArm').clone(), ax=W.clone().sub(E).normalize();
+    // 1) the hand: flood fill from the wrist ring over the surface, never back past the wrist plane
+    const along=v=>(P.getX(v)-W.x)*ax.x+(P.getY(v)-W.y)*ax.y+(P.getZ(v)-W.z)*ax.z;
+    const perp=v=>{ const d=along(v); return Math.hypot(P.getX(v)-W.x-ax.x*d, P.getY(v)-W.y-ax.y*d, P.getZ(v)-W.z-ax.z*d); };
+    // wrist slice as thick as the mesh's own triangles there (a low-poly hand's edges are longer than a thin slice → it fell apart)
+    const el=[]; for(const v of G.reps){ if(pv(v).distanceTo(W)<0.10*H) for(let i=G.start[v];i<G.start[v+1];i++) el.push(G.elen[i]); }
+    el.sort((a,b)=>a-b); const sw=Math.max(0.006*H, 0.6*(el[el.length>>1]||0));
+    let s0=-1, sd=1e9; const slab=[];
+    for(const v of G.reps){ const d=along(v); if(Math.abs(d)<sw){ const pp=perp(v); if(pp<0.08*H){ slab.push(v); if(pp<sd){ sd=pp; s0=v; } } } }
+    if(s0<0){ report[pre]='no wrist ring'; continue; }
+    // The hand = the surface past the wrist that lies ON the forearm's line: a glove or sleeve over a hidden bare
+    // hand (dwarf) is a separate layer joined to it only back at the shoulder, so the piece holding the ring nearest the wrist
+    // can be a hidden stub. A piece off to one side (a thigh beside a hanging hand) is left out.
+    const ok=v=>along(v)>-Math.max(0.004*H, sw) && pv(v).distanceTo(W)<0.25*H;
+    const inSlab=new Uint8Array(G.n); for(const v of slab) inSlab[v]=1;
+    const mask=new Uint8Array(G.n), hv=[], seeds=[], seen=new Uint8Array(G.n); const comps=[];
+    for(const r0 of slab){ if(seen[r0] || !ok(r0)) continue; const comp=[r0]; seen[r0]=1;
+      for(let k=0;k<comp.length;k++){ const u=comp[k]; for(let i=G.start[u];i<G.start[u+1];i++){ const w=G.nbr[i]; if(!seen[w] && ok(w)){ seen[w]=1; comp.push(w); } } }
+      const c=new V(); let far=0; for(const v of comp){ c.add(pv(v)); far=Math.max(far, along(v)); } c.multiplyScalar(1/comp.length);
+      const d=c.clone().sub(W), cp=d.clone().addScaledVector(ax,-d.dot(ax)).length();
+      const sp=comp.filter(v=>inSlab[v]).map(perp).sort((a,b)=>a-b);
+      comps.push({comp, sp, med:sp[sp.length>>1]||0, mx:sp[sp.length-1]||0, onLine:cp<0.05*H && far>0.03*H, hasS0:comp.includes(s0)}); }
+    // the main piece = the biggest on the forearm's line (else the one at the ring nearest the wrist). Other pieces cut by the
+    // same wrist ring join it (a thumb whose root sits right at the wrist is its own piece past the cut — goblin), except one
+    // lying wholly INSIDE the main ring (a hidden inner stub → a fake fingertip inside the glove) or well outside it (a thigh).
+    const main=comps.filter(o=>o.onLine).sort((a,b)=>b.comp.length-a.comp.length)[0] || comps.find(o=>o.hasS0);
+    for(const o of comps){ if(o!==main && !(main && o.med<2.0*main.med && o.mx>=0.75*main.med)) continue;
+      for(const v of o.comp){ mask[v]=1; hv.push(v); if(inSlab[v]) seeds.push(v); } }
+    const g=_meshDijkstra(G, seeds, mask);
+    let gmax=0; for(const v of hv) if(g[v]<Infinity && g[v]>gmax) gmax=g[v];
+    if(!(gmax>0.03*H)){ report[pre]='hand too small ('+hv.length+' verts)'; continue; }
+    // 2) digit tips = local maxima of the walking distance over the surface from the wrist
+    const cand=[];
+    for(const v of hv){ const gv=g[v]; if(!(gv>=0.35*gmax) || gv===Infinity) continue; let top=true;
+      for(let i=G.start[v];i<G.start[v+1];i++){ const w=G.nbr[i]; if(mask[w] && g[w]>gv){ top=false; break; } } if(top) cand.push(v); }
+    cand.sort((a,b)=>g[b]-g[a]);
+    // a digit reaches well out from the wrist: a sleeve cuff or gauntlet flaring just past the wrist (orc, elf, goblin) makes
+    // its own little maxima there and was taken for the thumb
+    { let dmax=0, amax=0; for(const v of cand){ dmax=Math.max(dmax, pv(v).distanceTo(W)); amax=Math.max(amax, along(v)); }
+      for(let k=cand.length-1;k>=0;k--){ const v=cand[k]; if(pv(v).distanceTo(W)<0.40*dmax || along(v)<0.15*amax) cand.splice(k,1); } }
+    const tips=[];
+    // one digit, not two: a maximum close to an accepted tip over the surface, right beside it, or on the same line out from
+    // the wrist behind it (a claw point and the fingertip behind it — goblin, troll) belongs to that tip
+    for(const v of cand){ if(tips.length>=8) break; const p=pv(v);
+      if(tips.some(t=>{ if(t.d[v]<0.22*gmax) return true; const u=t.p.clone().sub(W).normalize(), d=p.clone().sub(t.p);
+          return d.length()<0.07*gmax || d.addScaledVector(u,-d.dot(u)).length()<0.03*gmax; })) continue;
+      const d=_meshDijkstra(G,[v],mask), l=0.25*g[v], c=new V(); let k=0;
+      // a digit STICKS OUT: the ring of skin a short walk back from its tip wraps round it and is far narrower than the walk,
+      // while a knuckle or a vein bump on the back of the hand has a wide, flat ring (Man)
+      const rv=[]; for(const u of hv){ if(Math.abs(d[u]-l)<0.05*g[v]){ rv.push(u); c.add(pv(u)); } }
+      if(rv.length>=4){ c.multiplyScalar(1/rv.length); let r=0; for(const u of rv) r+=pv(u).distanceTo(c); if(r/rv.length>0.6*l) continue; }
+      tips.push({v, g:g[v], p, d}); }
+    if(tips.length<3){ report[pre]={err:'only '+tips.length+' digit tip(s) found — template hand kept', verts:hv.length, gmax:+(gmax/H).toFixed(3), cand:cand.length}; continue; }
+    // 3) thumb = the tip pointing furthest away from the others and reaching least far; fingers ordered from the thumb side (index first)
+    const dir=t=>t.p.clone().sub(W).normalize();
+    let thumb=null, best=-1;
+    for(const t of tips){ const m=new V(); for(const o of tips) if(o!==t) m.add(dir(o)); m.normalize(); const a=Math.acos(Math.max(-1,Math.min(1,dir(t).dot(m)))); t.ang=a; t.fu=dir(t).dot(new V(0,0.7071,0.7071)); }   // how far the tip points forward/up
+    { const mfu=tips.reduce((a,t)=>a+t.fu,0)/tips.length;
+      for(const t of tips){ const sc=t.ang/(Math.PI/4)+3.0*(t.fu-mfu); if(sc>best){ best=sc; thumb=t; } } }   // thumb: splays away from the others and points FORWARD/UP — in any T/A-pose (palms down, forward or facing the thighs) the thumb is never the back/down digit, while a splayed short pinky is
+    let fingers=tips.filter(t=>t!==thumb);
+    if(fingers.length>4) fingers=fingers.sort((a,b)=>b.g-a.g).slice(0,4);
+    const e1=new V(); for(const f of fingers) e1.add(dir(f)); e1.normalize();
+    const e2=thumb.p.clone().sub(W); e2.addScaledVector(e1,-e2.dot(e1)).normalize();
+    fingers.sort((a,b)=>b.p.clone().sub(W).dot(e2)-a.p.clone().sub(W).dot(e2));
+    // PALMS (2026-09-27): the rig and every finger motion expect a T-pose with the palms facing DOWN (Mixamo's bind). A model made
+    // with the palms facing FORWARD (thumbs up, fingers spread — the easiest pose to generate cleanly) is turned palm-down here:
+    // the forearm and hand are rotated about the forearm's own axis, blended in along the forearm the way the radius rolls over
+    // the ulna, so no wrist twists at rest. Only for a near-horizontal (T-pose) arm, and never on a re-opened rig.
+    if(!noLevel && !_reopenPending && Math.abs(ax.y)<0.8){ const s=pre==='Left'?1:-1;
+      const n=new V().crossVectors(e1,e2).multiplyScalar(s); n.addScaledVector(ax,-n.dot(ax)); const d=new V(0,-1,0).addScaledVector(ax,ax.y);
+      if(n.lengthSq()>1e-6 && d.lengthSq()>1e-6){ n.normalize(); d.normalize(); const ang=Math.atan2(ax.dot(new V().crossVectors(n,d)), n.dot(d));
+        if(Math.abs(ang)>0.6){ level.push({pre, E, W, ax, ang, hl:W.distanceTo(thumb.p)>0 ? Math.max(...digits0(tips,W)) : 0.1*H}); report[pre]={levelled:+(ang*180/Math.PI).toFixed(0)}; continue; } } }
+    const digits=[thumb, ...fingers];
+    // 4) each digit's skin (closest tip over the surface) and its web (where it first meets another digit's skin)
+    const owner=new Int8Array(G.n).fill(-1);
+    for(const v of hv){ let bi=-1, bd=Infinity; digits.forEach((t,i)=>{ if(t.d[v]<bd){ bd=t.d[v]; bi=i; } }); owner[v]=bi; }
+    digits.forEach((t,i)=>{ let web=Infinity;
+      for(const v of hv){ if(owner[v]!==i) continue; for(let k=G.start[v];k<G.start[v+1];k++){ const w=G.nbr[k]; if(mask[w] && owner[w]>=0 && owner[w]!==i){ if(t.d[v]<web) web=t.d[v]; break; } } }
+      t.web=web; });
+    // centre of the digit's cross-section ring at surface distance l from its tip
+    const ring=(i,l)=>{ const t=digits[i]; for(const wf of [0.035,0.07,0.14]){ const w=wf*t.g, c=new V(); let k=0;
+        for(const v of hv){ if(owner[v]!==i) continue; const d=t.d[v]; if(Math.abs(d-l)<w){ c.x+=P.getX(v); c.y+=P.getY(v); c.z+=P.getZ(v); k++; } }
+        if(k>=4) return c.multiplyScalar(1/k); } return null; };
+    const set=(nm,p)=>{ if(p && IDX[nm]!=null) jointPos[IDX[nm]].copy(p); };
+    const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+    const rep={tips:digits.length, thumbDeg:+(thumb.ang*180/Math.PI).toFixed(1), digits:[]};
+    // thumb: knuckle (MCP) back 42% of its wrist→tip walk (or at its web), IP at 40% of that, base halfway from the wrist
+    { const t=thumb, lm=clamp(isFinite(t.web)?1.0*t.web:0.42*t.g, 0.30*t.g, 0.55*t.g);
+      const mcp=ring(0,lm), ip=ring(0,0.40*lm);
+      if(mcp && ip){ set(pre+'HandThumb2', mcp); set(pre+'HandThumb3', ip); set(pre+'HandThumb1', W.clone().lerp(mcp, 0.5)); }
+      rep.digits.push({n:'Thumb', g:+(t.g/H).toFixed(3), web:+(t.web/t.g).toFixed(2), lm:+(lm/t.g).toFixed(2)}); }
+    const NAMES=['Index','Middle','Ring','Pinky'];
+    fingers.forEach((t,k)=>{ const i=k+1, lm=clamp(isFinite(t.web)?1.27*t.web:0.43*t.g, 0.33*t.g, 0.55*t.g);
+      const j1=ring(i,lm), j2=ring(i,0.62*lm), j3=ring(i,0.27*lm);
+      if(j1&&j2&&j3){ set(pre+'Hand'+NAMES[k]+'1', j1); set(pre+'Hand'+NAMES[k]+'2', j2); set(pre+'Hand'+NAMES[k]+'3', j3); }
+      rep.digits.push({n:NAMES[k], g:+(t.g/H).toFixed(3), web:+(t.web/t.g).toFixed(2), lm:+(lm/t.g).toFixed(2)}); });
+    // a hand with fewer than four fingers: the spare finger bones ride on the outermost real finger (same joints), so its
+    // skin simply follows both (a curl of ring + pinky curls the one finger)
+    for(let k=fingers.length;k<4;k++) for(const s of [1,2,3]) set(pre+'Hand'+NAMES[k]+s, J(pre+'Hand'+NAMES[fingers.length-1]+s).clone());
+    report[pre]=rep;
+  }
+  if(level.length){ levelPalms(level, H); const r2=fitHandsFromMesh(true); for(const L of level) if(r2&&r2[L.pre]) r2[L.pre].palmTurnedDeg=+(L.ang*180/Math.PI).toFixed(0); return r2; }
+  window.__handFit=report; return report;
+}
+const digits0=(tips,W)=>tips.map(t=>t.p.distanceTo(W));   // wrist → each digit tip (the hand's reach)
+// Turn a palm-forward (or palm-up) T-pose hand palm-DOWN in the mesh itself (see PALMS in fitHandsFromMesh). Vertices of the
+// forearm (from a quarter of the way down it) and the hand, near the forearm's line, rotate about that line; the angle ramps in
+// from 25% to 95% of the forearm so the skin rolls smoothly like a real forearm turning over.
+let _palmsNote='';
+function levelPalms(list, H){
+  const P=meshGeo.attributes.position, N=meshGeo.attributes.normal, n=P.count, V=THREE.Vector3, p=new V(), q=new THREE.Quaternion(), nv=new V(); const notes=[];
+  const G=_meshGraph();   // only skin CONNECTED to the forearm turns (not a wing or skirt piece that happens to lie beside the hand)
+  for(const L of list){ const {E,W,ax,ang}=L, fl=E.distanceTo(W), reach=1.35*L.hl;
+    const inReg=v=>{ if(_fitMask && _fitMask[v]) return false; p.set(P.getX(v),P.getY(v),P.getZ(v)); const rel=p.clone().sub(E), a=rel.dot(ax), u=a/fl; if(u<0.2) return false;
+      const perp=rel.clone().addScaledVector(ax,-a).length(); return u<=1 ? perp<=0.085*H : p.distanceTo(W)<=reach; };
+    const ok=new Uint8Array(n), qq=[]; { const mid=E.clone().lerp(W,0.5); let bv=-1, bd=Infinity; for(const v of G.reps){ if(!inReg(v)) continue; const d=p.set(P.getX(v),P.getY(v),P.getZ(v)).distanceTo(mid); if(d<bd){ bd=d; bv=v; } } if(bv>=0){ ok[bv]=1; qq.push(bv); } }
+    for(let k=0;k<qq.length;k++){ const u=qq[k]; for(let i=G.start[u];i<G.start[u+1];i++){ const w=G.nbr[i]; if(!ok[w] && inReg(w)){ ok[w]=1; qq.push(w); } } }
+    // LOOSE HAND PIECES (2026-09-27): AI-generated meshes often split a hand into separate pieces (fingers or the back of the
+    // hand not welded to the palm). Only turning skin connected to the forearm left those pieces palm-forward — a "ghost" second
+    // hand under the turned one. A piece lying (almost) entirely inside the forearm/hand zone turns with it; a skirt, cape or
+    // wing that merely passes near the hand is mostly outside the zone and stays put.
+    { const seen=new Uint8Array(n);
+      for(const r0 of G.reps){ if(seen[r0] || ok[r0]) continue; const comp=[r0]; seen[r0]=1; let inside=0;
+        for(let k=0;k<comp.length;k++){ const u=comp[k]; if(inReg(u)) inside++; for(let i=G.start[u];i<G.start[u+1];i++){ const w=G.nbr[i]; if(!seen[w]){ seen[w]=1; comp.push(w); } } }
+        if(inside>0 && inside>=0.8*comp.length) for(const u of comp) ok[u]=1; } }
+    // HAIRLINE CRACKS (2026-09-27, Female Wizard): an AI mesh can be one surface cut into patches along its texture seams, the
+    // seam vertices a few mm apart instead of shared. The patches only meet further up the arm, so the connected turn above took
+    // every other patch and left the rest palm-forward — a ghost hand threaded through the turned one. Inside the forearm/hand zone,
+    // a vertex within 0.6% of the height of one already turning turns too (hash grid, spread outward from the turned skin).
+    { const eps=0.006*H, cell=eps, key=(x,y,z)=>Math.floor(x/cell)+','+Math.floor(y/cell)+','+Math.floor(z/cell), grid=new Map(), inR=new Uint8Array(n), q=[];
+      for(const r of G.reps){ if(!inReg(r)) continue; inR[r]=1; const k=key(P.getX(r),P.getY(r),P.getZ(r)); let c=grid.get(k); if(!c) grid.set(k,c=[]); c.push(r); if(ok[r]) q.push(r); }
+      for(let k=0;k<q.length;k++){ const u=q[k], ux=P.getX(u), uy=P.getY(u), uz=P.getZ(u), cx=Math.floor(ux/cell), cy=Math.floor(uy/cell), cz=Math.floor(uz/cell);
+        for(let i=G.start[u];i<G.start[u+1];i++){ const w=G.nbr[i]; if(!ok[w] && inR[w]){ ok[w]=1; q.push(w); } }
+        for(let dx=-1;dx<=1;dx++) for(let dy=-1;dy<=1;dy++) for(let dz=-1;dz<=1;dz++){ const c=grid.get((cx+dx)+','+(cy+dy)+','+(cz+dz)); if(!c) continue;
+          for(const w of c){ if(ok[w]) continue; if(Math.hypot(P.getX(w)-ux,P.getY(w)-uy,P.getZ(w)-uz)<=eps){ ok[w]=1; q.push(w); } } } } }
+    for(let v=0; v<n; v++){ if(!ok[G.rep[v]]) continue;
+      p.set(P.getX(v),P.getY(v),P.getZ(v)); const rel=p.clone().sub(E), a=rel.dot(ax), u=a/fl; if(u<0.25) continue;
+      const t=Math.min(1,Math.max(0,(u-0.25)/0.70)), f=t*t*(3-2*t); if(f<=0) continue;
+      q.setFromAxisAngle(ax, ang*f); p.sub(E).applyQuaternion(q).add(E); P.setXYZ(v,p.x,p.y,p.z);
+      if(N){ nv.set(N.getX(v),N.getY(v),N.getZ(v)).applyQuaternion(q); N.setXYZ(v,nv.x,nv.y,nv.z); } }
+    notes.push(L.pre.toLowerCase()+' '+Math.round(Math.abs(ang)*180/Math.PI)+'°'); }
+  P.needsUpdate=true; if(N) N.needsUpdate=true; meshGeo.computeBoundingBox(); meshGeo.computeBoundingSphere();
+  _palmsNote='🖐 palms turned down for rigging ('+notes.join(', ')+') — the rig expects palm-down hands';
+}
+// Finger skinning (🖐 Biped + Fingers). The generic distance rule judges every bone against its body part's thickness, so the
+// broad Hand bone out-reached the thin finger bones along most of each finger: only the fingertips followed the finger bones,
+// a fist folded the palm instead of curling the fingers, and touching fingers shared skin. Here the weight the generic pass
+// gave the hand (the Hand bone + its fingers — the forearm/wrist blend is left exactly as it was) is shared out again:
+//   · each vertex belongs to the digit nearest over the surface (soft only right at the webs);
+//   · along its digit it follows ONE phalanx, with a short smooth blend across each knuckle, and blends into the palm
+//     just behind the finger's base knuckle; the thumb base only takes the thenar pad, never the middle of the palm.
+function refineHandSkin(pos, n, segs, radius, geo, skinIndex, skinWeight){
+  const NB=segs.length, V=THREE.Vector3, sst=(a,b,x)=>{ const t=Math.max(0,Math.min(1,(x-a)/(b-a))); return t*t*(3-2*t); };
+  for(const pre of ['Left','Right']){
+    const hb=IDX[pre+'Hand']; if(hb==null || IDX[pre+'HandIndex1']==null) continue;
+    const DIG=['Thumb','Index','Middle','Ring','Pinky'].map(d=>{ const b=[1,2,3].map(k=>IDX[pre+'Hand'+d+k]); const p=b.map(i=>jointPos[i].clone());
+      const tip=p[2].clone().add(p[2].clone().sub(p[1]).multiplyScalar(0.75)); const pts=[...p, tip];
+      const L=[0,1,2].map(k=>pts[k+1].distanceTo(pts[k])); return {d, b, pts, L, cum:[0, L[0], L[0]+L[1], L[0]+L[1]+L[2]]}; });
+    const fam=new Set([hb, ...DIG.flatMap(o=>o.b)]);
+    // WRIST: the forearm is a thick bone, so it kept up to 60% of the palm skin a hand-width past the wrist (the thenar bulge)
+    // — a bent wrist then left that skin behind as a long spike (the Man's raised fist). Past the wrist plane the forearm's
+    // share hands over to the Hand bone within the first third of the hand.
+    { const fb=IDX[pre+'ForeArm']; if(fb!=null){ const Wp=jointPos[hb], ax=Wp.clone().sub(jointPos[fb]).normalize(), hl=Wp.distanceTo(jointPos[IDX[pre+'HandMiddle1']]);
+      for(let v=0; v<n; v++){ let kf=-1; for(let k=0;k<4;k++) if(skinIndex[v*4+k]===fb) kf=k; if(kf<0 || skinWeight[v*4+kf]<=0) continue;
+        const a=(pos.getX(v)-Wp.x)*ax.x+(pos.getY(v)-Wp.y)*ax.y+(pos.getZ(v)-Wp.z)*ax.z, kk=sst(0, 0.35*hl, a); if(kk<=0) continue;
+        const mv=skinWeight[v*4+kf]*kk; skinWeight[v*4+kf]-=mv; let kh=-1; for(let k=0;k<4;k++) if(skinIndex[v*4+k]===hb) kh=k;
+        if(kh<0){ let km=0; for(let k=1;k<4;k++) if(skinWeight[v*4+k]<skinWeight[v*4+km]) km=k; if(skinWeight[v*4+km]<=mv){ skinWeight[v*4+kf]+=skinWeight[v*4+km]*0; skinIndex[v*4+km]=hb; skinWeight[v*4+km]=mv; } else skinWeight[v*4+kf]+=mv; }
+        else skinWeight[v*4+kh]+=mv; } } }
+    const rf=radius[DIG[1].b[0]];
+    // closest point on the digit polyline → arc position s (negative = behind the base knuckle, along the finger's line)
+    const arcS=(o,px,py,pz)=>{ let best=Infinity, bs=0;
+      for(let k=0;k<3;k++){ const a=o.pts[k], b=o.pts[k+1], dx=b.x-a.x, dy=b.y-a.y, dz=b.z-a.z, L2=dx*dx+dy*dy+dz*dz||1e-12;
+        let t=((px-a.x)*dx+(py-a.y)*dy+(pz-a.z)*dz)/L2; if(k>0) t=Math.max(0,t); t=Math.min(1,t);
+        const qx=a.x+dx*t-px, qy=a.y+dy*t-py, qz=a.z+dz*t-pz, dd=qx*qx+qy*qy+qz*qz; if(dd<best){ best=dd; bs=o.cum[k]+t*o.L[k]; } }
+      return bs; };
+    const wAcc=new Float32Array(NB);
+    for(let v=0; v<n; v++){
+      let Wf=0; for(let k=0;k<4;k++){ const b=skinIndex[v*4+k]; if(fam.has(b)) Wf+=skinWeight[v*4+k]; }
+      if(Wf<=1e-4) continue;
+      const px=pos.getX(v), py=pos.getY(v), pz=pos.getZ(v);
+      // digit membership: surface distance to each digit's bones (in finger radii), softened over ~⅓ radius at the webs
+      const gd=DIG.map(o=>Math.min(geo[o.b[0]*n+v], geo[o.b[1]*n+v], geo[o.b[2]*n+v]));
+      let gmin=Math.min(...gd); if(!isFinite(gmin)){ // loose piece: fall back to straight-line distance to the digit chains
+        for(let i=0;i<5;i++){ const o=DIG[i]; gd[i]=Math.min(...[0,1,2].map(k=>distToSegment(px,py,pz,o.pts[k],o.pts[k+1])))/rf; } gmin=Math.min(...gd); }
+      const m=gd.map(x=>Math.exp(-(x-gmin)/0.35)); const ms=m.reduce((a,b)=>a+b,0);
+      wAcc.fill(0); let handShare=1;
+      DIG.forEach((o,i)=>{ const mi=m[i]/ms; if(mi<1e-3) return;
+        const s=arcS(o,px,py,pz), L1=o.L[0];
+        let h;
+        if(i===0){ let dE=Infinity; for(let k=0;k<3;k++) dE=Math.min(dE, distToSegment(px,py,pz,o.pts[k],o.pts[k+1])/rf);
+          const near=1-sst(0.75,1.4,dE);  // thumb: only skin close around the thumb bones (the thenar pad) — the web to the index stays with the palm, or a thumbs-up drags it into a rubber membrane
+          h=sst(-0.10*L1, 0.55*L1, s)*near; }
+        else h=sst(-0.28*L1, 0.30*L1, s);
+        if(h<=0) return;
+        const b1=0.22*Math.min(o.L[0],o.L[1]), b2=0.22*Math.min(o.L[1],o.L[2]);
+        const w3=sst(o.cum[2]-b2, o.cum[2]+b2, s), w1=1-sst(o.cum[1]-b1, o.cum[1]+b1, s), w2=Math.max(0,1-w1-w3);
+        const share=mi*h; handShare-=share;
+        wAcc[o.b[0]]+=share*w1; wAcc[o.b[1]]+=share*w2; wAcc[o.b[2]]+=share*w3; });
+      wAcc[hb]+=Math.max(0,handShare);
+      // rebuild this vertex's influences: non-hand bones keep their weight, the hand family's Wf is re-shared
+      const inf=[]; for(let k=0;k<4;k++){ const b=skinIndex[v*4+k], w=skinWeight[v*4+k]; if(!fam.has(b) && w>0) inf.push([b,w]); }
+      for(const b of fam){ const w=wAcc[b]*Wf; if(w>1e-5) inf.push([b,w]); }
+      inf.sort((a,b)=>b[1]-a[1]); const top=inf.slice(0,4); const tot=top.reduce((a,x)=>a+x[1],0)||1;
+      for(let k=0;k<4;k++){ skinIndex[v*4+k]=top[k]?top[k][0]:0; skinWeight[v*4+k]=top[k]?top[k][1]/tot:0; }
+    }
+  }
+}
+// ---------- 🧚 winged biped (fairy / angel) ----------
+let _fitMask=null;
+function maskedBox(M){ const P=meshGeo.attributes.position, b=new THREE.Box3(), v3=new THREE.Vector3(); for(let v=0; v<P.count; v++){ if(M && M[v]) continue; b.expandByPoint(v3.set(P.getX(v),P.getY(v),P.getZ(v))); } return b; }
+// WING vertices: wings are thin sheets BEHIND the back. Beside the body (past 10% of the height from the middle) the arms and the
+// wings sit at different depths: the depth split is found where the arms are (2-means on z at arm height), and anything behind it
+// is wing. Scraps of the arms' back surface that fall behind the line are small separate islands of the mask → put back.
+function fairyWingMask(raw){   // raw: skip the scrap filter (the surface-connection pass decides those)
+  const P=meshGeo.attributes.position, n=P.count, bb=meshGeo.boundingBox, H=bb.max.y-bb.min.y, cx=(bb.max.x+bb.min.x)/2, M=new Uint8Array(n);
+  const zs=[]; for(let v=0; v<n; v+=2){ const ax=Math.abs(P.getX(v)-cx), y=P.getY(v)-bb.min.y; if(ax>0.15*H && ax<0.32*H && y>0.45*H && y<0.78*H) zs.push(P.getZ(v)); }
+  if(zs.length<40) return M; zs.sort((a,b)=>a-b);
+  let cW=zs[Math.floor(zs.length*0.15)], cA=zs[Math.floor(zs.length*0.85)];
+  for(let it=0; it<30; it++){ let sw=0,nw=0,sa=0,na=0; for(const z of zs){ if(Math.abs(z-cW)<Math.abs(z-cA)){ sw+=z; nw++; } else { sa+=z; na++; } } if(nw) cW=sw/nw; if(na) cA=sa/na; }
+  if(cA-cW<0.04*H) return M;                                          // no separate layer behind the arms → no wings found
+  const cut=Math.max(cW+0.35*(cA-cW), cA-0.05*H);
+  for(let v=0; v<n; v++){ const ax=Math.abs(P.getX(v)-cx), z=P.getZ(v); if((ax>0.10*H && z<cut) || (ax>0.03*H && z<cut-0.03*H)) M[v]=1; }   // close to the middle only well behind the line (the lower wings hang behind the legs; the back and seat stay body)
+  if(raw) return M;
+  // drop small islands of the mask (arm backs) — connectivity within the masked set
+  const idx=meshGeo.index ? meshGeo.index.array : null, nt=idx? idx.length/3 : n/3, par=new Int32Array(n).map((_,i)=>i);
+  const key=new Map(), rep=new Int32Array(n); for(let v=0;v<n;v++){ const k=P.getX(v).toFixed(5)+','+P.getY(v).toFixed(5)+','+P.getZ(v).toFixed(5); let r=key.get(k); if(r===undefined){ r=v; key.set(k,v); } rep[v]=r; }
+  const f=x=>{ while(par[x]!==x){ par[x]=par[par[x]]; x=par[x]; } return x; };
+  for(let t=0;t<nt;t++){ const a=rep[idx?idx[t*3]:t*3], b=rep[idx?idx[t*3+1]:t*3+1], c=rep[idx?idx[t*3+2]:t*3+2]; if(M[a]&&M[b]) par[f(b)]=f(a); if(M[a]&&M[c]) par[f(c)]=f(a); }
+  const cnt=new Map(); let tot=0; for(let v=0;v<n;v++) if(M[v]){ const r=f(rep[v]); cnt.set(r,(cnt.get(r)||0)+1); tot++; }
+  const touches=new Set(); for(let t=0;t<nt;t++){ const tr=[rep[idx?idx[t*3]:t*3], rep[idx?idx[t*3+1]:t*3+1], rep[idx?idx[t*3+2]:t*3+2]]; const m=tr.filter(x=>M[x]); if(m.length && m.length<3) for(const x of m) touches.add(f(x)); }   // islands joined to unmasked skin (arm backs) vs loose wing pieces
+  for(let v=0;v<n;v++) if(M[v] && cnt.get(f(rep[v]))<0.03*tot && touches.has(f(rep[v]))) M[v]=0;
+  window.__wingMask={cut:+cut.toFixed(3), arm:+cA.toFixed(3), wing:+cW.toFixed(3), verts:[...M].reduce((a,b)=>a+b,0)};
+  return M;
+}
+// Once the BODY skeleton is fitted, settle every vertex as wing or body by what it is CONNECTED to: the depth rule alone left
+// strips of a wing's edge that lie right behind the arm as "body" (they stretched with the arm). Seeds: skin hugging a body bone
+// (limbs within ~2% of the height of their bone, the trunk within 8%) is body; depth-rule wing skin well clear of every body bone
+// is wing; every other vertex goes to whichever is nearer over the surface.
+function refineWingMask(M){
+  const P=meshGeo.attributes.position, n=P.count, bb=meshGeo.boundingBox, H=bb.max.y-bb.min.y, cx=(bb.max.x+bb.min.x)/2; const segs=boneSegments();
+  const body=[]; TEMPLATE.forEach((b,i)=>{ if(/Wing/.test(b.name) || /Hand(Thumb|Index|Middle|Ring|Pinky)/.test(b.name) || /head_end|headfront/.test(b.name)) return;
+    const r=/^(Hips|Spine|Spine0[12]|neck|Head)$/.test(b.name) ? 0.08*H : /(UpLeg)$/.test(b.name) ? 0.045*H : 0.022*H; body.push({s:segs[i], r}); });
+  const G=_meshGraph(), all=new Uint8Array(n).fill(1), bs=[], ws=[];
+  for(const v of G.reps){ const x=P.getX(v), y=P.getY(v), z=P.getZ(v); let nb=Infinity, hug=false;
+    for(const o of body){ const d=distToSegment(x,y,z,o.s.a,o.s.b); if(d<o.r) hug=true; nb=Math.min(nb,d); }
+    if(hug && !M[v]) bs.push(v); else if(M[v] && nb>0.05*H && Math.abs(x-cx)>0.12*H) ws.push(v); }   // wing seeds only out beside the body (a skirt hanging behind the legs is not a wing)
+  if(!ws.length || !bs.length) return M;
+  const dB=_meshDijkstra(G,bs,all), dW=_meshDijkstra(G,ws,all), R=new Uint8Array(n);
+  for(let v=0; v<n; v++){ const r=G.rep[v]; R[v]= (dW[r]===Infinity && dB[r]===Infinity) ? M[v] : (dW[r]<dB[r] ? 1 : 0); }   // a loose piece with no path to either keeps its depth label
+  window.__wingMask2={seedsBody:bs.length, seedsWing:ws.length, wingVerts:[...R].reduce((a,b)=>a+b,0)};
+  return R;
+}
+// WING CHAINS: each side's wing vertices split into the upper (fore) and lower (hind) wing by the direction they reach out from the
+// back; a single wing a side (an angel) fills the FWing chain and the HWing chain folds against it. Root at the wing's base next
+// to the spine, End at its farthest point, 1 and 2 on the wing's own midline at ⅓ and ⅔.
+function fitFairyWings(M){
+  if(!M || IDX.LeftFWing==null) return; const P=meshGeo.attributes.position, n=P.count, bb=meshGeo.boundingBox, H=bb.max.y-bb.min.y, cx=(bb.max.x+bb.min.x)/2, V=THREE.Vector3, rep={};
+  const chest=jointPos[IDX.Spine].clone();
+  for(const [pre,s] of [['Left',1],['Right',-1]]){
+    const pts=[]; for(let v=0; v<n; v++) if(M[v] && (P.getX(v)-cx)*s>0) pts.push(v);
+    if(pts.length<50){ rep[pre]='no wing'; continue; }
+    const A=new V(cx+s*0.03*H, chest.y, 0); { let zs=0; for(const v of pts) zs+=P.getZ(v); A.z=zs/pts.length; }
+    const ang=v=>Math.atan2(P.getY(v)-A.y, Math.abs(P.getX(v)-A.x));
+    let cU=0.6, cL=-0.6; for(let it=0; it<30; it++){ let su=0,nu=0,sl=0,nl2=0; for(const v of pts){ const a=ang(v); if(Math.abs(a-cU)<Math.abs(a-cL)){ su+=a; nu++; } else { sl+=a; nl2++; } } if(nu) cU=su/nu; if(nl2) cL=sl/nl2; }
+    const two = cU-cL > 0.6;                                           // two wings a side (fairy) or one (angel)
+    const groups = two ? [['FWing', pts.filter(v=>Math.abs(ang(v)-cU)<Math.abs(ang(v)-cL))], ['HWing', pts.filter(v=>Math.abs(ang(v)-cU)>=Math.abs(ang(v)-cL))]] : [['FWing', pts]];
+    const pv=v=>new V(P.getX(v),P.getY(v),P.getZ(v)); rep[pre]={wings:groups.length, upperDeg:+(cU*57.3).toFixed(0), lowerDeg:+(cL*57.3).toFixed(0)};
+    for(const [w,g] of groups){
+      const byIn=[...g].sort((a,b)=>Math.abs(P.getX(a)-cx)-Math.abs(P.getX(b)-cx)), base=byIn.slice(0, Math.max(5, Math.floor(g.length*0.04)));
+      const R=new V(); for(const v of base) R.add(pv(v)); R.multiplyScalar(1/base.length); R.x=cx+s*Math.max(0.025*H, Math.abs(R.x-cx)*0.6);
+      let far=null, fd=-1; for(const v of g){ const d=pv(v).distanceTo(R); if(d>fd){ fd=d; far=pv(v); } }
+      const ax=far.clone().sub(R), L=ax.length(); ax.normalize(); const mid=t=>{ const c=new V(); let k=0; for(const v of g){ const u=pv(v).sub(R).dot(ax)/L; if(Math.abs(u-t)<0.07){ c.add(pv(v)); k++; } } return k>=4 ? c.multiplyScalar(1/k) : R.clone().addScaledVector(ax, t*L); };
+      jointPos[IDX[pre+w]].copy(R); jointPos[IDX[pre+w+'1']].copy(mid(0.33)); jointPos[IDX[pre+w+'2']].copy(mid(0.66)); jointPos[IDX[pre+w+'End']].copy(far.clone().lerp(R,0.03));
+      rep[pre][w]={verts:g.length, span:+(L/H).toFixed(2)};
+    }
+    if(!two){ const F=['FWing','FWing1','FWing2','FWingEnd'].map(k=>jointPos[IDX[pre+k]]); ['HWing','HWing1','HWing2','HWingEnd'].forEach((k,i)=>jointPos[IDX[pre+k]].copy(F[0]).lerp(F[i],0.25).addScaledVector(new V(0,-1,0),0.01*H*(i+1))); }   // angel: the unused hind chain folds against the wing root
+  }
+  window.__wingFit=rep; return rep;
+}
+// WING SKIN: a wing vertex follows only its own wing chain (nearest two segments), easing onto the chest right at the root; a body
+// vertex never follows a wing bone (the generic distance pass let the lower wings grab the hands and hips in front of them).
+function skinFairyWings(pos, n, skinIndex, skinWeight){
+  const M0=fairyWingMask(true); if(!M0.some(x=>x)) return; const M=refineWingMask(M0); const bb=meshGeo.boundingBox, H=bb.max.y-bb.min.y, cx=(bb.max.x+bb.min.x)/2, chestB=IDX.Spine;
+  const wingIdx=new Set(BONE_NAMES.map((nm,i)=>/Wing/.test(nm)?i:-1).filter(i=>i>=0));
+  const chains=[]; for(const s of ['Left','Right']) for(const w of ['FWing','HWing']){ const b=['','1','2','End'].map(k=>IDX[s+w+k]); chains.push({side:s==='Left'?1:-1, b, p:b.map(i=>jointPos[i])}); }
+  const px=new THREE.Vector3();
+  for(let v=0; v<n; v++){ const k4=v*4;
+    if(!M[v]){ let tot=0; for(let k=0;k<4;k++){ if(wingIdx.has(skinIndex[k4+k])) skinWeight[k4+k]=0; tot+=skinWeight[k4+k]; } if(tot<=1e-6){ skinIndex[k4]=chestB; skinWeight[k4]=1; tot=1; } for(let k=0;k<4;k++) skinWeight[k4+k]/=tot; continue; }
+    px.set(pos.getX(v),pos.getY(v),pos.getZ(v)); const s=Math.sign(px.x-cx)||1;
+    let best=[]; for(const c of chains){ if(c.side!==s) continue; for(let j=0;j<3;j++){ const d=distToSegment(px.x,px.y,px.z,c.p[j],c.p[j+1]); if(c.p[j].distanceTo(c.p[j+1])<1e-4) continue; best.push([c.b[j], d, c.p[0]]); } }
+    best.sort((a,b)=>a[1]-b[1]); best=best.slice(0,2); const w=best.map(b=>1/Math.pow(b[1]+0.01*H,4)); let ws=w.reduce((a,b)=>a+b,0);
+    const inf=best.map((b,i)=>[b[0], w[i]/ws]);
+    const dr=best.length? px.distanceTo(best[0][2]) : 1, t=Math.min(1,Math.max(0,(dr-0.02*H)/(0.08*H))), chestW=1-t*t*(3-2*t);   // near the root: onto the chest
+    const out=inf.map(([b,x])=>[b,x*(1-chestW)]).concat([[chestB,chestW]]).filter(x=>x[1]>1e-5).sort((a,b)=>b[1]-a[1]).slice(0,4);
+    const tt=out.reduce((a,x)=>a+x[1],0)||1; for(let k=0;k<4;k++){ skinIndex[k4+k]=out[k]?out[k][0]:0; skinWeight[k4+k]=out[k]?out[k][1]/tt:0; } }
 }
 function autoFit(){
   if(!meshGeo){ setStatus('Load a mesh first.'); return; }
@@ -551,7 +967,9 @@ function autoFit(){
   // so its length runs ALONG the animal (the dog quad template comes in yawed 90° vs a Meshy horse/lion).
   // frog/rabbit are authored to Meshy's own frog/rabbit export orientation (+Z head), so they must NOT be
   // auto-yawed — every Meshy frog/rabbit comes out the same way, so the fixed template aligns them with no manual turn.
-  const isBipedType = (rigType==='biped' || rigType==='bipedhand');   // fingered biped fits exactly like the biped
+  const isBipedType = (rigType==='biped' || rigType==='bipedhand' || rigType==='bipedfairy');   // fingered / winged bipeds fit like the biped
+  const fairy = rigType==='bipedfairy' && meshGeo;
+  let _bbKeep=null; if(fairy){ _fitMask=fairyWingMask(); _bbKeep=meshGeo.boundingBox; meshGeo.boundingBox=maskedBox(_fitMask); }   // the BODY is fitted with the wings left out
   const noAutoYaw = (rigType==='frog' || rigType==='rabbit');
   if(!isBipedType && !noAutoYaw && (mSize.x>mSize.z) !== (sSize.x>sSize.z)){
     raw=raw.map(p=>new THREE.Vector3(p.z, p.y, -p.x));           // −90° yaw about vertical (flipped default so the head lands at the mesh's head end for the new biped-oriented exports; Turn slider still corrects any residual)
@@ -564,6 +982,8 @@ function autoFit(){
     const cx=(bb.max.x+bb.min.x)/2, cz=(bb.max.z+bb.min.z)/2, hx=jointPos[0].x, hz=jointPos[0].z;
     for(const p of jointPos){ p.x+=cx-hx; p.z+=cz-hz; }
     smartFitBiped();   // then put the limb joints INSIDE the actual limbs (a height-scaled template misses on bulky bodies). Safe for both biped rigs: both export the ksolRestPose T-pose flag, so the Stitcher retargets against the fitted rest (a plain rig WITHOUT the flag plays raw template angles and needs the template directions exactly).
+    if(rigType==='bipedhand' || fairy) fitHandsFromMesh();   // then read the real fingers and thumb off the mesh (see fitHandsFromMesh)
+    if(fairy){ meshGeo.boundingBox=_bbKeep; _fitMask=null; const M=refineWingMask(fairyWingMask(true)); fitFairyWings(M); }
   } else if(hasWings){
     // WINGED QUAD: fit the BODY (core bones) into the mesh's BODY region (a vertex scan that trims off the tall,
     // wide wing mass), then trace each wing-bone chain out along the actual detected wing mesh. sMin/sSize here are
@@ -691,7 +1111,11 @@ function refreshSkeleton(){
 // biped / quadruped skeleton toggle
 $('#rigSeg').addEventListener('click', e=>{
   const b=e.target.closest('button'); if(!b || b.dataset.rig===rigType) return;
-  setRig(b.dataset.rig);
+  setRig(b.dataset.rig); syncRigUI(); const r=RIGS[rigType];
+  autoFit();   // re-fit the newly chosen skeleton (works with or without a mesh loaded)
+  setStatus(r.label[0].toUpperCase()+r.label.slice(1)+' skeleton selected'+(meshGeo?' — drag joints to fit.':' — load a mesh.'));
+});
+function syncRigUI(){
   $('#rigSeg').querySelectorAll('button').forEach(x=>x.classList.toggle('on', x.dataset.rig===rigType));
   $('#birdPose').style.display = (rigType==='bird') ? 'flex' : 'none';   // pose sub-toggle only for birds
   const r=RIGS[rigType];
@@ -699,11 +1123,10 @@ $('#rigSeg').addEventListener('click', e=>{
     ? `Skeleton = standard bird · UniRig (${r.bones} bones)` : `Skeleton = standard ${r.label} (${r.bones} bones)`;
   $('#skelNote').textContent = (rigType==='biped') ? 'Biped rigs can use the 579-motion library. '
     : (rigType==='bipedhand') ? 'Biped + fingers: uses the biped motion library AND animates fingers on imported fingered characters. '
+    : (rigType==='bipedfairy') ? 'Fairy / angel: every biped + finger motion, plus wings that flap in the flight motions. Wings must be behind the back. '
     : (rigType==='bird') ? 'Matches the standard UniRig bird (Bone_000–034) — bird animations retarget onto it. '
     : 'Quadruped rigs play their own animation clips (the library is biped-only). ';
-  autoFit();   // re-fit the newly chosen skeleton (works with or without a mesh loaded)
-  setStatus(r.label[0].toUpperCase()+r.label.slice(1)+' skeleton selected'+(meshGeo?' — drag joints to fit.':' — load a mesh.'));
-});
+}
 // bird wing-pose sub-toggle (perched vs in-flight) — same 22 bones, different default rest pose
 $('#birdPose').addEventListener('click', e=>{
   const b=e.target.closest('button'); if(!b || b.dataset.pose===birdPose) return;
@@ -928,6 +1351,8 @@ function computeSkin(){
     if(wsum<=0){ w[0]=1; wsum=1; }
     for(let k=0;k<4;k++){ skinIndex[v*4+k]=order[k]||0; skinWeight[v*4+k]=(w[k]||0)/wsum; }
   }
+  if(rigType==='bipedhand' || rigType==='bipedfairy') refineHandSkin(pos, n, segs, radius, geo, skinIndex, skinWeight);   // fingers: one phalanx each, not the broad Hand bone
+  if(rigType==='bipedfairy') skinFairyWings(pos, n, skinIndex, skinWeight);   // wing skin follows only its own wing; the body never follows a wing
   return {skinIndex, skinWeight};
 }
 // Per-bone shortest-path distance over the mesh surface (Dijkstra from the skin nearest the bone's axis), in units of
@@ -956,8 +1381,18 @@ function geodesicReach(pos, n, segs, radius){
   const hc=[], hv=[];
   const push=(c,v)=>{ hc.push(c); hv.push(v); let i=hc.length-1; while(i>0){ const p=(i-1)>>1; if(hc[p]<=hc[i]) break; [hc[p],hc[i]]=[hc[i],hc[p]]; [hv[p],hv[i]]=[hv[i],hv[p]]; i=p; } };
   const pop=()=>{ const c=hc[0], v=hv[0]; const lc=hc.pop(), lv=hv.pop(); if(hc.length){ hc[0]=lc; hv[0]=lv; let i=0; for(;;){ const l=2*i+1, r=l+1; let m=i; if(l<hc.length&&hc[l]<hc[m]) m=l; if(r<hc.length&&hc[r]<hc[m]) m=r; if(m===i) break; [hc[m],hc[i]]=[hc[i],hc[m]]; [hv[m],hv[i]]=[hv[i],hv[m]]; i=m; } } return [c,v]; };
+  // LAYERED MESHES (2026-09-27, a dwarf in a fur-and-armour coat): the skin nearest a bone can be a HIDDEN inner layer (the
+  // bare arm inside a big sleeve). Seeded only there, the visible sleeve was reachable just by walking round via the shoulder,
+  // so the chest bones won the whole sleeve and it tore when the arm moved. So every vertex whose plain (thickness-scaled)
+  // nearest bone is b, within two of b's radii, also seeds b — the sleeve seeds its arm directly — while a hand resting on a
+  // thigh is still nearest its own hand bones, so the surface rule keeps it off the thigh.
+  const vseed=[...Array(NB)].map(()=>[]); if(/^biped/.test(rigType))   // (bipeds only until checked on the animal rigs)
+  for(const v of reps){ const px=pos.getX(v), py=pos.getY(v), pz=pos.getZ(v); let bb=-1, bd=2.0;
+    for(let b=0;b<NB;b++){ const d=distToSegment(px,py,pz, segs[b].a, segs[b].b)/radius[b]; if(d<bd){ bd=d; bb=b; } }
+    if(bb>=0) vseed[bb].push(v, bd); }
   for(let b=0;b<NB;b++){ const r=radius[b]; cost.fill(Infinity); hc.length=0; hv.length=0;
     for(const s of samples){ if(s.b!==b||s.v<0) continue; const c=Math.sqrt(s.best)/r; if(c<cost[s.v]){ cost[s.v]=c; push(c,s.v); } }
+    { const L=vseed[b]; for(let k=0;k<L.length;k+=2){ const v=L[k], c=L[k+1]; if(c<cost[v]){ cost[v]=c; push(c,v); } } }
     while(hc.length){ const [c,u]=pop(); if(c>cost[u]) continue;
       for(let i=start[u]; i<start[u+1]; i++){ const w=nbr[i]; const nc=c+elen[i]/r; if(nc<cost[w]){ cost[w]=nc; push(nc,w); } } }
     const o=b*n; for(let v=0;v<n;v++) geo[o+v]=cost[rep[v]];
@@ -1055,14 +1490,52 @@ $('#bindPreview').onclick=()=>{
   },10);
 };
 
+// ---------- save over the original (re-opened rigs) ----------
+function syncSaveOver(){ const b=$('#saveOverBtn'); if(!b) return; const can=!!(meshGeo && _reopened && (_srcHandle || _srcLibId));
+  b.style.display=can?'':'none'; if(can) b.textContent='💾 Save over '+(_srcHandle ? '“'+_srcHandle.name+'”' : 'the Studio Library copy'); }
+async function buildRiggedGLB(){ const {skinned}=buildSkinnedMesh(); const holder=exportHolder(skinned);
+  return await new Promise((res,rej)=> new GLTFExporter().parse(holder, res, rej, {binary:true, onlyVisible:false, animations:[]})); }
+// 🎬 OPEN IN STITCHER: once a rig is saved to the Studio Library, hand that exact library entry to the Stitcher tab
+let _savedLibId=null;
+function offerStitch(id){ _savedLibId=id||null; const b=$('#openStitchBtn'); if(b) b.style.display=(_savedLibId && window.StudioLib) ? '' : 'none'; }
+$('#openStitchBtn').onclick=()=>{ if(!_savedLibId) return; localStorage.setItem('studio.handoff', JSON.stringify({to:'stitch', id:_savedLibId, t:Date.now()}));
+  try{ if(parent!==window && parent.show){ parent.show('stitch'); return; } }catch(e){} location.href='../glb-stitcher/index.html'; };
+$('#saveOverBtn').onclick=async()=>{
+  if(!meshGeo || !_reopened) return; const what=_srcHandle ? '“'+_srcHandle.name+'”' : 'the Studio Library copy';
+  if(!confirm('Replace '+what+' with the adjusted rig?\n(This overwrites it — use Export to keep a separate copy instead.)')) return;
+  try{ if(_srcHandle && _srcHandle.requestPermission){ const ok=await _srcHandle.requestPermission({mode:'readwrite'}); if(ok!=='granted'){ setStatus('No permission to write the file — use Export instead.'); return; } }
+    setStatus('Building rigged GLB…'); $('#saveOverBtn').disabled=true; await new Promise(r=>setTimeout(r,25));
+    const result=await buildRiggedGLB(); const blob=new Blob([result],{type:'model/gltf-binary'}), mb=(blob.size/1048576).toFixed(1); const done=[];
+    if(_srcHandle){ const w=await _srcHandle.createWritable(); await w.write(blob); await w.close(); done.push('“'+_srcHandle.name+'”'); }
+    if(_srcLibId && window.StudioLib && StudioLib.updateModel){ await StudioLib.updateModel(_srcLibId, { skeleton:rigType, glb:result }); done.push('the Studio Library copy'); offerStitch(_srcLibId); }
+    else if(window.StudioLib && StudioLib.updateModel){
+      // a rig re-opened from a FILE: keep the Studio Library in step too, so 🎬 Stitch (and "Open in Stitcher") has the adjusted
+      // rig — update the library character of the same name (with or without "_rigged"), or add it if there isn't one yet
+      const base=(_srcHandle && _srcHandle.name || _meshFileName || 'character').replace(/.[^.]+$/,'').trim(), bare=base.replace(/_rigged$/i,'');
+      let hit=null; try{ const ms=(await StudioLib.listModels()).filter(m=>m.skeleton!=='unrigged' && m.skeleton!=='prop' && m.skeleton!=='mapchar' && m.skeleton!=='board');
+        hit=ms.find(m=>m.name===base) || ms.find(m=>m.name===bare) || ms.find(m=>m.name.replace(/_rigged$/i,'')===bare) || null; }catch(e){}
+      if(hit){ await StudioLib.updateModel(hit.id, { skeleton:rigType, glb:result }); _srcLibId=hit.id; done.push('the Studio Library copy'); }
+      else { _srcLibId=await StudioLib.addModel({ name:base, skeleton:rigType, glb:result }); done.push('the Studio Library (added)'); }
+      offerStitch(_srcLibId); }
+    $('#exportInfo').innerHTML='Saved over '+done.join(' and ')+' ('+mb+' MB) · '+rigType+' rig.'; setStatus('Saved over '+done.join(' and '));
+  }catch(err){ console.error(err); setStatus('Save failed: '+(err.message||err)); }
+  finally{ $('#saveOverBtn').disabled=false; } };
 // ---------- export ----------
 // Armature wrapper for export. Fingered biped rigs are fitted to T-pose meshes (Mixamo-style rest), so they carry a
 // `ksolRestPose:'tpose'` flag (glTF extras) that tells the GLB Stitcher to use its world-aligned retarget for them.
 function exportHolder(skinned){ const h=new THREE.Group(); h.name='Armature'; h.add(skinned);
-  if(rigType==='bipedhand' || rigType==='biped') h.userData.ksolRestPose='tpose'; return h; }   // PLAIN biped too: without the flag the Stitcher played the template's raw joint angles on it — knees bent backwards (jogs, lunges, kneels), zombie arms on walks, forearms through each other, a 111° boxing forearm twist (0 of 19 such faults with the flag)
+  if(rigType==='bipedhand' || rigType==='biped' || rigType==='bipedfairy') h.userData.ksolRestPose='tpose';
+  // FORWARD (glTF extras ksolForward, armature space): the way this rig faces, read off the fitted feet (heel → toe; else
+  // left-hip × up) so the Stitcher's facing arrow and anything else downstream know it without guessing from bone names
+  if(IDX.LeftFoot!=null && IDX.RightFoot!=null){ const J=n=>jointPos[IDX[n]]; let f=null;
+    if(IDX.LeftToeBase!=null && IDX.RightToeBase!=null){ f=J('LeftToeBase').clone().add(J('RightToeBase')).sub(J('LeftFoot')).sub(J('RightFoot')); f.y=0; if(f.lengthSq()<1e-8) f=null; }
+    if(!f && IDX.LeftUpLeg!=null && IDX.RightUpLeg!=null){ f=new THREE.Vector3().crossVectors(J('LeftUpLeg').clone().sub(J('RightUpLeg')), new THREE.Vector3(0,1,0)); }
+    if(f && f.lengthSq()>1e-8){ f.normalize(); h.userData.ksolForward=[+f.x.toFixed(4),0,+f.z.toFixed(4)]; } }
+  return h; }   // PLAIN biped too: without the flag the Stitcher played the template's raw joint angles on it — knees bent backwards (jogs, lunges, kneels), zombie arms on walks, forearms through each other, a 111° boxing forearm twist (0 of 19 such faults with the flag)
 $('#exportBtn').onclick=async ()=>{
   if(!meshGeo){ setStatus('Load a mesh first.'); return; }
-  const nm=(_meshFileName || ($('#meshInfo').textContent.match(/Loaded (.+?)\n/)||[])[1] || 'character').replace(/\.[^.]+$/,'').trim()+'_rigged';   // meshInfo has no newline → it was always "character_rigged"
+  const base=(_meshFileName || 'character').replace(/\.[^.]+$/,'').trim();
+  const nm=(_reopened || /_rigged$/i.test(base)) ? base : base+'_rigged';   // an already-rigged file keeps its name (no "_rigged_rigged")
   // 1) Ask WHERE to save FIRST — do this on the click so the user gesture is still valid; gives a native Save-As popup.
   let handle=null, picker=!!window.showSaveFilePicker;
   if(picker){
@@ -1092,10 +1565,11 @@ $('#exportBtn').onclick=async ()=>{
       where=' to your Downloads';
     }
     let libNote='';
-    if(window.StudioLib){ StudioLib.addModel({ name:nm, skeleton:rigType, glb:result })
-      .then(()=>{ $('#exportInfo').innerHTML=`Saved <b>${savedName}</b> (${mb} MB) · ${rigType} rig — <b style="color:var(--accent2,#37d0a0)">added to the Studio Library</b>, ready in 🎬 Stitch.`; })
-      .catch(e=>console.warn('StudioLib.addModel failed',e));
-      libNote=' + Studio Library'; }
+    if(window.StudioLib){ const keep=_srcUnrigged && $('#keepOrig') && $('#keepOrig').checked, upd=!!(_srcLibId && !keep && StudioLib.updateModel);
+      const up=upd ? StudioLib.updateModel(_srcLibId, { skeleton:rigType, glb:result }) : StudioLib.addModel({ name:nm, skeleton:rigType, glb:result });
+      up.then(newId=>{ offerStitch(upd ? _srcLibId : newId); $('#exportInfo').innerHTML=`Saved <b>${savedName}</b> (${mb} MB) · ${rigType} rig — <b style="color:var(--accent2,#37d0a0)">${upd?'updated in':'added to'} the Studio Library</b>${keep?' (the unrigged model is kept too)':''}, ready in 🎬 Stitch.`; })
+      .catch(e=>console.warn('StudioLib save failed',e));
+      libNote=upd?' + Studio Library (updated)':' + Studio Library'; }
     const libHint = window.StudioLib ? '' : ` · <span style="color:#e0a94a">Tip: launch <b>GLB Studio</b> (Start GLB Studio.bat, one origin) to auto-add rigs to the 🎬 Stitcher library</span>`;
     $('#exportInfo').innerHTML=`Saved <b>${savedName}</b> (${mb} MB)${where} · ${rigType} standard skeleton${libNote?' — added to the Studio Library':''}.${libHint}`;
     setStatus('Saved '+savedName+libNote);
@@ -1106,7 +1580,7 @@ $('#exportBtn').onclick=async ()=>{
 // ---------- render loop ----------
 resize(); applyView('front');
 (function loop(){ requestAnimationFrame(loop); renderer.render(scene,camera); })();
-window.__rig={THREE, get jointPos(){return jointPos;}, get BONE_NAMES(){return BONE_NAMES;}, get rigType(){return rigType;}, applyView, buildBones, buildSkinnedMesh, get camera(){return camera;}, get scene(){return scene;}};
+window.__rig={THREE, get jointPos(){return jointPos;}, get BONE_NAMES(){return BONE_NAMES;}, get rigType(){return rigType;}, applyView, buildBones, buildSkinnedMesh, get camera(){return camera;}, get scene(){return scene;}, get meshGeo(){return meshGeo;}, get meshObj(){return meshObj;}, get IDX(){return IDX;}, loadMeshFromFile};
 // Dev: load a mesh from a URL (for automated fit verification of a rig template).
 window.__loadMeshUrl = async (url)=>{ try{ const b=await (await fetch(url)).blob(); await loadMeshFromFile(new File([b], url.split('/').pop().replace(/%20/g,' '))); return 'loaded'; }catch(e){ return 'err: '+e; } };
 window.__setRig = (t)=>{ setRig(t); if(meshGeo) autoFit(); return rigType; };

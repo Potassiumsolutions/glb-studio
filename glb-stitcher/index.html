@@ -773,6 +773,7 @@
       <button class="btn ghost" id="savePng" style="margin-top:8px">⬇ Save current frame as PNG</button>
       <button class="btn ghost" id="exportGlb" style="margin-top:8px" disabled>⬇ Export sequence as GLB</button>
       <div class="hint" style="margin-top:4px">Bakes the whole timeline into one GLB (character + a merged “Sequence” animation, plus each clip as its own named animation) for Blender / Unity / other tools.</div>
+      <button class="btn ghost" id="sendMapView" style="margin-top:8px" title="Send the selected character's clip chain (and each clip's sound) to 🎼 Maestro, where it can walk its own path on a board">🎼 Send to Maestro</button>
       <button class="btn ghost" id="exportScene" style="margin-top:8px">⬇ Export scene as GLB</button>
       <div class="build-helpers" style="margin-top:6px;padding:8px 10px">
         <div class="hint" style="margin:0 0 5px;text-transform:none;letter-spacing:0">Export the arranged scene (obstacles, props, and optionally your characters &amp; environment) as one GLB.</div>
@@ -1019,7 +1020,7 @@ import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 
 const $ = s => document.querySelector(s);
-const APP_NAME='GLB Stitcher', APP_VERSION='1.10.9', APP_BUILD='2026-09-26';   // version shown in About + footer
+const APP_NAME='GLB Stitcher', APP_VERSION='1.11.0', APP_BUILD='2026-09-28';   // version shown in About + footer
 // Bump APP_BUILD whenever the app or the bundled motion library changes. It is printed to the console and
 // shown in the footer so "am I running the current version?" can be answered by looking, not by guessing —
 // a stale browser tab kept an old build alive twice while the files on disk were already up to date.
@@ -3629,7 +3630,7 @@ async function addGLBs(files, charName){
   if(pendingClipMeta) applyClipMeta(pendingClipMeta);   // reattach a loaded project's per-clip settings by name
   // Orientation reminder: a Meshy mesh can come in rigged BACKWARD (it'll swim/walk tail-first). We can't detect
   // that reliably from geometry, but the fix is one click — so nudge the user to eyeball the facing on import.
-  if(newlyRigged){ showFacing=true; $('#facingToggle')?.classList.add('on');   // auto-show the forward arrow on import so facing is easy to check
+  if(newlyRigged){ showFacing=true; $('#facingToggle')?.classList.add('on'); renderFrame();   /* the view was drawn by showClip() BEFORE the arrow was switched on (on-demand rendering) */   // auto-show the forward arrow on import so facing is easy to check
     setStatus('Loaded. ▸ Green arrow = forward. If a character faces AGAINST it (swims/walks backward), select it and click 🔄 Flip facing.'); }
 }
 function sortClips(){ clips.sort((a,b)=> a.order-b.order || a.name.localeCompare(b.name)); }
@@ -3773,7 +3774,7 @@ function handAimQ(root, boneName, grip){
           if(pi >= 0){ const pp = new THREE.Vector3().setFromMatrixPosition(bindOf(pi)); dir = hp.clone().sub(pp); } }
         if(dir && dir.lengthSq() > 1e-10){
           const hqi = hq.clone().invert();
-          const fL = dir.normalize().applyQuaternion(hqi).normalize();                        // finger axis, hand-local
+          let fL = dir.normalize().applyQuaternion(hqi).normalize();                          // finger axis, hand-local
           // candidate local axes perpendicular to the fingers, with their bind-world directions
           const cands = [new THREE.Vector3(1,0,0), new THREE.Vector3(0,1,0), new THREE.Vector3(0,0,1)]
             .map(a => { const l = a.clone().sub(fL.clone().multiplyScalar(a.dot(fL))); return { l, len: l.length() }; })
@@ -3783,6 +3784,18 @@ function handAimQ(root, boneName, grip){
             const thumb = cands[0].l.clone(); if(cands[0].w.y < 0) thumb.negate();             // thumb line, thumb side = up at bind
             const palm = cands[1].l.clone(); if(cands[1].w.z < 0) palm.negate();               // palm normal = forward at bind
             palm.sub(thumb.clone().multiplyScalar(palm.dot(thumb))).normalize();
+            // FINGERED hands (our T-pose rigs, Mixamo): read the hand off its own finger joints. The rule above assumes the bind
+            // hand stands thumb-up / palm-forward (the Meshy biped); a palm-DOWN T-pose hand has its palm normal as the most
+            // vertical axis, so every held prop came out turned 90° — the axe upside down at the top of a chop (2026-09-27).
+            { const side = /^Left/.test(boneName) ? 1 : /^Right/.test(boneName) ? -1 : 0;
+              const bi = n => sk.bones.findIndex(b => b.name === n), ii = bi(boneName+'Index1'), pi = bi(boneName+'Pinky1');
+              const mi = bi(boneName+'Middle1');
+              if(side && ii >= 0 && pi >= 0){
+                if(mi >= 0){ const fm = new THREE.Vector3().setFromMatrixPosition(bindOf(mi)).sub(hp).applyQuaternion(hqi); if(fm.lengthSq() > 1e-10) fL = fm.normalize(); }   // the finger axis = wrist → middle knuckle (the first child bone is the THUMB on these rigs, 40° off)
+                const t = new THREE.Vector3().setFromMatrixPosition(bindOf(ii)).sub(new THREE.Vector3().setFromMatrixPosition(bindOf(pi))).applyQuaternion(hqi);   // pinky → index = thumb side, hand-local
+                t.sub(fL.clone().multiplyScalar(t.dot(fL)));
+                if(t.lengthSq() > 1e-10){ t.normalize(); thumb.copy(t);
+                  palm.copy(new THREE.Vector3().crossVectors(fL, t).multiplyScalar(side)).normalize(); } } }   // palm normal: fingers × thumb-side, mirrored for the right hand
             const fingers = new THREE.Vector3().crossVectors(palm, thumb).normalize();          // right-handed hand basis (palm, thumb, fingers)
             if(fingers.dot(fL) < 0) fingers.negate();
             const dirOf = n => n==='thumb' ? thumb.clone() : n==='pinky' ? thumb.clone().negate() : n==='fingers' ? fingers.clone()
@@ -3815,7 +3828,12 @@ const GRIPS = {
   rifle:   { along:'thumb',   face:'fingers',  faceAxis:'z' },
   shield:  { along:'thumb',   face:'knuckles', faceAxis:'z', hand:'left' },          // LEFT fist: handle across the palm, face out of the knuckles
 };
-function gripOf(pr){ return (pr && pr.grip) || GRIPS[(pr && pr.name || '').replace(/\.glb$/i,'').toLowerCase()] || GRIP_DEFAULT; }
+// FINGERED hands (our T-pose rigs, Mixamo) are posed anatomically by the finger motions, and hold an axe the natural way: head on
+// the THUMB side, like a hammer (the motions aim the thumb along the haft toward the head). The plain biped keeps the table above.
+const GRIPS_FINGERED = { axe: { along:'thumb', face:'fingers', faceAxis:'x' } };
+function gripOf(pr, root){ if(pr && pr.grip) return pr.grip; const k=(pr && pr.name || '').replace(/\.glb$/i,'').toLowerCase();
+  if(root && pr && GRIPS_FINGERED[k] && root.getObjectByName(pr.bone+'Index1')) return GRIPS_FINGERED[k];
+  return GRIPS[k] || GRIP_DEFAULT; }
 function applyCharProps(){
   for(const ch of characters){
     const pr=ch.prop;
@@ -3831,7 +3849,9 @@ function applyCharProps(){
       const inst=pr.src.clone(true); inst.name='__heldProp'; inst.userData.__heldProp=1;
       inst.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.receiveShadow=false; o.frustumCulled=false; } });
       inst.position.fromArray(pr.pos); inst.scale.setScalar(pr.scale);
-      inst.quaternion.copy(handAimQ(root, pr.bone, gripOf(pr))).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(pr.rot[0],pr.rot[1],pr.rot[2])));   // rig's hand frame first, user offsets on top
+      inst.quaternion.copy(handAimQ(root, pr.bone, gripOf(pr, root))).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(pr.rot[0],pr.rot[1],pr.rot[2])));   // rig's hand frame first, user offsets on top
+      inst.userData.baseQ=inst.quaternion.clone();   // as mounted — aimHeldProps turns it from here each frame
+      inst.userData.baseP=inst.position.clone();   // and slides it sideways into the fist (fistCentre) on prop-first motions
       bone.add(inst); _heldInst.set(root,{inst,key});
     }
   }
@@ -3901,7 +3921,7 @@ function buildPropControls(box, ch){
     +sld('pos X','px',-0.5,0.5,0.005,pr.pos[0])+sld('pos Y','py',-0.5,0.5,0.005,pr.pos[1])+sld('pos Z','pz',-0.5,0.5,0.005,pr.pos[2])
     +sld('rot X','rx',-180,180,1,deg(pr.rot[0]))+sld('rot Y','ry',-180,180,1,deg(pr.rot[1]))+sld('rot Z','rz',-180,180,1,deg(pr.rot[2]))
     +sld('scale','sc',0.01,3,0.01,pr.scale)
-    +(()=>{ const r=charClipRoots(ch)[0]; if(!r) return ''; const e=new THREE.Euler().setFromQuaternion(handAimQ(r, pr.bone, gripOf(pr))); const d=[e.x,e.y,e.z].map(v=>Math.round(v*180/Math.PI));
+    +(()=>{ const r=charClipRoots(ch)[0]; if(!r) return ''; const e=new THREE.Euler().setFromQuaternion(handAimQ(r, pr.bone, gripOf(pr, r))); const d=[e.x,e.y,e.z].map(v=>Math.round(v*180/Math.PI));
         return '<div class="hint" style="margin:4px 0 0;font-size:10.5px" title="Measured from the bind pose of this character: the rotation that lays the haft of the prop across the palm (thumb-to-pinky line, head on the thumb side, edge forward). The sliders above are offsets on top of it.">Grip auto-aim ('+gripOf(pr).along+' / '+gripOf(pr).face+'): '+d.join('°, ')+'°</div>'; })();
   const q=s=>box.querySelector(s);
   q('[data-k="bone"]').onchange=e=>{ pr.bone=e.target.value; applyCharProps(); refreshView(); };
@@ -4109,6 +4129,9 @@ function flipReskinRoot(root){
 // Dev hook for headless / in-browser verification (module scope is otherwise unreachable from the console).
 window.__dbg={ get clips(){return clips}, get characters(){return characters}, get scene(){return scene}, get camera(){return camera}, get canvas(){return canvasEl}, heldPropOf, get weaponSel(){return weaponSel}, get weaponClipboard(){return weaponClipboard}, flipReskinRoot };
 // test hooks for the motion audit harness (read/measure only)
+Object.assign(window.__dbg,{ equipPropUrl: async (url, name)=>{ const ch=characters[characters.length-1]; if(!ch) return 'no character'; const gltf=await loader.loadAsync(url);   // review renders: put a prop in the hand
+    const bones=charBoneNames(ch); const bone=bones.find(n=>/righthand/i.test(n))||'RightHand'; ch.prop={ name:name||url.split('/').pop(), src:gltf.scene, bone, pos:[0,0,0], rot:[0,0,0], scale:1, _fresh:true };
+    fitPropScale(ch); applyCharProps(); refreshView(); return 'equipped '+ch.prop.name; } });
 Object.assign(window.__dbg,{ addMotionClip:(m)=>addMotionClip(m), mlActiveSig:()=>mlActiveSig(), sigFitsChar:(a,b)=>sigFitsChar(a,b), libIndex:()=>libIndex, showClip:(i)=>showClip(i), renderFrame:()=>renderFrame() });
 function refreshView(){ applyCharProps(); if(typeof sizeWater==='function') sizeWater(); if(!clips.length){ renderFrame(); return; } if(isEnsemble()) showEnsemble(); else showClip(selIndex); }
 
@@ -5223,8 +5246,15 @@ function rigForwardWorld(c){
   const B={}; c.root.traverse(o=>{ if(o.isBone) B[o.name]=o; });
   const cen=(re)=>{ const ns=Object.keys(B).filter(n=>re.test(n)); if(!ns.length) return null; const v=new THREE.Vector3(),t=new THREE.Vector3(); ns.forEach(n=>{ B[n].getWorldPosition(t); v.add(t); }); return v.multiplyScalar(1/ns.length); };
   let fwd=null;
+  // the Rigger records which way the rig faces (glTF extras ksolForward on the armature) → trust that first
+  c.root.traverse(o=>{ if(fwd || !o.userData || !Array.isArray(o.userData.ksolForward)) return; const v=new THREE.Vector3().fromArray(o.userData.ksolForward);
+    if(v.lengthSq()>1e-8) fwd=v.applyQuaternion(o.getWorldQuaternion(new THREE.Quaternion())); });
   const front=cen(/front.*(foot|toe|paw|leg1|leg2|ball|ankle)|frontleg1|frontpaw/i), back=cen(/back.*(foot|toe|paw|leg1|leg2|ball|ankle)|backleg2|backpaw|hind/i);
   if(front&&back) fwd=front.clone().sub(back);
+  // BIPEDS (human, fingered, fairy): no front/back feet, eyes or tail bones — the feet point forward (ankle → toe), and failing
+  // that the body faces left-hip × up
+  if(!fwd){ const toe=cen(/^(Left|Right)ToeBase$/), foot=cen(/^(Left|Right)Foot$/); if(toe&&foot){ const d=toe.clone().sub(foot); d.y=0; if(d.lengthSq()>1e-8) fwd=d; } }
+  if(!fwd && B.LeftUpLeg && B.RightUpLeg){ const l=B.LeftUpLeg.getWorldPosition(new THREE.Vector3()).sub(B.RightUpLeg.getWorldPosition(new THREE.Vector3())); fwd=new THREE.Vector3().crossVectors(l,new THREE.Vector3(0,1,0)); }
   if(!fwd){ const eye=cen(/eye|ceph/i), hub=cen(/hips|spine1$|spine01|apex|neck/i); if(eye&&hub) fwd=eye.clone().sub(hub); }
   if(!fwd){ const head=cen(/^head$|head/i), tail=cen(/tail/i); if(head&&tail) fwd=head.clone().sub(tail); }
   if(!fwd) return null; fwd.y=0; if(fwd.lengthSq()<1e-6) return null; return fwd.normalize();
@@ -5236,11 +5266,47 @@ function updateForwardArrow(){
   const c=clips[selIndex]; const box=new THREE.Box3().setFromObject(c.root);
   const ctr=box.getCenter(new THREE.Vector3()), size=box.getSize(new THREE.Vector3());
   const len=Math.max(size.x,size.z)*0.9+0.4, origin=new THREE.Vector3(ctr.x, box.min.y+0.04, ctr.z);
-  if(!forwardArrow){ forwardArrow=new THREE.ArrowHelper(fwd, origin, len, 0x39d353, len*0.28, len*0.15);
-    forwardArrow.renderOrder=998; forwardArrow.traverse(o=>{ if(o.material){ o.material.depthTest=false; o.material.transparent=true; } }); scene.add(forwardArrow); }
-  forwardArrow.position.copy(origin); forwardArrow.setDirection(fwd); forwardArrow.setLength(len, len*0.28, len*0.15); forwardArrow.visible=true;
+  if(!forwardArrow){   // a FLAT arrow lying on the floor (unit length along +Z): readable from the front, the side or above
+    const sh=new THREE.Shape([[-0.07,0],[0.07,0],[0.07,0.66],[0.22,0.66],[0,1],[-0.22,0.66],[-0.07,0.66]].map(([x,y])=>new THREE.Vector2(x,y)));
+    const g=new THREE.ShapeGeometry(sh); g.rotateX(Math.PI/2);
+    forwardArrow=new THREE.Mesh(g, new THREE.MeshBasicMaterial({color:0x39d353, transparent:true, opacity:0.85, side:THREE.DoubleSide, depthWrite:false, depthTest:false}));
+    forwardArrow.renderOrder=998; forwardArrow.name='facingArrow'; scene.add(forwardArrow); }
+  // the arrow runs from behind the body to past the toes; if the viewer's bottom edge would cut its head off (a front view looks
+  // along it), slide it back until the head is on screen — it draws over the feet, so it still reads
+  let back=0.45*len; const tipY=bk=>origin.clone().addScaledVector(fwd, len-bk).setY(box.min.y).project(camera).y;
+  for(let k=0;k<12 && back<0.9*len && tipY(back)<-0.88;k++) back+=0.05*len;
+  origin.addScaledVector(fwd,-back);
+  forwardArrow.position.set(origin.x, box.min.y+0.012, origin.z); forwardArrow.rotation.set(0, Math.atan2(fwd.x, fwd.z), 0); forwardArrow.scale.setScalar(len); forwardArrow.visible=true;
 }
+// PROP-FIRST (2026-09-28, Paul: "orient the prop, then place the hands on it"): a motion that carries its handle direction per
+// frame (clip.propAxis, baked by the Rig Animator) turns the held prop onto THAT line every frame, pivoting at the grip — the prop
+// follows the motion's intent, not whatever roll this character's hand ended up with.
+const _paQ=new THREE.Quaternion(), _paQ2=new THREE.Quaternion(), _paV=new THREE.Vector3(), _paW=new THREE.Vector3();
+// The FIST TUNNEL: a handle runs through the curl of the fingers, not the palm (the prop mount's palm point left the Man's curled
+// fingers ~7 cm off every handle — "claws"). Circumcentre of each finger's joints 1-2-3, averaged over index..pinky; a finger too
+// straight to wrap anything is skipped. get(name) → bone. null for fingerless hands.
+function fistCentre(get, side){ const C=new THREE.Vector3(); let n=0;
+  for(const fn of ['Index','Middle','Ring','Pinky']){ const j=[1,2,3].map(k=>get(side+'Hand'+fn+k)); if(j.some(x=>!x)) continue;
+    const [a,b,c]=j.map(x=>x.getWorldPosition(new THREE.Vector3())), ab=b.clone().sub(a), ac=c.clone().sub(a), N=new THREE.Vector3().crossVectors(ab,ac), d=2*N.lengthSq(); if(d<1e-14) continue;
+    const X=a.clone().add(new THREE.Vector3().crossVectors(N,ab).multiplyScalar(ac.lengthSq()).add(new THREE.Vector3().crossVectors(ac,N).multiplyScalar(ab.lengthSq())).multiplyScalar(1/d));
+    if(X.distanceTo(a) > 1.2*(ab.length()+c.distanceTo(b))) continue; C.add(X); n++; }
+  return n ? C.multiplyScalar(1/n) : null; }
+const _fistBones=new WeakMap();
+function fistOfRoot(root, side){ let m=_fistBones.get(root); if(!m){ m={}; root.traverse(o=>{ if(o.isBone && /Hand(Index|Middle|Ring|Pinky)[123]$/.test(o.name)) m[o.name]=o; }); _fistBones.set(root,m); } return fistCentre(n=>m[n], side); }
+function aimHeldProps(){ for(const c of clips){ const pa=c.srcClip&&c.srcClip.propAxis; if(!pa||!pa.ax||!c.root||!c.action) continue;
+    const inst=heldPropOf(c.root); if(!inst||!inst.parent||!inst.userData.baseQ) continue;
+    const T=pa.times, n=T.length, dur=c.duration||T[n-1]||1; let t=c.action.time%dur; if(t<0) t+=dur;
+    let k=0; while(k<n-2 && T[k+1]<t) k++; const a=Math.max(0,Math.min(1,(t-T[k])/((T[k+1]-T[k])||1))), A=pa.ax;
+    _paW.set(A[k*3]+(A[(k+1)*3]-A[k*3])*a, A[k*3+1]+(A[(k+1)*3+1]-A[k*3+1])*a, A[k*3+2]+(A[(k+1)*3+2]-A[k*3+2])*a); if(_paW.lengthSq()<1e-8) continue; _paW.normalize();
+    c.root.getWorldQuaternion(_paQ2); const e=new THREE.Euler().setFromQuaternion(_paQ2,'YXZ'); _paW.applyAxisAngle(new THREE.Vector3(0,1,0), e.y);   // the character's own turn on stage
+    inst.quaternion.copy(inst.userData.baseQ); inst.updateWorldMatrix(true,false); inst.getWorldQuaternion(_paQ);
+    _paV.set(0,1,0).applyQuaternion(_paQ); _paQ2.setFromUnitVectors(_paV, _paW).multiply(_paQ);
+    inst.quaternion.copy(inst.parent.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(_paQ2));
+    if(inst.userData.baseP) inst.position.copy(inst.userData.baseP); inst.updateMatrixWorld(true);
+    const F=fistOfRoot(c.root, /left/i.test(inst.parent.name)?'Left':'Right');   // the handle line through the fist tunnel — only sideways, the user's along-the-handle offset stays
+    if(F){ const O=inst.getWorldPosition(new THREE.Vector3()), d=F.sub(O); d.addScaledVector(_paW,-d.dot(_paW)); if(d.lengthSq()>1e-10){ inst.position.copy(inst.parent.worldToLocal(O.add(d))); inst.updateMatrixWorld(true); } } } }
 function renderFrame(){
+  aimHeldProps();
   updateXray();
   updatePropSelBox();
   updateModelRing();
@@ -6023,6 +6089,11 @@ function worldAlignedQuats(clip, src, rig, rootScale){
   const frame=(d,l)=>{ const x=d.clone().normalize(); const z=new V().crossVectors(x,l).normalize(); const y=new V().crossVectors(z,x);
     return new Q().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x,y,z)); };
   for(const n of sNames){
+    // WINGS (fairy / angel, 2026-09-27): a wing is a stiff plate whose bones sit wherever that wing's own shape puts them. Re-aiming
+    // each wing bone onto the template's direction (right for arms and legs) bent the wing chain out of shape even at rest and tore
+    // the membrane (mesh audit: edges stretched 7-17×). The whole wing is carried by its parent's alignment instead, so the template's
+    // world wing rotation is applied to THIS character's own wing, rigidly.
+    if(/Wing/.test(n) && sParent[n] && A[sParent[n]]){ A[n]=A[sParent[n]].clone(); continue; }
     const ks=(kids[n]||[]).filter(k=>tParent[k]===n || true);
     let c=_WA_PRIMARY[n]; if(!(c && inSrc(c) && T.P[c])) c=ks.length===1?ks[0]:null;
     if(!c){ const p=sParent[n]; A[n]=p?A[p].clone():new Q(); continue; }
@@ -6036,6 +6107,12 @@ function worldAlignedQuats(clip, src, rig, rootScale){
     if(side && inSrc(side[0]) && inSrc(side[1])){
       const ls=S.P[side[0]].clone().sub(S.P[side[1]]), lt=T.P[side[0]].clone().sub(T.P[side[1]]);
       A[n]=frame(ds,ls).multiply(frame(dt,lt).invert());
+    } else if(/Hand(Thumb|Index|Middle|Ring|Pinky)\d$/.test(n) && sParent[n] && A[sParent[n]]){
+      // FINGERS inherit the palm's alignment (its roll included) and then only correct their own aim. A bare minimal rotation
+      // dropped the roll the Hand bone got from its palm side-reference, so on a hand whose knuckle arch differs from the
+      // template's the fingers sat twisted against the palm at rest and a fist curled them sideways across it.
+      const pA=A[sParent[n]], dtA=dt.clone().normalize().applyQuaternion(pA);
+      A[n]=new Q().setFromUnitVectors(dtA, ds.clone().normalize()).multiply(pA);
     } else A[n]=new Q().setFromUnitVectors(dt.clone().normalize(), ds.clone().normalize());
   }
   // sample the clip
@@ -6095,12 +6172,32 @@ function worldAlignedQuats(clip, src, rig, rootScale){
         _vv.copy(p).applyMatrix4(inv).applyMatrix4(M); y+=w*_vv.y; ws+=w; } if(ws>0) lo=Math.min(lo,y/ws); }
     return lo; };
   const MESH_REST={}; for(const L of LEGS){ const r=meshMinY(L[2],T.P,T.W); if(r!=null) MESH_REST[L[2]]=r; }
+  // WING FLOOR CLEARANCE (fairy / angel, 2026-09-27): the template has no wings, so a sitting / kneeling / sliding body carried
+  // its wings rigidly down through the floor (mesh audit: lower-wing skin up to 40% of height under it). A sample of each wing's
+  // own vertices is skinned per frame; wherever a wing dips under the rest floor the whole wing swings about its root — up, and a
+  // little outward so it never folds across the body — just far enough to lie on top of the floor.
+  const WINGS=[], wingTouched=new Set(); let WFLOOR=null, WMARG=0;
+  if(!window.__noWingFloor){
+    const roots=tNames.filter(n=>/Wing$/.test(n) && !/Wing/.test(tParent[n]||'') && tParent[n] && /^(Left|Right)/.test(n));
+    let sm=null; if(roots.length) rig.root.traverse(o=>{ if(o.isSkinnedMesh && o.skeleton && (!sm || o.geometry.attributes.position.count>sm.geometry.attributes.position.count)) sm=o; });
+    const ht=Math.max(...tNames.map(n=>T.P[n].y))-Math.min(...tNames.map(n=>T.P[n].y));
+    const lat0=(T.P.LeftUpLeg && T.P.RightUpLeg) ? T.P.LeftUpLeg.clone().sub(T.P.RightUpLeg).normalize() : new V(1,0,0);
+    if(sm && ht>1e-6){ const bn=sm.skeleton.bones.map(b=>b.name), pa=sm.geometry.attributes.position, si=sm.geometry.attributes.skinIndex, sw=sm.geometry.attributes.skinWeight;
+      for(const root of roots){ const chain=tNames.filter(n=>n.startsWith(root)), set=new Set(chain.map(n=>bn.indexOf(n)).filter(i=>i>=0)); if(!set.size) continue;
+        const cand=[]; for(let v=0; v<pa.count; v++){ let bw=0, bb=-1; for(let k=0;k<4;k++){ const w=_gc(sw,v,k); if(w>bw){ bw=w; bb=_gc(si,v,k); } } if(!set.has(bb)) continue;
+          const p=new V().fromBufferAttribute(pa,v).applyMatrix4(sm.bindMatrix); cand.push({v, p, d:p.distanceTo(T.P[root])}); }
+        if(!cand.length) continue; cand.sort((a,b)=>b.d-a.d);
+        const far=cand.slice(0,90), rest=cand.slice(90), step=Math.max(1,Math.floor(rest.length/210)), pick=far.concat(rest.filter((_,i)=>i%step===0));
+        const pts=pick.map(({v,p})=>{ const inf=[]; for(let k=0;k<4;k++){ const w=_gc(sw,v,k); if(w<1e-4) continue; const b=bn[_gc(si,v,k)]; if(!tR[b]) continue; inf.push([b,w,sm.skeleton.boneInverses[_gc(si,v,k)]]); } return {p, inf}; });
+        WINGS.push({ root, chain, pts, par:tParent[root], s:/^Left/.test(root)?1:-1, latIn:lat0.clone().applyQuaternion(T.W[tParent[root]].clone().invert()) }); }
+      const fl=Object.values(MESH_REST); WFLOOR = fl.length ? Math.min(...fl) : (FEET.length ? Math.min(...FEET.map(f=>RS_T[f])) : null); WMARG=0.004*ht; }
+  }
   // ARM CLEARANCE (our Rigger's T/A-pose rigs): angles copied from the template put a hanging arm INSIDE a body whose hips
   // are wider (or shoulders narrower) than the template's — the arm rested inside the hips after a push-up. Measure this
   // character's own torso/hip silhouette once (bind pose, in a body frame on the Hips), then each frame swing an arm
   // outward about the body's forward axis, just enough that elbow/forearm/wrist clear it.
   let CLR=null;
-  if(rig.ksol && tR.Hips && tR.LeftUpLeg && tR.RightUpLeg && tR.Spine02){
+  if(rig.ksol && !window.__noArmClear && tR.Hips && tR.LeftUpLeg && tR.RightUpLeg && tR.Spine02){
     let sm=null; rig.root.traverse(o=>{ if(o.isSkinnedMesh && o.skeleton && (!sm || o.geometry.attributes.position.count>sm.geometry.attributes.position.count)) sm=o; });
     const up=T.P.Spine02.clone().sub(T.P.Hips).normalize(), lat0=T.P.LeftUpLeg.clone().sub(T.P.RightUpLeg);
     const lat=lat0.clone().addScaledVector(up,-lat0.dot(up)).normalize(), fwd=new V().crossVectors(lat,up).normalize();
@@ -6116,7 +6213,7 @@ function worldAlignedQuats(clip, src, rig, rootScale){
         if(bb<0 || !TORSO.test(bn[bb]||'')) continue;
         const q=new V().fromBufferAttribute(pa,v).applyMatrix4(sm.bindMatrix).sub(o0).applyQuaternion(toBody);
         const i=Math.floor((q.y-lo)/(hi-lo)*NB); if(i<0||i>=NB) continue; const B=bins[i];
-        if(q.x>0) B.L=Math.max(B.L,q.x); else B.R=Math.max(B.R,-q.x); B.z0=Math.min(B.z0,q.z); B.z1=Math.max(B.z1,q.z); }
+        if(q.x>0) B.L=Math.max(B.L,q.x); else B.R=Math.max(B.R,-q.x); B.z0=Math.min(B.z0,q.z); B.z1=Math.max(B.z1,q.z); (B.pts=B.pts||[]).push(q.x,q.z); }
       CLR={ bodyInHips, bins, lo, hi, NB, r:0.022*height, marg:0.01*height }; }
   }
   times.forEach((time,fi)=>{
@@ -6129,18 +6226,22 @@ function worldAlignedQuats(clip, src, rig, rootScale){
     if(CLR){                                                        // ARM CLEARANCE (see setup above)
       const Pw={}; for(const n of tNames){ const p=tParent[n]; Pw[n]= p ? Pw[p].clone().add(new V().fromArray(tR[n].p).applyQuaternion(Wt[p])) : T.P[n].clone(); }
       const Bw=Wt.Hips.clone().multiply(CLR.bodyInHips), Bi=Bw.clone().invert(), fw=new V(0,0,1).applyQuaternion(Bw), org=Pw.Hips;
-      for(const [L,s] of [['Left',1],['Right',-1]]){
-        const S0=Pw[L+'Arm']; if(!S0 || !Pw[L+'ForeArm'] || !Pw[L+'Hand']) continue;
-        const pts=[Pw[L+'ForeArm'], Pw[L+'ForeArm'].clone().lerp(Pw[L+'Hand'],0.5), Pw[L+'Hand']];
-        let need=0;
+      // how far (radians, about body-forward) the points must swing out around `pivot` to clear the body at their height AND depth
+      const clearNeed=(pts, pivot, s)=>{ let need=0;
         for(const p of pts){ const q=p.clone().sub(org).applyQuaternion(Bi);
           const i=Math.floor((q.y-CLR.lo)/(CLR.hi-CLR.lo)*CLR.NB); if(i<0||i>=CLR.NB) continue; const B=CLR.bins[i];
-          const half=s>0?B.L:B.R; if(!(half>0)) continue;
-          if(q.z<B.z0-CLR.r || q.z>B.z1+CLR.r) continue;           // in front of / behind the body → no side contact
+          // body half-width AT THIS POINT'S DEPTH: a cape or cloak flaring out BEHIND the hips is not in the arm's way
+          let half=0; const pz=B.pts||[], zr=1.6*CLR.r; for(let k=0;k<pz.length;k+=2){ if(Math.abs(pz[k+1]-q.z)<zr){ const x=pz[k]*s; if(x>half) half=x; } }
+          if(!(half>0)) continue;                                   // nothing of the body at this depth → no side contact
           if(q.x*s < -0.25*half) continue;                          // crossed well past the midline (hand in front/behind) → leave it
           const d=half+CLR.r+CLR.marg-q.x*s; if(d<=0) continue;
-          const arm=p.distanceTo(S0); if(arm<1e-6) continue;
-          need=Math.max(need, Math.asin(Math.min(1, d/arm))); }
+          const lev=p.distanceTo(pivot); if(lev<1e-6) continue;
+          need=Math.max(need, Math.asin(Math.min(1, d/lev))); }
+        return need; };
+      for(const [L,s] of [['Left',1],['Right',-1]]){
+        if(!Pw[L+'Arm'] || !Pw[L+'ForeArm'] || !Pw[L+'Hand']) continue;
+        // lift the whole arm about body-forward until elbow, mid-forearm and wrist clear the body
+        const need=clearNeed([Pw[L+'ForeArm'], Pw[L+'ForeArm'].clone().lerp(Pw[L+'Hand'],0.5), Pw[L+'Hand']], Pw[L+'Arm'], s);
         if(need>1e-4){ const R=new Q().setFromAxisAngle(fw, s*Math.min(need, 0.9));
           for(const n of tNames) if(n===L+'Arm' || n===L+'ForeArm' || n.startsWith(L+'Hand')) Wt[n]=R.clone().multiply(Wt[n]); }
       } }
@@ -6178,13 +6279,35 @@ function worldAlignedQuats(clip, src, rig, rootScale){
         Wt[U]=q1.clone().multiply(Wt[U]); Wt[K]=q2.clone().multiply(q1).multiply(Wt[K]);   // thigh + shin; the FOOT keeps its world attitude
         const toeOff=Pt[T2].clone().sub(Ao); Pt[K]=Kn; Pt[F]=An; Pt[T2]=An.clone().add(toeOff);
       });
+      if(WINGS.length && WFLOOR!=null){                                  // WING FLOOR CLEARANCE (see setup above)
+        for(const Wg of WINGS){ let tot=0;
+          for(let it=0; it<5; it++){ const cache={}; let lo=1e9, lp=null;
+            for(const {p,inf} of Wg.pts){ const acc=new V(); let ws=0;
+              for(const [b,w,inv] of inf){ if(!Pt[b]) continue; let M=cache[b]; if(!M) M=cache[b]=new THREE.Matrix4().compose(Pt[b],Wt[b],_one);
+                _vv.copy(p).applyMatrix4(inv).applyMatrix4(M); acc.addScaledVector(_vv,w); ws+=w; }
+              if(ws>0){ acc.multiplyScalar(1/ws); if(acc.y<lo){ lo=acc.y; lp=acc; } } }
+            const drop=WFLOOR+WMARG-lo; if(!lp || drop<=1e-5) break;
+            const piv=Pt[Wg.root], r=lp.clone().sub(piv), out=Wg.latIn.clone().applyQuaternion(Wt[Wg.par]).multiplyScalar(Wg.s).setY(0);
+            if(out.lengthSq()>1e-10) out.normalize();
+            let ax=new V().crossVectors(r.clone().addScaledVector(out,0.35*r.length()), WUP), rate=0;
+            if(ax.lengthSq()>1e-12){ ax.normalize(); rate=new V().crossVectors(ax,r).y; }
+            if(!(rate>1e-4*r.length())){ ax=new V().crossVectors(r,WUP); if(ax.lengthSq()<1e-12) break; ax.normalize(); rate=new V().crossVectors(ax,r).y; if(!(rate>1e-6)) break; }
+            const th=Math.min(0.6, 1.4-tot, 1.1*drop/rate); if(th<=1e-5) break; tot+=th;
+            const R=new Q().setFromAxisAngle(ax,th); for(const n of Wg.chain) wingTouched.add(n);
+            for(const n of Wg.chain){ Wt[n]=R.clone().multiply(Wt[n]); Pt[n]=piv.clone().add(Pt[n].clone().sub(piv).applyQuaternion(R)); } } } }
       rootPos[fi*3]=hp.x; rootPos[fi*3+1]=hp.y; rootPos[fi*3+2]=hp.z; }
     for(const n of tNames){ const p=tParent[n]; const pq=p?Wt[p]:tPW; const l=pq.clone().invert().multiply(Wt[n]);
       out[n][fi*4]=l.x; out[n][fi*4+1]=l.y; out[n][fi*4+2]=l.z; out[n][fi*4+3]=l.w; }
   });
-  return { times:new Float32Array(times), q:out, rootPos, rootName };
+  return { times:new Float32Array(times), q:out, rootPos, rootName, extra:wingTouched };
 }
 // per-skeleton bone match + proportion (leg-length) scaling + rest-pose compensation
+// motions (family_id, no timing suffix) whose listed limbs retarget by DIRECTION on every rig (see retargetMotion)
+// round 5 (Paul: "the frog's toes are still stretched"): only the THIGH takes the direction — each frog is rigged onto the procedural
+// template with its OWN folded-leg rest (shin/foot 49-90° off the template's), so forcing shin + foot + toes to the template's
+// directions pulled this frog out of its fold and wrung the skin (shin edges 4-6× their length even in the recovery). The thigh's
+// direction carries the kick; the shin/foot/toes bend from THIS frog's rest (shin stretch p95 389→101 % folded, 629→411 % kicked).
+const WA_AIM = { ra_frog_swim:{ bones:/^(R_)?backleg$/ } };
 function retargetMotion(motion, rig){
   const clip=THREE.AnimationClip.parse(motion.clip);
   const src=libSkeletons[motion.sig];
@@ -6224,7 +6347,9 @@ function retargetMotion(motion, rig){
     rootK=tArm.clone().invert().multiply(sArm);
     tArmUp=new THREE.Vector3(0,1,0).applyQuaternion(tArm.clone().invert());
   }
-  const WA = (rig && rig.imported) ? worldAlignedQuats(clip, src, rig, rootScale) : null;
+  const _aimSpec = !(rig && rig.imported) ? WA_AIM[String(motion.id||'').replace(/_\d+_\d+_\d+$/,'')] : null;
+  const WA = (rig && (rig.imported || _aimSpec)) ? worldAlignedQuats(clip, src, rig, rootScale) : null;
+  const waOnly = _aimSpec ? _aimSpec.bones : null;          // aim-only: just these bones take the direction transfer
   const tracks=[]; let matched=0, totalBones=0; const seen=new Set();
   for(const t of clip.tracks){
     const dot=t.name.lastIndexOf('.'); const bone=t.name.slice(0,dot), prop=t.name.slice(dot+1);
@@ -6232,7 +6357,7 @@ function retargetMotion(motion, rig){
     if(!(bone in tgtRest)) continue;   // target lacks this bone → skip
     matched++;
     if(prop==='quaternion'){
-      if(WA && WA.q[bone]){ tracks.push(new THREE.QuaternionKeyframeTrack(t.name, WA.times.slice(), WA.q[bone].slice())); continue; }
+      if(WA && WA.q[bone] && (!waOnly || waOnly.test(bone))){ tracks.push(new THREE.QuaternionKeyframeTrack(t.name, WA.times.slice(), WA.q[bone].slice())); continue; }
       const haveRest=srcRest[bone]&&tgtRest[bone];
       const sr=haveRest?new THREE.Quaternion().fromArray(srcRest[bone].q):null;
       const tr=haveRest?new THREE.Quaternion().fromArray(tgtRest[bone].q):null;
@@ -6259,7 +6384,7 @@ function retargetMotion(motion, rig){
           v[i]=out.x;v[i+1]=out.y;v[i+2]=out.z;v[i+3]=out.w; } }
       tracks.push(new THREE.QuaternionKeyframeTrack(t.name, t.times.slice(), v));
     } else if(prop==='position'){
-      if(WA && WA.rootPos && bone===WA.rootName){ tracks.push(new THREE.VectorKeyframeTrack(t.name, WA.times.slice(), WA.rootPos.slice())); continue; }
+      if(WA && !waOnly && WA.rootPos && bone===WA.rootName){ tracks.push(new THREE.VectorKeyframeTrack(t.name, WA.times.slice(), WA.rootPos.slice())); continue; }
       const sp=(srcRest[bone]&&srcRest[bone].p)||[0,0,0], tp=(tgtRest[bone]&&tgtRest[bone].p)||[0,0,0];
       const v=t.values.slice();
       const ps = (bone===rootBone) ? rootScale : posScale;   // body travel scales by leg length, bone offsets by build
@@ -6282,6 +6407,8 @@ function retargetMotion(motion, rig){
       tracks.push(new THREE.VectorKeyframeTrack(t.name, t.times.slice(), v));
     }
   }
+  // bones the template doesn't animate but the world-aligned solve had to move (wings swung up off the floor)
+  if(WA && !waOnly && WA.extra) for(const bone of WA.extra){ if(seen.has(bone) || !WA.q[bone] || !(bone in tgtRest)) continue; tracks.push(new THREE.QuaternionKeyframeTrack(bone+'.quaternion', WA.times.slice(), WA.q[bone].slice())); }
   // GAIT ROOT-DRIFT FIX: a ground gait is meant to stride IN PLACE (the Stitcher adds synthetic forward advance).
   // But quads rigged by the Character Rigger carry a Hips bone pitched ~70-80°, so the source walk's forward stride
   // is stored as a net LOCAL translation that, applied on the target's (identity-armature) Hips, drifts the whole
@@ -6332,7 +6459,15 @@ function retargetMotion(motion, rig){
   sniff:{nose:1}, graze:{nose:1}, drink:{nose:1},
   // Quad lying poses: the body drop is authored on the template; stop it at THIS character's own belly (level body)
   // or flank (rolled onto the side), measured off its rest mesh — a deep-bodied rhino otherwise sinks through the floor.
-  liedown:{lie:1}, sleep:{lie:1}, getup:{lie:1}, gir_liedown:{lie:1}, gir_sleep:{lie:1}, gir_getup:{lie:1} };
+  liedown:{lie:1}, sleep:{lie:1}, getup:{lie:1}, gir_liedown:{lie:1}, gir_sleep:{lie:1}, gir_getup:{lie:1},
+  // Biped crawling on the belly (Drag Self): the feet-contact root solve leaves a shorter body propped high on its toes (the Man
+  // floated 13 cm, knees and chest in the air) — drop the body onto its hands + toes and level the hips between them.
+  injdrag:{hands:1, toes:1},
+  // biped ground poses resting on knees / pelvis / chest / forearms (the foot solve floated them): see the rest branch
+  gndproneprop:{rest:1}, gndlounge:{rest:1} };
+// the spec for THIS motion's family (short ids repeat: quad `drink` = head to the water, biped `drink` = cup to the mouth)
+function floorSpecFor(id, shortId){ const s=FLOOR_CONTACT[shortId]; if(!s) return null; const biped=/^ra_biped/.test(String(id||''));
+  if(biped && (s.nose||s.lie||s.hindpaws)) return null; if(!biped && (s.rep||s.hands||s.toes||s.rest)) return null; return s; }
 const _gcV1=new THREE.Vector3(), _gcV2=new THREE.Vector3(), _gcV3=new THREE.Vector3(), _gcQ1=new THREE.Quaternion(), _gcQ2=new THREE.Quaternion();
 function _ccdToward(bone, endEff, target){
   bone.updateWorldMatrix(true,false);
@@ -6364,6 +6499,27 @@ function _lieBodyMetrics(charRoot, hipsY, fz, hz, xc){
     if(y>0.35*hipsY && y<hipsY*1.05) half=Math.max(half,Math.abs(x-(xc||0))); }
   if(!isFinite(belly)) return null;
   return { belly, half };
+}
+// ── FLAT PLANTED HAND (2026-09-27): rotate a hand about its wrist so the fingers run level along the floor (keeping their heading) and
+// the knuckle line lies level across it — the smaller of the two rolls, so a palm-down hand stays palm-down.
+function _flatHandOnFloor(B, side){
+  const h=B(side+'Hand'), m=B(side+'HandMiddle1'), ix=B(side+'HandIndex1'), pk=B(side+'HandPinky1'); if(!h||!m||!h.parent) return;
+  const setW=wq=>{ h.parent.updateWorldMatrix(true,false); h.quaternion.copy(h.parent.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(wq)); h.updateWorldMatrix(true,true); };
+  h.updateWorldMatrix(true,true); const hp=h.getWorldPosition(new THREE.Vector3());
+  const f=m.getWorldPosition(new THREE.Vector3()).sub(hp).normalize(), g=f.clone().setY(0); if(g.lengthSq()<1e-6) return; g.normalize();
+  setW(h.getWorldQuaternion(new THREE.Quaternion()).premultiply(new THREE.Quaternion().setFromUnitVectors(f,g)));
+  if(!ix||!pk) return; h.updateWorldMatrix(true,true);
+  const a=ix.getWorldPosition(new THREE.Vector3()).sub(pk.getWorldPosition(new THREE.Vector3())); a.addScaledVector(g,-a.dot(g)); if(a.lengthSq()<1e-8) return; a.normalize();
+  const side2=new THREE.Vector3().crossVectors(g,new THREE.Vector3(0,1,0)).normalize(); let th=-Math.atan2(a.y, a.dot(side2));
+  if(th>Math.PI/2) th-=Math.PI; if(th<-Math.PI/2) th+=Math.PI; th*=0.8;   /* most of the way: a full knuckle-level roll twisted the wrist ~110° */
+  const tryQ=t=>a.clone().applyQuaternion(new THREE.Quaternion().setFromAxisAngle(g,t)).y; if(Math.abs(tryQ(-th))<Math.abs(tryQ(th))) th=-th;
+  setW(h.getWorldQuaternion(new THREE.Quaternion()).premultiply(new THREE.Quaternion().setFromAxisAngle(g,th)));
+}
+function _fingersAboveFloor(B, gy){
+  for(const side of ['Left','Right']) for(const fg of ['Thumb','Index','Middle','Ring','Pinky']){
+    const j=[1,2,3,4].map(k=>B(side+'Hand'+fg+k)).filter(Boolean); if(j.length<2) continue; const tip=j[j.length-1];
+    for(let pass=0; pass<2; pass++) for(let k=0;k<j.length-1;k++){ tip.updateWorldMatrix(true,false); const e=tip.getWorldPosition(new THREE.Vector3()); if(e.y>=gy+0.012) break;
+      _ccdToward(j[k], tip, new THREE.Vector3(e.x, gy+0.012, e.z)); } }
 }
 function floorContactPose(root, spec, floorY){
   const B=n=>root.getObjectByName(n);
@@ -6508,11 +6664,33 @@ function floorContactPose(root, spec, floorY){
     const gy=0;   // the scene floor
     const hips=B('Hips');
     root.updateMatrixWorld(true);
+    _flatHandOnFloor(B,'Left'); _flatHandOnFloor(B,'Right'); root.updateMatrixWorld(true);
     const hy=_avgY([B('LeftHand'),B('RightHand')]);
     if(hips && hy!=null){ const ps=hips.parent?hips.parent.getWorldScale(_gcV2).y:1; hips.position.y += (gy+(spec._handLift||0)-hy)/(ps||1); hips.updateWorldMatrix(true,true); }
     const legs=[]; const lt=B('LeftToeBase')||B('LeftFoot'), rt=B('RightToeBase')||B('RightFoot');
     if(lt)legs.push({chain:['LeftUpLeg','LeftLeg','LeftFoot'],end:lt}); if(rt)legs.push({chain:['RightUpLeg','RightLeg','RightFoot'],end:rt});
-    for(let pass=0;pass<2;pass++){ root.updateMatrixWorld(true); for(const l of legs){ const e=l.end.getWorldPosition(_gcV3), tgt=new THREE.Vector3(e.x,gy+(spec._toeLift||0),e.z); for(const bn of l.chain){ const bone=B(bn); if(bone)_ccdToward(bone,l.end,tgt);} } }
+    // PIVOT ON THE HANDS: tip the rigid body about the hand line so the toes land on the floor (straight legs stay straight)
+    if(hips && hips.parent && lt && rt && B('LeftHand') && B('RightHand')){ root.updateMatrixWorld(true);
+      const P=B('LeftHand').getWorldPosition(new THREE.Vector3()).add(B('RightHand').getWorldPosition(new THREE.Vector3())).multiplyScalar(0.5);
+      const toeY=()=>{ root.updateMatrixWorld(true); return 0.5*(lt.getWorldPosition(_gcV1).y+rt.getWorldPosition(_gcV2).y); };
+      const tm=lt.getWorldPosition(new THREE.Vector3()).add(rt.getWorldPosition(new THREE.Vector3())).multiplyScalar(0.5), d=tm.clone().sub(P).setY(0);
+      const tipDepth=f=>{ const T=f==='L'?lt:rt, F=B(f==='L'?'LeftFoot':'RightFoot'); if(!T||!F) return 0; const d=T.getWorldPosition(new THREE.Vector3()).sub(F.getWorldPosition(new THREE.Vector3())); const L=d.length()||1; return 0.45*L*Math.max(0,-d.y/L); };
+      const want=gy+(spec._toeLift||0)+0.5*(tipDepth('L')+tipDepth('R'));   /* on tiptoe the toe TIP sits below the toe joint: lift by it (toes were 5 cm into the floor) */
+      if(d.length()>0.3 && Math.abs(toeY()-want)>0.005){ d.normalize(); const ax=new THREE.Vector3().crossVectors(d, new THREE.Vector3(0,1,0)).normalize();
+        const h0p=hips.getWorldPosition(new THREE.Vector3()), h0q=hips.getWorldQuaternion(new THREE.Quaternion());
+        const place=th=>{ const R=new THREE.Quaternion().setFromAxisAngle(ax,th); const wp=h0p.clone().sub(P).applyQuaternion(R).add(P), wq=R.clone().multiply(h0q);
+          hips.parent.updateWorldMatrix(true,false); hips.position.copy(hips.parent.worldToLocal(wp)); hips.quaternion.copy(hips.parent.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(wq)); hips.updateWorldMatrix(true,true); };
+        const r=tm.clone().sub(P), rh=r.clone().setY(0).length(), rl=Math.hypot(rh, r.y); let th=0;
+        if(rl>1e-3){ const phi=Math.atan2(r.y, rh), phi2=Math.asin(Math.max(-0.99,Math.min(0.99,(want-P.y)/rl))); th=Math.max(-0.4,Math.min(0.4,phi2-phi)); }
+        place(th); const e1=Math.abs(toeY()-want); place(-th); if(Math.abs(toeY()-want)>e1) place(th);
+        _flatHandOnFloor(B,'Left'); _flatHandOnFloor(B,'Right'); } }   /* the pivot tipped the hands with the body: lay them flat again */
+    for(let pass=0;pass<2;pass++){ root.updateMatrixWorld(true); for(const l of legs){ const e=l.end.getWorldPosition(_gcV3); if(e.y>=gy+(spec._toeLift||0)-0.002) continue; const tgt=new THREE.Vector3(e.x,gy+(spec._toeLift||0),e.z); for(const bn of l.chain){ const bone=B(bn); if(bone)_ccdToward(bone,l.end,tgt);} } }   /* only LIFT a toe that is under its floor height (pulling it down undid the tiptoe allowance) */
+    // KNEES ON the floor, never through it (kneeling frames of a get-down / push-up: knees were 4-6 cm under)
+    { const kl=Math.max(0.03, spec._toeLift||0.04);
+      for(const l of legs){ root.updateMatrixWorld(true); const up=B(l.chain[0]), kn=B(l.chain[1]); if(!up||!kn) continue; const kp=kn.getWorldPosition(new THREE.Vector3()); if(kp.y>=gy+kl) continue;
+        _ccdToward(up, kn, new THREE.Vector3(kp.x, gy+kl, kp.z));
+        root.updateMatrixWorld(true); const e=l.end.getWorldPosition(_gcV3), tgt=new THREE.Vector3(e.x, Math.max(e.y, gy+(spec._toeLift||0)), e.z); if(e.y<tgt.y) for(const bn of l.chain.slice(1)){ const bone=B(bn); if(bone)_ccdToward(bone,l.end,tgt); } } }
+    root.updateMatrixWorld(true); _fingersAboveFloor(B, gy);
     return;
   }
   const gy=0;   // the scene floor — contacts belong on y=0, NOT wherever the retarget happened to leave them (a
@@ -6523,6 +6701,7 @@ function floorContactPose(root, spec, floorY){
   if(!all.length) return;
   for(const l of all) l.lift = /Hand/.test(l.end.name) ? (spec._handLift||0) : (spec._toeLift||0);
   // a planted HAND keeps its world attitude (palm flat) while the arm chain is re-solved above it
+  if(spec.hands){ _flatHandOnFloor(B,'Left'); _flatHandOnFloor(B,'Right'); root.updateMatrixWorld(true); }
   const handQ={}; if(spec.hands) for(const nm of ['LeftHand','RightHand']){ const b=B(nm); if(b) handQ[nm]=b.getWorldQuaternion(new THREE.Quaternion()); }
   const hips=B('Hips');
   // First drop the WHOLE body so the lowest contact rests on the floor — this preserves the authored pose shape and
@@ -6540,7 +6719,14 @@ function floorContactPose(root, spec, floorY){
         const ps=hips.parent?hips.parent.getWorldScale(_gcV2).y:1; hips.position.y += (target-cur)/(ps||1); hips.updateWorldMatrix(true,true); } }
   }
   plant();
+  // (2) KNEES ON the floor, never through it: the toe plant pulls the shins down as the body comes level (Get Down: knees 6 cm
+  // under). Lift the body by the shortfall and re-plant only the hands; the toes then rest wherever the kneeling leg puts them.
+  if(hips && spec.toes){ root.updateMatrixWorld(true); const kl=Math.max(0.03, spec._toeLift||0.04); let lowK=Infinity;
+    for(const nm of ['LeftLeg','RightLeg','LeftForeArm','RightForeArm']){   /* knees AND elbows (a belly crawl's forearms) */ const b=B(nm); if(b) lowK=Math.min(lowK, b.getWorldPosition(_gcV1).y); }
+    if(lowK<gy+kl){ const ps=hips.parent?hips.parent.getWorldScale(_gcV2).y:1; hips.position.y += (gy+kl-lowK)/(ps||1); hips.updateWorldMatrix(true,true);
+      root.updateMatrixWorld(true); for(const l of all){ if(!/Hand/.test(l.end.name)) continue; const e=l.end.getWorldPosition(_gcV3), tgt=new THREE.Vector3(e.x,gy+l.lift,e.z); for(const bn of l.chain){ const bone=B(bn); if(bone)_ccdToward(bone,l.end,tgt); } } } }
   root.updateMatrixWorld(true); for(const nm in handQ){ const b=B(nm); if(b&&b.parent){ b.quaternion.copy(b.parent.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(handQ[nm])); b.updateMatrixWorld(true); } }
+  if(spec.hands){ root.updateMatrixWorld(true); _fingersAboveFloor(B, gy); }
 }
 function torsoHoriz(root){ const h=root.getObjectByName('Hips'), n=root.getObjectByName('neck')||root.getObjectByName('Spine02'); if(!h||!n) return 0;
   const d=n.getWorldPosition(_gcV1).clone().sub(h.getWorldPosition(_gcV2)); const L=d.length()||1; return 1-Math.min(1,Math.abs(d.y)/L); }   // 0 = standing (vertical), 1 = planked (horizontal)
@@ -6549,14 +6735,14 @@ function torsoHoriz(root){ const h=root.getObjectByName('Hips'), n=root.getObjec
 // grip split by a shoulder-width). The Animator bakes, per frame, where the LEFT hand sits in the RIGHT hand's frame and how far
 // apart the hands are (clip.hands). Here the LEFT arm of THIS character is re-solved — two-bone, keeping its own elbow plane —
 // so the left hand holds that relation, scaled by this character's forearm, in the frames where the hands are actually together
-// (≤12 cm on the template, faded out by 20 cm). The left hand keeps its retargeted orientation relative to the right hand.
-function bakeHandContact(clip, root, hands){
+// (≤10 cm on the template, faded out by 30 cm). The left hand keeps its retargeted orientation relative to the right hand.
+function bakeHandContact(clip, root, hands, pax){
   const B=n=>root.getObjectByName(n); const L={sh:B('LeftArm'), el:B('LeftForeArm'), ha:B('LeftHand')}, R={sh:B('RightArm'), el:B('RightForeArm'), ha:B('RightHand')};
   if(!L.sh||!L.el||!L.ha||!R.sh||!R.el||!R.ha||!hands||!hands.dist||!hands.dist.length || window.__noHandContact) return clip;   // __noHandContact: dev A/B switch
   const dur=clip.duration||1, N=Math.max(4, Math.round(dur*30)); const times=[]; for(let i=0;i<N;i++) times.push((N===1?0:i/(N-1))*dur);
   const ref=root.clone(true); const refMixer=new THREE.AnimationMixer(ref); refMixer.clipAction(clip).play();
   const refBones={}; ref.traverse(o=>{ if(o.isBone) refBones[o.name]=o; });
-  const poseAt=t=>{ refMixer.setTime(t); for(const nm in refBones){ const b=B(nm), r=refBones[nm]; if(b){ b.position.copy(r.position); b.quaternion.copy(r.quaternion); b.scale.copy(r.scale); } } root.updateMatrixWorld(true); };
+  const poseAt=t=>{ refMixer.setTime(Math.min(t, (clip.duration||1)-1e-4)); for(const nm in refBones){ const b=B(nm), r=refBones[nm]; if(b){ b.position.copy(r.position); b.quaternion.copy(r.quaternion); b.scale.copy(r.scale); } } root.updateMatrixWorld(true); };
   const hn=hands.dist.length, samp=t=>{ const f=Math.min(1,Math.max(0,t/dur))*(hn-1), i0=Math.floor(f), i1=Math.min(hn-1,i0+1); return [i0,i1,f-i0]; };
   const distAt=t=>{ const [i0,i1,a]=samp(t); return hands.dist[i0]+(hands.dist[i1]-hands.dist[i0])*a; };
   const relAt=t=>{ const [i0,i1,a]=samp(t), r=hands.rel; return new THREE.Vector3(r[i0*3]+(r[i1*3]-r[i0*3])*a, r[i0*3+1]+(r[i1*3+1]-r[i0*3+1])*a, r[i0*3+2]+(r[i1*3+2]-r[i0*3+2])*a); };
@@ -6570,20 +6756,111 @@ function bakeHandContact(clip, root, hands){
     const cosA=Math.min(1,Math.max(-1,(a*a+dd*dd-b*b)/(2*a*dd))), sinA=Math.sqrt(1-cosA*cosA);
     aimTo(A.sh, S, E, S.clone().addScaledVector(dir, cosA*a).addScaledVector(pole, sinA*a)); root.updateMatrixWorld(true);
     aimTo(A.el, W(A.el), W(A.ha), S.clone().addScaledVector(dir, dd)); root.updateMatrixWorld(true); };
+  // LEAD-HAND ANCHOR (round 4): a linked grip carries where the right hand sits relative to the CHEST (shoulder-widths, turned back
+  // by the chest's turn from rest). Joint angles alone put the Man's bat grip mid-chest instead of beside his back shoulder.
+  let cRest=null, shwC=0; const C2=B('Spine02');
+  if(hands.linked && hands.rpos && C2){ const Rr=libRig&&libRig.rest; if(Rr){ root.traverse(o=>{ if(o.isBone && Rr[o.name]){ o.quaternion.fromArray(Rr[o.name].q); o.position.fromArray(Rr[o.name].p); } }); root.updateMatrixWorld(true);
+      cRest=WQ(C2); shwC=W(R.sh).distanceTo(W(R.el))+W(R.el).distanceTo(W(R.ha)); } }   // this character's arm length
+  const rposAt=t=>{ const [i0,i1,a]=samp(t), r=hands.rpos; return new THREE.Vector3(r[i0*3]+(r[i1*3]-r[i0*3])*a, r[i0*3+1]+(r[i1*3+1]-r[i0*3+1])*a, r[i0*3+2]+(r[i1*3+2]-r[i0*3+2])*a); };
   poseAt(0); const kFore=(W(L.el).distanceTo(W(L.ha)))/(hands.fore||1);     // this character's forearm vs the template's → hand spacing scales with the hand
   const names=['LeftArm','LeftForeArm','LeftHand','RightArm','RightForeArm','RightHand'], rec={}; names.forEach(n=>rec[n]=[]); let touched=false;
+  // how strongly the relation is held: a GRIP (hands always close) holds it while they are within 10 cm, fading out by 30 cm; a
+  // CLAP (hands swing apart and together) follows its own cycle — full at the touch, nothing at the widest — so the correction
+  // grows over the whole approach instead of arriving in the last two frames
+  const dMin=Math.min(...hands.dist), dMax=Math.max(...hands.dist), clapLike=dMax-dMin>0.08 && dMin<0.10;
+  // LINKED (2026-09-28): both hands on ONE rigid handle (staff, sword, bat, broom, rake, shovel) — hold the relation at ANY spacing
+  // (a staff grip 32 cm apart got no hold at all, so the hands drifted apart on characters with other arm lengths)
+  // HANDS ON THE PROP (round 5, Paul: "orient the prop, then get the hands placed on the prop"): a linked grip that carries its
+  // handle direction (clip.propAxis — the line aimHeldProps turns the held prop onto, through the right palm) puts BOTH palms on
+  // that line: each hand's knuckle line along the handle (turned the least way), the left fist the motion's spacing from the right. Offsets alone left the Man's left hand 3-16 cm off the bat / staff / sword / axe. Fingered hands only.
+  if(pax && (!pax.ax || !pax.times || pax.ax.length<pax.times.length*3)) pax=null;
+  const paxAt=t=>{ const T=pax.times, n=T.length, tt=Math.min(1,Math.max(0,t/dur))*T[n-1]; let k=0; while(k<n-2 && T[k+1]<tt) k++; const a=Math.max(0,Math.min(1,(tt-T[k])/((T[k+1]-T[k])||1))), A=pax.ax;
+    const v=new THREE.Vector3(A[k*3]+(A[(k+1)*3]-A[k*3])*a, A[k*3+1]+(A[(k+1)*3+1]-A[k*3+1])*a, A[k*3+2]+(A[(k+1)*3+2]-A[k*3+2])*a); return v.lengthSq()>1e-8 ? v.normalize() : null; };
+  const FK=['Index1','Middle1','Ring1','Pinky1'];
+  const palmOf=H=>{ const F=fistCentre(B, H===L?'Left':'Right'); if(F) return F;   // the fist tunnel (same point aimHeldProps puts the handle through)
+    const ks=FK.map(k=>B(H.ha.name+k)).filter(Boolean); if(ks.length>=2){ const m=ks.reduce((s,k)=>s.add(W(k)),new THREE.Vector3()).multiplyScalar(1/ks.length); return m.add(W(H.ha)).multiplyScalar(0.5); }
+    // FINGERLESS hand (the plain biped): where a prop is mounted — 7 cm (on a 1.75 m body ≈ 0.27 forearm) out along the hand bone's +Y
+    return W(H.ha).addScaledVector(new THREE.Vector3(0,1,0).applyQuaternion(WQ(H.ha)), 0.27*W(H.el).distanceTo(W(H.ha))); };
+  const knuckOf=H=>{ const i=B(H.ha.name+'Index1'), p=B(H.ha.name+'Pinky1'); return i&&p ? W(p).sub(W(i)).normalize() : null; };
+  const kW=(()=>{ const i=B('RightHandIndex1'), p=B('RightHandPinky1'); return i&&p ? W(i).distanceTo(W(p)) : 0.06; })();
+  const placeOn=(H, P, A)=>{ const k=knuckOf(H), P0=palmOf(H); if(!P0) return;   // turn the hand so its knuckles lie ALONG the handle, then its fist onto P
+    if(!k){ const q=WQ(H.ha), off=P0.sub(W(H.ha)); for(let it=0;it<2;it++){ ik2(H, P.clone().sub(off)); setWQ(H.ha, q); } return; }   // fingerless: no knuckle line to turn by — the grip point onto the handle, the hand's attitude kept
+    // whichever way the motion already has them: a bat's index points at the barrel, a broom's thumbs point UP, away from its head
+    const dq=new THREE.Quaternion().setFromUnitVectors(k, k.dot(A)>0 ? A.clone() : A.clone().negate()), q=dq.clone().multiply(WQ(H.ha)), off=P0.sub(W(H.ha)).applyQuaternion(dq);
+    for(let it=0;it<2;it++){ ik2(H, P.clone().sub(off)); setWQ(H.ha, q); } };
+  const gripOnLine=t=>{ const A=paxAt(t), Pr=palmOf(R); if(!A||!Pr) return;
+    // the motion's spacing along the handle, SIGNED (a bat's left hand is below the right = toward −A; a broom's axis points down
+    // at its head, so its lower left hand is toward +A) — never palms overlapping
+    const s0=relAt(t).multiplyScalar(kFore).dot(A), S=(s0<0?-1:1)*Math.max(1.35*kW, Math.abs(s0));
+    placeOn(R, Pr, A); let PL=palmOf(R).addScaledVector(A,S); placeOn(L, PL, A);
+    const short=palmOf(L).sub(PL); if(short.length()>0.01){ placeOn(R, palmOf(R).add(short), A); PL=palmOf(R).addScaledVector(A,S); placeOn(L, PL, A); } };   // out of reach: the right hand comes to meet it
+  const wOf=d=>{ if(hands.linked) return 1; const x=clapLike ? Math.min(1,Math.max(0,(d-dMin)/(dMax-dMin))) : Math.min(1,Math.max(0,(d-0.10)/0.20)); return 1-x*x*(3-2*x); };
+  let wS=times.map(t=>wOf(distAt(t))); for(let p=0;p<(clapLike?3:0);p++) wS=wS.map((w,i)=>Math.max(w, 0.25*wS[Math.max(0,i-1)]+0.5*w+0.25*wS[Math.min(wS.length-1,i+1)]));   // a clap: ease the hold in and out over a few more frames (never less than the touch needs)
   for(let i=0;i<N;i++){ const t=times[i]; poseAt(t);
-    const d=distAt(t), x=Math.min(1,Math.max(0,(d-0.12)/0.08)), w=1-x*x*(3-2*x);
+    const w=wS[i];
     if(w>0.001){ touched=true;
+      if(cRest && shwC>0){ const Rq0=WQ(R.ha), Tr=rposAt(t).multiplyScalar(shwC).applyQuaternion(WQ(C2).multiply(cRest.clone().invert())).add(W(R.sh)); ik2(R, Tr); setWQ(R.ha, Rq0); }   // the lead hand to its place by the body
       const Rq=WQ(R.ha), qRel=Rq.clone().invert().multiply(WQ(L.ha)), rel=relAt(t).multiplyScalar(kFore);
-      const target=()=>{ const T=rel.clone().applyQuaternion(WQ(R.ha)).add(W(R.ha)); return T.lerpVectors(W(L.ha), T, w); };
-      let T=target(); ik2(L, T);
+      const target=()=>{ const T=(hands.linked ? rel.clone() : rel.clone().applyQuaternion(WQ(R.ha))).add(W(R.ha)); return T.lerpVectors(W(L.ha), T, w); };   // linked handles store the offset in WORLD (body) terms — the hand's own roll differs per rig
+      let T=target();
+      // a CLAP: BOTH arms close the gap, half each (the left arm alone swung ~70° in one frame on a wide-shouldered clap), then the left
+      // arm takes up what is left
+      if(clapLike){ const e=T.clone().sub(W(L.ha)).multiplyScalar(0.5); if(e.length()>0.005){ ik2(R, W(R.ha).sub(e)); setWQ(R.ha, Rq); T=target(); } }
+      // A RIGID HANDLE held in front (staff, bat, broom, sword): keep the pair at least ~¾ of a shoulder-width in front of THIS
+      // character's chest — on a deeper-chested character the template's grip folded the forearms into the body (round 4)
+      if(hands.linked){ const C=W(B('Spine02')||R.sh), lat=W(L.sh).sub(W(R.sh)), fwd=new THREE.Vector3().crossVectors(lat,new THREE.Vector3(0,1,0)).normalize(), need=0.75*lat.length();
+        const def=need-Math.min(W(R.ha).sub(C).dot(fwd), T.clone().sub(C).dot(fwd));
+        if(def>0.002){ const Rq2=WQ(R.ha); ik2(R, W(R.ha).addScaledVector(fwd, def*w)); setWQ(R.ha, Rq2); T=target(); } }
+      ik2(L, T);
       // the left arm can't get there (full stretch): the RIGHT hand comes to meet it by the shortfall — keeping its grip orientation
       const short=W(L.ha).sub(T); if(short.length()>1e-3){ ik2(R, W(R.ha).add(short)); setWQ(R.ha, Rq); T=target(); ik2(L, T); }
-      setWQ(L.ha, WQ(R.ha).multiply(qRel)); }
+      setWQ(L.ha, WQ(R.ha).multiply(qRel));
+      if(hands.linked && pax) gripOnLine(t); }
     for(const nm of names){ const q=B(nm).quaternion; rec[nm].push(q.x,q.y,q.z,q.w); } }
   refMixer.stopAllAction(); if(!touched) return clip;
   const have=new Set(); let nt=clip.tracks.map(t=>{ const nm=t.name.replace('.quaternion',''); if(t.name.endsWith('.quaternion') && rec[nm]){ have.add(nm); return new THREE.QuaternionKeyframeTrack(t.name, times.slice(), rec[nm]); } return t; });
+  for(const nm of names) if(!have.has(nm)) nt.push(new THREE.QuaternionKeyframeTrack(nm+'.quaternion', times.slice(), rec[nm]));
+  const out=new THREE.AnimationClip(clip.name, clip.duration, nt); if(clip.__match) out.__match=clip.__match; return out;
+}
+// ── HEAD CONTACT (ponder, facepalm, a salute, drinking, scratching the head). Joint angles put a hand on the chin only on the
+// build a motion was authored on: a character whose shoulders sit lower under its head (Mixamo's YBot, our Man) pondered with
+// the hand at the chest. The Animator bakes, per frame, where each hand's knuckles sit in the HEAD's frame, in head-heights
+// (clip.headc). Here that arm is re-solved — two-bone, keeping its own elbow plane and the hand's orientation — so the knuckles
+// hold that spot on THIS character's head, near the closest approach only (the reach toward the face stays as retargeted).
+function bakeHeadContact(clip, root, hc){
+  const B=n=>root.getObjectByName(n), head=B('Head'), top=B('head_end'); if(!head||!top||!hc||!hc.times||window.__noHeadContact) return clip;
+  const dur=clip.duration||1, N=Math.max(4, Math.round(dur*30)); const times=[]; for(let i=0;i<N;i++) times.push((N===1?0:i/(N-1))*dur);
+  const ref=root.clone(true); const refMixer=new THREE.AnimationMixer(ref); refMixer.clipAction(clip).play();
+  const refBones={}; ref.traverse(o=>{ if(o.isBone) refBones[o.name]=o; });
+  const poseAt=t=>{ refMixer.setTime(Math.min(t, (clip.duration||1)-1e-4)); for(const nm in refBones){ const b=B(nm), r=refBones[nm]; if(b){ b.position.copy(r.position); b.quaternion.copy(r.quaternion); b.scale.copy(r.scale); } } root.updateMatrixWorld(true); };
+  const W=b=>b.getWorldPosition(new THREE.Vector3()), WQ=b=>b.getWorldQuaternion(new THREE.Quaternion());
+  const setWQ=(b,q)=>{ b.quaternion.copy(b.parent.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(q)); b.updateMatrixWorld(true); };
+  const aimTo=(bone, pivot, cur, want)=>{ const a=cur.clone().sub(pivot), c=want.clone().sub(pivot); if(a.lengthSq()<1e-12||c.lengthSq()<1e-12) return;
+    setWQ(bone, new THREE.Quaternion().setFromUnitVectors(a.normalize(), c.normalize()).multiply(WQ(bone))); };
+  const ik2=(A,T)=>{ const S=W(A.sh), E=W(A.el), H=W(A.ha), a=S.distanceTo(E), b=E.distanceTo(H); const dv=T.clone().sub(S);
+    const dd=Math.max(Math.abs(a-b)+1e-4, Math.min(a+b-1e-4, dv.length())), dir=dv.normalize();
+    const pole=E.clone().sub(S); pole.sub(dir.clone().multiplyScalar(pole.dot(dir))); if(pole.lengthSq()<1e-10) pole.set(0,-1,0).addScaledVector(dir, dir.y); pole.normalize();
+    const cosA=Math.min(1,Math.max(-1,(a*a+dd*dd-b*b)/(2*a*dd))), sinA=Math.sqrt(1-cosA*cosA);
+    aimTo(A.sh, S, E, S.clone().addScaledVector(dir, cosA*a).addScaledVector(pole, sinA*a)); root.updateMatrixWorld(true);
+    aimTo(A.el, W(A.el), W(A.ha), S.clone().addScaledVector(dir, dd)); root.updateMatrixWorld(true); };
+  // the head's REST attitude (the bind), so the offset turns with the head's turn from rest — the same turn on every rig
+  let hRest=null; { const R=libRig&&libRig.rest; if(R){ root.traverse(o=>{ if(o.isBone && R[o.name]){ o.quaternion.fromArray(R[o.name].q); o.position.fromArray(R[o.name].p); } }); root.updateMatrixWorld(true); hRest=WQ(head); } }
+  poseAt(0); if(!hRest) hRest=WQ(head); const hs=W(top).distanceTo(W(head));                 // this character's head height
+  const hn=hc.times.length, samp=t=>{ const f=Math.min(1,Math.max(0,t/dur))*(hn-1), i0=Math.floor(f), i1=Math.min(hn-1,i0+1); return [i0,i1,f-i0]; };
+  const names=[], sides=[];
+  for(const sd of ['L','R']){ const c=hc[sd]; if(!c) continue; const P=sd==='L'?'Left':'Right'; const A={sh:B(P+'Arm'), el:B(P+'ForeArm'), ha:B(P+'Hand'), k:B(P+'HandMiddle1')};
+    if(!A.sh||!A.el||!A.ha||!A.k) continue; const dmin=Math.min(...c.dist); sides.push({c, A, dmin}); names.push(P+'Arm', P+'ForeArm', P+'Hand'); }
+  if(!sides.length) return clip;
+  const rec={}; names.forEach(n=>rec[n]=[]); let touched=false;
+  for(let i=0;i<N;i++){ const t=times[i]; poseAt(t);
+    for(const {c, A, dmin} of sides){ const [i0,i1,a]=samp(t), d=c.dist[i0]+(c.dist[i1]-c.dist[i0])*a;
+      const x=Math.min(1,Math.max(0,(d-dmin-0.05)/0.10)), w=1-x*x*(3-2*x); if(w<=0.001) continue; touched=true;   // full at the touch, fades over the last 5-15 cm of the reach
+      const r=c.rel, rel=new THREE.Vector3(r[i0*3]+(r[i1*3]-r[i0*3])*a, r[i0*3+1]+(r[i1*3+1]-r[i0*3+1])*a, r[i0*3+2]+(r[i1*3+2]-r[i0*3+2])*a).multiplyScalar(hs);
+      const K=rel.applyQuaternion(WQ(head).multiply(hRest.clone().invert())).add(W(head)), off=W(A.k).sub(W(A.ha));
+      const T=W(A.ha).lerp(K.sub(off), w); ik2(A, T); }   // the hand rides with the re-solved forearm (holding its world attitude twisted the wrist past 100°)
+    for(const nm of names){ const q=B(nm).quaternion; rec[nm].push(q.x,q.y,q.z,q.w); } }
+  refMixer.stopAllAction(); if(!touched) return clip;
+  const have=new Set(); const nt=clip.tracks.map(t=>{ const nm=t.name.replace('.quaternion',''); if(t.name.endsWith('.quaternion') && rec[nm]){ have.add(nm); return new THREE.QuaternionKeyframeTrack(t.name, times.slice(), rec[nm]); } return t; });
   for(const nm of names) if(!have.has(nm)) nt.push(new THREE.QuaternionKeyframeTrack(nm+'.quaternion', times.slice(), rec[nm]));
   const out=new THREE.AnimationClip(clip.name, clip.duration, nt); if(clip.__match) out.__match=clip.__match; return out;
 }
@@ -6597,7 +6874,22 @@ function bakeFloorContact(clip, root, spec, srcClip){
   // pristine reference clone and copy its pose into the working skeleton every frame.
   const ref=root.clone(true); const refMixer=new THREE.AnimationMixer(ref); refMixer.clipAction(clip).play();
   const refBones={}; ref.traverse(o=>{ if(o.isBone) refBones[o.name]=o; });
-  const poseAt=t=>{ refMixer.setTime(t); for(const nm in refBones){ const b=B(nm), r=refBones[nm]; if(b){ b.position.copy(r.position); b.quaternion.copy(r.quaternion); b.scale.copy(r.scale); } } root.updateMatrixWorld(true); };
+  const poseAt=t=>{ refMixer.setTime(Math.min(t, (clip.duration||1)-1e-4)); for(const nm in refBones){ const b=B(nm), r=refBones[nm]; if(b){ b.position.copy(r.position); b.quaternion.copy(r.quaternion); b.scale.copy(r.scale); } } root.updateMatrixWorld(true); };
+  if(spec.rest){
+    // flesh depth below each joint, as a fraction of this character's standing hip height (adult: pelvis ~10 cm, knee ~5 cm …)
+    const hipsB=B('Hips'); if(!hipsB) return clip;
+    { const rest=srcClip&&srcClip.__rest; if(rest){ root.traverse(o=>{ if(o.isBone && rest[o.name]){ o.position.fromArray(rest[o.name].p); o.quaternion.fromArray(rest[o.name].q); } }); root.updateMatrixWorld(true); } else poseAt(0); }
+    const hs=Math.max(0.2, hipsB.getWorldPosition(_gcV1).y);
+    const J=[['Hips',0.105],['Spine02',0.12],['LeftLeg',0.05],['RightLeg',0.05],['LeftForeArm',0.045],['RightForeArm',0.045],['LeftHand',0.025],['RightHand',0.025],
+      ['LeftToeBase',0.06],['RightToeBase',0.06],['LeftFoot',0.085],['RightFoot',0.085],['Head',0.10]].map(([n,f])=>[B(n),f*hs]).filter(([b])=>b);
+    const hipsRec=[];
+    for(let i=0;i<N;i++){ poseAt(times[i]); let gap=Infinity; for(const [b,o] of J) gap=Math.min(gap, b.getWorldPosition(_gcV1).y-o);
+      if(isFinite(gap)){ const ps=hipsB.parent?hipsB.parent.getWorldScale(_gcV2).y:1; hipsB.position.y -= gap/(ps||1); }
+      hipsRec.push(hipsB.position.x, hipsB.position.y, hipsB.position.z); }
+    mixer.stopAllAction();
+    const nt=clip.tracks.filter(t=>t.name!=='Hips.position'); nt.push(new THREE.VectorKeyframeTrack('Hips.position', times.slice(), hipsRec));
+    return new THREE.AnimationClip(clip.name, clip.duration, nt);
+  }
   if(spec.lie){
     const bones=[...new Set(clip.tracks.filter(t=>t.name.endsWith('.quaternion')).map(t=>t.name.replace('.quaternion','')))];
     const rec={}; bones.forEach(b=>rec[b]=[]); const hipsRec=[]; const hipsB=B('Hips');
@@ -6665,11 +6957,12 @@ function bakeFloorContact(clip, root, spec, srcClip){
       // measure from the character's OWN rest mesh where available: joint height above the lowest skinned vertex of that part
       // (a T-pose hand lies palm-down, so its wrist-to-palm-skin depth is exactly the lift a flat planted hand needs)
       let sm=null; root.traverse(o=>{ if(o.isSkinnedMesh && o.skeleton && (!sm || o.geometry.attributes.position.count>sm.geometry.attributes.position.count)) sm=o; });
+      const _gc=(a,v,k)=>k===0?a.getX(v):k===1?a.getY(v):k===2?a.getZ(v):a.getW(v);   /* was only defined inside the retarget → this threw on every meshed character and the floor fix never ran */
       if(sm){ sm.skeleton.update(); const names=sm.skeleton.bones.map(b=>b.name), si=sm.geometry.attributes.skinIndex, sw=sm.geometry.attributes.skinWeight, p=new THREE.Vector3();
         const lowOf=(re)=>{ const ids=new Set(names.map((n,i)=>re.test(n)?i:-1).filter(i=>i>=0)); let lo=Infinity; for(let v=0; v<si.count; v++){ let w=0; for(let k=0;k<4;k++) if(ids.has(_gc(si,v,k))) w+=_gc(sw,v,k); if(w>0.5){ sm.getVertexPosition(v,p); p.applyMatrix4(sm.matrixWorld); if(p.y<lo) lo=p.y; } } return lo; };
         const hb=B('LeftHand'), hl=lowOf(/^LeftHand/), fl=lowOf(/^Left(Foot|ToeBase)/);
         // fingered (Mixamo-type) rigs rest palm-DOWN; a Meshy hand bone is rolled 90° so its rest hand is edge-on → keep the estimate
-        if(hb && isFinite(hl) && B('LeftHandIndex1')){ const d=hb.getWorldPosition(_gcV1).y-hl; if(d>0 && d<3*Math.max(spec._toeLift,1e-3)) spec._handLift=d; }
+        if(hb && isFinite(hl) && B('LeftHandIndex1')){ const d=hb.getWorldPosition(_gcV1).y-hl; if(d>0 && d<3*Math.max(spec._toeLift,1e-3)) spec._handLift=Math.min(d, 0.9*spec._toeLift); }   /* (3) a hand hanging at an angle in rest over-reads its palm depth (Man: push-up hands 9 cm up) */
         if(tb && isFinite(fl)){ const d=tb.getWorldPosition(_gcV1).y-fl; if(d>0) spec._toeLift=d; } }
     } }
   // CONSTANT floor = the lowest a contact naturally reaches (the dip bottom), over the horizontal frames only,
@@ -6680,18 +6973,38 @@ function bakeFloorContact(clip, root, spec, srcClip){
   if(!anyHoriz || !isFinite(floorY)) return clip;   // never horizontal → nothing to plant
   const bones=[...new Set(clip.tracks.filter(t=>t.name.endsWith('.quaternion')).map(t=>t.name.replace('.quaternion','')))];
   const hasHipsPos=clip.tracks.some(t=>t.name==='Hips.position');
-  const rec={}; bones.forEach(b=>rec[b]=[]); const hipsRec=[];
+  const rec={}; bones.forEach(b=>rec[b]=[]); const hipsRec=[], facRec=[];
   for(let i=0;i<N;i++){ poseAt(times[i]);
-    const factor=torsoHoriz(root);
+    const th=torsoHoriz(root), factor=th>=0.75?1:th<=0.25?0:(x=>x*x*(3-2*x))((th-0.25)/0.5);   /* a plank tilted 15° is fully ON the floor; the ramp starts late enough that a get-down's squat isn't yanked down onto hands still on their way (a 75°/frame knee jerk) */   /* a plank tilted 15° reads 0.74 level: it is fully ON the floor, not 74% of the way (its hands floated 10 cm) */
     const orig={}; bones.forEach(b=>{ const bn=B(b); if(bn) orig[b]=bn.quaternion.clone(); });
     const origHip=B('Hips')?B('Hips').position.clone():null;
     if(factor>0.05){ floorContactPose(root, spec, floorY);
       if(factor<0.999){ bones.forEach(b=>{ const bn=B(b); if(bn&&orig[b]) bn.quaternion.slerp(orig[b],1-factor); });
-        if(origHip&&B('Hips')) B('Hips').position.lerp(origHip,1-factor); } }
+        if(origHip&&B('Hips')) B('Hips').position.lerp(origHip,1-factor); }
+      const hb=B('Hips'); if(hb){ root.updateMatrixWorld(true); const kl=Math.max(0.03, spec._toeLift||0.04); let lowK=Infinity;
+        for(const nm of ['LeftLeg','RightLeg']){ const b=B(nm); if(b) lowK=Math.min(lowK, b.getWorldPosition(_gcV1).y); }
+        if(lowK<kl){ const ps=hb.parent?hb.parent.getWorldScale(_gcV2).y:1; hb.position.y += (kl-lowK)/(ps||1); hb.updateWorldMatrix(true,true); } } }   /* knees rest ON the floor */
+    facRec.push(factor);
     bones.forEach(b=>{ const bn=B(b); const q=bn?bn.quaternion:(orig[b]||{x:0,y:0,z:0,w:1}); rec[b].push(q.x,q.y,q.z,q.w); });
     if(hasHipsPos){ const hp=B('Hips')?B('Hips').position:(origHip||{x:0,y:0,z:0}); hipsRec.push(hp.x,hp.y,hp.z); }
   }
   mixer.stopAllAction();
+  // EASE the correction in/out: where the floor fix is switching on or off (a get-down tipping forward), average each frame with its
+  // neighbours — the body was pulled onto the floor in ONE frame (a 34 cm knee drop / 75° jerk on the Man's push-up)
+  { const trans=i=>{ for(let o=-3;o<=3;o++){ const j=i+o; if(j>=0&&j<N&&facRec[j]>0.001&&facRec[j]<0.999) return true; } return false; }, K=[1,2,3,4,3,2,1];
+    const sq=(arr)=>{ const out=arr.slice(); for(let i=0;i<N;i++){ if(!trans(i)) continue; let x=0,y=0,z=0,w=0,ws=0; const c=[arr[i*4],arr[i*4+1],arr[i*4+2],arr[i*4+3]];
+        for(let o=-3;o<=3;o++){ const j=Math.min(N-1,Math.max(0,i+o)), k=K[o+3]; let q=[arr[j*4],arr[j*4+1],arr[j*4+2],arr[j*4+3]]; if(q[0]*c[0]+q[1]*c[1]+q[2]*c[2]+q[3]*c[3]<0) q=q.map(v=>-v); x+=k*q[0]; y+=k*q[1]; z+=k*q[2]; w+=k*q[3]; ws+=k; }
+        const n=Math.hypot(x,y,z,w)||1; out[i*4]=x/n; out[i*4+1]=y/n; out[i*4+2]=z/n; out[i*4+3]=w/n; } return out; };
+    for(const b of bones) if(rec[b].length===N*4) rec[b]=sq(rec[b]);
+    if(hipsRec.length===N*3){ const h=hipsRec.slice(); for(let i=0;i<N;i++){ if(!trans(i)) continue; for(let a=0;a<3;a++){ let v=0,ws=0; for(let o=-3;o<=3;o++){ const j=Math.min(N-1,Math.max(0,i+o)); v+=K[o+3]*h[j*3+a]; ws+=K[o+3]; } hipsRec[i*3+a]=v/ws; } } } }
+  // …and averaging rotations can lower a toe or knee: re-pose the smoothed frames and lift the body wherever one is under its floor height
+  if(hasHipsPos && hipsRec.length===N*3){ const tmp=new THREE.AnimationClip(clip.name, clip.duration, clip.tracks.map(t=>{ if(t.name.endsWith('.quaternion')){ const b=t.name.replace('.quaternion',''); if(rec[b]&&rec[b].length===N*4) return new THREE.QuaternionKeyframeTrack(t.name, times.slice(), rec[b]); } if(t.name==='Hips.position') return new THREE.VectorKeyframeTrack(t.name, times.slice(), hipsRec); return t; }));
+    const ref2=root.clone(true), m2=new THREE.AnimationMixer(ref2); m2.clipAction(tmp).play(); const R2={}; ref2.traverse(o=>{ if(o.isBone) R2[o.name]=o; });
+    const lim=[['LeftToeBase',(spec._toeLift||0.03)*0.6],['RightToeBase',(spec._toeLift||0.03)*0.6],['LeftLeg',0.03],['RightLeg',0.03]].filter(([n])=>R2[n]); const hb=R2['Hips'];
+    for(let i=0;i<N;i++){ if(!facRec[i]) continue; m2.setTime(Math.min(times[i], (clip.duration||1)-1e-4)); ref2.updateMatrixWorld(true); let need=0;
+      for(const [n,o] of lim) need=Math.max(need, o-R2[n].getWorldPosition(_gcV1).y);
+      if(need>0 && hb){ const ps=hb.parent?hb.parent.getWorldScale(_gcV2).y:1; hipsRec[i*3+1]+=need/(ps||1); } }
+    m2.stopAllAction(); }
   const newTracks=clip.tracks.map(t=>{
     if(t.name.endsWith('.quaternion')){ const b=t.name.replace('.quaternion',''); if(rec[b]&&rec[b].length===N*4) return new THREE.QuaternionKeyframeTrack(t.name, times.slice(), rec[b]); }
     if(t.name==='Hips.position' && hipsRec.length===N*3) return new THREE.VectorKeyframeTrack('Hips.position', times.slice(), hipsRec);
@@ -6753,9 +7066,10 @@ function nlRebuild(c){
     else if(op.kind==='ampDeg'){ const peak=nlPeakDeg(json, NL_GROUPS[op.group])||1; nlAmp(json, NL_GROUPS[op.group], Math.max(0.05,(peak+op.deg)/peak)); }
   }
   let retClip=retargetMotion({...c.srcMeta, clip:json}, libRig);
-  const shortId=(c.srcMeta.id||'').replace(/^ra_[a-z]+_/,'').replace(/_\d+_\d+_\d+$/,'');
-  if(FLOOR_CONTACT[shortId]){ try{ const gc=skeletonClone(libRig.root); gc.position.set(0,0,0); gc.rotation.set(0,0,0); gc.scale.set(1,1,1); json.__charRoot=libRig.root; json.__rest=libRig.rest; retClip=bakeFloorContact(retClip, gc, FLOOR_CONTACT[shortId], json); delete json.__charRoot; delete json.__rest; }catch(e){} }
-  if(json.hands && !FLOOR_CONTACT[shortId]){ try{ const gh=skeletonClone(libRig.root); gh.position.set(0,0,0); gh.rotation.set(0,0,0); gh.scale.set(1,1,1); retClip=bakeHandContact(retClip, gh, json.hands); }catch(e){ console.warn('hand-contact bake failed:', e); } }
+  const shortId=(c.srcMeta.id||'').replace(/^ra_[a-z]+_/,'').replace(/_\d+_\d+_\d+$/,''), _fc=floorSpecFor(c.srcMeta.id, shortId);
+  if(_fc){ try{ const gc=skeletonClone(libRig.root); gc.position.set(0,0,0); gc.rotation.set(0,0,0); gc.scale.set(1,1,1); json.__charRoot=libRig.root; json.__rest=libRig.rest; retClip=bakeFloorContact(retClip, gc, _fc, json); delete json.__charRoot; delete json.__rest; }catch(e){} }
+  if(json.hands && !_fc){ try{ const gh=skeletonClone(libRig.root); gh.position.set(0,0,0); gh.rotation.set(0,0,0); gh.scale.set(1,1,1); retClip=bakeHandContact(retClip, gh, json.hands, json.propAxis); }catch(e){ console.warn('hand-contact bake failed:', e); } }
+  if(json.headc && !_fc){ try{ const gh=skeletonClone(libRig.root); gh.position.set(0,0,0); gh.rotation.set(0,0,0); gh.scale.set(1,1,1); retClip=bakeHeadContact(retClip, gh, json.headc); }catch(e){ console.warn('head-contact bake failed:', e); } }   // a hand on the chin / face / head stays there on THIS character's build
   c.mixer.stopAllAction();
   c.action=c.mixer.clipAction(retClip); c.action.clampWhenFinished=true; c.duration=retClip.duration;
   computeTravel(c); finalizeAdvance(c); c._norm=true; recomputeAllNorm(); computeSharedFrame();
@@ -6784,10 +7098,11 @@ async function addMotionClip(meta){
   let retClip=retargetMotion({...meta, clip:clipJSON}, libRig);
   // Floor poses: re-plant hands/toes on THIS character's skeleton so the plank sits on the floor (retarget
   // only carries rotations, so it otherwise floats/pikes on a differently-proportioned rig).
-  const shortId=(meta.id||'').replace(/^ra_[a-z]+_/,'').replace(/_\d+_\d+_\d+$/,'');
-  if(FLOOR_CONTACT[shortId]){ try{ const gcRoot=skeletonClone(libRig.root); gcRoot.position.set(0,0,0); gcRoot.rotation.set(0,0,0); gcRoot.scale.set(1,1,1);
-    const _m=retClip.__match; clipJSON.__charRoot=libRig.root; clipJSON.__rest=libRig.rest; retClip=bakeFloorContact(retClip, gcRoot, FLOOR_CONTACT[shortId], clipJSON); delete clipJSON.__charRoot; delete clipJSON.__rest; if(_m) retClip.__match=_m; }catch(e){ console.warn('floor-contact bake failed:', e); } }
-  if(clipJSON.hands && !FLOOR_CONTACT[shortId]){ try{ const gh=skeletonClone(libRig.root); gh.position.set(0,0,0); gh.rotation.set(0,0,0); gh.scale.set(1,1,1); retClip=bakeHandContact(retClip, gh, clipJSON.hands); }catch(e){ console.warn('hand-contact bake failed:', e); } }   // keep two-handed grips / claps together on THIS character's build
+  const shortId=(meta.id||'').replace(/^ra_[a-z]+_/,'').replace(/_\d+_\d+_\d+$/,''), _fc=floorSpecFor(meta.id, shortId);
+  if(_fc){ try{ const gcRoot=skeletonClone(libRig.root); gcRoot.position.set(0,0,0); gcRoot.rotation.set(0,0,0); gcRoot.scale.set(1,1,1);
+    const _m=retClip.__match; clipJSON.__charRoot=libRig.root; clipJSON.__rest=libRig.rest; retClip=bakeFloorContact(retClip, gcRoot, _fc, clipJSON); delete clipJSON.__charRoot; delete clipJSON.__rest; if(_m) retClip.__match=_m; }catch(e){ console.warn('floor-contact bake failed:', e); } }
+  if(clipJSON.hands && !_fc){ try{ const gh=skeletonClone(libRig.root); gh.position.set(0,0,0); gh.rotation.set(0,0,0); gh.scale.set(1,1,1); retClip=bakeHandContact(retClip, gh, clipJSON.hands, clipJSON.propAxis); }catch(e){ console.warn('hand-contact bake failed:', e); } }
+  if(clipJSON.headc && !_fc){ try{ const gh=skeletonClone(libRig.root); gh.position.set(0,0,0); gh.rotation.set(0,0,0); gh.scale.set(1,1,1); retClip=bakeHeadContact(retClip, gh, clipJSON.headc); }catch(e){ console.warn('head-contact bake failed:', e); } }   // a hand on the chin / face / head stays there on THIS character's build   // keep two-handed grips / claps together on THIS character's build
   const root=skeletonClone(libRig.root);
   root.position.set(0,0,0); root.rotation.set(0,0,0); root.scale.set(1,1,1);   // rig root may be mid-frame-scaled; start the clone neutral (else baseScale double-applies)
   root.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.receiveShadow=false; o.frustumCulled=false; } });
@@ -6910,8 +7225,9 @@ function sigSameSpecies(a,b){ if(a===b || sigCore(a)===sigCore(b)) return true; 
   for(const x of A) if(!B.has(x) && !SIG_DETAIL.test(x)) return false; for(const x of B) if(!A.has(x) && !SIG_DETAIL.test(x)) return false; return true; }
 let _mlFam={sig:undefined, n:-1, has:false};
 function sigFitsChar(rigSig, mSig){ if(!rigSig) return true; if(!sigCompat(rigSig, mSig)) return false;
+  if(('|'+(mSig||'')+'|').includes('|LeftFWing|') && !('|'+rigSig+'|').includes('|LeftFWing|')) return false;   // wing (fairy flight) motions need wings — a wingless biped doesn't get them
   if(_mlFam.sig!==rigSig || _mlFam.n!==(libIndex?libIndex.length:0)){ _mlFam={sig:rigSig, n:libIndex?libIndex.length:0, has:!!libIndex && libIndex.some(m=>m.sig && sigSameSpecies(rigSig, m.sig))}; }
-  return !_mlFam.has || sigSameSpecies(rigSig, mSig); }
+  return !_mlFam.has || sigSameSpecies(rigSig, mSig) || /\|LeftFWing\|/.test('|'+rigSig+'|'); }   // a WINGED biped (fairy / angel) plays every biped + finger motion as well as its own flight motions
 function mlActiveRoot(){ const ch=(typeof activeChar==='function')?activeChar():null;
   if(ch){ const src=charClips(ch).find(c=>c.hips&&c.root); if(src) return {root:src.root, name:ch.name}; }
   return libRig?{root:libRig.root, name:libRig.label}:null; }
@@ -7053,6 +7369,77 @@ async function exportSequenceGLB(){
     { binary:true, animations, onlyVisible:false });
   }catch(e){ console.error(e); setStatus('GLB export failed: '+(e.message||e)); }
 }
+// ---------- 🗺 SEND TO MAP VIEW (2026-09-27): the selected character's lane → Studio Library (skeleton 'mapchar') + hand-off ----------
+// One GLB = the character + a merged "Sequence" (same rules as buildMergedClip: speed, loops, hold; no cross-fades) + each clip as
+// its own animation; meta keeps where every clip starts in the Sequence and each clip's sound as a WAV, so Maestro can play the
+// chain (or a walk/idle pair of its clips) along a path with the right sounds at the right moments.
+function wavFromBuffer(buf){ const ch=Math.min(2,buf.numberOfChannels), n=buf.length, sr=buf.sampleRate, out=new DataView(new ArrayBuffer(44+n*ch*2));
+  const w=(o,str)=>{ for(let i=0;i<str.length;i++) out.setUint8(o+i,str.charCodeAt(i)); };
+  w(0,'RIFF'); out.setUint32(4,36+n*ch*2,true); w(8,'WAVE'); w(12,'fmt '); out.setUint32(16,16,true); out.setUint16(20,1,true); out.setUint16(22,ch,true); out.setUint32(24,sr,true);
+  out.setUint32(28,sr*ch*2,true); out.setUint16(32,ch*2,true); out.setUint16(34,16,true); w(36,'data'); out.setUint32(40,n*ch*2,true);
+  const data=[...Array(ch)].map((_,i)=>buf.getChannelData(i)); let o=44; for(let i=0;i<n;i++) for(let c=0;c<ch;c++){ const v=Math.max(-1,Math.min(1,data[c][i])); out.setInt16(o, v<0?v*0x8000:v*0x7fff, true); o+=2; }
+  return new Blob([out],{type:'audio/wav'}); }
+async function sendToMapView(){
+  if(!window.StudioLib){ setStatus('Open the Stitcher inside GLB Studio to send characters to Maestro'); return; }
+  setStatus('Sending to Maestro …'); await new Promise(r=>setTimeout(r,20));
+  try{ const R=await mapCharPayload(); if(!R){ setStatus('Add clips first'); return; }
+    const id=await StudioLib.addModel({name:R.name, skeleton:'mapchar', glb:R.blob, meta:R.meta});
+    localStorage.setItem('studio.handoff', JSON.stringify({to:'mapview', id, t:Date.now()}));
+    setStatus(`🗺 Sent “${R.name}” to Maestro (${R.meta.duration.toFixed(1)} s chain${R.meta.sounds.length?', '+R.meta.sounds.length+' sound'+(R.meta.sounds.length===1?'':'s'):''})`);
+    try{ if(parent!==window && parent.show){ parent.show('mapview'); } }catch(e){}
+  }catch(e){ console.error(e); setStatus('Send to Maestro failed: '+(e.message||e)); } }
+// the selected character's lane as a Maestro character: {name, blob (GLB), meta:{from, clips, sounds, duration}} — or null
+async function mapCharPayload(){
+  const cur=clips[selIndex]||clips[0]; if(!cur) return null;
+  const chId=cur.charId, lane=clips.filter(c=>c.charId===chId && c.action && c.root && (c.action.getClip().duration||0)>0);   // the base model with no animation is not part of the chain if(!lane.length){ setStatus('This character has no clips yet'); return; }
+  const ch=characters.find(c=>c.id===chId);
+  {
+    const loops=parseInt($('#loops').value)||1, hold=parseFloat($('#hold').value)||0; const map=new Map(); let tOff=0; const marks=[], sounds=[];
+    const addTrack=(t, off, spd)=>{ let e=map.get(t.name); const stride=t.times.length? t.values.length/t.times.length : 4;
+      if(!e){ e={Type:t.constructor, stride, times:[], values:[]}; map.set(t.name,e); }
+      for(let i=0;i<t.times.length;i++){ e.times.push(t.times[i]/spd+off); for(let k=0;k<e.stride;k++) e.values.push(t.values[i*e.stride+k]); } };
+    for(const c of lane){ const clip=c.action.getClip(); const spd=clipSpeed(c), dur=(clip.duration||0)/spd, t0=tOff;
+      for(let l=0;l<loops;l++){ for(const t of clip.tracks) addTrack(t, tOff, spd); tOff+=dur; }
+      if(hold>0){ for(const t of clip.tracks){ const e=map.get(t.name); if(!e) continue; const last=[]; for(let k=0;k<e.stride;k++) last.push(t.values[t.values.length-e.stride+k]);
+          e.times.push(tOff); e.values.push(...last); e.times.push(tOff+hold); e.values.push(...last); } tOff+=hold; }
+      marks.push({name:(c.name||'clip').replace(/.glb$/i,''), t:+t0.toFixed(4), dur:+(tOff-t0).toFixed(4)});
+      if(c.audio){ sounds.push({name:c.audioName||'sound', t:+t0.toFixed(4), dur:+Math.min(c.audio.duration, dur*loops).toFixed(4), wav:wavFromBuffer(c.audio)}); } }
+    const tracks=[]; for(const [name,e] of map){ if(e.times.length) tracks.push(new e.Type(name, new Float32Array(e.times), new Float32Array(e.values))); }
+    const merged=new THREE.AnimationClip('Sequence', tOff||1, tracks);
+    const per=lane.map((c,i)=>{ const cl=c.action.getClip().clone(); const spd=clipSpeed(c); if(spd!==1){ cl.tracks.forEach(tr=>{ tr.times=tr.times.map(x=>x/spd); }); cl.duration=(cl.duration||0)/spd; }
+      cl.name=`${String(i+1).padStart(2,'0')}_${(c.name||'clip').replace(/.glb$/i,'')}`; return cl; });
+    const mesh=skeletonClone(lane[0].root); mesh.position.set(0,0,0); mesh.rotation.set(0,0,0); mesh.scale.set(1,1,1); mesh.traverse(o=>{ o.frustumCulled=false; });
+    const holder=new THREE.Scene(); holder.add(mesh);
+    const buf=await new Promise((res,rej)=>new GLTFExporter().parse(holder, res, rej, {binary:true, animations:[merged,...per], onlyVisible:false}));
+    const name=(ch&&ch.name||'Character')+' — '+lane.length+' clip'+(lane.length===1?'':'s');
+    return {name, blob:new Blob([buf],{type:'model/gltf-binary'}), meta:{from:'stitcher', clips:marks, sounds, duration:+tOff.toFixed(4)}};
+  }
+}
+// 🗺 MAP VIEW WORKER (2026-09-27): Maestro opens this page hidden (…?mapworker=1) to fit motions onto a character for it:
+// loadChar({libId}|{sample}) → the motions that fit (the SAME list as the Motion panel: rig match + finger twin pick) ·
+// build([motion ids]) → the character + those clips as one Maestro GLB (see mapCharPayload).
+window.__ksolMapWorker={
+  async ready(){ for(let i=0;i<300;i++){ if(Array.isArray(libIndex) && libIndex.length) return true; await new Promise(r=>setTimeout(r,100)); } return false; },
+  async loadChar(src){ const n0=clips.length;
+    if(src.libId) await loadStudioModel(src.libId);
+    else if(src.sample){ const s=SAMPLE_CHARS.find(x=>x.file===src.sample); if(!s) throw new Error('no such sample'); await loadSampleModel(s); }
+    else if(src.pack){ for(let i=0;i<100 && !importedChars.some(e=>e.packId===src.pack.packId && e.name===src.pack.name);i++) await new Promise(r=>setTimeout(r,100));
+      const e=importedChars.find(e=>e.packId===src.pack.packId && e.name===src.pack.name); if(!e) throw new Error('“'+src.pack.name+'” is not in your installed packs'); await loadPackCharacter(e); }
+    for(let i=0;i<200 && clips.length===n0;i++) await new Promise(r=>setTimeout(r,100)); if(clips.length===n0) throw new Error('the character did not load');
+    selIndex=clips.length-1; { const c=clips[selIndex]; if(c && c.charId) activeCharId=c.charId; }   // the character just loaded is the one the list is for
+    const rigSig=mlActiveSig();
+    let base=libIndex.filter(m=>sigFitsChar(rigSig, m.sig));
+    const ids=new Set(libIndex.map(m=>m.id)), fingers=!!rigSig && ('|'+rigSig+'|').includes('|LeftHandIndex1|');
+    const twin=id=>/^ra_biped_/.test(id)?id.replace(/^ra_biped_/,'ra_bipedhand_'):/^ra_bipedhand_/.test(id)?id.replace(/^ra_bipedhand_/,'ra_biped_'):null;
+    base=base.filter(m=>{ const t=twin(m.id); if(!t||!ids.has(t)) return true; return /^ra_bipedhand_/.test(m.id)===fingers; });
+    if(fingers) base=base.filter(m=>/^ra_bipedhand_/.test(m.id) || ('|'+(m.sig||'')+'|').includes('|LeftHandIndex1|'));
+    return base.map(m=>({id:m.id, name:m.name, cat:m.cat||'', dur:m.duration||m.dur||0})); },
+  async packChars(){ await this.ready(); let n=-1; for(let i=0;i<30 && n!==importedChars.length;i++){ n=importedChars.length; await new Promise(r=>setTimeout(r,300)); }
+    return importedChars.map(e=>({packId:e.packId, name:e.name, file:e.file, skeleton:e.skeleton, icon:e.icon})); },
+  async build(ids){ for(const id of ids){ const m=libIndex.find(x=>x.id===id); if(m){ try{ await addMotionClip(m); }catch(e){ console.warn('[mapworker] add', id, e); } } }
+    selIndex=clips.length-1; return await mapCharPayload(); }
+};
+$('#sendMapView').addEventListener('click', sendToMapView);
 // ---------- Scene GLB export: the arranged obstacles/props (+ optional characters & environment) as one GLB ----------
 function activeSceneGroup(){ if(roomOn())return roomGroup; if(corridorOn())return corrGroup; if(runnerOn())return runnerGroup; if(envOn())return envGroup; return null; }
 function shownCharRoots(){                          // the character roots currently on stage
@@ -7223,10 +7610,17 @@ async function loadStudioModel(id){
   setStatus('Loading '+rec.name+' from Studio Library…');
   await addGLBs([file]);
 }
+// 🎬 hand-off from 🧍 Rig ("Open in Stitcher" after saving a rig): load that Studio Library character as soon as this tool is up
+async function stitchTakeHandoff(){ let h=null; try{ h=JSON.parse(localStorage.getItem('studio.handoff')||'null'); }catch(e){}
+  if(!h || h.to!=='stitch' || Date.now()-h.t>120000 || !window.StudioLib) return;
+  localStorage.removeItem('studio.handoff');
+  try{ await StudioLib.ready; await loadStudioModel(h.id); }catch(e){ console.warn('[stitch] Rig hand-off failed', e); } }
+setTimeout(stitchTakeHandoff, 800);
+window.addEventListener('ksol-shown', stitchTakeHandoff);   // GLB Studio keeps this tab alive → check again whenever it's shown
 async function renderStudioLibrary(){
   const card=$('#studioCard'); if(!card) return;
   if(!window.StudioLib){ card.style.display='none'; return; }
-  const host=$('#studioModels'); let models=[]; try{ models=(await StudioLib.listModels()).filter(m=>m.skeleton!=='prop'&&m.skeleton!=='unrigged'); }catch(e){}   // 🪄 Generate-tab models aren't rigged → not base characters
+  const host=$('#studioModels'); let models=[]; try{ models=(await StudioLib.listModels()).filter(m=>m.skeleton!=='prop'&&m.skeleton!=='unrigged'&&m.skeleton!=='mapchar'&&m.skeleton!=='board'); }catch(e){}   // 🪄 Generate-tab models aren't rigged → not base characters
   const icon={biped:'🧍',quadruped:'🐾',quad:'🐾',bird:'🐦'};
   card.style.display='block';
   if(!models.length){ host.innerHTML='<div class="hint" style="margin:0">No rigged characters yet — make one in <b>🧍 Rig</b>. (Motions from <b>🐾 Animate</b> still appear in the retarget panel below.)</div>'; return; }
@@ -7237,8 +7631,10 @@ async function renderStudioLibrary(){
       +`<div style="flex:1;min-width:0"><div style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.name}</div>`
       +`<div class="hint" style="margin:0">${m.skeleton}</div></div>`
       +`<button class="btn sm" data-act="load" style="width:auto;flex:none;padding:4px 14px;font-size:12px">Load</button>`
+      +`<button class="btn ghost sm" data-act="edit" title="Open this rig in 🧍 Rig to adjust its skeleton, then 💾 Save over it" style="width:auto;flex:none;padding:4px 9px;font-size:12px">🦴</button>`
       +`<button class="btn ghost sm" data-act="del" title="Remove this rigged character from the shared Studio Library (your original .glb file is not affected)" style="width:auto;flex:none;padding:4px 9px;font-size:12px">🗑</button>`;
     row.querySelector('[data-act="load"]').onclick=()=>loadStudioModel(m.id);
+    row.querySelector('[data-act="edit"]').onclick=()=>{ localStorage.setItem('studio.handoff', JSON.stringify({to:'rig', id:m.id, t:Date.now()})); try{ if(parent!==window && parent.show){ parent.show('rig'); return; } }catch(e){} location.href='../character-rigger/index.html'; };   // re-open the rig to adjust it
     row.querySelector('[data-act="del"]').onclick=async()=>{ if(!confirm('Remove “'+m.name+'” from the Studio Library?\n(Your original .glb file is not affected — this only clears the saved copy.)')) return; try{ await StudioLib.deleteModel(m.id); }catch(e){} renderStudioLibrary(); };
     host.appendChild(row);
   }
@@ -7275,6 +7671,7 @@ async function renderSampleCard(){
     el.querySelector('button').onclick=onLoad; host.appendChild(el); };
   if(ok) for(const s of SAMPLE_CHARS) row(s.icon, s.name, s.skeleton, ()=>loadSampleModel(s), false);
   const packChars=(typeof importedChars!=='undefined')?importedChars:[];
+  try{ localStorage.setItem('studio.packChars', JSON.stringify(packChars.map(e=>({packId:e.packId, name:e.name, file:e.file, skeleton:e.skeleton, icon:e.icon})))); }catch(err){}   // 🎼 Maestro's pack-character list (kept current, incl. after a pack is removed)
   if(packChars.length){ const h=document.createElement('div'); h.className='hint'; h.style.margin='8px 0 4px'; h.textContent='✦ From your expansion packs'; host.appendChild(h);
     for(const e of packChars) row(e.icon||'✦', e.name, e.skeleton||'rigged', ()=>loadPackCharacter(e), true); }
   card.style.display=(ok||packChars.length)?'block':'none';
@@ -7317,6 +7714,7 @@ function registerPack(P){
   for(const pr of (P.props||[])) if(pr.glb) importedProps.set(pr.name, { buf:b64ToBuf(pr.glb), label:pr.label||pr.name, em:pr.em||'' });
   for(const sc of (P.scenes||[])){ if(sc && sc.kind && sc.set && SCENE_SETS[sc.kind] && !SCENE_SETS[sc.kind].some(s=>s.id===sc.set.id)){ SCENE_SETS[sc.kind].push(sc.set); importedSceneList.push(sc); } }
   for(const ch of (P.characters||[])) if(ch && ch.name && !importedChars.some(x=>x.packId===P.id && x.name===ch.name)) importedChars.push({ packId:P.id, name:ch.name, file:ch.file||(ch.name+'.glb'), skeleton:ch.skeleton||'', icon:ch.icon||'✦' });
+  try{ localStorage.setItem('studio.packChars', JSON.stringify(importedChars.map(e=>({packId:e.packId, pack:(typeof P!=='undefined'&&P.id===e.packId)?P.name:undefined, name:e.name, file:e.file, skeleton:e.skeleton, icon:e.icon})))); }catch(err){}   // 🎼 Maestro lists pack characters from this
   for(const sp of (P.sceneProps||[])) if(sp && sp.id && (sp.buf||sp.glb) && !importedObstacles.has(sp.id)) importedObstacles.set(sp.id, { def:sp, buf: sp.buf || b64ToBuf(sp.glb), template:null });
 }
 

@@ -10,6 +10,7 @@
      addModel({name,skeleton,glb[,thumb,meta]}) -> id   (meta = small plain object, e.g. AI cost)   (glb = ArrayBuffer|Blob)
      listModels()               -> [{id,name,skeleton,size,createdAt,thumb?}]
      getModel(id)               -> {..., glb:Blob}
+     updateModel(id,{glb,...})  -> id   (replace in place)
      deleteModel(id)
      addMotion({name,sig,skeleton,entry,clip,pose[,id]}) -> id
      listMotions()              -> [{id,name,sig,createdAt}]
@@ -73,6 +74,12 @@
                  .sort((a, b) => b.createdAt - a.createdAt);
     },
     getModel(id) { return tx('models', 'readonly', os => getOne(os, id)); },
+    // replace a model's GLB (and optionally name/skeleton/thumb) in place — the Rigger's "Save over" for a re-opened rig
+    async updateModel(id, patch) {
+      const cur = await tx('models', 'readonly', os => getOne(os, id)); if (!cur) throw new Error('model not found: ' + id);
+      const rec = Object.assign({}, cur, patch || {}); if (patch && patch.glb) { rec.glb = (patch.glb instanceof Blob) ? patch.glb : new Blob([patch.glb], { type: 'model/gltf-binary' }); rec.size = rec.glb.size; }
+      rec.updatedAt = Date.now(); await tx('models', 'readwrite', os => os.put(rec)); notify('models'); return id;
+    },
     async deleteModel(id) { await tx('models', 'readwrite', os => os.delete(id)); notify('models'); },
 
     // ---- baked motions (feed the Stitcher's retarget library) ----
@@ -100,6 +107,7 @@
 (function(){ try{
   if(window.top!==window.self) return;              // iframed under the Studio shell → shell menu brands it
   if(document.getElementById('frame')) return;      // this IS the Studio shell
+  if(document.querySelector('.tab[data-tool]')) return;   // … also before its first tool frame exists
   function add(){ if(document.getElementById('__ksolCredit')||!document.body) return;
     var d=document.createElement('div'); d.id='__ksolCredit';
     d.style.cssText='position:fixed;right:10px;bottom:8px;z-index:99999;font:11px/1.3 system-ui,sans-serif;color:#8b97a8;background:rgba(10,14,20,.6);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:4px 9px';

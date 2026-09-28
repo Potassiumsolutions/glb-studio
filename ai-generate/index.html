@@ -182,6 +182,10 @@
       <div id="actions">
         <button class="btn sm" id="aDl">⬇ Download .glb</button>
         <button class="btn sm" id="aRig">🧍 Rig this</button>
+        <span id="rigPick" style="display:none;gap:6px;align-items:center"><span style="font-size:12px;color:#9fb0c6">Hands:</span>
+          <button class="btn sm" id="aRigPlain" title="Plain biped skeleton — hands move as one piece (mittens, gloves, claws, simple hands)">🧍 No fingers</button>
+          <button class="btn sm pri" id="aRigHand" title="Biped + finger bones — each finger and the thumb bend (open, well-separated fingers)">🖐 With fingers</button>
+          <button class="btn sm" id="aRigX" title="Cancel">✕</button></span>
         <button class="btn sm" id="aTt">🎲 Use in Tabletop</button>
         <button class="btn sm" id="aRen">✎ Rename</button>
         <button class="btn sm bad" id="aDel">🗑 Delete</button>
@@ -288,7 +292,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
 const $ = s => document.querySelector(s);
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.0.1';
 const PARAMS = new URLSearchParams(location.search);
 const MOCK = PARAMS.get('mock');                 // test hook: ?mock=<glb url> skips fal.ai entirely (no cost)
 
@@ -741,7 +745,7 @@ async function showModel(id){
   frameCam(size.x*s, h, size.z*s);
   let tris=0; current.traverse(o=>{ if(o.isMesh){ const g=o.geometry; tris += g.index? g.index.count/3 : g.attributes.position.count/3; } });
   $('#empty').style.display='none'; $('#actions').style.display='flex';
-  $('#aRig').style.display = m.skeleton==='unrigged' ? '' : 'none';
+  $('#aRig').style.display = m.skeleton==='unrigged' ? '' : 'none'; $('#rigPick').style.display='none';
   let warn='';
   if(m.skeleton==='unrigged'){ const ratio=size.x/size.y;
     if(ratio<0.55) warn='⚠ The arms look close to the body. Rigging works best when the picture shows a T-pose or A-pose (arms away from the body).';
@@ -755,10 +759,15 @@ const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',
 
 /* ---------------- actions ---------------- */
 $('#aDl').onclick=()=>{ if(!currentMeta) return; const a=document.createElement('a'); a.href=URL.createObjectURL(currentMeta.glb); a.download=(currentMeta.name||'model').replace(/[\\/:*?"<>|]+/g,'_')+'.glb'; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),4000); };
-function handoff(to){ localStorage.setItem('studio.handoff', JSON.stringify({to, id:currentId, t:Date.now()}));
+function handoff(to, rig){ localStorage.setItem('studio.handoff', JSON.stringify({to, id:currentId, t:Date.now(), rig:rig||null}));
   try{ if(parent!==window && parent.show){ parent.show(to); return; } }catch(e){}
   location.href = to==='rig' ? '../character-rigger/index.html' : '../tabletop/index.html'; }
-$('#aRig').onclick=()=>{ if(currentId) handoff('rig'); };
+// Rig this → pick the hands first: the Rigger opens with that skeleton already chosen (plain biped or biped + fingers)
+const rigPick=on=>{ $('#rigPick').style.display=on?'inline-flex':'none'; $('#aRig').style.display=on?'none':''; };
+$('#aRig').onclick=()=>{ if(currentId) rigPick(true); };
+$('#aRigX').onclick=()=>rigPick(false);
+$('#aRigPlain').onclick=()=>{ rigPick(false); if(currentId) handoff('rig','biped'); };
+$('#aRigHand').onclick=()=>{ rigPick(false); if(currentId) handoff('rig','bipedhand'); };
 $('#aTt').onclick=()=>{ if(currentId) handoff('tabletop'); };
 $('#aRen').onclick=async ()=>{ if(!currentMeta) return; const nm=prompt('New name:', currentMeta.name); if(!nm) return;
   // StudioLib has no rename: re-save under the new name, then drop the old record

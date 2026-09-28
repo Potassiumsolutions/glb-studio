@@ -1,0 +1,1126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Maestro — Top Down Motion for Maps · GLB Studio</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root{ --bg:#0b0e13; --panel:#12161d; --card:#151b25; --line:#232b38; --text:#e7ecf3; --muted:#8b97a8; --accent:#5b8cff; --accent2:#37d0a0; --warn:#e0a94a; --bad:#e05a5a; }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:13px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  #app{display:flex;height:100%;position:relative;overflow:hidden}
+  #panel{width:340px;min-width:260px;max-width:640px;resize:horizontal;overflow:auto;background:var(--panel);border-right:1px solid var(--line);padding:10px 12px 40px;flex:0 0 auto;z-index:5}
+  body.unpinned #panel{display:none}                       /* unpinned + closed: the map gets the whole window */
+  body.unpinned.panelOpen #panel{display:block}             /* opened: it sits BESIDE the map (the map + play bar shrink), never over it */
+  body.popped #panel{display:none}
+  #handle{position:absolute;left:8px;top:8px;z-index:6;display:none}   /* lives in the map view (top-left), never over the menu */
+  body.unpinned #handle, body.popped #handle{display:block}
+  body.popped #handle{display:none}
+  .phead{display:flex;align-items:center;gap:6px;margin-bottom:8px}
+  .phead h1{font-size:15px;margin:0;flex:1}
+  .ver{font-size:11px;color:var(--accent2);border:1px solid #2a4a40;border-radius:6px;padding:0 6px;margin-left:6px}
+  details{background:var(--card);border:1px solid var(--line);border-radius:10px;margin:8px 0;padding:0 10px}
+  details[open]{padding-bottom:10px}
+  summary{cursor:pointer;padding:8px 0;font-weight:700;letter-spacing:.02em;list-style:none;user-select:none}
+  summary::-webkit-details-marker{display:none}
+  summary::before{content:'▸ ';color:var(--muted)} details[open] summary::before{content:'▾ '}
+  label.row,.row{display:flex;align-items:center;gap:8px;margin:5px 0}
+  .row > span.l{min-width:92px;color:var(--muted)}
+  input[type=text],input[type=number],select{background:#0f141b;color:var(--text);border:1px solid var(--line);border-radius:7px;padding:5px 7px;font:inherit;min-width:0}
+  input[type=number]{width:78px}
+  input[type=range]{flex:1}
+  input[type=color]{width:34px;height:26px;border:1px solid var(--line);border-radius:6px;background:#0f141b;padding:1px}
+  .btn{appearance:none;border:1px solid var(--line);background:#1a2130;color:var(--text);border-radius:8px;padding:6px 10px;font:inherit;font-weight:600;cursor:pointer}
+  .btn:hover{border-color:var(--accent)}
+  .btn.pri{background:linear-gradient(135deg,#3f6fe0,#2aa884);border-color:transparent;color:#fff}
+  .btn.sm{padding:3px 8px;font-size:12px}
+  .btn.on{border-color:var(--accent);background:#1d2a44}
+  .btn.bad{color:#ffb4b4}
+  .btns{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+  .hint{color:var(--muted);font-size:12px;margin:4px 0}
+  .list{display:flex;flex-direction:column;gap:4px;margin:6px 0;max-height:260px;overflow:auto}
+  .it{display:flex;align-items:center;gap:7px;padding:5px 7px;border:1px solid var(--line);border-radius:8px;cursor:pointer;background:#10151c}
+  .it.sel{border-color:var(--accent);background:#17213a}
+  .it .dot{width:12px;height:12px;border-radius:50%;flex:none}
+  .it .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .wp{display:grid;grid-template-columns:28px 1fr 70px 24px;gap:6px;align-items:center;margin:3px 0;font-size:12px}
+  .wp input{width:100%}
+  #stage{flex:1;position:relative;min-width:0;display:flex;flex-direction:column}
+  #view{flex:1;position:relative;min-height:0}
+  #cv{width:100%;height:100%;display:block;touch-action:none}
+  #hud{position:absolute;left:50%;top:10px;transform:translateX(-50%);background:#0b0e13cc;border:1px solid var(--line);border-radius:9px;padding:5px 12px;font-size:12px;color:var(--text);display:none;pointer-events:none}
+  #camBar{position:absolute;right:10px;top:10px;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+  #bar{display:flex;align-items:center;gap:8px;padding:8px 250px 8px 12px;border-top:1px solid var(--line);background:var(--panel)}
+  #bar input[type=range]{flex:1}
+  #tLbl{font-variant-numeric:tabular-nums;color:var(--muted);min-width:110px;text-align:right}
+  #rec{position:absolute;left:12px;bottom:12px;background:#3a1016;border:1px solid #7a2630;color:#ffd0d6;border-radius:8px;padding:5px 10px;display:none;font-weight:700}
+  .sep{height:1px;background:var(--line);margin:8px 0}
+  .pill{display:inline-block;border:1px solid var(--line);border-radius:6px;padding:0 6px;font-size:11px;color:var(--muted)}
+  .grow{flex:1}
+  #mcPick{position:absolute;inset:0;z-index:8;background:rgba(4,6,10,.72);display:none;align-items:flex-start;justify-content:center;overflow:auto;padding:30px 14px}
+  #mcPick.show{display:flex}
+  .mcBox{width:min(720px,100%);background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:0 20px 60px #000a;padding:14px 16px}
+  .mcCats{display:flex;flex-wrap:wrap;gap:5px;margin:8px 0}
+  .mcList{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:4px;max-height:52vh;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:8px;background:#0f141b}
+  .mcList label{display:flex;align-items:center;gap:6px;font-size:12.5px;padding:2px 4px;border-radius:6px;cursor:pointer}
+  .mcList label:hover{background:#17213a}
+  #nodePop{position:absolute;left:10px;right:10px;bottom:10px;max-height:52%;display:none;flex-direction:column;background:#0f141bf2;border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 30px #000a;z-index:4}
+  #nodePop.show{display:flex}
+  .npHead{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--line)}
+  .npHead b{font-size:13px}
+  #npRow{display:flex;align-items:stretch;gap:6px;overflow:auto;padding:10px}
+  .nd{flex:0 0 auto;width:178px;background:#151b25;border:1px solid var(--line);border-radius:10px;padding:7px 8px;display:flex;flex-direction:column;gap:4px;font-size:12px}
+  .nd.leg{background:#131d2c}
+  .nd.live{border-color:var(--accent2);box-shadow:0 0 0 1px var(--accent2) inset}
+  .nd .t{font-weight:700;display:flex;align-items:center;gap:6px}
+  .nd .t .d{margin-left:auto;color:var(--muted);font-weight:500}
+  .nd select,.nd input[type=number]{width:100%}
+  .nd .r{display:flex;align-items:center;gap:6px}
+  .nd .r > span{color:var(--muted);min-width:44px}
+  .ar{flex:0 0 auto;align-self:center;color:var(--muted);font-size:18px}
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="panel">
+    <div class="phead">
+      <h1>🎼 Maestro <span class="ver">v0.2</span></h1>
+      <button class="btn sm on" id="pinBtn" title="Pinned: the menu stays in place. Unpin it to slide it away and give the map the whole window (☰ brings it back).">📌 Pinned</button>
+      <button class="btn sm" id="popBtn" title="Pop the menu out into its own window — drag that window to another screen">⧉ Pop out</button>
+    </div>
+    <div style="color:var(--accent2);font-weight:600;font-size:12.5px;margin:-4px 0 4px">Top Down Motion for Maps</div>
+    <div class="hint">Top-down scenes on a board: drop characters, tokens and props, draw each one's path, press ▶ — then record a video or export the play for a game app.</div>
+
+    <details open id="secBoard"><summary>1 · Board</summary>
+      <label class="row"><span class="l">Board</span><select id="boardSel" class="grow"></select></label>
+      <div class="btns">
+        <button class="btn sm pri" id="boardTT" title="Take the board that is open in the 🎲 Tabletop tab right now (Build a Board / generated maps). If the Tabletop isn't open, the board most recently sent from it is used.">🎲 Pull from Tabletop</button>
+        <button class="btn sm" id="boardPic" title="Any picture: a field diagram, a map, a screenshot of a board">🖼 Picture…</button>
+        <button class="btn sm" id="boardGlb" title="A board saved as a 3D .glb file">📦 3D board (.glb)…</button>
+      </div>
+      <label class="row" id="sizeRow"><span class="l">Size</span><input type="number" id="boardW" step="0.5" min="1"> × <input type="number" id="boardD" step="0.5" min="1"> <span class="hint" id="unitLbl">units</span></label>
+      <label class="row"><input type="checkbox" id="gridOn"> <span>Show a grid</span> <input type="number" id="gridStep" step="0.5" min="0.1" value="1" title="Grid spacing (board units)"></label>
+      <div class="hint" id="boardInfo"></div>
+    </details>
+
+    <details open id="secPieces"><summary>2 · Pieces</summary>
+      <div class="row"><span class="l">Token</span><select id="tokShape" style="max-width:96px"><option value="circle">● circle</option><option value="x">✕ X</option><option value="o">◯ O</option><option value="triangle">▲ triangle</option><option value="square">■ square</option><option value="ball">🏈 ball</option></select>
+        <input type="color" id="tokColor" value="#e8453c"><input type="text" id="tokLabel" value="1" style="width:46px" title="Label (number / letters)"><button class="btn sm" id="addTok">+ Add</button></div>
+      <div id="formBox">
+        <div class="row"><span class="l">Formation</span><select id="formSel" class="grow"></select></div>
+        <div class="row"><select id="formSide" title="Which way this team plays"><option value="1">attacks →</option><option value="-1">attacks ←</option></select>
+          <span class="hint" id="losLbl">ball at yard</span><input type="number" id="formLos" step="1" min="1" max="99" value="25" style="width:56px" title="Line of scrimmage, counted from the HOME goal line (0–100). Use the same number for both teams."><input type="color" id="formColor" value="#3c7be8"><button class="btn sm" id="addForm">+ Team</button></div>
+      </div>
+      <div class="row"><span class="l">Character</span><select id="charSel" class="grow"></select><button class="btn sm" id="addChar">+ Add</button></div>
+      <div class="btns"><button class="btn sm" id="impChar" title="An animated .glb / .fbx (for example a sequence exported from 🎬 Stitch). It is kept in the Studio Library.">📁 Animated GLB / FBX…</button>
+        <button class="btn sm" id="refreshLib" title="Re-read the Studio Library">⟳</button></div>
+      <div class="hint">Characters come from <b>🎬 Stitch → 🎼 Send to Maestro</b> (its clip chain + clip sounds) or any animated file. Props (🪄 AI models) are listed too.</div>
+      <div class="list" id="pieceList"></div>
+      <div class="btns"><button class="btn sm" id="dupPiece">⧉ Duplicate</button><button class="btn sm bad" id="delPiece">🗑 Remove</button></div>
+    </details>
+
+    <details open id="secSel"><summary>3 · Selected piece</summary>
+      <div id="selNone" class="hint">Click a piece in the list or on the map.</div>
+      <div id="selBox" style="display:none">
+        <label class="row"><span class="l">Name</span><input type="text" id="pName" class="grow"></label>
+        <label class="row"><input type="checkbox" id="pOn"> <span>On (plays in the scene)</span></label>
+        <label class="row"><span class="l">Size</span><input type="range" id="pSize" min="0.1" max="12" step="0.05"><input type="number" id="pSizeN" step="0.05" min="0.05"></label>
+        <label class="row"><span class="l">Colour</span><input type="color" id="pColor"><span class="hint">route &amp; token</span><input type="text" id="pLabel" style="width:54px" title="Token label"></label>
+        <div id="animBox">
+          <label class="row"><span class="l">Animation</span><select id="pMode"><option value="chain">Play the clip chain</option><option value="states">🧩 Per step: a clip for each leg &amp; stop</option></select></label>
+          <label class="row"><span class="l" id="clipALbl">Clip</span><select id="pClipA" class="grow"></select></label>
+          <label class="row" id="clipBRow"><span class="l">Idle clip</span><select id="pClipB" class="grow"></select></label>
+          <label class="row"><input type="checkbox" id="pLoopA"> <span>Loop the chain</span></label>
+          <label class="row"><input type="checkbox" id="pInPlace"> <span>In place (the path moves it)</span></label>
+          <label class="row"><input type="checkbox" id="pSound"> <span>Play its clip sounds</span> <input type="range" id="pVol" min="0" max="1.5" step="0.05" style="max-width:90px"></label>
+        </div>
+        <div class="sep"></div>
+        <label class="row"><span class="l">Starts at</span><input type="number" id="pDelay" step="0.1" min="0"> s</label>
+        <label class="row"><span class="l">Speed</span><input type="number" id="pSpeed" step="0.1" min="0.05"> units/s</label>
+        <label class="row"><input type="checkbox" id="pFace"> <span>Turn to face where it's going</span></label>
+        <label class="row"><span class="l">Start facing</span><input type="range" id="pYaw" min="-180" max="180" step="5"><span id="pYawV" class="pill">0°</span></label>
+        <div class="btns"><button class="btn sm" id="addMotions" title="Give this character more motions (a spell, a wave, a throw …) — its path, stops and legs are kept">🎬 Add motions…</button><button class="btn sm pri" id="openNodes" title="A mini node stitcher for this piece: a clip, speed and sound for every leg of its path, and a clip / wait / sound at every stop">🧩 Node chain…</button></div>
+        <div class="btns"><button class="btn sm" id="drawPath">✏ Draw path</button><button class="btn sm" id="clearPath">Clear path</button></div>
+        <div class="hint">✏ then click the map to add stops. Drag the dots to move them. Esc or ✏ again to finish. A stop's “wait” pauses the piece there.</div>
+        <div id="wpList"></div>
+        <label class="row"><span class="l">Extra sound</span><button class="btn sm" id="pSfxBtn">🔊 Pick…</button><span class="hint" id="pSfxName"></span></label>
+        <label class="row" id="sfxAtRow"><span class="l">…plays at</span><select id="pSfxAt"><option value="start">its start time</option><option value="arrive">each stop it reaches</option><option value="loop">the whole time it moves</option></select></label>
+      </div>
+    </details>
+
+    <details id="secCam"><summary>4 · Camera</summary>
+      <div class="btns"><button class="btn sm on" data-cam="top">⬇ Top-down</button><button class="btn sm" data-cam="tilt">◢ Tilted</button><button class="btn sm" data-cam="follow">🎯 Follow selected</button></div>
+      <label class="row"><span class="l">Tilt</span><input type="range" id="camTilt" min="10" max="80" step="1" value="45"></label>
+      <div class="btns"><button class="btn sm" id="camFit">⤢ Fit board</button><button class="btn sm" id="camFitP" title="Zoom to the pieces and their routes (a formation, a play)">⤢ Fit pieces</button></div>
+      <label class="row"><span class="l">Routes</span><select id="routeMode"><option value="always">Always shown</option><option value="grow">Drawn as they're run</option><option value="off">Hidden (preview and video)</option></select></label>
+      <label class="row"><span class="l">Name tags</span><select id="namesMode"><option value="chars">Characters</option><option value="all">Everything</option><option value="off">Off</option></select></label>
+      <label class="row"><input type="checkbox" id="shadowsOn" checked> <span>Shadows</span></label>
+    </details>
+
+    <details id="secSound"><summary>5 · Sound</summary>
+      <label class="row"><span class="l">Background</span><button class="btn sm" id="bgBtn">🎵 Pick…</button><span class="hint" id="bgName">none</span></label>
+      <label class="row"><span class="l">Music volume</span><input type="range" id="bgVol" min="0" max="1.5" step="0.05" value="0.7"></label>
+      <label class="row"><span class="l">Effects volume</span><input type="range" id="fxVol" min="0" max="1.5" step="0.05" value="1"></label>
+      <label class="row"><input type="checkbox" id="soundPreview" checked> <span>Hear sound while previewing</span></label>
+    </details>
+
+    <details open id="secOut"><summary>6 · Record &amp; export</summary>
+      <label class="row"><span class="l">Length</span><input type="number" id="durN" step="0.5" min="0" placeholder="auto"> s <span class="hint" id="durAuto"></span></label>
+      <label class="row"><span class="l">Video size</span><select id="recRes"><option value="1280x720">1280 × 720</option><option value="1920x1080" selected>1920 × 1080</option><option value="1080x1080">1080 × 1080 (square)</option><option value="1080x1920">1080 × 1920 (phone)</option></select></label>
+      <label class="row"><span class="l">Frame rate</span><select id="recFps"><option>24</option><option selected>30</option><option>60</option></select></label>
+      <div class="hint">Every video ends with a brief 2-second <b>“Made with GLB Studio · by KSOL Designs”</b> card.</div>
+      <label class="row" id="brandRow" style="display:none"><input type="checkbox" id="brandOff"> <span>Remove the KSOL end card <span class="hint">(owned)</span></span></label>
+      <div class="btns"><button class="btn pri" id="recBtn">⏺ Record video</button></div>
+      <div class="btns">
+        <button class="btn sm" id="expJson" title="Every piece's path, timing, animation and sampled positions — for game apps">⬇ Play data (.json)</button>
+        <button class="btn sm" id="expCsv" title="Time · piece · x · z · facing · moving, one row per frame">⬇ Positions (.csv)</button>
+        <button class="btn sm" id="expGlb" title="The board and every piece with the whole play baked as one animation — opens in game engines and 3D tools">⬇ Animated scene (.glb)</button>
+      </div>
+      <div class="hint" id="outInfo"></div>
+    </details>
+
+    <details id="secProj"><summary>7 · Project</summary>
+      <div class="btns"><button class="btn sm" id="saveProj">💾 Save scene…</button><button class="btn sm" id="loadProj">📂 Open scene…</button><button class="btn sm bad" id="newProj">✚ New</button></div>
+      <div class="hint">A scene file keeps the board, pieces, paths and settings; models stay in the Studio Library. Your work is also kept in this browser between visits.</div>
+    </details>
+    <input type="file" id="fPic" accept="image/*" hidden>
+    <input type="file" id="fGlb" accept=".glb,.gltf,model/gltf-binary" hidden>
+    <input type="file" id="fChar" accept=".glb,.gltf,.fbx,model/gltf-binary" hidden>
+    <input type="file" id="fAudio" accept="audio/*" hidden>
+    <input type="file" id="fProj" accept=".json,.ksol-mapview.json" hidden>
+  </aside>
+
+  <section id="stage">
+    <div id="view">
+      <canvas id="cv"></canvas>
+      <button class="btn" id="handle" title="Show / hide the menu">☰ Menu</button>
+      <button class="btn sm" id="pathsTog" style="position:absolute;right:128px;top:10px;z-index:4" title="Show or hide the pieces' paths (in the preview AND the video). More choices: menu → 4 · Camera → Routes">〰 Paths: on</button>
+      <button class="btn sm" id="namesTog" style="position:absolute;right:10px;top:10px;z-index:4" title="Show or hide the name tags over the pieces (more choices: menu → 4 · Camera → Name tags)">🏷 Names: on</button>
+      <div id="hud"></div>
+      <div id="rec">⏺ REC</div>
+      <div id="mcPick"><div class="mcBox">
+        <div class="row" style="margin:0"><b style="font-size:14px" id="mcTitle">Pick motions</b><span class="grow"></span><button class="btn sm" id="mcX">✕</button></div>
+        <div class="hint" id="mcHint">Tick the motions this character will use on the map — walk and idle are ticked for you. They are fitted to the character by 🎬 Stitch and kept in the Studio Library, so it's instant next time.</div>
+        <div class="row"><input type="text" id="mcSearch" placeholder="Search motions…" class="grow"><span class="pill" id="mcCount">0 ticked</span></div>
+        <div class="mcCats" id="mcCats"></div>
+        <div class="mcList" id="mcList"><div class="hint">Loading …</div></div>
+        <div class="row" style="margin-top:10px"><span class="hint grow" id="mcStatus"></span><button class="btn" id="mcCancel">Cancel</button><button class="btn pri" id="mcGo">＋ Add to the map</button></div>
+      </div></div>
+      <div id="nodePop"><div class="npHead"><b id="npTitle">🧩 Node chain</b><span class="hint grow" id="npHint">Each leg and stop of the path is a node: pick its clip, speed / wait and sound. The playing node lights up.</span><button class="btn sm" id="npClose">✕</button></div><div id="npRow"></div></div>
+    </div>
+    <div id="bar">
+      <button class="btn" id="playBtn" title="Play / pause (Space)">▶</button>
+      <button class="btn" id="stopBtn" title="Back to the start">⏮</button>
+      <input type="range" id="scrub" min="0" max="10" step="0.01" value="0">
+      <span id="tLbl">0.00 / 0.00 s</span>
+      <label class="row" style="margin:0"><input type="checkbox" id="loopPlay"> <span>Loop</span></label>
+    </div>
+  </section>
+</div>
+<script src="../studio/studio-lib.js"></script>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
+
+// ============================================================================================================================
+// Maestro v0.1 (2026-09-27). Top-down scenes: a board (Tabletop snapshot, a 3D board, a picture or a ready-made field) with
+// pieces on it — characters (a clip chain from 🎬 Stitch, or any animated GLB/FBX), tokens and props. Every piece has its own
+// path (stops + waits), start time, speed and animation; the whole scene plays on ONE clock, so it can be scrubbed, recorded to
+// video with the pieces' sounds + background music, and exported as data (JSON/CSV) or as one animated GLB for game engines.
+// The menu (#panel) can be unpinned (slides away) or popped out into its own window for a second screen: every control is found
+// through panel.querySelector (P) so it keeps working in whichever document the panel lives in.
+// ============================================================================================================================
+const panel=document.getElementById('panel');
+const P=s=>panel.querySelector(s), PA=s=>[...panel.querySelectorAll(s)];
+const PW=()=>panel.ownerDocument.defaultView || window;          // the window the menu is in (dialogs appear where the user is)
+const V3=THREE.Vector3, Q=THREE.Quaternion;
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+const fmt=(t)=>t.toFixed(2);
+const uid=()=>Math.random().toString(36).slice(2,9);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const hud=(msg,ms)=>{ const h=document.getElementById('hud'); if(!msg){ h.style.display='none'; return; } h.textContent=msg; h.style.display='block'; clearTimeout(hud._t); if(ms) hud._t=setTimeout(()=>h.style.display='none',ms); };
+const outInfo=m=>{ P('#outInfo').textContent=m||''; };
+const download=(blob,name)=>{ const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },60000); };
+const loader=new GLTFLoader(); loader.setMeshoptDecoder(MeshoptDecoder);
+const fbxLoader=new FBXLoader();
+const LIB=window.StudioLib||null;
+
+// ---------------------------------------------------------------- sounds the user picks are kept in this browser (IndexedDB ksolMapView/audio)
+const AUD={ _db:null, open(){ if(!this._db) this._db=new Promise((res,rej)=>{ const r=indexedDB.open('ksolMapView',1); r.onupgradeneeded=()=>r.result.createObjectStore('audio',{keyPath:'id'}); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); return this._db; },
+  async put(name, blob){ const db=await this.open(), id='a_'+Math.random().toString(36).slice(2,10); await new Promise((res,rej)=>{ const tx=db.transaction('audio','readwrite'); tx.objectStore('audio').put({id,name,blob}); tx.oncomplete=res; tx.onerror=()=>rej(tx.error); }); return id; },
+  async get(id){ const db=await this.open(); return new Promise((res,rej)=>{ const r=db.transaction('audio').objectStore('audio').get(id); r.onsuccess=()=>res(r.result||null); r.onerror=()=>rej(r.error); }); } };
+const audCache=new Map();
+async function audioBuf(id){ if(!id) return null; if(audCache.has(id)) return audCache.get(id); try{ const rec=await AUD.get(id); if(!rec) return null; ensureAudio(); const b=await actx.decodeAudioData(await rec.blob.arrayBuffer()); audCache.set(id,b); return b; }catch(e){ console.warn('[mapview] sound', e); return null; } }
+function soundIds(){ const ids=[]; if(S.bg&&S.bg.id) ids.push(S.bg.id); for(const p of S.pieces){ if(p.sfx&&p.sfx.id) ids.push(p.sfx.id); for(const q of p.path||[]) if(q.sfx&&q.sfx.id) ids.push(q.sfx.id); for(const L of p.legs||[]) if(L&&L.sfx&&L.sfx.id) ids.push(L.sfx.id); } return ids; }
+async function preloadSounds(){ for(const id of soundIds()) await audioBuf(id); if(S.bg&&S.bg.id){ const b=audCache.get(S.bg.id); if(b) P('#bgName').textContent=S.bg.name+` (${b.duration.toFixed(1)} s)`; } }
+
+// ---------------------------------------------------------------- renderer / scene
+const cv=document.getElementById('cv'), viewEl=document.getElementById('view');
+const renderer=new THREE.WebGLRenderer({canvas:cv, antialias:true, preserveDrawingBuffer:true});
+renderer.setPixelRatio(Math.min(2,devicePixelRatio)); renderer.outputColorSpace=THREE.SRGBColorSpace;
+renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+const scene=new THREE.Scene(); scene.background=new THREE.Color(0x0e1116);
+scene.add(new THREE.HemisphereLight(0xffffff,0x3a4050,1.15));
+const sun=new THREE.DirectionalLight(0xffffff,1.6); sun.castShadow=true; sun.shadow.mapSize.set(2048,2048); sun.shadow.bias=-0.0004; scene.add(sun); scene.add(sun.target);
+const boardGroup=new THREE.Group(), gridGroup=new THREE.Group(), routeGroup=new THREE.Group(), pieceGroup=new THREE.Group(), handleGroup=new THREE.Group();
+scene.add(boardGroup, gridGroup, routeGroup, pieceGroup, handleGroup);
+const orthoCam=new THREE.OrthographicCamera(-10,10,10,-10,0.01,5000), perspCam=new THREE.PerspectiveCamera(40,1,0.05,5000);
+let camera=orthoCam;
+const controls=new OrbitControls(orthoCam, cv); controls.enableDamping=true; controls.dampingFactor=0.15; controls.screenSpacePanning=true;
+const pcontrols=new OrbitControls(perspCam, cv); pcontrols.enableDamping=true; pcontrols.dampingFactor=0.15; pcontrols.enabled=false;
+
+// ---------------------------------------------------------------- state
+const S={ names:'chars', board:{kind:'preset', preset:'football', libId:null, name:'', w:120, d:53.3, units:'yards'},
+  grid:{on:false, step:1}, pieces:[], sel:null, cam:{mode:'top', tilt:45}, routeMode:'always', shadows:true,
+  bg:{name:null}, bgVol:0.7, fxVol:1, dur:null, loopPlay:false, rec:{res:'1920x1080', fps:30} };
+const RT=new Map();          // piece id → runtime {holder, model, mixer, actions:{name:action}, clipNames, sounds, sfx, kind, baseH}
+let boardMeshes=[];           // raycast targets for ground height
+let T=0, playing=false, playT0=0, playWall=0, recording=false;
+
+const PRESETS={
+  football:{name:'🏈 Football field (yards)', w:120, d:53.3, units:'yards'},
+  soccer:{name:'⚽ Soccer pitch (metres)', w:105, d:68, units:'metres'},
+  basketball:{name:'🏀 Basketball court (metres)', w:28, d:15, units:'metres'},
+  hockey:{name:'🏒 Ice rink (metres)', w:60, d:26, units:'metres'},
+  grid:{name:'▦ Square grid (10 × 10)', w:10, d:10, units:'cells'},
+  plain:{name:'▭ Plain ground', w:40, d:40, units:'units'},
+};
+
+// ---------------------------------------------------------------- board drawing (presets draw a canvas texture)
+function fieldTexture(kind, w, d){
+  const pxPer = Math.max(8, Math.min(40, 3000/Math.max(w,d)));
+  const cw=Math.round(w*pxPer), ch=Math.round(d*pxPer), c=document.createElement('canvas'); c.width=cw; c.height=ch; const g=c.getContext('2d');
+  const X=x=>x*pxPer, Z=z=>z*pxPer;
+  const line=(x0,z0,x1,z1,lw=0.15,col='#fff')=>{ g.strokeStyle=col; g.lineWidth=Math.max(1,X(lw)); g.beginPath(); g.moveTo(X(x0),Z(z0)); g.lineTo(X(x1),Z(z1)); g.stroke(); };
+  if(kind==='football'){
+    g.fillStyle='#2f7d3a'; g.fillRect(0,0,cw,ch);
+    for(let i=0;i<12;i++){ g.fillStyle=i%2?'#2c7636':'#33853f'; g.fillRect(X(i*10),0,X(10),ch); }
+    g.fillStyle='#24593a'; g.fillRect(0,0,X(10),ch); g.fillRect(X(110),0,X(10),ch);           // end zones
+    line(0,0,120,0,0.3); line(0,53.3,120,53.3,0.3); line(0,0,0,53.3,0.3); line(120,0,120,53.3,0.3);
+    for(let y=10;y<=110;y+=5) line(y,0,y,53.3, y%10===0?0.25:0.15);
+    for(let y=11;y<110;y++){ if(y%5===0) continue; line(y,0.7,y,1.4,0.12); line(y,53.3-1.4,y,53.3-0.7,0.12); line(y,23.36,y,24.06,0.12); line(y,29.24,y,29.94,0.12); }
+    g.fillStyle='#fff'; g.font=`bold ${Math.round(X(2.2))}px sans-serif`; g.textAlign='center'; g.textBaseline='middle';
+    for(let y=20;y<=100;y+=10){ const n=y<=60?y-10:110-y; g.fillText(String(n),X(y),Z(9)); g.save(); g.translate(X(y),Z(53.3-9)); g.rotate(Math.PI); g.fillText(String(n),0,0); g.restore(); }
+    g.font=`bold ${Math.round(X(4))}px sans-serif`; g.fillStyle='#ffffffaa';
+    g.save(); g.translate(X(5),Z(26.65)); g.rotate(-Math.PI/2); g.fillText('HOME',0,0); g.restore();
+    g.save(); g.translate(X(115),Z(26.65)); g.rotate(Math.PI/2); g.fillText('AWAY',0,0); g.restore();
+  } else if(kind==='soccer'){
+    for(let i=0;i<14;i++){ g.fillStyle=i%2?'#2e7b38':'#358a41'; g.fillRect(X(i*w/14),0,X(w/14)+1,ch); }
+    g.strokeStyle='#fff'; g.lineWidth=Math.max(1,X(0.12)); g.strokeRect(X(0.5),Z(0.5),X(w-1),Z(d-1)); line(w/2,0.5,w/2,d-0.5,0.12);
+    g.beginPath(); g.arc(X(w/2),Z(d/2),X(9.15),0,Math.PI*2); g.stroke();
+    for(const s of [0,1]){ const x0=s?w-0.5:0.5, dir=s?-1:1; g.strokeRect(X(Math.min(x0,x0+dir*16.5)),Z(d/2-20.16),X(16.5),Z(40.32)); g.strokeRect(X(Math.min(x0,x0+dir*5.5)),Z(d/2-9.16),X(5.5),Z(18.32));
+      g.beginPath(); g.arc(X(x0+dir*11),Z(d/2),X(9.15), s?Math.PI*0.7:-Math.PI*0.3, s?Math.PI*1.3:Math.PI*0.3); g.stroke(); }
+  } else if(kind==='basketball'){
+    g.fillStyle='#c98a4b'; g.fillRect(0,0,cw,ch); for(let i=0;i<40;i++){ g.fillStyle=i%2?'#c48445':'#cc8e50'; g.fillRect(0,Z(i*d/40),cw,Z(d/40)+1); }
+    g.strokeStyle='#fff'; g.lineWidth=Math.max(1,X(0.07)); g.strokeRect(X(0.3),Z(0.3),X(w-0.6),Z(d-0.6)); line(w/2,0.3,w/2,d-0.3,0.07);
+    g.beginPath(); g.arc(X(w/2),Z(d/2),X(1.8),0,Math.PI*2); g.stroke();
+    for(const s of [0,1]){ const x0=s?w-0.3:0.3, dir=s?-1:1; g.strokeRect(X(Math.min(x0,x0+dir*5.8)),Z(d/2-2.45),X(5.8),Z(4.9));
+      g.beginPath(); g.arc(X(x0+dir*1.575),Z(d/2),X(6.75), s?Math.PI*0.62:-Math.PI*0.38, s?Math.PI*1.38:Math.PI*0.38); g.stroke(); }
+  } else if(kind==='hockey'){
+    g.fillStyle='#e9f1f7'; g.fillRect(0,0,cw,ch); line(w/2,0,w/2,d,0.3,'#c62828'); line(w/2-8.5,0,w/2-8.5,d,0.3,'#1e4fb3'); line(w/2+8.5,0,w/2+8.5,d,0.3,'#1e4fb3'); line(4,0,4,d,0.08,'#c62828'); line(w-4,0,w-4,d,0.08,'#c62828');
+    g.strokeStyle='#1e4fb3'; g.lineWidth=Math.max(1,X(0.1)); g.beginPath(); g.arc(X(w/2),Z(d/2),X(4.5),0,Math.PI*2); g.stroke();
+  } else if(kind==='grid'){
+    for(let i=0;i<w;i++) for(let j=0;j<d;j++){ g.fillStyle=(i+j)%2?'#d9d2bf':'#c9c0a8'; g.fillRect(X(i),Z(j),X(1)+1,Z(1)+1); }
+  } else { g.fillStyle='#4f6b3d'; g.fillRect(0,0,cw,ch); for(let i=0;i<4000;i++){ g.fillStyle=`rgba(${60+Math.random()*30|0},${90+Math.random()*40|0},${50+Math.random()*20|0},.35)`; g.fillRect(Math.random()*cw,Math.random()*ch,2,2); } }
+  const tex=new THREE.CanvasTexture(c); tex.colorSpace=THREE.SRGBColorSpace; tex.anisotropy=8; return tex;
+}
+function clearGroup(g){ for(const o of [...g.children]){ g.remove(o); o.traverse(m=>{ if(m.geometry) m.geometry.dispose?.(); }); } }
+function flatBoard(tex, w, d){
+  const m=new THREE.Mesh(new THREE.PlaneGeometry(w,d), new THREE.MeshStandardMaterial({map:tex, roughness:0.95}));
+  m.rotation.x=-Math.PI/2; m.receiveShadow=true; m.name='board'; return m;
+}
+let boardBox=new THREE.Box3(new V3(-60,0,-27),new V3(60,0,27));
+async function buildBoard(){
+  clearGroup(boardGroup); boardMeshes=[];
+  const B=S.board; let info='';
+  if(B.kind==='preset'){ const pr=PRESETS[B.preset]||PRESETS.plain; B.w=B.w||pr.w; B.d=B.d||pr.d; B.units=pr.units;
+    const m=flatBoard(fieldTexture(B.preset,B.w,B.d),B.w,B.d); boardGroup.add(m); info=pr.name.replace(/^\S+\s/,'');
+  } else if(B.kind==='image' || B.kind==='glb'){
+    let rec=null; if(LIB && B.libId){ try{ await LIB.ready; rec=await LIB.getModel(B.libId); }catch(e){} }
+    if(!rec){ info='⚠ That board is no longer in the Studio Library.'; }
+    else if(B.kind==='image' || (rec.meta&&rec.meta.kind==='image')){ B.kind='image';
+      const url=URL.createObjectURL(rec.glb); const img=await new Promise((res,rej)=>{ const i=new Image(); i.onload=()=>res(i); i.onerror=rej; i.src=url; });
+      const tex=new THREE.Texture(img); tex.colorSpace=THREE.SRGBColorSpace; tex.anisotropy=8; tex.needsUpdate=true;
+      if(!B.w||!B.d){ B.w=(rec.meta&&rec.meta.w)||40; B.d=B.w*img.height/img.width; }
+      boardGroup.add(flatBoard(tex,B.w,B.d)); info=`🖼 ${rec.name} · ${img.width}×${img.height}px`;
+    } else {
+      const g=await loader.parseAsync(await rec.glb.arrayBuffer(), '');
+      const root=g.scene; root.traverse(o=>{ if(o.isMesh){ o.receiveShadow=true; o.castShadow=true; } });
+      boardGroup.add(root); boardGroup.updateMatrixWorld(true);
+      const bb=new THREE.Box3().setFromObject(root), sz=bb.getSize(new V3()); B.w=+sz.x.toFixed(2); B.d=+sz.z.toFixed(2); B.units='cells';
+      const ctr=bb.getCenter(new V3()); root.position.x-=ctr.x; root.position.z-=ctr.z; root.position.y-=bb.min.y; boardGroup.updateMatrixWorld(true);
+      info=`📦 ${rec.name}`+(rec.meta&&rec.meta.cols?` · ${rec.meta.cols}×${rec.meta.rows} ${rec.meta.grid||''}`:'');
+    }
+  }
+  if(!boardGroup.children.length){ boardGroup.add(flatBoard(fieldTexture('plain',40,40),40,40)); B.w=40; B.d=40; }
+  boardGroup.traverse(o=>{ if(o.isMesh) boardMeshes.push(o); });
+  boardGroup.updateMatrixWorld(true); boardBox=new THREE.Box3().setFromObject(boardGroup); if(boardBox.isEmpty()) boardBox.set(new V3(-B.w/2,0,-B.d/2),new V3(B.w/2,0,B.d/2));
+  P('#boardInfo').textContent=info; P('#boardW').value=B.w; P('#boardD').value=B.d; P('#unitLbl').textContent=B.units||'units';
+  P('#sizeRow').style.display = B.kind==='glb' ? 'none' : '';
+  const sz=boardBox.getSize(new V3()), m=Math.max(sz.x,sz.z);
+  sun.position.set(boardBox.min.x-m*0.3, m*1.2, boardBox.min.z-m*0.2); sun.target.position.copy(boardBox.getCenter(new V3()));
+  const sc=sun.shadow.camera; sc.left=-m*0.8; sc.right=m*0.8; sc.top=m*0.8; sc.bottom=-m*0.8; sc.near=0.1; sc.far=m*4; sc.updateProjectionMatrix();
+  buildGrid(); for(const p of S.pieces) placeRuntime(p); fitCam(); drawRoutes(); refreshForms(); save();
+}
+function buildGrid(){
+  clearGroup(gridGroup); if(!S.grid.on) return; const st=Math.max(0.1,+S.grid.step||1), b=boardBox, y=b.max.y+0.02;
+  const pts=[]; for(let x=Math.ceil(b.min.x/st)*st; x<=b.max.x+1e-6; x+=st) pts.push(x,y,b.min.z, x,y,b.max.z);
+  for(let z=Math.ceil(b.min.z/st)*st; z<=b.max.z+1e-6; z+=st) pts.push(b.min.x,y,z, b.max.x,y,z);
+  const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));
+  gridGroup.add(new THREE.LineSegments(g,new THREE.LineBasicMaterial({color:0xffffff,transparent:true,opacity:0.28})));
+}
+const _ray=new THREE.Raycaster(), _down=new V3(0,-1,0);
+function groundY(x,z){
+  if(S.board.kind!=='glb' || !boardMeshes.length) return 0;
+  _ray.set(new V3(x, boardBox.max.y+10, z), _down); _ray.far=boardBox.max.y-boardBox.min.y+20;
+  const h=_ray.intersectObjects(boardMeshes,false); return h.length ? h[0].point.y : 0;
+}
+
+// ---------------------------------------------------------------- pieces
+const COLORS=['#e8453c','#3c7be8','#f2c230','#37c07a','#b05be8','#ff8a3c','#e0e0e0','#30c6d6'];
+function newPiece(kind, extra){
+  const b=boardBox.getCenter(new V3()), n=S.pieces.length, off=(n%6)*defaultSize()*1.4;
+  const p=Object.assign({ id:uid(), kind, name:kind==='token'?'Token':'Piece', on:true, size:defaultSize(kind), color:COLORS[n%COLORS.length], label:'',
+    shape:'circle', libId:null, mode:'chain', clipA:'', clipB:'', loopA:true, inPlace:true, sound:true, vol:1,
+    delay:0, speed:+(kind==='token'?defaultSpeed()*1.4:defaultSpeed()).toFixed(2), face:true, yaw:0, legs:[], path:[{x:+(b.x-defaultSize()*3+off).toFixed(2), z:+b.z.toFixed(2), wait:0}], sfx:null, sfxAt:'start' }, extra||{});
+  return p;
+}
+function defaultSize(kind){ const m=Math.max(S.board.w||10,S.board.d||10); const u=S.board.units; const s = u==='yards'?3.0 : u==='metres'?2.2 : u==='cells'?0.9 : Math.max(0.6,m*0.03); return kind==='token'? +(s*(u==='cells'?0.8:1.25)).toFixed(2) : +s.toFixed(2); }
+function defaultSpeed(){ const u=S.board.units; return u==='yards'?6 : u==='metres'?5 : u==='cells'?1.5 : 3; }
+
+function labelTexture(text, color){
+  const c=document.createElement('canvas'); c.width=c.height=256; const g=c.getContext('2d'); g.clearRect(0,0,256,256);
+  g.font=`bold ${text.length>2?96:140}px system-ui,sans-serif`; g.textAlign='center'; g.textBaseline='middle';
+  g.lineWidth=18; g.strokeStyle='#000a'; g.strokeText(text,128,136); g.fillStyle='#fff'; g.fillText(text,128,136);
+  const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; return t;
+}
+function tokenMesh(p){
+  const g=new THREE.Group(), col=new THREE.Color(p.color), mat=new THREE.MeshStandardMaterial({color:col, roughness:0.55, metalness:0.05});
+  const r=0.5; let body;
+  if(p.shape==='x'){ body=new THREE.Group(); for(const a of [Math.PI/4,-Math.PI/4]){ const bar=new THREE.Mesh(new THREE.BoxGeometry(1.15,0.18,0.24),mat); bar.rotation.y=a; bar.position.y=0.09; body.add(bar); } }
+  else if(p.shape==='o'){ body=new THREE.Mesh(new THREE.TorusGeometry(0.4,0.1,12,40),mat); body.rotation.x=-Math.PI/2; body.position.y=0.1; }
+  else if(p.shape==='triangle'){ body=new THREE.Mesh(new THREE.CylinderGeometry(r,r,0.2,3),mat); body.position.y=0.1; body.rotation.y=Math.PI; }
+  else if(p.shape==='square'){ body=new THREE.Mesh(new THREE.BoxGeometry(0.85,0.2,0.85),mat); body.position.y=0.1; }
+  else if(p.shape==='ball'){ body=new THREE.Mesh(new THREE.SphereGeometry(0.5,24,16),new THREE.MeshStandardMaterial({color:p.color==='#e8453c'?0x7a3b1e:col, roughness:0.6})); body.scale.set(0.62,0.62,1); body.position.y=0.32; }
+  else { body=new THREE.Mesh(new THREE.CylinderGeometry(r,r,0.2,40),mat); body.position.y=0.1; }
+  body.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.receiveShadow=true; } }); g.add(body);
+  if(p.label && p.shape!=='ball'){ const s=new THREE.Mesh(new THREE.PlaneGeometry(0.8,0.8), new THREE.MeshBasicMaterial({map:labelTexture(String(p.label).slice(0,4)), transparent:true, depthWrite:false}));
+    s.rotation.x=-Math.PI/2; s.position.y=0.215; s.name='label'; g.add(s); }
+  if(p.shape!=='ball'){ const nose=new THREE.Mesh(new THREE.ConeGeometry(0.1,0.22,12), new THREE.MeshBasicMaterial({color:0xffffff})); nose.rotation.x=Math.PI/2; nose.position.set(0,0.12,0.58); nose.name='nose'; g.add(nose); }
+  return g;
+}
+function nameTag(p){
+  const txt=String(p.name||'').slice(0,24); if(!txt) return null; const c=document.createElement('canvas'), g=c.getContext('2d'); const fs=48; g.font=`bold ${fs}px system-ui,sans-serif`;
+  const w=Math.ceil(g.measureText(txt).width)+36, h=fs+24; c.width=w; c.height=h; g.font=`bold ${fs}px system-ui,sans-serif`;
+  g.fillStyle='rgba(10,14,20,.78)'; const r=h/2; g.beginPath(); g.moveTo(r,0); g.lineTo(w-r,0); g.arc(w-r,r,r,-Math.PI/2,Math.PI/2); g.lineTo(r,h); g.arc(r,r,r,Math.PI/2,Math.PI*1.5); g.fill();
+  g.fillStyle=p.color||'#fff'; g.fillRect(12,h/2-6,8,12); g.fillStyle='#fff'; g.textBaseline='middle'; g.fillText(txt,26,h/2+2);
+  const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:t, depthTest:false, transparent:true}));
+  sp.renderOrder=20; sp.userData.aspect=w/h; sp.name='nametag'; return sp; }
+function refreshTag(p){ const rt=RT.get(p.id); if(!rt) return; if(rt.tag){ rt.holder.remove(rt.tag); rt.tag.material.map.dispose(); rt.tag=null; }
+  const want = S.names==='all' || (S.names==='chars' && p.kind!=='token'); if(!want) return; const sp=nameTag(p); if(!sp) return; rt.tag=sp; rt.holder.add(sp); placeTag(p); }
+function placeTag(p){ const rt=RT.get(p.id); if(!rt||!rt.tag) return; const h=p.kind==='token'? p.size*0.55 : p.size*(p.kind==='prop'?0.9:1.12); const bm=Math.max(S.board.w||10,S.board.d||10); const th=Math.max(0.12,p.size*0.32, bm*0.011);
+  rt.tag.scale.set(th*rt.tag.userData.aspect, th, 1); rt.tag.position.set(0, h+th*0.7, 0); }
+async function loadLibGLB(libId){
+  await LIB.ready; const rec=await LIB.getModel(libId); if(!rec||!rec.glb) throw new Error('not in the Studio Library');
+  const buf=await rec.glb.arrayBuffer(); let scene, animations;
+  if(rec.meta && rec.meta.fbx){ const obj=fbxLoader.parse(buf,''); scene=obj; animations=obj.animations||[]; }
+  else { const g=await loader.parseAsync(buf,''); scene=g.scene; animations=g.animations||[]; }
+  return {rec, scene, animations};
+}
+function rootBoneName(obj){ let n=null; obj.traverse(o=>{ if(!n && o.isBone) n=o.name; }); return n; }
+function inPlaceClip(clip, root){
+  const rb=root?root+'.position':null; const c=clip.clone();
+  for(const t of c.tracks){ if(t.name!==rb && !/(^|[.:|])(Hips|mixamorig:?Hips)\.position$/.test(t.name)) continue;
+    const v=t.values, x0=v[0], z0=v[2]; for(let i=0;i<v.length;i+=3){ v[i]=x0; v[i+2]=z0; } }
+  return c;
+}
+async function makeRuntime(p){
+  const old=RT.get(p.id); if(old){ pieceGroup.remove(old.holder); }
+  const holder=new THREE.Group(); holder.name='piece_'+p.id; holder.userData.pieceId=p.id; pieceGroup.add(holder);
+  const rt={holder, model:null, mixer:null, actions:{}, clipNames:[], clips:{}, sounds:[], seqDur:0, kind:p.kind, sfx:null};
+  RT.set(p.id, rt);
+  if(p.kind==='token'){ rt.model=tokenMesh(p); holder.add(rt.model); }
+  else {
+    try{
+      const {rec, scene:obj, animations}=await loadLibGLB(p.libId); rt.meta=rec.meta||{};
+      if(!p.name || p.name==='Piece') p.name=(rec.name||'Character').replace(/\s*—.*$/,'');
+      obj.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.receiveShadow=true; o.frustumCulled=false; } });
+      // face +Z: the Rigger records which way a rig faces (glTF extras ksolForward on the armature)
+      { let f=null; obj.traverse(o=>{ if(!f && o.userData && Array.isArray(o.userData.ksolForward)) f=o.userData.ksolForward; }); if(f && Math.hypot(f[0],f[2])>1e-4) obj.rotation.y=-Math.atan2(f[0],f[2]); }
+      const wrap=new THREE.Group(); wrap.add(obj); obj.updateMatrixWorld(true);
+      const bb=new THREE.Box3().setFromObject(obj), sz=bb.getSize(new V3()); const h=Math.max(1e-4, p.kind==='prop'?Math.max(sz.x,sz.y,sz.z):sz.y);
+      const ctr=bb.getCenter(new V3()); obj.position.set(-ctr.x,-bb.min.y,-ctr.z); rt.baseH=h; rt.model=wrap; holder.add(wrap);
+      if(animations.length){ rt.mixer=new THREE.AnimationMixer(obj); const rbn=rootBoneName(obj); rt.rootBone=rbn;
+        rt.srcClips=animations; for(const c of animations){ rt.clipNames.push(c.name||'clip'); }
+        buildActions(p, rt); }
+      const seq=animations.find(c=>c.name==='Sequence'); rt.seqDur=(seq||animations[0]||{duration:0}).duration||0;
+      if(rec.meta && Array.isArray(rec.meta.sounds)) rt.soundDefs=rec.meta.sounds;
+      if(!p.clipA) p.clipA = rt.clipNames.includes('Sequence') ? 'Sequence' : (rt.clipNames[0]||'');
+      if(!p.clipB) p.clipB = rt.clipNames.find(n=>/idle|stand|breath/i.test(n)) || rt.clipNames[0] || '';
+      if(p.mode==='chain' && !rt.clipNames.includes('Sequence') && rt.clipNames.length>1 && !p._modeSet) p.mode='states';
+    }catch(e){ console.warn('[mapview] piece load failed', e); const ph=new THREE.Mesh(new THREE.ConeGeometry(0.3,1,12), new THREE.MeshStandardMaterial({color:0x888888})); ph.position.y=0.5; rt.model=ph; holder.add(ph); rt.baseH=1; hud('⚠ Could not load '+(p.name||'a piece')+': '+(e.message||e), 5000); }
+  }
+  placeRuntime(p); refreshTag(p); await decodeSounds(p, rt); return rt;
+}
+function buildActions(p, rt){
+  if(!rt.mixer) return; rt.mixer.stopAllAction(); rt.actions={};
+  for(const c of rt.srcClips){ const use=p.inPlace ? inPlaceClip(c, rt.rootBone) : c; const a=rt.mixer.clipAction(use); a.enabled=true; a.setEffectiveWeight(0); a.play(); rt.actions[c.name||'clip']=a; }
+}
+function placeRuntime(p){ const rt=RT.get(p.id); if(!rt||!rt.model) return;
+  const s = p.kind==='token' ? p.size : p.size/(rt.baseH||1); rt.model.scale.setScalar(s); rt.holder.visible=!!p.on; placeTag(p); }
+
+// ---------------------------------------------------------------- timing: where every piece is at time t
+// 🧩 NODE CHAIN: every leg (stop i → i+1) may carry its own clip, speed and sound (p.legs[i]); every stop its own clip played for
+// its wait or for N plays (loops), and a sound. A stop lasts max(wait, clip length × plays).
+function clipLen(p,name){ const rt=RT.get(p.id); const c=rt&&rt.srcClips&&rt.srcClips.find(c=>c.name===name); return c?c.duration:0; }
+function stopDur(p,i){ const q=(p.path||[])[i]; if(!q) return 0; const byClip = (q.clip && +q.loops>0) ? clipLen(p,q.clip)*(+q.loops) : 0; return Math.max(0,+q.wait||0,byClip); }
+function legSpeed(p,i){ const L=(p.legs||[])[i]; return Math.max(0.05, +(L&&L.speed)||+p.speed||1); }
+function schedule(p){
+  const pts=p.path||[], segs=[]; let t=Math.max(0,+p.delay||0); if(!pts.length) return {segs, end:t};
+  for(let i=0;i<pts.length;i++){ const w=stopDur(p,i); if(w>0){ segs.push({t0:t,t1:t+w,type:'wait',i}); t+=w; }
+    if(i<pts.length-1){ const a=pts[i], b=pts[i+1], d=Math.hypot(b.x-a.x,b.z-a.z), dur=d/legSpeed(p,i); if(dur>1e-6){ segs.push({t0:t,t1:t+dur,type:'move',i,a,b,d}); t+=dur; } } }
+  return {segs, end:t};
+}
+const lerpAng=(a,b,f)=>{ let d=((b-a+Math.PI)%(2*Math.PI)+2*Math.PI)%(2*Math.PI)-Math.PI; return a+d*f; };
+function stateAt(p,t){
+  const pts=p.path||[]; const yaw0=(+p.yaw||0)*Math.PI/180; if(!pts.length) return {x:0,z:0,yaw:yaw0,moving:false,moveT:0,waitT:t,started:t>=p.delay,arrived:[]};
+  const {segs}=schedule(p); let x=pts[0].x, z=pts[0].z, yaw=yaw0, moving=false, moveT=0, waitT=Math.max(0,t-(+p.delay||0)), lastYaw=yaw0, lastT1=+p.delay||0;
+  const firstMove=segs.find(s=>s.type==='move'); if(p.face && firstMove && t<firstMove.t0) yaw=yaw0;
+  let cur=null;
+  for(const s of segs){
+    if(t<s.t0) break; cur=s;
+    if(s.type==='move'){ const f=clamp((t-s.t0)/(s.t1-s.t0),0,1), segYaw=Math.atan2(s.b.x-s.a.x, s.b.z-s.a.z);
+      x=s.a.x+(s.b.x-s.a.x)*f; z=s.a.z+(s.b.z-s.a.z)*f; moveT+=Math.min(t,s.t1)-s.t0;
+      if(p.face){ const turn=clamp((t-s.t0)/Math.min(0.35,(s.t1-s.t0)*0.5),0,1); yaw=lerpAng(lastYaw, segYaw, turn); if(t>=s.t1) yaw=segYaw; lastYaw=yaw; }
+      if(t<s.t1){ moving=true; waitT=0; } else { waitT=t-s.t1; } lastT1=s.t1;
+    } else { const q=pts[s.i]; x=q.x; z=q.z; waitT=t-s.t0; }
+  }
+  if(t<(+p.delay||0)){ x=pts[0].x; z=pts[0].z; }
+  return {x,z,yaw,moving,moveT,waitT, seg:cur, segT:cur?Math.min(t,cur.t1)-cur.t0:0};
+}
+function pieceEnd(p){ const rt=RT.get(p.id); let e=schedule(p).end; if(rt && rt.mixer && p.mode==='chain' && !p.loopA){ const c=(rt.srcClips||[]).find(c=>c.name===p.clipA); if(c) e=Math.max(e,(+p.delay||0)+c.duration); } return e; }
+function duration(){ if(S.dur>0) return S.dur; let d=0; for(const p of S.pieces) if(p.on) d=Math.max(d,pieceEnd(p)); return Math.max(1, +(d+0.5).toFixed(2)); }
+
+const _q=new Q();
+function poseAll(t){
+  for(const p of S.pieces){ const rt=RT.get(p.id); if(!rt) continue; rt.holder.visible=!!p.on; if(!p.on) continue;
+    const st=stateAt(p,t); const y=groundY(st.x,st.z); rt.holder.position.set(st.x,y,st.z); rt.holder.rotation.set(0,st.yaw,0);
+    if(rt.mixer){
+      let name=p.clipA, at=0, plays=0; const tl=t-(+p.delay||0);
+      if(p.mode==='states'){ const sg=st.seg;
+        if(st.moving && sg){ const L=(p.legs||[])[sg.i]; name=(L&&L.clip)||p.clipA; at=st.moveT; }
+        else { const i = sg ? (sg.type==='wait'? sg.i : sg.i+1) : 0, q=(p.path||[])[i]||{}; name=q.clip||p.clipB||p.clipA; plays=+q.loops||0;
+          at = tl<0 ? 0 : (sg && sg.type==='wait' ? st.segT : st.waitT); } }
+      else { at=Math.max(0,tl); }
+      const a=rt.actions[name]; for(const k in rt.actions) rt.actions[k].setEffectiveWeight(k===name?1:0);
+      if(a){ const d=a.getClip().duration||1; const loop = p.mode==='states' ? true : p.loopA;
+        a.time = plays>0 ? (at < d*plays ? at%d : d-1e-4) : loop ? (at%d) : Math.min(at, d-1e-4); }
+      rt.mixer.update(0);
+    }
+  }
+  if(S.routeMode==='grow' || growingOnce) drawRoutes(t);
+}
+let growingOnce=false;
+
+// ---------------------------------------------------------------- routes + stop handles
+function ribbon(pts, w, col, y0){
+  if(pts.length<2) return null; const pos=[], idx=[]; let k=0;
+  for(let i=0;i<pts.length;i++){ const a=pts[Math.max(0,i-1)], b=pts[Math.min(pts.length-1,i+1)]; let dx=b.x-a.x, dz=b.z-a.z; const L=Math.hypot(dx,dz)||1; dx/=L; dz/=L;
+    const nx=-dz*w/2, nz=dx*w/2, y=(pts[i].y??y0)+0.03; pos.push(pts[i].x+nx,y,pts[i].z+nz, pts[i].x-nx,y,pts[i].z-nz);
+    if(i>0){ idx.push(k-2,k-1,k, k-1,k+1,k); } k+=2; }
+  const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3)); g.setIndex(idx); g.computeVertexNormals();
+  const m=new THREE.Mesh(g,new THREE.MeshBasicMaterial({color:col, transparent:true, opacity:0.85, side:THREE.DoubleSide, depthWrite:false})); m.renderOrder=3; return m;
+}
+function arrowHead(a,b,w,col,y){ const d=Math.atan2(b.x-a.x,b.z-a.z); const s=new THREE.Shape([new THREE.Vector2(-w*1.6,0),new THREE.Vector2(w*1.6,0),new THREE.Vector2(0,w*3.2)]);
+  const g=new THREE.ShapeGeometry(s); g.rotateX(Math.PI/2); const m=new THREE.Mesh(g,new THREE.MeshBasicMaterial({color:col,side:THREE.DoubleSide,transparent:true,opacity:0.95,depthWrite:false}));
+  m.position.set(b.x,y+0.035,b.z); m.rotation.y=d; m.renderOrder=4; return m; }
+function drawRoutes(tNow){
+  clearGroup(routeGroup); clearGroup(handleGroup);
+  const hidden = S.routeMode==='off';
+  if(hidden && (recording || !drawing)) return;                    // paths OFF: not in the preview, not in the video …
+  for(const p of S.pieces){ if(hidden && p.id!==drawing) continue;  // … except the one being drawn with ✏ right now
+    if(!p.on || (p.path||[]).length<2) { if(p.id===S.sel) drawHandles(p); continue; }
+    const w=Math.max(0.05,p.size*0.13); let pts=p.path.map(q=>({x:q.x,z:q.z,y:groundY(q.x,q.z)}));
+    if(tNow!=null && (S.routeMode==='grow')){ const st=stateAt(p,tNow), {segs}=schedule(p); const done=[pts[0]];
+      for(const s of segs){ if(s.type!=='move') continue; if(tNow>=s.t1) done.push(pts[s.i+1]); else if(tNow>s.t0){ done.push({x:st.x,z:st.z,y:groundY(st.x,st.z)}); break; } else break; } pts=done; }
+    if(S.routeMode==='off' && tNow==null && !recording){ /* editing: still show faintly */ }
+    const r=ribbon(pts,w,p.color, 0); if(r){ if(hidden) r.material.opacity=0.35; routeGroup.add(r);
+      if(pts.length>=2){ const a=pts[pts.length-2], b=pts[pts.length-1]; if(Math.hypot(b.x-a.x,b.z-a.z)>w) routeGroup.add(arrowHead(a,b,w,p.color,b.y)); } }
+    if(p.id===S.sel && !recording) drawHandles(p);
+  }
+}
+function drawHandles(p){ const r=Math.max(0.08,p.size*0.16);
+  (p.path||[]).forEach((q,i)=>{ const m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,0.06,24), new THREE.MeshBasicMaterial({color:i===0?0xffffff:0xffe066, depthTest:false}));
+    m.position.set(q.x,groundY(q.x,q.z)+0.08,q.z); m.renderOrder=10; m.userData={pieceId:p.id, wp:i}; handleGroup.add(m); }); }
+
+// ---------------------------------------------------------------- cameras
+function viewSize(){ const r=viewEl.getBoundingClientRect(); return {w:Math.max(2,r.width|0), h:Math.max(2,r.height|0)}; }
+let fitBox=null;                                    // null = the board; else a box around the pieces (⤢ Fit pieces)
+function fitPieces(){ const b=new THREE.Box3(); let n=0; for(const p of S.pieces){ if(!p.on) continue; for(const q of p.path||[]){ b.expandByPoint(new V3(q.x,0,q.z)); n++; } }
+  if(!n){ fitBox=null; fitCam(); return; } const pad=Math.max(4, Math.max(...S.pieces.map(p=>p.size||1))*3); b.min.x-=pad; b.min.z-=pad; b.max.x+=pad; b.max.z+=pad; b.min.y=boardBox.min.y; b.max.y=boardBox.max.y; fitBox=b; fitCam(); }
+function fitCam(){
+  const FB=fitBox||boardBox, c=FB.getCenter(new V3()), sz=FB.getSize(new V3()); const {w,h}=recording?recSize:viewSize(); const asp=w/h;
+  const halfW=Math.max(sz.x/2*1.06, sz.z/2*1.06*asp), halfH=halfW/asp;
+  orthoCam.left=-halfW; orthoCam.right=halfW; orthoCam.top=halfH; orthoCam.bottom=-halfH; orthoCam.zoom=1; orthoCam.near=0.01; orthoCam.far=Math.max(100,Math.max(sz.x,sz.z)*20);
+  orthoCam.position.set(c.x, boardBox.max.y+Math.max(sz.x,sz.z)*2, c.z+0.0001); orthoCam.up.set(0,0,-1); orthoCam.lookAt(c); orthoCam.updateProjectionMatrix();
+  controls.target.copy(c); controls.update();
+  const tilt=(+S.cam.tilt||45)*Math.PI/180, dist=Math.max(sz.x,sz.z)*0.95; perspCam.aspect=asp; perspCam.near=Math.max(0.01,dist/500); perspCam.far=dist*50; perspCam.updateProjectionMatrix();
+  perspCam.position.set(c.x, c.y+dist*Math.cos(Math.PI/2-tilt), c.z+dist*Math.sin(Math.PI/2-tilt)); perspCam.up.set(0,1,0); pcontrols.target.copy(c); pcontrols.update();
+}
+function setCamMode(m){ S.cam.mode=m; PA('[data-cam]').forEach(b=>b.classList.toggle('on', b.dataset.cam===m));
+  camera = m==='top' ? orthoCam : perspCam; controls.enabled = m==='top'; pcontrols.enabled = m!=='top';
+  controls.enableRotate=false; fitCam(); save(); }
+const _followOff=new V3();
+function followCam(){ if(S.cam.mode!=='follow') return; const p=S.pieces.find(q=>q.id===S.sel)||S.pieces.find(q=>q.on); const rt=p&&RT.get(p.id); if(!rt) return;
+  const tgt=rt.holder.position.clone(); tgt.y+=p.size*0.5; const tilt=(+S.cam.tilt||45)*Math.PI/180, dist=p.size*7;
+  const want=new V3(tgt.x, tgt.y+dist*Math.cos(Math.PI/2-tilt), tgt.z+dist*Math.sin(Math.PI/2-tilt)); perspCam.position.lerp(want, recording?1:0.15); pcontrols.target.lerp(tgt, recording?1:0.25); perspCam.lookAt(pcontrols.target); }
+
+// ---------------------------------------------------------------- resize / render loop
+let recSize=null;
+function resize(){ if(recording) return; const {w,h}=viewSize(); renderer.setSize(w,h,false); const asp=w/h;
+  const hw=(orthoCam.right-orthoCam.left)/2, cy=(orthoCam.top+orthoCam.bottom)/2; orthoCam.top=cy+hw/asp; orthoCam.bottom=cy-hw/asp; orthoCam.updateProjectionMatrix();
+  perspCam.aspect=asp; perspCam.updateProjectionMatrix(); }
+new ResizeObserver(resize).observe(viewEl);
+function tick(){
+  requestAnimationFrame(tick);
+  if(playing && !recording){ const d=duration(); T=playT0+(performance.now()-playWall)/1000;
+    if(T>=d){ if(S.loopPlay){ T=0; playT0=0; playWall=performance.now(); startAudio(0); } else { T=d; setPlaying(false); } } }
+  if(!recording){ poseAll(T); updateScrub(); liveNode(); if(S.cam.mode==='top') controls.update(); else { followCam(); pcontrols.update(); } renderer.render(scene,camera); }
+}
+function updateScrub(){ const d=duration(); const sc=document.getElementById('scrub'); sc.max=d; if(!sc._drag) sc.value=T; document.getElementById('tLbl').textContent=`${fmt(T)} / ${fmt(d)} s`; P('#durAuto').textContent=S.dur>0?'':`auto: ${fmt(duration())} s`; }
+function setPlaying(on){ playing=on; document.getElementById('playBtn').textContent=on?'⏸':'▶';
+  if(on){ if(T>=duration()-1e-3) T=0; playT0=T; playWall=performance.now(); if(P('#soundPreview').checked) startAudio(T); } else stopAudio(); }
+
+// ---------------------------------------------------------------- audio (preview + recording share one graph)
+let actx=null, master=null, recDest=null, liveSrc=[];
+function ensureAudio(){ if(actx) return actx; actx=new (window.AudioContext||window.webkitAudioContext)(); master=actx.createGain(); master.connect(actx.destination); recDest=actx.createMediaStreamDestination(); master.connect(recDest); return actx; }
+async function decodeFile(file){ ensureAudio(); return await actx.decodeAudioData(await file.arrayBuffer()); }
+async function decodeSounds(p, rt){ rt.sounds=[]; if(!rt.soundDefs) return; ensureAudio();
+  for(const s of rt.soundDefs){ try{ const buf=await actx.decodeAudioData(await (s.wav instanceof Blob ? s.wav.arrayBuffer() : new Blob([s.wav]).arrayBuffer())); rt.sounds.push({t:+s.t||0, dur:+s.dur||buf.duration, buf, name:s.name}); }catch(e){ console.warn('[mapview] sound decode', e); } } }
+function stopAudio(){ for(const s of liveSrc){ try{ s.stop(); }catch(e){} } liveSrc=[]; }
+function playBuf(buf, when, offset, gain, maxDur){ const src=actx.createBufferSource(); src.buffer=buf; const g=actx.createGain(); g.gain.value=gain; src.connect(g); g.connect(master);
+  const now=actx.currentTime; src.start(now+Math.max(0,when), Math.max(0,offset), maxDur!=null?Math.max(0.01,maxDur):undefined); liveSrc.push(src); return src; }
+function startAudio(from){
+  ensureAudio(); if(actx.state==='suspended') actx.resume(); stopAudio(); const D=duration(), fx=+S.fxVol;
+  const bgBuf=S.bg&&S.bg.id?audCache.get(S.bg.id):null;
+  if(bgBuf){ const src=actx.createBufferSource(); src.buffer=bgBuf; src.loop=true; const g=actx.createGain(); g.gain.value=+S.bgVol; src.connect(g); g.connect(master); src.start(actx.currentTime, from%bgBuf.duration); liveSrc.push(src); }
+  for(const p of S.pieces){ if(!p.on) continue; const rt=RT.get(p.id); if(!rt) continue; const vol=fx*(+p.vol||1), d0=+p.delay||0;
+    if(p.sound && rt.sounds.length && rt.mixer){
+      const clip=(rt.srcClips||[]).find(c=>c.name===p.clipA); const cd=clip?clip.duration:rt.seqDur;
+      if(p.mode==='chain' && (p.clipA==='Sequence' || rt.sounds.length)){ const reps = p.loopA ? Math.ceil((D-d0)/Math.max(0.1,cd))+1 : 1;
+        for(let k=0;k<reps;k++) for(const s of rt.sounds){ const at=d0+k*cd+s.t, end=at+s.dur; if(end<=from || at>=D) continue;
+          if(at>=from) playBuf(s.buf, at-from, 0, vol, s.dur); else playBuf(s.buf, 0, from-at, vol, end-from); } }
+    }
+    // 🧩 node sounds: a leg's sound when it starts moving, a stop's sound when it gets there
+    { const {segs}=schedule(p); for(const sg of segs){ const node = sg.type==='move' ? (p.legs||[])[sg.i] : (p.path||[])[sg.i]; const b=node&&node.sfx&&audCache.get(node.sfx.id); if(!b) continue;
+        const at=sg.t0, end=at+b.duration; if(end<=from || at>=D) continue; if(at>=from) playBuf(b, at-from, 0, vol); else playBuf(b, 0, from-at, vol); } }
+    rt.sfxBuf = p.sfx&&p.sfx.id ? audCache.get(p.sfx.id) : null;
+    if(p.sfx && rt.sfxBuf){ const {segs}=schedule(p); const times = p.sfxAt==='arrive' ? segs.filter(s=>s.type==='move').map(s=>s.t1) : [d0];
+      if(p.sfxAt==='loop'){ for(const s of segs.filter(s=>s.type==='move')){ if(s.t1<=from) continue; const src=actx.createBufferSource(); src.buffer=rt.sfxBuf; src.loop=true; const g=actx.createGain(); g.gain.value=vol; src.connect(g); g.connect(master);
+          const st=Math.max(s.t0,from); src.start(actx.currentTime+(st-from), (st-s.t0)%rt.sfxBuf.duration); src.stop(actx.currentTime+(s.t1-from)); liveSrc.push(src); } }
+      else for(const at of times){ const end=at+rt.sfxBuf.duration; if(end<=from) continue; if(at>=from) playBuf(rt.sfxBuf, at-from, 0, vol); else playBuf(rt.sfxBuf, 0, from-at, vol); } }
+  }
+}
+
+// ---------------------------------------------------------------- UI: board
+async function refreshBoardSel(){
+  const sel=P('#boardSel'); const cur=S.board.kind==='preset' ? 'preset:'+S.board.preset : 'lib:'+S.board.libId; sel.innerHTML='';
+  const og1=document.createElement('optgroup'); og1.label='Ready-made'; for(const [k,v] of Object.entries(PRESETS)){ const o=document.createElement('option'); o.value='preset:'+k; o.textContent=v.name; og1.appendChild(o); } sel.appendChild(og1);
+  if(LIB){ try{ await LIB.ready; const bs=(await LIB.listModels()).filter(m=>m.skeleton==='board'); if(bs.length){ const og=document.createElement('optgroup'); og.label='Studio Library boards';
+      for(const b of bs){ const o=document.createElement('option'); o.value='lib:'+b.id; o.textContent=(b.meta&&b.meta.kind==='image'?'🖼 ':'📦 ')+b.name; og.appendChild(o); } sel.appendChild(og); } }catch(e){} }
+  sel.value=cur; if(sel.value!==cur && S.board.kind!=='preset'){ const o=document.createElement('option'); o.value=cur; o.textContent='(board not found)'; sel.appendChild(o); sel.value=cur; }
+}
+P('#boardSel').addEventListener('change', async e=>{ const v=e.target.value; if(v.startsWith('preset:')){ const k=v.slice(7), pr=PRESETS[k]; S.board={kind:'preset', preset:k, w:pr.w, d:pr.d, units:pr.units}; }
+  else { const id=v.slice(4); let meta=null; try{ meta=(await LIB.listModels()).find(m=>m.id===id)?.meta; }catch(err){} S.board={kind:meta&&meta.kind==='image'?'image':'glb', libId:id, w:meta&&meta.w||0, d:meta&&meta.d||0, units:meta&&meta.units||'units'}; }
+  await buildBoard(); });
+P('#boardW').addEventListener('change', e=>{ const w=+e.target.value; if(!(w>0)) return; const r=S.board.d/S.board.w; S.board.w=w; if(S.board.kind==='image') S.board.d=+(w*r).toFixed(2); buildBoard(); });
+P('#boardD').addEventListener('change', e=>{ const d=+e.target.value; if(!(d>0)) return; S.board.d=d; buildBoard(); });
+P('#gridOn').addEventListener('change', e=>{ S.grid.on=e.target.checked; buildGrid(); save(); });
+P('#gridStep').addEventListener('change', e=>{ S.grid.step=+e.target.value||1; buildGrid(); save(); });
+P('#boardPic').addEventListener('click', ()=>P('#fPic').click());
+P('#fPic').addEventListener('change', async e=>{ const f=e.target.files[0]; e.target.value=''; if(!f) return; if(!LIB){ PW().alert('Open Maestro inside GLB Studio to keep boards in the Studio Library.'); return; }
+  const img=await createImageBitmap(f); const w=40, d=+(40*img.height/img.width).toFixed(2);
+  const id=await LIB.addModel({name:f.name.replace(/\.[^.]+$/,''), skeleton:'board', glb:f, meta:{kind:'image', w, d, units:'units'}});
+  S.board={kind:'image', libId:id, w, d, units:'units'}; await refreshBoardSel(); await buildBoard(); hud('🖼 Picture board added — set its real size (e.g. 120 × 53.3 for a football field in yards)', 6000); });
+P('#boardGlb').addEventListener('click', ()=>P('#fGlb').click());
+P('#fGlb').addEventListener('change', async e=>{ const f=e.target.files[0]; e.target.value=''; if(!f||!LIB) return;
+  const id=await LIB.addModel({name:f.name.replace(/\.[^.]+$/,''), skeleton:'board', glb:f, meta:{kind:'glb'}}); S.board={kind:'glb', libId:id}; await refreshBoardSel(); await buildBoard(); });
+// 🎲 PULL FROM TABLETOP: ask the open Tabletop tab (same origin, a sibling iframe in the Studio) for its current board; the same
+// board pulled twice is reused instead of stored again. Without an open Tabletop → the board most recently sent from it.
+P('#boardTT').addEventListener('click', async ()=>{ if(!LIB) return; const btn=P('#boardTT'), was=btn.textContent; btn.disabled=true; btn.textContent='🎲 Pulling …';
+  try{ let fn=null; try{ for(const fr of window.parent.document.querySelectorAll('iframe')){ if(/\/tabletop\//.test(fr.src) && fr.contentWindow && fr.contentWindow.__ksolTabletopBoard){ fn=fr.contentWindow.__ksolTabletopBoard; break; } } }catch(e){}
+    const bs=(await LIB.listModels()).filter(m=>m.skeleton==='board' && m.meta && m.meta.from==='tabletop');
+    if(fn){ const B=await fn(); if(B){ const same=bs.find(m=>m.meta.board===B.meta.board); const id= same ? same.id : await LIB.addModel({name:B.name, skeleton:'board', glb:B.blob, meta:B.meta});
+        S.board={kind:'glb', libId:id}; await refreshBoardSel(); await buildBoard(); hud('🎲 Board pulled from the Tabletop', 3500); return; } }
+    if(!bs.length){ PW().alert('No Tabletop board yet.\n\nOpen 🎲 Tabletop → 🛠 Build a Board, build or generate a map, then press 🎲 Pull from Tabletop here.'); return; }
+    if(fn) hud('The Tabletop has no board open — using the one last sent from it', 5000);
+    S.board={kind:'glb', libId:bs[0].id}; await refreshBoardSel(); await buildBoard();
+  }catch(e){ console.warn(e); PW().alert('Could not pull the board: '+(e.message||e)); } finally{ btn.disabled=false; btn.textContent=was; } });
+
+// ---------------------------------------------------------------- UI: pieces
+// the SAME characters 🎬 Stitch offers: rigged Studio Library characters + the samples (their motions are picked + fitted on add),
+// clip chains already made for Maestro, and AI props
+const MV_SAMPLES=[{file:'Man (animated hands).glb', name:'Man — animated hands'},{file:'Woman (animated hands).glb', name:'Woman — animated hands'},{file:'Human (biped).glb', name:'Human'},{file:'Dog (quadruped).glb', name:'Dog'}];
+async function refreshCharSel(){
+  const sel=P('#charSel'), keep=sel.value; sel.innerHTML=''; if(!LIB){ sel.innerHTML='<option value="">(open inside GLB Studio)</option>'; return; }
+  try{ await LIB.ready; const ms=await LIB.listModels(); const chars=ms.filter(m=>m.skeleton==='mapchar'), props=ms.filter(m=>m.skeleton==='prop');
+    const rigged=ms.filter(m=>!['prop','unrigged','mapchar','board'].includes(m.skeleton));
+    const add=(label,arr,kind)=>{ if(!arr.length) return; const og=document.createElement('optgroup'); og.label=label; for(const m of arr){ const o=document.createElement('option'); o.value=kind+':'+m.id; o.textContent=m.name; og.appendChild(o); } sel.appendChild(og); };
+    add('Your characters (Studio Library)', rigged, 'rig');
+    add('Sample characters', MV_SAMPLES.map(s=>({id:s.file, name:s.name})), 'sample');
+    let pk=null; try{ pk=JSON.parse(localStorage.getItem('studio.packChars')||'null'); }catch(e){}
+    if(Array.isArray(pk) && pk.length) add('Characters from your packs', pk.map(e=>({id:encodeURIComponent(e.packId)+'|'+encodeURIComponent(e.name), name:(e.icon?e.icon+' ':'')+e.name})), 'pack');
+    else if(!pk && !refreshCharSel._asked){ refreshCharSel._asked=true; setTimeout(fetchPackChars, 500); }
+    add('Ready clip chains (from 🎬 Stitch)', chars, 'char'); add('Props (🪄 AI models)', props, 'prop');
+    if(keep && [...sel.options].some(o=>o.value===keep)) sel.value=keep;
+    if(!sel.options.length){ const o=document.createElement('option'); o.value=''; o.textContent='— none yet: 🎬 Stitch → 🎼 Send to Maestro —'; sel.appendChild(o); }
+  }catch(e){} }
+P('#refreshLib').addEventListener('click', ()=>{ refreshCharSel(); refreshBoardSel(); });
+P('#addTok').addEventListener('click', async ()=>{ const shape=P('#tokShape').value, lbl=P('#tokLabel').value;
+  const p=newPiece('token',{shape, color:P('#tokColor').value, label:lbl, name:(shape==='ball'?'Ball':(lbl?lbl+' ':'')+({circle:'●',x:'✕',o:'◯',triangle:'▲',square:'■'}[shape]||''))});
+  S.pieces.push(p); await makeRuntime(p); const n=parseInt(lbl); if(!isNaN(n)) P('#tokLabel').value=String(n+1); select(p.id); afterEdit(); });
+P('#addChar').addEventListener('click', async ()=>{ const v=P('#charSel').value; if(!v){ PW().alert('No character yet.\n\nIn 🎬 Stitch, build a character\'s clip chain and press “🎼 Send to Maestro” — or load an animated .glb / .fbx here.'); return; }
+  const i=v.indexOf(':'), kind=v.slice(0,i), id=v.slice(i+1), label=P('#charSel').selectedOptions[0].textContent;
+  if(kind==='rig' || kind==='sample'){ openMotionPicker(kind==='rig'?{libId:id}:{sample:id}, label); return; }
+  if(kind==='pack'){ const [pid,nm]=id.split('|').map(decodeURIComponent); openMotionPicker({pack:{packId:pid, name:nm}}, label.replace(/^\S+\s(?=\S)/, m=>/\p{Extended_Pictographic}/u.test(m)?'':m)); return; }
+  const p=newPiece(kind==='prop'?'prop':'char',{libId:id, name:label.replace(/\s*—.*$/,'')}); S.pieces.push(p); hud('Loading '+p.name+' …'); await makeRuntime(p); hud(); select(p.id); afterEdit(); });
+
+// ---------------------------------------------------------------- motion picker: a HIDDEN 🎬 Stitch page fits the motions onto the character
+// the pack-character list is saved by 🎬 Stitch whenever it loads packs; if it never has on this computer, ask a hidden Stitch once
+async function fetchPackChars(){ if(fetchPackChars._busy) return; fetchPackChars._busy=true;
+  const fr=document.createElement('iframe'); fr.style.cssText='position:fixed;left:-4000px;top:0;width:400px;height:300px;border:0;opacity:0;pointer-events:none'; fr.src='../glb-stitcher/index.html?mapworker=1&b='+Date.now(); document.body.appendChild(fr);
+  try{ for(let i=0;i<300;i++){ await new Promise(r=>setTimeout(r,100)); try{ if(fr.contentWindow.__ksolMapWorker) break; }catch(e){} }
+    const W=fr.contentWindow.__ksolMapWorker; if(W){ const list=await W.packChars(); try{ localStorage.setItem('studio.packChars', JSON.stringify(list)); }catch(e){} if(list.length) await refreshCharSel(); } }
+  catch(e){ console.warn('[mapview] pack characters', e); } finally{ fr.remove(); fetchPackChars._busy=false; } }
+P('#refreshLib').addEventListener('click', ()=>{ fetchPackChars(); });
+let mcWorker=null, mcSrc=null, mcName='', mcMotions=[], mcTicked=new Set(), mcCat='', mcEdit=null, mcOld=[];
+// 🎬 ADD MOTIONS to a character already on the map: the picker opens with its current motions ticked; the rebuilt character keeps
+// them FIRST (same order → same clip numbers), new ones follow; the piece's path, stops and legs stay and its clip picks are re-mapped.
+function addMotionsFor(p){ const rt=RT.get(p.id)||{}, base=rt.meta&&rt.meta.base;
+  if(!base){ PW().alert('“'+p.name+'” came ready-made (from 🎬 Stitch or a file), so Maestro can\'t fit new motions onto it.\n\nAdd it again from the Character list (your characters / samples / packs) with the motions you want — or add the motions in 🎬 Stitch and send it again.'); return; }
+  openMotionPicker(base, p.name, p); }
+P('#addMotions').addEventListener('click', ()=>{ const p=selP(); if(p) addMotionsFor(p); });
+function mcClose(){ document.getElementById('mcPick').classList.remove('show'); if(mcWorker){ mcWorker.remove(); mcWorker=null; } }
+async function mcNewWorker(){ if(mcWorker) mcWorker.remove();
+  const fr=document.createElement('iframe'); fr.title='motion fitting'; fr.style.cssText='position:fixed;left:-4000px;top:0;width:800px;height:600px;border:0;opacity:0;pointer-events:none';
+  fr.src='../glb-stitcher/index.html?mapworker=1&b='+Date.now(); document.body.appendChild(fr); mcWorker=fr;
+  for(let i=0;i<300;i++){ await new Promise(r=>setTimeout(r,100)); try{ if(fr.contentWindow.__ksolMapWorker) break; }catch(e){} }
+  const W=fr.contentWindow.__ksolMapWorker; if(!W) throw new Error('🎬 Stitch did not start'); if(!await W.ready()) throw new Error('the motion library did not load'); return W; }
+async function openMotionPicker(src, label, editPiece){
+  mcSrc=src; mcName=label.replace(/\s*—.*$/,''); mcTicked=new Set(); mcCat=''; mcEdit=editPiece?editPiece.id:null; mcOld=[]; const box=document.getElementById('mcPick'); box.classList.add('show');
+  document.getElementById('mcGo').textContent = editPiece ? '✔ Update '+mcName : '＋ Add to the map';
+  document.getElementById('mcTitle').textContent='🎬 Motions for '+label; document.getElementById('mcList').innerHTML='<div class="hint">Loading the character and its motion library …</div>'; document.getElementById('mcCats').innerHTML=''; document.getElementById('mcStatus').textContent='';
+  try{ const W=await mcNewWorker(); mcMotions=await W.loadChar(src);
+    const pick=re=>{ const m=mcMotions.find(x=>re.test(x.name)); if(m) mcTicked.add(m.id); };
+    if(mcEdit){ const p=S.pieces.find(q=>q.id===mcEdit), rt=RT.get(mcEdit)||{}; const strip=n=>String(n).replace(/^\d+_/,'');
+      mcOld = (rt.meta&&Array.isArray(rt.meta.motionIds)) ? rt.meta.motionIds.filter(id=>mcMotions.some(m=>m.id===id))
+            : (rt.clipNames||[]).filter(n=>n!=='Sequence').map(n=>(mcMotions.find(m=>m.name===strip(n))||{}).id).filter(Boolean);
+      mcOld.forEach(id=>mcTicked.add(id)); document.getElementById('mcHint').textContent='Her current motions are ticked — tick the new ones (a spell, a wave, a throw …). Her path, stops and legs are kept.'; }
+    else { pick(/^(relaxed )?idle/i); pick(/^(easy stroll|brisk walk|walk)/i); pick(/^(steady jog|jog|run)/i); }
+    mcRender(); }catch(e){ console.warn(e); document.getElementById('mcList').innerHTML='<div class="hint">⚠ '+esc(e.message||e)+'</div>'; } }
+function mcRender(){ const q=document.getElementById('mcSearch').value.trim().toLowerCase(); const cats=[...new Set(mcMotions.map(m=>m.cat||'Other'))].sort();
+  document.getElementById('mcCats').innerHTML=['',...cats].map(c=>`<button class="btn sm${c===mcCat?' on':''}" data-c="${esc(c)}">${c?esc(c):'All'}</button>`).join('');
+  document.querySelectorAll('#mcCats [data-c]').forEach(b=>b.onclick=()=>{ mcCat=b.dataset.c; mcRender(); });
+  const list=mcMotions.filter(m=>(!mcCat||(m.cat||'Other')===mcCat) && (!q||m.name.toLowerCase().includes(q)));
+  document.getElementById('mcList').innerHTML=list.map(m=>`<label><input type="checkbox" data-id="${esc(m.id)}"${mcTicked.has(m.id)?' checked':''}> ${esc(m.name)}</label>`).join('')||'<div class="hint">No motions match.</div>';
+  document.querySelectorAll('#mcList input').forEach(i=>i.onchange=()=>{ if(i.checked) mcTicked.add(i.dataset.id); else mcTicked.delete(i.dataset.id); document.getElementById('mcCount').textContent=mcTicked.size+' ticked'; });
+  document.getElementById('mcCount').textContent=mcTicked.size+' ticked'; }
+document.getElementById('mcSearch').addEventListener('input', mcRender);
+document.getElementById('mcX').addEventListener('click', mcClose); document.getElementById('mcCancel').addEventListener('click', mcClose);
+document.getElementById('mcGo').addEventListener('click', async ()=>{ if(!mcTicked.size){ document.getElementById('mcStatus').textContent='Tick at least one motion.'; return; }
+  const go=document.getElementById('mcGo'); go.disabled=true; const st=document.getElementById('mcStatus');
+  try{ st.textContent='Fitting '+mcTicked.size+' motion'+(mcTicked.size===1?'':'s')+' onto '+mcName+' …';
+    const order = mcEdit ? mcOld.filter(id=>mcTicked.has(id)).concat(mcMotions.filter(m=>mcTicked.has(m.id) && !mcOld.includes(m.id)).map(m=>m.id))
+                         : mcMotions.filter(m=>mcTicked.has(m.id)).map(m=>m.id);
+    const W=mcWorker.contentWindow.__ksolMapWorker; const R=await W.build(order); if(!R) throw new Error('nothing was built');
+    const id=await LIB.addModel({name:mcName+' — Maestro ('+order.length+' motion'+(order.length===1?'':'s')+')', skeleton:'mapchar', glb:R.blob, meta:Object.assign(R.meta,{from:'mapview', base:mcSrc, motionIds:order})});
+    const editId=mcEdit; mcClose(); await refreshCharSel();
+    if(editId){ const p=S.pieces.find(q=>q.id===editId); if(p){ const strip=n=>n?String(n).replace(/^\d+_/,''):n;
+        const was={A:strip(p.clipA), B:strip(p.clipB), legs:(p.legs||[]).map(L=>L&&strip(L.clip)), stops:(p.path||[]).map(q=>strip(q.clip))};
+        p.libId=id; hud('Updating '+p.name+' …'); await makeRuntime(p); const rt=RT.get(p.id)||{}, names=rt.clipNames||[];
+        const back=n=>n ? (names.find(x=>strip(x)===n)||undefined) : undefined;
+        p.clipA=back(was.A)||p.clipA; p.clipB=back(was.B)||p.clipB;
+        (p.legs||[]).forEach((L,i)=>{ if(L) L.clip=back(was.legs[i]); }); (p.path||[]).forEach((q,i)=>{ q.clip=back(was.stops[i]); });
+        hud('🎬 '+p.name+' now has '+order.length+' motions — pick them in 🧩 Node chain', 6000); select(p.id); renderSel(); renderNodes(); afterEdit(); }
+      return; }
+    const p=newPiece('char',{libId:id, name:mcName}); S.pieces.push(p); hud('Loading '+p.name+' …'); await makeRuntime(p);
+    const rt=RT.get(p.id); if(rt && rt.clipNames && rt.clipNames.length>1){ p.mode='states'; p._modeSet=true;
+      const find=re=>rt.clipNames.find(n=>re.test(n)); p.clipA=find(/walk|stroll|stride|jog|run/i)||p.clipA; p.clipB=find(/idle|stand|breath/i)||p.clipB; }
+    hud('🎬 '+p.name+' added — ✏ draw its path, 🧩 pick a clip for each leg', 6000); select(p.id); setDrawing(p.id); afterEdit();
+  }catch(e){ console.warn(e); st.textContent='⚠ '+(e.message||e); } finally{ go.disabled=false; } });
+P('#impChar').addEventListener('click', ()=>P('#fChar').click());
+P('#fChar').addEventListener('change', async e=>{ const f=e.target.files[0]; e.target.value=''; if(!f||!LIB) return; const fbx=/\.fbx$/i.test(f.name);
+  const id=await LIB.addModel({name:f.name.replace(/\.[^.]+$/,''), skeleton:'mapchar', glb:f, meta:{from:'file', fbx}}); await refreshCharSel();
+  const p=newPiece('char',{libId:id, name:f.name.replace(/\.[^.]+$/,'')}); S.pieces.push(p); hud('Loading '+p.name+' …'); await makeRuntime(p); hud(); select(p.id); afterEdit(); });
+P('#dupPiece').addEventListener('click', async ()=>{ const p=S.pieces.find(q=>q.id===S.sel); if(!p) return; const c=JSON.parse(JSON.stringify(p)); c.id=uid(); c.name=p.name+' copy';
+  const off=p.size*1.5; c.path=c.path.map(q=>({...q, x:+(q.x+off).toFixed(2)})); S.pieces.push(c); await makeRuntime(c); select(c.id); afterEdit(); });
+P('#delPiece').addEventListener('click', ()=>{ const i=S.pieces.findIndex(q=>q.id===S.sel); if(i<0) return; const rt=RT.get(S.sel); if(rt) pieceGroup.remove(rt.holder); RT.delete(S.sel); S.pieces.splice(i,1); select(null); afterEdit(); });
+function renderList(){ const L=P('#pieceList'); L.innerHTML='';
+  if(!S.pieces.length){ L.innerHTML='<div class="hint">No pieces yet — add a token or a character.</div>'; return; }
+  S.pieces.forEach(p=>{ const d=document.createElement('div'); d.className='it'+(p.id===S.sel?' sel':'');
+    d.innerHTML=`<input type="checkbox" ${p.on?'checked':''} title="On / off"><span class="dot" style="background:${esc(p.color)}"></span><span class="nm">${esc(p.name)}</span><span class="pill">${p.kind==='token'?'token':p.kind==='prop'?'prop':'char'}</span><span class="pill">${(p.path||[]).length} stop${(p.path||[]).length===1?'':'s'}</span>`;
+    d.querySelector('input').addEventListener('click', e=>{ e.stopPropagation(); p.on=e.target.checked; placeRuntime(p); afterEdit(); });
+    d.addEventListener('click', ()=>select(p.id)); L.appendChild(d); }); }
+function select(id){ S.sel=id; if(drawing && drawing!==id) setDrawing(null); renderList(); renderSel(); drawRoutes(); renderNodes(); }
+
+// ---------------------------------------------------------------- UI: selected piece
+function renderSel(){ const p=S.pieces.find(q=>q.id===S.sel); P('#selNone').style.display=p?'none':''; P('#selBox').style.display=p?'':'none'; if(!p) return;
+  const rt=RT.get(p.id)||{};
+  P('#pName').value=p.name; P('#pOn').checked=p.on; P('#pSize').value=p.size; P('#pSizeN').value=p.size; P('#pColor').value=p.color; P('#pLabel').value=p.label||''; P('#pLabel').style.display=p.kind==='token'?'':'none';
+  const hasAnim=!!rt.mixer; P('#animBox').style.display=hasAnim?'':'none'; P('#addMotions').style.display = p.kind==='char' ? '' : 'none';
+  if(hasAnim){ const opts=rt.clipNames.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join(''); P('#pClipA').innerHTML=opts; P('#pClipB').innerHTML=opts;
+    P('#pMode').value=p.mode; P('#pClipA').value=p.clipA; P('#pClipB').value=p.clipB; P('#clipBRow').style.display=p.mode==='states'?'':'none';
+    P('#clipALbl').textContent=p.mode==='states'?'Walk clip':'Clip'; P('#pLoopA').checked=!!p.loopA; P('#pLoopA').parentNode.style.display=p.mode==='chain'?'':'none';
+    P('#pInPlace').checked=!!p.inPlace; P('#pSound').checked=!!p.sound; P('#pVol').value=p.vol; P('#pSound').parentNode.style.display=rt.sounds&&rt.sounds.length?'':'none'; }
+  P('#pDelay').value=p.delay; P('#pSpeed').value=p.speed; P('#pFace').checked=!!p.face; P('#pYaw').value=p.yaw; P('#pYawV').textContent=p.yaw+'°';
+  P('#pSfxName').textContent=p.sfx?p.sfx.name:'none'; P('#pSfxAt').value=p.sfxAt||'start'; P('#sfxAtRow').style.display=p.sfx?'':'none';
+  P('#drawPath').classList.toggle('on', drawing===p.id); P('#drawPath').textContent=drawing===p.id?'✔ Done drawing':'✏ Draw path';
+  renderWaypoints(p); }
+function renderWaypoints(p){ const box=P('#wpList'); box.innerHTML='';
+  if(!(p.path||[]).length) return; const {segs}=schedule(p);
+  box.insertAdjacentHTML('beforeend','<div class="wp hint"><span>#</span><span>position (x, z)</span><span>wait s</span><span></span></div>');
+  p.path.forEach((q,i)=>{ const arr=segs.find(s=>s.type==='move' && s.i===i-1); const row=document.createElement('div'); row.className='wp';
+    row.innerHTML=`<span class="pill">${i===0?'start':i}</span><span class="hint">${q.x.toFixed(1)}, ${q.z.toFixed(1)}${arr?` · at ${arr.t1.toFixed(1)}s`:''}</span><input type="number" min="0" step="0.1" value="${q.wait||0}"><button class="btn sm" title="Remove this stop">✕</button>`;
+    row.querySelector('input').addEventListener('change', e=>{ q.wait=Math.max(0,+e.target.value||0); afterEdit(); renderWaypoints(p); });
+    row.querySelector('button').addEventListener('click', ()=>{ removeStop(p,i); }); box.appendChild(row); }); }
+function removeStop(p,i){ p.path.splice(i,1); if(p.legs){ p.legs.splice(Math.max(0,i-(i===p.path.length?1:0)),1); } afterEdit(); renderSel(); drawRoutes(); renderNodes(); }
+function splitLeg(p,i){ const a=p.path[i], b=p.path[i+1]; if(!a||!b) return; p.path.splice(i+1,0,{x:+((a.x+b.x)/2).toFixed(2), z:+((a.z+b.z)/2).toFixed(2), wait:0});
+  p.legs=p.legs||[]; const L=p.legs[i]; p.legs.splice(i+1,0, L?{clip:L.clip, speed:L.speed}:undefined); afterEdit(); renderSel(); drawRoutes(); renderNodes(); }
+const selP=()=>S.pieces.find(q=>q.id===S.sel);
+const bind=(sel, ev, fn)=>P(sel).addEventListener(ev, e=>{ const p=selP(); if(!p) return; fn(p,e.target,e); afterEdit(); });
+bind('#pName','input',(p,t)=>{ p.name=t.value; renderList(); refreshTag(p); });
+bind('#pOn','change',(p,t)=>{ p.on=t.checked; placeRuntime(p); renderList(); });
+bind('#pSize','input',(p,t)=>{ p.size=+t.value; P('#pSizeN').value=p.size; placeRuntime(p); drawRoutes(); });
+P('#namesMode').addEventListener('change', e=>{ S.names=e.target.value; for(const p of S.pieces) refreshTag(p); syncNamesTog(); save(); });
+// 🏷 one-click name tags on/off on the map itself (remembers Characters / Everything for when they come back)
+function syncNamesTog(){ const b=document.getElementById('namesTog'); if(b){ b.textContent='🏷 Names: '+(S.names==='off'?'off':'on'); b.classList.toggle('on', S.names!=='off'); } }
+document.getElementById('namesTog').addEventListener('click', ()=>{ if(S.names==='off') S.names=S._namesBack||'chars'; else { S._namesBack=S.names; S.names='off'; } P('#namesMode').value=S.names; for(const p of S.pieces) refreshTag(p); syncNamesTog(); save(); });
+bind('#pSizeN','change',(p,t)=>{ p.size=Math.max(0.05,+t.value||p.size); P('#pSize').value=p.size; placeRuntime(p); drawRoutes(); });
+bind('#pColor','input',async (p,t)=>{ p.color=t.value; if(p.kind==='token') await makeRuntime(p); else refreshTag(p); renderList(); drawRoutes(); });
+bind('#pLabel','change',async (p,t)=>{ p.label=t.value; if(p.kind==='token') await makeRuntime(p); });
+bind('#pMode','change',(p,t)=>{ p.mode=t.value; p._modeSet=true; renderSel(); });
+bind('#pClipA','change',(p,t)=>{ p.clipA=t.value; });
+bind('#pClipB','change',(p,t)=>{ p.clipB=t.value; });
+bind('#pLoopA','change',(p,t)=>{ p.loopA=t.checked; });
+bind('#pInPlace','change',(p,t)=>{ p.inPlace=t.checked; const rt=RT.get(p.id); if(rt) buildActions(p,rt); });
+bind('#pSound','change',(p,t)=>{ p.sound=t.checked; });
+bind('#pVol','input',(p,t)=>{ p.vol=+t.value; });
+bind('#pDelay','change',(p,t)=>{ p.delay=Math.max(0,+t.value||0); renderWaypoints(p); });
+bind('#pSpeed','change',(p,t)=>{ p.speed=Math.max(0.05,+t.value||p.speed); renderWaypoints(p); });
+bind('#pFace','change',(p,t)=>{ p.face=t.checked; });
+bind('#pYaw','input',(p,t)=>{ p.yaw=+t.value; P('#pYawV').textContent=p.yaw+'°'; });
+bind('#pSfxAt','change',(p,t)=>{ p.sfxAt=t.value; });
+P('#pSfxBtn').addEventListener('click', ()=>{ audioTarget='piece'; P('#fAudio').click(); });
+P('#clearPath').addEventListener('click', ()=>{ const p=selP(); if(!p) return; p.path=p.path.slice(0,1); p.legs=[]; afterEdit(); renderSel(); drawRoutes(); renderNodes(); });
+P('#drawPath').addEventListener('click', ()=>{ const p=selP(); if(!p) return; setDrawing(drawing===p.id?null:p.id); });
+let drawing=null;
+function setDrawing(id){ drawing=id; hud(id?'✏ Click the map to add stops · drag dots to move them · Esc when done':null); renderSel(); drawRoutes(); }
+
+// ---------------------------------------------------------------- 🧩 mini node stitcher (per piece)
+const nodePop=document.getElementById('nodePop'), npRow=document.getElementById('npRow');
+function openNodes(){ const p=selP(); if(!p) return; const rt=RT.get(p.id)||{};
+  if(rt.mixer && p.mode!=='states'){ p.mode='states'; p._modeSet=true; renderSel(); save(); }
+  nodePop.classList.add('show'); renderNodes(); }
+P('#openNodes').addEventListener('click', openNodes);
+document.getElementById('npClose').addEventListener('click', ()=>nodePop.classList.remove('show'));
+function renderNodes(){ if(!nodePop.classList.contains('show')) return; const p=selP(); if(!p){ nodePop.classList.remove('show'); return; }
+  const rt=RT.get(p.id)||{}, clips=rt.clipNames||[], anim=!!rt.mixer; const {segs}=schedule(p); p.legs=p.legs||[];
+  document.getElementById('npTitle').textContent='🧩 '+(p.name||'Piece')+' — node chain';
+  const opt=(sel,def)=>`<option value="">${def}</option>`+clips.map(n=>`<option value="${esc(n)}"${n===sel?' selected':''}>${esc(n)}</option>`).join('')+(p.kind==='char'?'<option value="__more">＋ Add motions…</option>':'');
+  const sndBtn=(ref,kind,i)=>`<div class="r"><span>Sound</span><button class="btn sm" data-snd="${kind}:${i}">🔊</button><span class="hint" style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ref?esc(ref.name):'none'}</span>${ref?`<button class="btn sm" data-sndx="${kind}:${i}" title="Remove the sound">✕</button>`:''}</div>`;
+  let h=''; const pts=p.path||[];
+  pts.forEach((q,i)=>{ const w=segs.find(s=>s.type==='wait'&&s.i===i), arr=i===0?(+p.delay||0):(segs.find(s=>s.type==='move'&&s.i===i-1)||{}).t1;
+    h+=`<div class="nd" data-node="s${i}"><div class="t">${i===0?'🏁 Start':'⏸ Stop '+i}<span class="d">${arr!=null?arr.toFixed(1)+'s':''}${w?' · '+(w.t1-w.t0).toFixed(1)+'s':''}</span></div>`;
+    if(i===0) h+=`<div class="r"><span>Starts</span><input type="number" min="0" step="0.1" value="${+p.delay||0}" data-f="delay"></div>`;
+    if(anim) h+=`<div class="r"><span>Clip</span><select data-f="sclip" data-i="${i}">${opt(q.clip||'', '(idle: '+(p.clipB||'—')+')')}</select></div><div class="r"><span>Plays</span><input type="number" min="0" step="1" value="${+q.loops||0}" data-f="loops" data-i="${i}" title="0 = loop for the whole wait"></div>`;
+    h+=`<div class="r"><span>Wait</span><input type="number" min="0" step="0.1" value="${+q.wait||0}" data-f="wait" data-i="${i}"> s</div>`+sndBtn(q.sfx,'s',i)+'</div>';
+    if(i<pts.length-1){ const L=p.legs[i]||{}, m=segs.find(s=>s.type==='move'&&s.i===i);
+      h+=`<div class="ar">→</div><div class="nd leg" data-node="l${i}"><div class="t">${(L.speed||p.speed)>(p.speed*1.5)?'🏃':'🚶'} to stop ${i+1}<span class="d">${m?(m.t1-m.t0).toFixed(1)+'s':''}</span></div>`;
+      if(anim) h+=`<div class="r"><span>Clip</span><select data-f="lclip" data-i="${i}">${opt(L.clip||'', '(walk: '+(p.clipA||'—')+')')}</select></div>`;
+      h+=`<div class="r"><span>Speed</span><input type="number" min="0.05" step="0.1" value="${L.speed||''}" placeholder="${p.speed}" data-f="speed" data-i="${i}"></div>`+sndBtn(L.sfx,'l',i)+
+        `<button class="btn sm" data-split="${i}" title="Add a stop halfway along this leg">✚ stop halfway</button></div><div class="ar">→</div>`; } });
+  if(pts.length<2) h+=`<div class="hint" style="align-self:center;padding:0 10px">✏ Draw a path (menu → 3 · Selected piece) — each leg and stop becomes a node here.</div>`;
+  npRow.innerHTML=h;
+  npRow.querySelectorAll('[data-f]').forEach(el=>el.addEventListener('change', ()=>{ const i=+el.dataset.i, f=el.dataset.f, v=el.value;
+    if(v==='__more'){ renderNodes(); addMotionsFor(p); return; }
+    if(f==='delay') p.delay=Math.max(0,+v||0);
+    else if(f==='wait') p.path[i].wait=Math.max(0,+v||0);
+    else if(f==='loops') p.path[i].loops=Math.max(0,Math.round(+v||0));
+    else if(f==='sclip') p.path[i].clip=v||undefined;
+    else if(f==='lclip'){ p.legs[i]=Object.assign({},p.legs[i],{clip:v||undefined}); }
+    else if(f==='speed'){ p.legs[i]=Object.assign({},p.legs[i],{speed:+v>0?+v:undefined}); }
+    afterEdit(); renderSel(); renderNodes(); }));
+  npRow.querySelectorAll('[data-snd]').forEach(b=>b.addEventListener('click', ()=>{ const [k,i]=b.dataset.snd.split(':'); audioTarget={node:k==='l'?'leg':'stop', i:+i, pid:p.id}; P('#fAudio').click(); }));
+  npRow.querySelectorAll('[data-sndx]').forEach(b=>b.addEventListener('click', ()=>{ const [k,i]=b.dataset.sndx.split(':'); if(k==='l'){ if(p.legs[+i]) delete p.legs[+i].sfx; } else delete p.path[+i].sfx; afterEdit(); renderNodes(); }));
+  npRow.querySelectorAll('[data-split]').forEach(b=>b.addEventListener('click', ()=>splitLeg(p,+b.dataset.split)));
+}
+function liveNode(){ if(!nodePop.classList.contains('show')) return; const p=selP(); if(!p) return; const st=stateAt(p,T), sg=st.seg;
+  const id = !sg ? 's0' : sg.type==='move' ? (T<sg.t1?'l'+sg.i:'s'+(sg.i+1)) : 's'+sg.i;
+  npRow.querySelectorAll('.nd').forEach(n=>n.classList.toggle('live', n.dataset.node===id)); }
+
+// ---------------------------------------------------------------- 🏈 formations (tokens placed as a team, facing the way it plays)
+// Football: x along the field (centre 0 = the 50), z across; a team attacking → stands at x = LOS − depth. Offense depth <0 = behind the ball.
+const FORMS={
+  football:[
+    {id:'iform', name:'Offense · I-formation', o:1, p:[['LT',0,-2.6],['LG',0,-1.3],['C',0,0],['RG',0,1.3],['RT',0,2.6],['TE',0,3.9],['QB',-1,0],['FB',-4,0],['RB',-7,0],['X',-0.6,-20],['Z',-1,18]]},
+    {id:'shotgun', name:'Offense · Shotgun', o:1, p:[['LT',0,-2.6],['LG',0,-1.3],['C',0,0],['RG',0,1.3],['RT',0,2.6],['TE',-0.6,3.9],['QB',-5,0],['RB',-5,1.6],['X',-0.6,-20],['SL',-1,-12],['Z',-1,18]]},
+    {id:'spread', name:'Offense · Spread (4 wide)', o:1, p:[['LT',0,-2.6],['LG',0,-1.3],['C',0,0],['RG',0,1.3],['RT',0,2.6],['QB',-5,0],['RB',-5,-1.6],['X',-0.6,-22],['H',-1,-14],['Y',-1,14],['Z',-0.6,22]]},
+    {id:'pro', name:'Offense · Pro set (split backs)', o:1, p:[['LT',0,-2.6],['LG',0,-1.3],['C',0,0],['RG',0,1.3],['RT',0,2.6],['TE',0,3.9],['QB',-1,0],['HB',-5,-2],['FB',-5,2],['X',-0.6,-20],['Z',-1,18]]},
+    {id:'single', name:'Offense · Singleback', o:1, p:[['LT',0,-2.6],['LG',0,-1.3],['C',0,0],['RG',0,1.3],['RT',0,2.6],['TE',0,3.9],['QB',-1,0],['RB',-6,0],['X',-0.6,-20],['SL',-1,-11],['Z',-1,18]]},
+    {id:'d43', name:'Defense · 4-3', o:0, p:[['DE',1,-3.6],['DT',1,-1],['DT',1,1],['DE',1,3.6],['WLB',4.5,-4],['MLB',4.5,0],['SLB',4.5,4],['CB',7,-20],['CB',7,18],['FS',12,-7],['SS',11,7]]},
+    {id:'d34', name:'Defense · 3-4', o:0, p:[['DE',1,-2.8],['NT',1,0],['DE',1,2.8],['OLB',3.5,-5.5],['ILB',4.5,-1.6],['ILB',4.5,1.6],['OLB',3.5,5.5],['CB',7,-20],['CB',7,18],['FS',12,-7],['SS',11,7]]},
+    {id:'nickel', name:'Defense · Nickel (4-2-5)', o:0, p:[['DE',1,-3.6],['DT',1,-1],['DT',1,1],['DE',1,3.6],['LB',4.5,-2],['LB',4.5,2],['CB',7,-20],['NB',5,-11],['CB',7,18],['FS',12,-7],['SS',11,7]]},
+  ],
+  soccer:[
+    {id:'442', name:'4-4-2', p:[['GK',-50,0],['LB',-35,-22],['CB',-37,-7],['CB',-37,7],['RB',-35,22],['LM',-18,-24],['CM',-20,-7],['CM',-20,7],['RM',-18,24],['ST',-4,-7],['ST',-4,7]]},
+    {id:'433', name:'4-3-3', p:[['GK',-50,0],['LB',-35,-22],['CB',-37,-7],['CB',-37,7],['RB',-35,22],['CM',-22,-12],['CM',-24,0],['CM',-22,12],['LW',-6,-22],['ST',-4,0],['RW',-6,22]]},
+    {id:'352', name:'3-5-2', p:[['GK',-50,0],['CB',-37,-12],['CB',-38,0],['CB',-37,12],['LWB',-22,-28],['CM',-22,-9],['CDM',-26,0],['CM',-22,9],['RWB',-22,28],['ST',-4,-7],['ST',-4,7]]},
+  ],
+  basketball:[
+    {id:'5out', name:'Offense · 5-out', p:[['PG',3,0],['SG',6.5,-5.5],['SF',6.5,5.5],['PF',11.8,-6.4],['C',11.8,6.4]]},
+    {id:'4out', name:'Offense · 4-out 1-in', p:[['PG',3,0],['SG',6.5,-5.5],['SF',6.5,5.5],['PF',11.8,-6.4],['C',11,1.8]]},
+    {id:'z23', name:'Defense · 2-3 zone', p:[['G',7.6,-2.4],['G',7.6,2.4],['F',11.2,-4.8],['C',11.8,0],['F',11.2,4.8]], def:1},
+  ],
+};
+function formList(){ return FORMS[S.board.kind==='preset'?S.board.preset:''] || []; }
+function refreshForms(){ const L=formList(), box=P('#formBox'); box.style.display=L.length?'':'none'; if(!L.length) return;
+  P('#formSel').innerHTML=L.map(f=>`<option value="${f.id}">${f.name}</option>`).join(''); const fb=S.board.preset==='football'; P('#formLos').style.display=fb?'':'none'; P('#losLbl').style.display=fb?'':'none'; }
+P('#formSel').addEventListener('change', e=>{ const f=formList().find(x=>x.id===e.target.value); if(f && S.board.preset==='football'){ P('#formColor').value = f.o? '#3c7be8' : '#e8453c'; P('#formSide').value = f.o? '1' : '-1'; } });
+P('#addForm').addEventListener('click', async ()=>{ const f=formList().find(x=>x.id===P('#formSel').value); if(!f) return;
+  const dir=+P('#formSide').value||1, col=P('#formColor').value, fb=S.board.preset==='football';
+  const los = fb ? -50+clamp(+P('#formLos').value||25,1,99) : 0;          // one line for both teams, counted from the HOME goal line
+  const shape = fb ? (f.o?'o':'x') : (f.def?'x':'circle'); const sz = fb ? 1.25 : S.board.preset==='soccer' ? 2.4 : S.board.preset==='basketball' ? 1.0 : defaultSize('token');   // fits the real spacing (linemen ~1.3 yd apart)
+  const side = fb && !f.o ? -1 : 1;                                          // a defense lines up on the far side of the ball, facing it
+  for(const [lbl,dx,dz] of f.p){ const x = fb ? los+side*dir*dx : dir*dx, z = dir*dz;
+    const p=newPiece('token',{shape, color:col, label:lbl, name:lbl, size:sz, yaw:dir>0?90:-90, path:[{x:+x.toFixed(2), z:+z.toFixed(2), wait:0}]}); S.pieces.push(p); await makeRuntime(p); }
+  renderList(); afterEdit(); hud(`${f.name}: ${f.p.length} players added — select one and ✏ draw its route`, 5000); });
+
+// ---------------------------------------------------------------- UI: sound, camera, output, pin / pop-out
+let audioTarget='bg';
+P('#bgBtn').addEventListener('click', ()=>{ audioTarget='bg'; P('#fAudio').click(); });
+P('#fAudio').addEventListener('change', async e=>{ const f=e.target.files[0]; e.target.value=''; if(!f) return;
+  try{ const buf=await decodeFile(f); const id=await AUD.put(f.name, f); audCache.set(id, buf); const ref={id, name:f.name};
+    if(audioTarget==='bg'){ S.bg=ref; P('#bgName').textContent=f.name+` (${buf.duration.toFixed(1)} s)`; }
+    else if(audioTarget && audioTarget.node){ const p=S.pieces.find(q=>q.id===audioTarget.pid); if(!p) return; if(audioTarget.node==='leg'){ p.legs=p.legs||[]; p.legs[audioTarget.i]=Object.assign({}, p.legs[audioTarget.i], {sfx:ref}); } else { p.path[audioTarget.i].sfx=ref; } renderNodes(); }
+    else { const p=selP(); if(!p) return; p.sfx=ref; renderSel(); } save(); }catch(err){ console.warn(err); PW().alert('Could not read that sound file.'); } });
+P('#bgVol').addEventListener('input', e=>{ S.bgVol=+e.target.value; save(); });
+P('#fxVol').addEventListener('input', e=>{ S.fxVol=+e.target.value; save(); });
+PA('[data-cam]').forEach(b=>b.addEventListener('click', ()=>setCamMode(b.dataset.cam)));
+P('#camTilt').addEventListener('input', e=>{ S.cam.tilt=+e.target.value; if(S.cam.mode!=='top') fitCam(); save(); });
+P('#camFit').addEventListener('click', ()=>{ fitBox=null; fitCam(); save(); });
+P('#camFitP').addEventListener('click', ()=>{ fitPieces(); save(); });
+P('#routeMode').addEventListener('change', e=>{ S.routeMode=e.target.value; drawRoutes(); syncPathsTog(); save(); });
+// 〰 one-click paths on/off on the map (remembers "always" / "drawn as they're run" for when they come back)
+function syncPathsTog(){ const b=document.getElementById('pathsTog'); if(b){ b.textContent='〰 Paths: '+(S.routeMode==='off'?'off':'on'); b.classList.toggle('on', S.routeMode!=='off'); } }
+document.getElementById('pathsTog').addEventListener('click', ()=>{ if(S.routeMode==='off') S.routeMode=S._routesBack||'always'; else { S._routesBack=S.routeMode; S.routeMode='off'; }
+  P('#routeMode').value=S.routeMode; syncPathsTog(); drawRoutes(); syncPathsTog(); save(); });
+P('#shadowsOn').addEventListener('change', e=>{ S.shadows=e.target.checked; renderer.shadowMap.enabled=S.shadows; scene.traverse(o=>{ if(o.material) o.material.needsUpdate=true; }); save(); });
+P('#durN').addEventListener('change', e=>{ S.dur=+e.target.value>0?+e.target.value:null; save(); });
+P('#recRes').addEventListener('change', e=>{ S.rec.res=e.target.value; save(); });
+P('#recFps').addEventListener('change', e=>{ S.rec.fps=+e.target.value; save(); });
+const pinBtn=P('#pinBtn');
+pinBtn.addEventListener('click', ()=>{ const un=!document.body.classList.contains('unpinned'); document.body.classList.toggle('unpinned', un); document.body.classList.remove('panelOpen');
+  pinBtn.classList.toggle('on', !un); pinBtn.textContent=un?'📌 Pin':'📌 Pinned'; setTimeout(resize,200); try{ localStorage.setItem('mapview.unpinned', un?'1':''); }catch(e){} });
+document.getElementById('handle').addEventListener('click', ()=>document.body.classList.toggle('panelOpen'));
+viewEl.addEventListener('pointerdown', e=>{ if(e.target.id==='handle') return; if(document.body.classList.contains('unpinned')) document.body.classList.remove('panelOpen'); }, true);
+let popWin=null; const homeParent=panel.parentNode, homeNext=panel.nextSibling;
+P('#popBtn').addEventListener('click', ()=>{
+  if(popWin && !popWin.closed){ dockPanel(); return; }
+  const w=window.open('', 'ksolMapViewMenu', 'width=460,height=940'); if(!w){ alert('Your browser blocked the pop-up. Allow pop-ups for this page to put the menu on another screen.'); return; }
+  popWin=w; w.document.open(); w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Maestro — menu</title></head><body style="margin:0;background:#12161d"></body></html>'); w.document.close();
+  for(const st of document.querySelectorAll('style')) w.document.head.appendChild(w.document.importNode(st,true));
+  const extra=w.document.createElement('style'); extra.textContent='#panel{width:100% !important;max-width:none !important;resize:none;height:100vh;border:none;display:block !important;transform:none !important;position:static !important}'; w.document.head.appendChild(extra);
+  w.document.body.appendChild(w.document.adoptNode(panel)); document.body.classList.add('popped'); P('#popBtn').textContent='⧉ Dock'; setTimeout(resize,50);
+  w.addEventListener('keydown', onKey); w.addEventListener('pagehide', ()=>setTimeout(dockPanel,0));
+  const iv=setInterval(()=>{ if(!popWin || popWin.closed){ clearInterval(iv); dockPanel(); } },600); });
+function dockPanel(){ if(panel.ownerDocument!==document){ homeParent.insertBefore(document.adoptNode(panel), homeNext); }
+  document.body.classList.remove('popped'); P('#popBtn').textContent='⧉ Pop out'; const w=popWin; popWin=null; try{ if(w && !w.closed) w.close(); }catch(e){} setTimeout(resize,50); }
+addEventListener('beforeunload', ()=>{ try{ if(popWin && !popWin.closed) popWin.close(); }catch(e){} });
+
+// ---------------------------------------------------------------- transport
+const scrub=document.getElementById('scrub');
+document.getElementById('playBtn').addEventListener('click', ()=>{ ensureAudio(); setPlaying(!playing); });
+document.getElementById('stopBtn').addEventListener('click', ()=>{ setPlaying(false); T=0; });
+scrub.addEventListener('pointerdown', ()=>{ scrub._drag=true; if(playing) setPlaying(false); });
+scrub.addEventListener('pointerup', ()=>{ scrub._drag=false; });
+scrub.addEventListener('input', ()=>{ T=+scrub.value; });
+document.getElementById('loopPlay').addEventListener('change', e=>{ S.loopPlay=e.target.checked; save(); });
+function onKey(e){ const tag=(e.target&&e.target.tagName)||''; if(/INPUT|SELECT|TEXTAREA/.test(tag)) return;
+  if(e.code==='Space'){ e.preventDefault(); ensureAudio(); setPlaying(!playing); }
+  if(e.key==='Escape' && drawing) setDrawing(null);
+  if((e.key==='Delete'||e.key==='Backspace') && S.sel && !drawing){ P('#delPiece').click(); } }
+addEventListener('keydown', onKey);
+
+// ---------------------------------------------------------------- mouse on the map: select, draw stops, drag stops / pieces
+const ndc=new THREE.Vector2(), ray=new THREE.Raycaster(); let drag=null;
+function pick(e){ const r=cv.getBoundingClientRect(); ndc.set((e.clientX-r.left)/r.width*2-1, -((e.clientY-r.top)/r.height)*2+1); ray.setFromCamera(ndc,camera); }
+function boardPoint(){ const hits=boardMeshes.length?ray.intersectObjects(boardMeshes,false):[]; if(hits.length) return hits[0].point;
+  const pl=new THREE.Plane(new V3(0,1,0),0), pt=new V3(); return ray.ray.intersectPlane(pl,pt)?pt:null; }
+cv.addEventListener('pointerdown', e=>{ if(e.button!==0 || recording) return; pick(e);
+  const hh=ray.intersectObjects(handleGroup.children,false); if(hh.length){ drag={type:'wp', ...hh[0].object.userData}; lockCam(true); cv.setPointerCapture(e.pointerId); return; }
+  if(drawing){ const pt=boardPoint(); const p=S.pieces.find(q=>q.id===drawing); if(pt&&p){ p.path.push({x:+pt.x.toFixed(2), z:+pt.z.toFixed(2), wait:0}); afterEdit(); renderSel(); drawRoutes(); renderList(); renderNodes(); } return; }
+  const ph=ray.intersectObjects(pieceGroup.children,true); if(ph.length){ let o=ph[0].object; while(o && !o.userData.pieceId) o=o.parent; if(o){ select(o.userData.pieceId); const pt=boardPoint();
+      drag={type:'piece', pieceId:o.userData.pieceId, from:pt?pt.clone():null, orig:JSON.parse(JSON.stringify(S.pieces.find(q=>q.id===o.userData.pieceId).path))}; lockCam(true); cv.setPointerCapture(e.pointerId); return; } }
+});
+cv.addEventListener('pointermove', e=>{ if(!drag) return; pick(e); const pt=boardPoint(); if(!pt) return; const p=S.pieces.find(q=>q.id===drag.pieceId); if(!p) return;
+  if(drag.type==='wp'){ const q=p.path[drag.wp]; q.x=+pt.x.toFixed(2); q.z=+pt.z.toFixed(2); }
+  else if(drag.from){ const dx=pt.x-drag.from.x, dz=pt.z-drag.from.z; p.path=drag.orig.map(q=>({...q, x:+(q.x+dx).toFixed(2), z:+(q.z+dz).toFixed(2)})); }
+  drawRoutes(); });
+const endDrag=e=>{ if(!drag) return; drag=null; lockCam(false); afterEdit(); renderSel(); renderNodes(); };
+cv.addEventListener('dblclick', e=>{ if(drawing) return; pick(e); const ph=ray.intersectObjects(pieceGroup.children,true); if(ph.length){ let o=ph[0].object; while(o && !o.userData.pieceId) o=o.parent; if(o){ select(o.userData.pieceId); openNodes(); } } });
+cv.addEventListener('pointerup', endDrag); cv.addEventListener('pointercancel', endDrag);
+cv.addEventListener('dblclick', ()=>{ if(drawing) setDrawing(null); });
+function lockCam(on){ controls.enabled = !on && S.cam.mode==='top'; pcontrols.enabled = !on && S.cam.mode!=='top'; }
+
+// ---------------------------------------------------------------- KSOL end card (same rule + look as the Stitcher's exports)
+const BRAND_SEC=2.0;
+function studioPro(){ try{ return localStorage.getItem('studio.stitcher.pro')==='1' || new URLSearchParams(location.search).has('pro'); }catch(e){ return false; } }
+function brandOn(){ if(studioPro()){ try{ return localStorage.getItem('stitcher.brandOff')!=='1'; }catch(e){} } return true; }
+if(studioPro()){ P('#brandRow').style.display=''; try{ P('#brandOff').checked=localStorage.getItem('stitcher.brandOff')==='1'; }catch(e){} P('#brandOff').addEventListener('change', e=>{ try{ localStorage.setItem('stitcher.brandOff', e.target.checked?'1':''); }catch(err){} }); }
+function drawBrandCard(g, W, H, a){
+  const grad=g.createLinearGradient(0,0,0,H); grad.addColorStop(0,'#141a24'); grad.addColorStop(1,'#05070b'); g.fillStyle=grad; g.fillRect(0,0,W,H);
+  g.globalAlpha=clamp(a,0,1); const tile=Math.round(H*0.22), tx=W/2-tile/2, ty=H*0.17, r=tile*0.13;
+  g.beginPath(); g.roundRect(tx,ty,tile,tile,r); g.fillStyle='rgba(18,28,42,0.75)'; g.fill(); g.lineWidth=Math.max(2,tile*0.04); g.strokeStyle='#8fd0ff'; g.stroke();
+  g.fillStyle='#e9f2fb'; g.textBaseline='top'; g.textAlign='left'; g.font=`600 ${Math.round(tile*0.15)}px "Segoe UI",system-ui,Arial`; g.fillText('19', tx+tile*0.13, ty+tile*0.11);
+  g.textAlign='center'; g.font=`800 ${Math.round(tile*0.5)}px "Segoe UI",system-ui,Arial`; g.fillText('K', W/2, ty+tile*0.28);
+  g.font=`400 ${Math.round(tile*0.11)}px "Segoe UI",system-ui,Arial`; g.fillStyle='#aeb9c9'; g.fillText('39.0983', W/2, ty+tile*0.82);
+  let y=ty+tile+H*0.075; g.fillStyle='#8ea0b6'; g.font=`400 ${Math.round(H*0.034)}px "Segoe UI",system-ui,Arial`; g.fillText('Made with', W/2, y); y+=H*0.055;
+  g.fillStyle='#f4f7fb'; g.font=`800 ${Math.round(H*0.074)}px "Segoe UI",system-ui,Arial`; g.fillText('GLB Studio', W/2, y); y+=H*0.098;
+  g.fillStyle='#cdd6e2'; g.font=`500 ${Math.round(H*0.040)}px "Segoe UI",system-ui,Arial`; g.fillText('by KSOL Designs', W/2, y); y+=H*0.07;
+  g.fillStyle='#5b8cff'; g.font=`500 ${Math.round(H*0.030)}px "Segoe UI",system-ui,Arial`; g.fillText('ksoldesigns.com', W/2, y); g.globalAlpha=1; }
+const MADE_WITH='Made with GLB Studio · by KSOL Designs · ksoldesigns.com';
+
+// ---------------------------------------------------------------- recording (real time: MediaRecorder on the canvas + the audio graph)
+function pickMime(){ for(const m of ['video/mp4;codecs=avc1.42E01E,mp4a.40.2','video/mp4','video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm']) if(window.MediaRecorder && MediaRecorder.isTypeSupported(m)) return m; return ''; }
+P('#recBtn').addEventListener('click', ()=>recording?stopRecording():startRecording());
+let recorder=null, recChunks=[], recRaf=0, recComp=null;
+async function startRecording(){
+  if(!window.MediaRecorder){ PW().alert('This browser cannot record video.'); return; }
+  setPlaying(false); setDrawing(null); ensureAudio(); if(actx.state==='suspended') await actx.resume();
+  const [w,h]=S.rec.res.split('x').map(Number); recSize={w,h}; recording=true; renderer.setPixelRatio(1); renderer.setSize(w,h,false);
+  orthoCam.left=-1; fitCam(); drawRoutes(S.routeMode==='grow'?0:null);
+  const comp=document.createElement('canvas'); comp.width=w; comp.height=h; const cg=comp.getContext('2d'); recComp={comp, cg, w, h};   // the video = the 3D view, then the end card
+  const stream=comp.captureStream(S.rec.fps); for(const tr of recDest.stream.getAudioTracks()) stream.addTrack(tr);
+  const mime=pickMime(); recChunks=[]; recorder=new MediaRecorder(stream, mime?{mimeType:mime, videoBitsPerSecond:w*h>2e6?16e6:9e6}:undefined);
+  recorder.ondataavailable=e=>{ if(e.data&&e.data.size) recChunks.push(e.data); };
+  recorder.onstop=()=>{ const type=recorder.mimeType||mime||'video/webm'; const blob=new Blob(recChunks,{type}); download(blob, `maestro_${Date.now()}.${/mp4/.test(type)?'mp4':'webm'}`);
+    outInfo(`Saved video · ${(blob.size/1048576).toFixed(1)} MB · ${w}×${h} · ${/mp4/.test(type)?'MP4':'WebM'}`); };
+  document.getElementById('rec').style.display='block'; P('#recBtn').textContent='⏹ Stop recording';
+  const D=duration(), BR=brandOn()?BRAND_SEC:0; T=0; poseAll(0); renderer.render(scene,camera); cg.drawImage(cv,0,0,w,h); recorder.start(250); startAudio(0);
+  const t0=performance.now();
+  const step=()=>{ if(!recording) return; const el=(performance.now()-t0)/1000;
+    if(el<D){ T=el; poseAll(T); followCam(); if(S.cam.mode!=='top') perspCam.lookAt(pcontrols.target); renderer.render(scene,camera); cg.drawImage(cv,0,0,w,h); updateScrub(); }
+    else if(el<D+BR){ if(T<D){ T=D; poseAll(T); renderer.render(scene,camera); } const k=(el-D)/BR; drawBrandCard(cg, w, h, Math.min(1,k/0.25, (1-k)/0.15)); }
+    document.getElementById('rec').textContent=`⏺ REC ${fmt(Math.min(el,D))} / ${fmt(D)} s`; if(el>=D+BR){ stopRecording(); return; } recRaf=requestAnimationFrame(step); };
+  recRaf=requestAnimationFrame(step);
+}
+function stopRecording(){ if(!recording) return; cancelAnimationFrame(recRaf); setTimeout(()=>{ try{ recorder && recorder.state!=='inactive' && recorder.stop(); }catch(e){} stopAudio(); },120);
+  recording=false; recSize=null; document.getElementById('rec').style.display='none'; P('#recBtn').textContent='⏺ Record video';
+  renderer.setPixelRatio(Math.min(2,devicePixelRatio)); resize(); fitCam(); drawRoutes(); }
+
+// ---------------------------------------------------------------- exports: play data (JSON / CSV) and the animated scene (GLB)
+function samples(fps){ const D=duration(), N=Math.round(D*fps); const out={};
+  for(const p of S.pieces){ if(!p.on) continue; const rows=[]; for(let f=0;f<=N;f++){ const t=f/fps, st=stateAt(p,t);
+      rows.push([+t.toFixed(4), +st.x.toFixed(3), +st.z.toFixed(3), +(st.yaw*180/Math.PI).toFixed(1), st.moving?1:0]); } out[p.id]=rows; }
+  return {D, N, out}; }
+P('#expJson').addEventListener('click', ()=>{ const fps=S.rec.fps||30, {D,out}=samples(fps);
+  const data={ format:'ksol-mapview-play', version:1, app:'GLB Studio · Maestro', generator:MADE_WITH, savedAt:new Date().toISOString(),
+    coords:'x = across the board (left → right in the top view), z = down the board (top → bottom), y up; facing in degrees, 0 = +z, 90 = +x',
+    board:{kind:S.board.kind, preset:S.board.preset||null, name:P('#boardSel').selectedOptions[0]?.textContent||'', width:S.board.w, depth:S.board.d, units:S.board.units||'units', bounds:{min:[boardBox.min.x,boardBox.min.z], max:[boardBox.max.x,boardBox.max.z]}},
+    duration:D, fps, pieces:S.pieces.filter(p=>p.on).map(p=>{ const rt=RT.get(p.id)||{}, {segs}=schedule(p);
+      return { id:p.id, name:p.name, kind:p.kind, shape:p.kind==='token'?p.shape:undefined, label:p.label||undefined, color:p.color, size:p.size,
+        startsAt:p.delay, speed:p.speed, facesTravel:!!p.face, startFacing:p.yaw,
+        animation: rt.mixer ? {mode:p.mode, clip:p.clipA, idleClip:p.mode==='states'?p.clipB:undefined, loop:p.mode==='states'?true:!!p.loopA, clips:rt.clipNames} : null,
+        legs:(p.path||[]).slice(0,-1).map((_,i)=>{ const L=(p.legs||[])[i]||{}; return {fromStop:i, toStop:i+1, speed:legSpeed(p,i), clip:rt.mixer?(L.clip||p.clipA):undefined, sound:L.sfx?L.sfx.name:undefined}; }),
+        stops:p.path.map((q,i)=>({x:q.x, z:q.z, wait:q.wait||0, clip:rt.mixer&&p.mode==='states'?(q.clip||p.clipB):undefined, plays:q.loops||undefined, sound:q.sfx?q.sfx.name:undefined, arriveAt:i===0?+p.delay||0:+(segs.find(s=>s.type==='move'&&s.i===i-1)?.t1||0).toFixed(3)})),
+        timeline:segs.map(s=>({from:+s.t0.toFixed(3), to:+s.t1.toFixed(3), action:s.type, stop:s.type==='wait'?s.i:undefined, fromStop:s.type==='move'?s.i:undefined, toStop:s.type==='move'?s.i+1:undefined})),
+        samples:{columns:['t','x','z','facing','moving'], rows:out[p.id]} }; }) };
+  download(new Blob([JSON.stringify(data)],{type:'application/json'}), `maestro-play_${Date.now()}.json`); outInfo(`Play data saved · ${data.pieces.length} pieces · ${D.toFixed(1)} s at ${fps} fps`); });
+P('#expCsv').addEventListener('click', ()=>{ const fps=S.rec.fps||30, {out}=samples(fps); const lines=['t,piece,name,x,z,facing_deg,moving'];
+  for(const p of S.pieces){ if(!out[p.id]) continue; for(const r of out[p.id]) lines.push([r[0],p.id,'"'+p.name.replace(/"/g,'""')+'"',r[1],r[2],r[3],r[4]].join(',')); }
+  download(new Blob([lines.join('\n')+'\n'],{type:'text/csv'}), `maestro-positions_${Date.now()}.csv`); outInfo(`Positions saved · ${lines.length-1} rows`); });
+P('#expGlb').addEventListener('click', exportSceneGLB);
+async function exportSceneGLB(){
+  const fps=Math.min(30,S.rec.fps||30), D=duration(), N=Math.max(1,Math.round(D*fps)); outInfo('Baking the scene …'); await new Promise(r=>setTimeout(r,30));
+  try{
+    const root=new THREE.Scene(); root.name='MapView'; root.userData={generator:MADE_WITH};
+    const board=boardGroup.clone(true); board.name='Board'; root.add(board);
+    const tracks=[], times=new Float32Array(N+1); for(let f=0;f<=N;f++) times[f]=f/fps;
+    const live=[]; let pi=0;
+    for(const p of S.pieces){ if(!p.on) continue; const rt=RT.get(p.id); if(!rt) continue; pi++;
+      const tag='p'+pi+'_'+(p.name||'piece').replace(/[^A-Za-z0-9_]/g,'_').slice(0,24);
+      const clone = rt.mixer ? SkeletonUtils.clone(rt.holder) : rt.holder.clone(true); clone.name=tag;
+      const liveBones=[], cloneBones=[]; rt.holder.traverse(o=>{ if(o.isBone) liveBones.push(o); }); clone.traverse(o=>{ if(o.isBone) cloneBones.push(o); });
+      cloneBones.forEach((b,i)=>{ b.name=tag+'__'+(liveBones[i]?.name||('b'+i)); });
+      root.add(clone); live.push({p, rt, tag, liveBones, cloneBones, pos:new Float32Array((N+1)*3), rot:new Float32Array((N+1)*4), bq:liveBones.map(()=>new Float32Array((N+1)*4)), bp0:liveBones.length?new Float32Array((N+1)*3):null});
+    }
+    for(let f=0;f<=N;f++){ poseAll(f/fps); for(const L of live){ const h=L.rt.holder; h.position.toArray(L.pos,f*3); h.quaternion.toArray(L.rot,f*4);
+        L.liveBones.forEach((b,i)=>b.quaternion.toArray(L.bq[i],f*4)); if(L.bp0) L.liveBones[0].position.toArray(L.bp0,f*3); } }
+    for(const L of live){ tracks.push(new THREE.VectorKeyframeTrack(L.tag+'.position', times, L.pos), new THREE.QuaternionKeyframeTrack(L.tag+'.quaternion', times, L.rot));
+      L.cloneBones.forEach((b,i)=>tracks.push(new THREE.QuaternionKeyframeTrack(b.name+'.quaternion', times, L.bq[i])));
+      if(L.bp0) tracks.push(new THREE.VectorKeyframeTrack(L.cloneBones[0].name+'.position', times, L.bp0)); }
+    const clip=new THREE.AnimationClip('Play', D, tracks); poseAll(T);
+    const buf=await new Promise((res,rej)=>new GLTFExporter().parse(root, res, rej, {binary:true, animations:[clip], onlyVisible:false}));
+    const blob=new Blob([buf],{type:'model/gltf-binary'}); download(blob, `maestro-scene_${Date.now()}.glb`);
+    outInfo(`Animated scene saved · ${(blob.size/1048576).toFixed(1)} MB · ${live.length} pieces · one “Play” animation, ${D.toFixed(1)} s`);
+  }catch(e){ console.error(e); outInfo('Scene export failed: '+(e.message||e)); }
+}
+
+// ---------------------------------------------------------------- project save / load / autosave
+const PIECE_KEYS=['id','kind','name','on','size','color','label','shape','libId','mode','clipA','clipB','loopA','inPlace','sound','vol','delay','speed','face','yaw','path','legs','sfxAt','_modeSet'];
+function projectJSON(){ return { format:'ksol-mapview', version:1, generator:MADE_WITH, savedAt:new Date().toISOString(), board:S.board, grid:S.grid, cam:Object.assign({}, S.cam, {fit:fitBox?[fitBox.min.x,fitBox.min.z,fitBox.max.x,fitBox.max.z]:null}), routeMode:S.routeMode, shadows:S.shadows, bgVol:S.bgVol, fxVol:S.fxVol, dur:S.dur, loopPlay:S.loopPlay, rec:S.rec,
+  pieces:S.pieces.map(p=>{ const o={}; for(const k of PIECE_KEYS) if(p[k]!==undefined) o[k]=p[k]; if(p.sfx) o.sfx={id:p.sfx.id, name:p.sfx.name}; return o; }), names:S.names, bg:S.bg }; }
+let saveT=0; function save(){ clearTimeout(saveT); saveT=setTimeout(()=>{ try{ localStorage.setItem('mapview.autosave', JSON.stringify(projectJSON())); }catch(e){} },400); }
+function afterEdit(){ drawRoutes(); updateScrub(); save(); }
+async function applyProject(d){
+  if(!d || d.format!=='ksol-mapview') throw new Error('not a Maestro scene');
+  for(const rt of RT.values()) pieceGroup.remove(rt.holder); RT.clear();
+  Object.assign(S, {names:d.names||'chars', bg:d.bg||{name:null}, grid:d.grid||S.grid, cam:d.cam||S.cam, routeMode:d.routeMode||'always', shadows:d.shadows!==false, bgVol:d.bgVol??0.7, fxVol:d.fxVol??1, dur:d.dur||null, loopPlay:!!d.loopPlay, rec:d.rec||S.rec});
+  S.pieces=(d.pieces||[]).map(p=>Object.assign(newPiece(p.kind||'token'), p)); S.sel=null;
+  P('#gridOn').checked=S.grid.on; P('#gridStep').value=S.grid.step; P('#routeMode').value=S.routeMode; P('#shadowsOn').checked=S.shadows; P('#bgVol').value=S.bgVol; P('#fxVol').value=S.fxVol;
+  P('#namesMode').value=S.names; syncNamesTog(); P('#bgName').textContent=S.bg&&S.bg.name?S.bg.name:'none'; await preloadSounds();
+  P('#durN').value=S.dur||''; document.getElementById('loopPlay').checked=S.loopPlay; P('#recRes').value=S.rec.res; P('#recFps').value=String(S.rec.fps); P('#camTilt').value=S.cam.tilt;
+  await refreshBoardSel(); await buildBoard(); for(const p of S.pieces) await makeRuntime(p);
+  fitBox = S.cam.fit ? new THREE.Box3(new V3(S.cam.fit[0],boardBox.min.y,S.cam.fit[1]), new V3(S.cam.fit[2],boardBox.max.y,S.cam.fit[3])) : null;
+  setCamMode(S.cam.mode||'top'); T=0; renderList(); renderSel(); drawRoutes(); refreshForms(); renderNodes(); }
+P('#saveProj').addEventListener('click', async ()=>{ const blob=new Blob([JSON.stringify(projectJSON(),null,1)],{type:'application/json'}); const name='my-scene.maestro.json';
+  if(window.showSaveFilePicker){ try{ const h=await window.showSaveFilePicker({suggestedName:name, types:[{description:'Maestro scene', accept:{'application/json':['.json']}}]}); const w=await h.createWritable(); await w.write(blob); await w.close(); outInfo('Scene saved: '+h.name); return; }catch(e){ if(e&&e.name==='AbortError') return; } }
+  download(blob,name); });
+P('#loadProj').addEventListener('click', ()=>P('#fProj').click());
+P('#fProj').addEventListener('change', async e=>{ const f=e.target.files[0]; e.target.value=''; if(!f) return; try{ await applyProject(JSON.parse(await f.text())); outInfo('Opened '+f.name); }catch(err){ PW().alert('Could not open that scene: '+(err.message||err)); } });
+P('#newProj').addEventListener('click', async ()=>{ if(!PW().confirm('Start a new, empty scene? (The current one is cleared — save it first if you want to keep it.)')) return;
+  await applyProject({format:'ksol-mapview', board:{kind:'preset',preset:'football',w:120,d:53.3,units:'yards'}, pieces:[]}); });
+
+// ---------------------------------------------------------------- hand-offs from other tools (🎲 Tabletop / 🎬 Stitch → 🎼 Maestro)
+async function takeHandoff(){ let h=null; try{ h=JSON.parse(localStorage.getItem('studio.handoff')||'null'); }catch(e){}
+  if(!h || h.to!=='mapview' || Date.now()-h.t>120000 || !LIB) return; localStorage.removeItem('studio.handoff');
+  try{ await LIB.ready; const m=(await LIB.listModels()).find(x=>x.id===h.id); if(!m) return;
+    if(m.skeleton==='board'){ S.board={kind:m.meta&&m.meta.kind==='image'?'image':'glb', libId:m.id, w:m.meta&&m.meta.w||0, d:m.meta&&m.meta.d||0}; await refreshBoardSel(); await buildBoard(); hud('🎲 Board from Tabletop loaded', 4000); }
+    else if(m.skeleton==='mapchar'){ await refreshCharSel(); const p=newPiece('char',{libId:m.id, name:m.name.replace(/\s*—.*$/,'')}); S.pieces.push(p); hud('Loading '+p.name+' …'); await makeRuntime(p); hud('🎬 '+p.name+' added — ✏ draw its path', 5000); select(p.id); setDrawing(p.id); afterEdit(); }
+  }catch(e){ console.warn('[mapview] hand-off failed', e); } }
+addEventListener('ksol-shown', ()=>{ takeHandoff(); refreshCharSel(); refreshBoardSel(); });
+if(LIB) LIB.onChange(()=>{ refreshCharSel(); refreshBoardSel(); });
+
+// ---------------------------------------------------------------- start
+window.__mv={ S, RT, get T(){return T;}, set T(v){T=v;}, poseAll, duration, stateAt, schedule, scene, renderer, get camera(){return camera;}, applyProject, projectJSON, makeRuntime, newPiece, select, buildBoard, render:()=>renderer.render(scene,camera) };
+(async function init(){
+  try{ if(localStorage.getItem('mapview.unpinned')==='1') pinBtn.click(); }catch(e){}
+  resize(); await refreshCharSel(); await refreshBoardSel();
+  let saved=null; try{ saved=JSON.parse(localStorage.getItem('mapview.autosave')||'null'); }catch(e){}
+  if(saved && saved.format==='ksol-mapview'){ try{ await applyProject(saved); }catch(e){ console.warn(e); await buildBoard(); } } else { await buildBoard(); setCamMode('top'); }
+  renderList(); renderSel(); await takeHandoff(); tick();
+})();
+</script>
+</body>
+</html>
