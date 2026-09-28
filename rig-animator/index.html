@@ -3218,10 +3218,21 @@ function handToFace(Ar, k, spot, A){ if(!(k>0)) return;
   const W0=ha.getWorldPosition(new THREE.Vector3());
   const g0=PHYS_GUARDS.elbow; PHYS_GUARDS.elbow=false;                                     // the upper arm crosses the chest here; the guard winged it out
   const pole=spot.pole ? V(spot.pole.x*-Ar.s, spot.pole.y, spot.pole.z) : V(-Ar.s*0.5,-1,0.1);   // elbow down, or where the spot says
+  const qa0=boneByName[Ar.arm].quaternion.clone(), qf0=boneByName[Ar.fore].quaternion.clone();
   _reachIKCore(Ar, W0.lerp(Wt, k), pole); PHYS_GUARDS.elbow=g0;
-  animRoot.updateMatrixWorld(true); const q0=ha.getWorldQuaternion(new THREE.Quaternion());
-  handFrame(Ar, {fingers:fing, palm}); const q1=ha.getWorldQuaternion(new THREE.Quaternion());
-  const pq=ha.parent.getWorldQuaternion(new THREE.Quaternion()).invert(); ha.quaternion.copy(pq.multiply(q0.slerp(q1, k))); ha.updateMatrixWorld(true); }
+  // (2026-09-28, lint snap: the arm turned 82-98° between frame 0 and 1) the solve picks its OWN elbow twist even for a target right
+  // at the resting wrist — so the arm eases from where it hung into the solved arm over the first 30 % of the reach
+  { let w=Math.min(1,k/0.3); w=w*w*(3-2*w); if(w<1){ boneByName[Ar.arm].quaternion.copy(qa0.slerp(boneByName[Ar.arm].quaternion.clone(), w)); boneByName[Ar.fore].quaternion.copy(qf0.slerp(boneByName[Ar.fore].quaternion.clone(), w)); animRoot.updateMatrixWorld(true); } }
+  animRoot.updateMatrixWorld(true); const l0=ha.quaternion.clone();
+  // the hand's goal attitude is taken from the arm's FINISHED pose (k = 1): re-aimed on the moving arm every frame, the wrist solve
+  // switched sides half-way up (plain-rig Sharp Salute: the hand spun 146° in one frame)
+  const qa=boneByName[Ar.arm].quaternion.clone(), qf=boneByName[Ar.fore].quaternion.clone();
+  PHYS_GUARDS.elbow=false; _reachIKCore(Ar, Wt, pole); PHYS_GUARDS.elbow=g0; animRoot.updateMatrixWorld(true);
+  handFrame(Ar, {fingers:fing, palm}); const l1=ha.quaternion.clone();
+  boneByName[Ar.arm].quaternion.copy(qa); boneByName[Ar.fore].quaternion.copy(qf); ha.quaternion.copy(l0); animRoot.updateMatrixWorld(true);
+  // blended in the hand's OWN (local) frame from where it hung: a world-space slerp from the moving arm's hand flipped its way round
+  // when start and goal were nearly opposite (plain-rig Sharp Salute: the hand spun 146° in one frame)
+  ha.quaternion.copy(l0.slerp(l1, k)); ha.updateMatrixWorld(true); }
 // face spots for the right arm (x mirrored for the left): fingers/palm are world directions with x = toward the midline
 const FACE_SPOT={
   facepalm:{ up:0.10, side:0.01, fwd:0.03, fingers:V(0.25,1,0), palm:V(0,0,-1) },          // palm over the eyes / forehead
@@ -4177,6 +4188,7 @@ const BIPED_MOTIONS=[
     leanF((-0.34*cross + 0.22*block + 0.40*follow)*A);            // lay back over the rear leg, then hinge
     twist((-0.34 - 0.35*cross + 0.95*follow)*A);                  // shoulders stay WITHDRAWN (closed past the hips, cancelling fightStance's squaring) while the arm is back, then rotate through the throw (was inverted)
     reachIK(B_RARM, orbitAt(JAV_ARC,u,{arms:[B_RARM]}), V(-0.5,-1,-0.2));
+    _propAxisNow=V(0,0.5,0.87);   /* 2026-09-28 (Paul ✖ round 1): the javelin POINTS AT THE TARGET the whole throw — forward and ~30° up (it followed the hand's roll and pointed back over the shoulder) */
     // Off arm as a hand PATH that orbits the torso: pointed at the target through the cross-overs, pulled in to the
     // side through the block, then back behind the left hip on the follow (angle-posed it swung through the pelvis)
     const lh=orbitAt([[0,bodyV(0.24,0.88,0.04)],[0.45,V(0.10,1.42,0.45)],[0.66,bodyV(0.30,1.15,0.15)],[0.85,bodyV(0.26,0.98,-0.18)],[1,bodyV(0.26,0.96,-0.14)]], u, {arms:[B_LARM]});
@@ -4342,7 +4354,7 @@ const BIPED_MOTIONS=[
     const shB=new THREE.Vector3(); boneByName[B_RARM.arm].getWorldPosition(shB);
     // hand sweeps from extended-FORWARD to curled back toward the face — the beckon curl. reachIK (absolute
     // world target) so the arm stays forward and does NOT ride out to the side on retarget (the old setArm did).
-    reachIK(B_RARM, shB.clone().add(V(B_RARM.s*0.06, 0.06+0.12*c, 0.44-0.30*c)), V(B_RARM.s*0.55,-0.45,-0.15));
+    reachIK(B_RARM, shB.clone().add(V(B_RARM.s*0.06, 0.06+0.12*c, 0.44-0.22*c)), V(B_RARM.s*0.55,-0.45,-0.15));   /* 2026-09-28: the curl stopped 14 cm off the shoulder — the wrist hit its limit and the hand flipped 173° in one frame; 22 cm */
     handFrame(B_RARM, {fingers:V(0,1,0), palm:V(0,0,-1)});                 // palm toward the beckoner
     sw(B_RARM.hand,AX.x,(0.2+0.4*c)*A); sw(B_HEAD,AX.y,0.08*A); idleSway(t,P,1.2);}},
   {id:'shrug', name:'Shrug', cat:'Gestures', type:'stay', dur:1.6, build:(t,P)=>{ bstand(); const A=P.amp, r=Math.max(0,Math.sin(TAU*(t/1.6)*P.speed));
@@ -5034,12 +5046,13 @@ const BIPED_MOTIONS=[
     fightStance(A,{turn:0.3+0.3*rel, knee:0.3, lead:0.15, rear:-0.18, rearHeel:-0.2*rel, z:0.08*rel*A, lean:0.1*rel});
     reachIK(B_RARM, V(0.10,1.55,-0.20).lerp(V(0.02,1.62,0.40), eio(clamp((u-0.2)/0.5,0,1))), V(0.2,0.6,-0.4));  // chamber behind head → hurl
     reachF(B_LARM,0.4,A); twist((-0.2*cock+0.35*rel)*A); }},
-  {id:'aimspear', name:'Spear — Ready', cat:'Aim', type:'stay', dur:1.2, build:(t,P)=>{ const A=P.amp, u=(t/1.2*P.speed)%1, sway=Math.sin(TAU*u)*0.03;
+  {id:'aimspear', name:'Spear — Ready', cat:'Aim', type:'stay', dur:1.2, handsLinked:true, build:(t,P)=>{ const A=P.amp, u=(t/1.2*P.speed)%1, sway=Math.sin(TAU*u)*0.03;
     fightStance(A,{turn:0.5, knee:0.34, lead:0.16, rear:-0.20, lean:0.08});
     const k=0.5+0.5*Math.sin(TAU*u);
     reachIK(B_LARM, orbitLerp(V(-0.04,1.30,0.52), V(-0.04,1.30,0.58), k, {arms:[B_LARM]}), V(0,-1,0.2));                       // front hand out along the shaft
     reachIK(B_RARM, orbitLerp(bodyV(-0.18,1.04,-0.06), bodyV(-0.18,1.04,-0.10), k, {arms:[B_RARM]}), V(-0.3,-1,-0.2));           // rear hand at the RIGHT hip (it was authored on the left side, forearm across the chest)
     twoHandGrip('thumb', handsAxis());                                                               // shaft runs from the rear (right) hand through the front (left) hand: both thumb lines along it
+    _propAxisNow=handsAxis().clone();   /* 2026-09-28 (Paul ✖ round 1): the point leads along that line and the Stitcher puts BOTH fists on the spear (the front hand held nothing) */
     sw(B_HEAD,AX.y,0.2*A); }},
   {id:'aimcrossbow', name:'Crossbow — Aim', cat:'Aim', type:'stay', dur:1.1, build:(t,P)=>{ const A=P.amp, u=(t/1.1*P.speed)%1, fire=bump(u,0.55,0.1);
     fightStance(A,{turn:0.4, knee:0.28, lead:0.14, rear:-0.17, lean:0.05});
@@ -5718,11 +5731,14 @@ const BIPED_MOTIONS=[
     gripTogether(V(0.14,1.68+press,0.16), V(0,-1,0.2), null, hb);                                     // both fists stacked on the hilt (they were 40 cm apart along the blade)
     twoHandGrip('handshake', hb);
     sw(B_HEAD,AX.x,-0.1*up*A); }},
-  {id:'swblocks', name:'Side Parry', cat:'Swordplay', type:'stay', dur:0.9, build:(t,P)=>{ const A=P.amp, par=Math.sin(Math.PI*clamp((t/0.9*P.speed)%1/0.7,0,1));
+  {id:'swblocks', name:'Side Parry', cat:'Swordplay', type:'stay', dur:0.9, handsLinked:true, build:(t,P)=>{ const A=P.amp, par=Math.sin(Math.PI*clamp((t/0.9*P.speed)%1/0.7,0,1));
     fightStance(A,{turn:0.3, knee:0.4, lean:0.05});
-    const c=V(0.08,1.35,0.40), side=V(-0.28,1.42,0.32);
-    gripTogether(c.clone().lerp(side,par), V(0,-1,0.2), null, V(0,1,0.15));                         // deflect across to the left, both fists stacked on the vertical hilt (13 cm apart before)
-    twoHandGrip('handshake', V(0,1,0.15));                                                          // blade held vertical, both fists round the hilt
+    // 2026-09-28 (Paul ✖ round 1, launch pass): PROP-FIRST like the other two-handed blades — the blade stands UPRIGHT, both fists on the
+    // hilt (sword hand at the guard, the other below it), the parry sweeps it from the centre-right out to the right. The old grip left the
+    // sword to the hand's roll (it lay flat, pointing sideways) and started with the forearms crossed over the chest.
+    const c=V(-0.05,1.33,0.40), side=V(-0.30,1.40,0.32), g=c.clone().lerp(side,par), blade=V(0,1,0.15).normalize();
+    shaft(g.clone().addScaledVector(blade,0.05), g.clone().addScaledVector(blade,-0.05), V(0.6,-0.6,0), {spacing:0.10, grip:false, fixedDir:true, poleTop:V(-0.6,-0.6,0)});
+    gripHandle(B_RARM, _ghP(B_RARM), blade, V(-0.6,-0.6,0)); gripHandle(B_LARM, _ghP(B_LARM), blade, V(0.6,-0.6,0));   /* both fists round the hilt, thumbs toward the blade */
     twist(-0.2*par*A); sw(B_HEAD,AX.y,-0.1*par*A); }},
   {id:'swclash', name:'Blade Clash', cat:'Swordplay', type:'stay', dur:1.6, build:(t,P)=>{ const A=P.amp, str=0.5+0.5*Math.sin(TAU*(t/1.6)*P.speed);
     fightStance(A,{turn:0.2, knee:0.5, dropKnee:0.15, lean:0.25+0.05*str, z:0.05*A});
@@ -8244,13 +8260,17 @@ function lintMotion(m, D, params){
   // seam: the pose at the very END (t→D) must lead back into the START. One-way moves that settle and HOLD (sit down, kneel, lie
   // down — chained in the Stitcher, not looped) are skipped.
   const held=Q.length>4 && bones.every((_,k)=>ang(Q[Q.length-1][k],Q[Q.length-4][k])<1.5);
-  if(!ok.has('seam') && m.type!=='action' && !m.netTurn && !held && Q.length>2){ let worst=0, wb=''; const last=Q[Q.length-1], first=Q[0];
+  if(!ok.has('seam') && m.type!=='action' && !m.netTurn && !held && !(m.loopClose ?? LOOP_CLOSE[m.id]) && Q.length>2){   /* loop-closed at bake → no seam in the baked clip */ let worst=0, wb=''; const last=Q[Q.length-1], first=Q[0];
     for(let k=0;k<bones.length;k++){ let typ=0; for(let i=1;i<Q.length;i++) typ=Math.max(typ, ang(Q[i][k],Q[i-1][k])); const jump=ang(last[k],first[k]); if(jump>Math.max(20, typ*2.5) && jump>worst){ worst=jump; wb=bones[k]; } }
     if(worst) out.push({code:'seam', text:`${wb} jumps ${worst.toFixed(0)}° when the loop restarts — does the end lead back to the start?`, at:+D.toFixed(2)}); }
   if(!ok.has('snap')){ let worst=0, wb='', wt=0; for(let i=1;i<Q.length;i++) for(let k=0;k<bones.length;k++){ const a=ang(Q[i][k],Q[i-1][k]); if(a>worst){ worst=a; wb=bones[k]; wt=D*i/N; } }   // degrees per 30-fps frame
     if(worst>60) out.push({code:'snap', text:`${wb} turns ${worst.toFixed(0)}° in one frame — a flipped pole or a move squeezed into too little time?`, at:+wt.toFixed(2)}); }
   return out;
 }
+// LOOP CLOSE (2026-09-28 launch pass): a looping gesture whose END pose doesn't lead back into its START pops at every restart
+// (lint [seam]: Friendly Wave's arm 27°, Roundhouse Kick's leg 100°). For these the last fraction of the clip eases every bone, the
+// root and the hand / prop channels into frame 0 — nothing before that window changes.
+const LOOP_CLOSE={ wave:0.2, wavehand:0.2, thumbsup:0.25, mghex:0.25, rxdizzy:0.2, roundhouse:0.25, placekick:0.25, throw:0.25, javelin:0.25, mgstaff:0.2, mgblast:0.25, rxstumble:0.25 };
 function bakeClip(m, D, params){
   const n=Math.max(2,Math.round(D*BAKE_FPS)); const times=[]; for(let i=0;i<n;i++) times.push(i/BAKE_FPS);
   const q={}, sc={}; for(const bn of boneList){ q[bn]=[]; sc[bn]=[]; } const root=[]; const noseF=[];
@@ -8295,6 +8315,12 @@ function bakeClip(m, D, params){
   }
   resetPose();
   const physFlights = BAL ? BAL.apply(root, times) : null;       // gravity for the airborne windows (edits the root track)
+  { const lc=m.loopClose ?? LOOP_CLOSE[m.id]; if(lc){ const k0=Math.max(3,Math.round(n*lc)), a=new THREE.Quaternion(), b=new THREE.Quaternion();
+      const wOf=i=>{ const x=(i-(n-k0)+1)/(k0+1); return x*x*(3-2*x); };                  // smooth 0 → ~0.95 at the last frame (never a duplicate of frame 0)
+      const lerpArr=(arr,st)=>{ if(!arr || arr.length<n*st) return; for(let i=n-k0;i<n;i++){ const w=wOf(i); for(let c=0;c<st;c++) arr[i*st+c]=+(arr[i*st+c]+(arr[c]-arr[i*st+c])*w).toFixed(4); } };
+      for(const bn of boneList){ const Q=q[bn]; a.fromArray(Q,0); for(let i=n-k0;i<n;i++){ b.fromArray(Q,i*4); b.slerp(a, wOf(i)); Q[i*4]=b.x; Q[i*4+1]=b.y; Q[i*4+2]=b.z; Q[i*4+3]=b.w; } }
+      for(let i=n-k0;i<n;i++){ const w=wOf(i); for(let c=0;c<3;c++) root[i*3+c]+=(root[c]-root[i*3+c])*w; }
+      lerpArr(hRel,3); lerpArr(hDist,1); lerpArr(pax,3); lerpArr(hPos,3); lerpArr(hcS.L,3); lerpArr(hcS.R,3); lerpArr(hcD.L,1); lerpArr(hcD.R,1); } }
   const tracks=[];
   for(const bn of boneList) tracks.push({ name:bn+'.quaternion', type:'quaternion', times:times.slice(), values:q[bn] });
   // ROOT TRANSLATION — required, not optional: a squat, a sit, a jump or a gait's weight shift IS the hips

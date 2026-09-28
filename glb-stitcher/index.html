@@ -51,6 +51,9 @@
   .sidebar{width:370px;min-width:370px;border-right:1px solid var(--line);overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:16px}
   .stage{flex:1;position:relative;display:flex;flex-direction:column;min-width:0}
   .canvas-wrap{flex:1;position:relative;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden}
+  /* PHONE (2026-09-28 launch check: on a 390 px phone the 3D view sat off-screen to the right): the view on TOP, the panel scrolls below */
+  @media (max-width:760px){ main{flex-direction:column;overflow-y:auto} .stage{order:-1;flex:0 0 auto;height:52vh;position:sticky;top:0;z-index:20;background:var(--bg,#0b0e13)} .sidebar{width:auto;min-width:0;border-right:0;overflow:visible;padding:12px}
+    .move-tool,.show-all,.center-active,.facing-arrow,.flip-facing{display:none} .stage .orbit-view{top:48px} }   /* the column of camera buttons covered the small view */
   .timeline{max-height:158px;min-height:64px;border-top:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;align-items:stretch;gap:5px;padding:8px 12px;overflow:auto}
   .timeline .tl-empty{color:var(--muted);font-size:13px;padding:0 6px}
   .tl-row{display:flex;align-items:center;gap:3px;min-height:34px}
@@ -1393,6 +1396,10 @@ let audioBuffer=null, audioName='';
 const SPEED_STEPS=[0.25,0.5,0.75,1,1.5,2,3];
 const clipSpeed=c=>{ const s=+(c&&c.speed); return (s>0&&isFinite(s))?s:1; };
 const effDur=c=>Math.max(0.05,(c.duration||1.5)/clipSpeed(c));   // on-screen (stretched/compressed) duration
+// The loaded character itself (a GLB with no animation) is a clip too — it carries the character. Once that character has real
+// motions it is NOT part of the video: every first render opened on ~1.5 s of T-pose (2026-09-28 first-user run). A model loaded on
+// its own, with nothing animated yet, still plays/renders as before.
+const restOnly=c=>!(c.duration>0) && clips.some(o=>o!==c && o.charId===c.charId && o.duration>0);
 const fmtSpeed=s=>s+'×';
 function cycleSpeed(c,down){ const cur=clipSpeed(c); let i=SPEED_STEPS.indexOf(cur);
   if(i<0){ let best=1e9; SPEED_STEPS.forEach((v,k)=>{ const d=Math.abs(v-cur); if(d<best){best=d;i=k;} }); }
@@ -4158,7 +4165,7 @@ function autoLayoutStage(){
 }
 function ensembleSchedule(){
   const loops=Math.max(1,parseInt($('#loops').value)||1);
-  return activeChars().map(ch=>{ const cs=charClips(ch); const durs=cs.map(c=>Math.max(0.1,effDur(c)));
+  return activeChars().map(ch=>{ const cs=charClips(ch).filter(c=>!restOnly(c)); const durs=cs.map(c=>Math.max(0.1,effDur(c)));
     const sum=durs.reduce((a,b)=>a+b,0); return {ch, clips:cs, durs, sum, cycle:sum*loops}; });
 }
 function pickEnsembleClip(sc,t){ let x=sc.sum>0?(t%sc.sum):0;
@@ -5529,9 +5536,11 @@ async function produceFrames(fps,loops,hold,spin,trans, emit, abort){
   const rootBN = (libRig && libRig.rootBoneName) || null;
   const capturePose=(root)=>{ const m={}; root.traverse(o=>{ if(o.isBone) m[o.name]=o.quaternion.clone(); }); return m; };
   const blendPose=(root,pose,w)=>{ if(!pose||w<=0)return; root.traverse(o=>{ if(o.isBone && o.name!==rootBN && pose[o.name]) o.quaternion.slerp(pose[o.name], w); }); root.updateMatrixWorld(true); };
+  let played=0;
   for(let ci=0; ci<clips.length; ci++){
     if(abort()) break;
-    const doTrans = ci>0 && transFrames>0;
+    if(restOnly(clips[ci])) continue;   // the bare character model (see restOnly)
+    const doTrans = played++>0 && transFrames>0;
     if(doTrans) snapshotCanvas();          // grab previous clip's final frame
     const c=clips[ci]; renderRotCarry=carry.rot; showClip(ci); setPlayingClip(c.id);   // apply carried heading, then light up the current node/block
     const baseTargetY=camState.targetY;   // framed look-at height at clip start
@@ -5633,8 +5642,8 @@ async function produceFrames(fps,loops,hold,spin,trans, emit, abort){
   }
 }
 function calcTotalFrames(fps,loops,hold){
-  let t=0; for(const c of clips) t+=Math.max(1,Math.round(effDur(c)*fps))*loops;
-  t+=Math.round(hold*fps)*clips.length; return t;
+  let t=0, n=0; for(const c of clips){ if(restOnly(c)) continue; t+=Math.max(1,Math.round(effDur(c)*fps))*loops; n++; }
+  t+=Math.round(hold*fps)*n; return t;
 }
 
 // ---------- Time scrubber (pose the stitched scene at a single moment) ----------

@@ -112,6 +112,9 @@
     var d=document.createElement('div'); d.id='__ksolCredit';
     d.style.cssText='position:fixed;right:10px;bottom:8px;z-index:99999;font:11px/1.3 system-ui,sans-serif;color:#8b97a8;background:rgba(10,14,20,.6);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:4px 9px';
     d.innerHTML='◆ <b style="color:#c9d3e0">KSOL Designs</b> · <a href="https://www.ksoldesigns.com" target="_blank" rel="noopener" style="color:#5b8cff;text-decoration:none">ksoldesigns.com</a>';
+    if(window.innerWidth<760){   // phone: a small link that doesn't cover the panel's buttons (it sat on Tabletop's Load roster)
+      d.style.cssText='position:fixed;right:6px;bottom:4px;z-index:99999;font:10px/1.2 system-ui,sans-serif;background:rgba(10,14,20,.7);border-radius:6px;padding:2px 7px;opacity:.85;pointer-events:none';
+      d.innerHTML='◆ <a href="https://www.ksoldesigns.com" target="_blank" rel="noopener" style="color:#5b8cff;text-decoration:none;pointer-events:auto">ksoldesigns.com</a>'; }
     document.body.appendChild(d);
   }
   if(document.body) add(); else document.addEventListener('DOMContentLoaded', add);

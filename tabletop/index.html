@@ -15,6 +15,9 @@
   #app{display:flex;height:100%}
   #side{width:346px;min-width:346px;height:100%;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column}
   #stage{flex:1;position:relative;min-width:0}
+  /* PHONE (2026-09-28 launch check: on a 390 px phone the 3D view sat off-screen to the right): the view on TOP, the panel scrolls below */
+  @media (max-width:760px){ #app{flex-direction:column} #stage{order:-1;flex:0 0 auto;height:52vh} #side{width:auto;min-width:0;height:auto;flex:1;min-height:0;border-right:0;border-top:1px solid var(--line)}
+    #stage #status{top:auto;bottom:10px;font-size:12px;padding:4px 12px} }   /* the turn pill sat under the view buttons */
   #bLvlPad{position:absolute;right:12px;top:50%;transform:translateY(-50%);z-index:30;display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px;background:rgba(16,21,31,.82);border:1px solid #2b3648;border-radius:12px;box-shadow:0 6px 20px rgba(0,0,0,.45);font:12px system-ui,Arial,sans-serif;color:#dfe7f2;max-height:80%}
   #bLvlPad[hidden]{display:none}
   #bLvlPad button{min-width:44px;min-height:32px;border:1px solid #33405a;border-radius:8px;background:#1c2536;color:#dfe7f2;cursor:pointer;font:600 12px system-ui,Arial,sans-serif;padding:3px 8px}
