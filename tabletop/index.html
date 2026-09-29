@@ -1199,7 +1199,7 @@ import * as Tuck from './tuckbox-designer.js';
 
 const BGC = window.BGC, GAMES = window.BGC_GAMES;
 const TE = window.TileEngine, TLIB = window.TileLibrary;
-const APP_VERSION = 'v1.40';
+const APP_VERSION = 'v1.41';
 const CREDITS = `<b>Ksol Designs</b> — Paul A.T. Ramey<br>www.ksoldesigns.com<br>Built with GLB Studio · Tabletop<br><span class="ver">${APP_VERSION}</span>`;
 // ---- Board credit: a small "KSOL Designs" mark on the board for the FREE build. Owning ANY content pack
 // (TTier expansion) unlocks removing it (⚙ Settings toggle, or click the credit). ----
@@ -1359,6 +1359,41 @@ function _lilyDraw(withFlower, th){
     x.fillStyle='#f7d24e'; x.beginPath(); x.arc(cx,cy,11,0,2*Math.PI); x.fill(); }
   return new THREE.CanvasTexture(cv);
 }
+let _waterTex=null;
+function waterTex(th){ if(_waterTex) return _waterTex;
+  const cv=document.createElement('canvas'); cv.width=cv.height=256; const x=cv.getContext('2d'); const base=new THREE.Color(th.hex||0x2f6f93);
+  const g=x.createRadialGradient(128,128,20,128,128,150); g.addColorStop(0,'#'+base.clone().offsetHSL(0,0.02,0.08).getHexString()); g.addColorStop(1,'#'+base.clone().offsetHSL(0,0,-0.06).getHexString());
+  x.fillStyle=g; x.fillRect(0,0,256,256);
+  x.strokeStyle='rgba(255,255,255,0.16)'; x.lineWidth=2.2;                                    // ripple rings
+  for(let i=0;i<9;i++){ const cx=30+((i*97)%200), cy=30+((i*57)%200); for(let r=10;r<44;r+=11){ x.beginPath(); x.ellipse(cx,cy,r*1.3,r*0.8,0.3,0,2*Math.PI); x.stroke(); } }
+  x.strokeStyle='rgba(255,255,255,0.10)'; x.lineWidth=1.2;                                    // glints
+  for(let i=0;i<40;i++){ const px=(i*61)%256, py=(i*113)%256; x.beginPath(); x.moveTo(px,py); x.lineTo(px+10,py+2); x.stroke(); }
+  _waterTex=new THREE.CanvasTexture(cv); _waterTex.colorSpace=THREE.SRGBColorSpace; return _waterTex; }
+// a small lotus flower (two rings of pink/white petals round a yellow heart), sitting at the edge of a lily pad
+function lotusFlower(){ const g=new THREE.Group();
+  const petalGeo=new THREE.SphereGeometry(0.05,8,6);
+  const outer=new THREE.MeshStandardMaterial({color:0xf3a9cf, roughness:0.55}), inner=new THREE.MeshStandardMaterial({color:0xfff2f8, roughness:0.5});
+  for(let ring=0;ring<2;ring++){ const n=ring?5:7, R=ring?0.035:0.06;
+    for(let k=0;k<n;k++){ const a=k/n*Math.PI*2+(ring?0.4:0); const p=new THREE.Mesh(petalGeo, ring?inner:outer);
+      p.position.set(Math.cos(a)*R, 0.02+ring*0.02, Math.sin(a)*R); p.scale.set(1,0.45,1.8); p.rotation.set(ring?-0.9:-0.5, -a+Math.PI/2, 0, 'YXZ'); g.add(p); } }
+  const heart=new THREE.Mesh(new THREE.SphereGeometry(0.028,10,8), new THREE.MeshStandardMaterial({color:0xf7c83e, roughness:0.4})); heart.position.y=0.04; g.add(heart);
+  g.traverse(o=>{ if(o.isMesh) o.castShadow=true; }); return g; }
+// a rounded, two-tone boulder (a jittered icosphere, lighter on top)
+const _rockGeoCache={};
+function boulderGeo(r, seed){ const k=seed%4; if(_rockGeoCache[k]) return _rockGeoCache[k];
+  const geo=new THREE.IcosahedronGeometry(r,1); const pos=geo.attributes.position, v=new THREE.Vector3(), col=[];
+  for(let i=0;i<pos.count;i++){ v.fromBufferAttribute(pos,i); const n=Math.sin(v.x*37+k*3.1)*Math.cos(v.z*29+k)*0.5+Math.sin(v.y*41+k*1.7)*0.5;
+    v.multiplyScalar(1+n*0.13); pos.setXYZ(i,v.x,v.y,v.z); const shade=0.72+0.28*Math.max(0,v.y/r)+n*0.06; col.push(shade,shade,shade*1.02); }
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(col,3)); geo.computeVertexNormals(); return (_rockGeoCache[k]=geo); }
+// a low bramble sprig: arching thorny canes with a few leaves (kept short so it never hides a piece)
+function brambleSprig(seed){ const g=new THREE.Group();
+  const cane=new THREE.MeshStandardMaterial({color:0x5a3a20, roughness:0.9}), leaf=new THREE.MeshStandardMaterial({color:0x3f6e33, roughness:0.8}), thornM=new THREE.MeshStandardMaterial({color:0x2c1d10, roughness:0.9});
+  for(let c=0;c<3;c++){ const a=(seed*1.7+c*2.1)%(Math.PI*2), L=0.11+((seed+c)%3)*0.02;
+    const curve=new THREE.QuadraticBezierCurve3(new THREE.Vector3(0,0,0), new THREE.Vector3(Math.cos(a)*L*0.5,0.09,Math.sin(a)*L*0.5), new THREE.Vector3(Math.cos(a)*L,0.02,Math.sin(a)*L));
+    g.add(new THREE.Mesh(new THREE.TubeGeometry(curve,8,0.008,5,false), cane));
+    for(let t=0.3;t<0.95;t+=0.22){ const p=curve.getPoint(t); const th=new THREE.Mesh(new THREE.ConeGeometry(0.006,0.025,4), thornM); th.position.copy(p); th.rotation.z=((c+Math.round(t*10))%2?1:-1)*0.9; g.add(th); }
+    const lp=curve.getPoint(0.6); const lf=new THREE.Mesh(new THREE.SphereGeometry(0.018,6,5), leaf); lf.position.copy(lp); lf.position.y+=0.012; lf.scale.set(1.6,0.4,1); lf.rotation.y=a; g.add(lf); }
+  g.traverse(o=>{ if(o.isMesh) o.castShadow=true; }); return g; }
 function lilyTex(th, flower){ if(flower){ return _lilyFlowerTex || (_lilyFlowerTex=_lilyDraw(true,th)); } return _lilyTex || (_lilyTex=_lilyDraw(false,th)); }
 function brierTex(th){ if(_brierTex) return _brierTex;
   const cv=document.createElement('canvas'); cv.width=cv.height=256; const x=cv.getContext('2d');
@@ -1419,8 +1454,9 @@ function buildGraphBoard(){
     const hexCol = isBase   ? new THREE.Color(pointColors[pt]!=null?pointColors[pt]:0x888888)
                  : isMarble ? new THREE.Color(plain.hex)
                             : new THREE.Color(isWater ? water.hex : brier.hex);
-    const mat = new THREE.MeshStandardMaterial({ color:hexCol, roughness:isBase?0.5:(isWater?0.34:(isMarble?0.6:0.9)), metalness:isBase?0.12:(isWater?0.2:0.04),
-      emissive:(!isBase && isWater) ? hexCol.clone().multiplyScalar(0.08) : 0x000000 });
+    const wet = !isBase && isWater;                  // water hex: a rippled-water texture instead of a flat colour
+    const mat = new THREE.MeshStandardMaterial({ color:wet?0xffffff:hexCol, map:wet?waterTex(water):null, roughness:isBase?0.5:(isWater?0.22:(isMarble?0.6:0.9)), metalness:isBase?0.12:(isWater?0.25:0.04),
+      emissive:wet ? hexCol.clone().multiplyScalar(0.06) : 0x000000 });
     const t = new THREE.Mesh(hexGeo, mat); t.rotation.y=0; t.position.set(w.x, 0.02, w.z); t.receiveShadow=true;
     t.userData = { square:node, base:mat.color.clone(), baseEmis:mat.emissive.clone(), mat };
     boardGroup.add(t); tiles.push(t);
@@ -1432,13 +1468,19 @@ function buildGraphBoard(){
       cup.rotation.x=-Math.PI/2; cup.position.set(w.x, 0.104, w.z); boardGroup.add(cup);
     } else if (isWater){                             // water hex: a lily pad (some with a flower)
       const flower = ((node*7)%3===0);
-      const pad=new THREE.Mesh(artGeo, new THREE.MeshStandardMaterial({ map:lilyTex(water, flower), transparent:true, roughness:0.6, depthWrite:false }));
-      pad.rotation.set(-Math.PI/2,0, (node%6)*Math.PI/3); pad.position.set(w.x, 0.105, w.z); pad.receiveShadow=true; boardGroup.add(pad);
+      // a lily pad floating ON the water (its own soft shadow under it), with a real 3D lotus on some — the flat painted pad read as a pattern
+      const pad=new THREE.Mesh(new THREE.CircleGeometry(HEXR*0.86, 32), new THREE.MeshStandardMaterial({ map:lilyTex(water, false), transparent:true, alphaTest:0.4, roughness:0.55 }));
+      pad.rotation.set(-Math.PI/2,0, (node%6)*Math.PI/3); pad.position.set(w.x, 0.125, w.z); pad.receiveShadow=true; boardGroup.add(pad);
+      const under=new THREE.Mesh(new THREE.CircleGeometry(HEXR*0.86, 32), new THREE.MeshBasicMaterial({ color:0x000000, transparent:true, opacity:0.22, depthWrite:false }));
+      under.rotation.set(-Math.PI/2,0,(node%6)*Math.PI/3); under.position.set(w.x+0.02, 0.102, w.z+0.02); boardGroup.add(under);
+      if (flower){ const f=lotusFlower(); const a=(node%6)*Math.PI/3+2.2; f.position.set(w.x+Math.cos(a)*HEXR*0.55, 0.13, w.z+Math.sin(a)*HEXR*0.55); f.scale.setScalar(GSCALE*1.4); boardGroup.add(f); }
     } else {                                         // brier hex: a thorny patch + a rock
       const patch=new THREE.Mesh(artGeo, new THREE.MeshStandardMaterial({ map:brierTex(brier), roughness:0.95, depthWrite:false }));
       patch.rotation.set(-Math.PI/2,0,(node%6)*Math.PI/3); patch.position.set(w.x, 0.104, w.z); patch.receiveShadow=true; boardGroup.add(patch);
-      const rock=new THREE.Mesh(rockGeo, new THREE.MeshStandardMaterial({ color:brier.rock, roughness:0.85, metalness:0.05, flatShading:true }));
-      rock.scale.set(1,0.6,1); rock.rotation.y=(node%5); rock.position.set(w.x, 0.12, w.z); rock.castShadow=true; boardGroup.add(rock);
+      // a rounded two-tone boulder + two low thorny bramble sprigs at the edge (the flat faceted rock and painted thorns read as clutter)
+      const rock=new THREE.Mesh(boulderGeo(HEXR*0.42, node), new THREE.MeshStandardMaterial({ color:brier.rock, vertexColors:true, roughness:0.9, metalness:0.02 }));
+      rock.scale.set(1.05,0.55,0.95); rock.rotation.y=(node%5); rock.position.set(w.x, 0.12, w.z); rock.castShadow=true; rock.receiveShadow=true; boardGroup.add(rock);
+      for (let b=0;b<2;b++){ const a=(node*1.3+b*Math.PI)%(Math.PI*2); const sp=brambleSprig(node+b*7); sp.position.set(w.x+Math.cos(a)*HEXR*0.66, 0.105, w.z+Math.sin(a)*HEXR*0.66); sp.scale.setScalar(GSCALE*1.3); boardGroup.add(sp); }
     }
   }
   if (BOARD.star) boardGroup.add(buildStarFrame(th));   // smooth star border with engraved title
@@ -1818,7 +1860,7 @@ function buildPiece(roleKey){
     // move (the dog-disappears-in-Chinese-Checkers bug). A static bird happened to stay in view.
     wrap.traverse(o=>{ if(o.isMesh){ o.castShadow=true; if(o.isSkinnedMesh) o.frustumCulled=false; } });
     const lab = letterSprite(roleShort(roleKey), side); lab.position.y = finalH + 0.25; wrap.add(lab);
-    wrap.userData.mat = null;
+    wrap.userData.mat = null; wrap.userData.pieceH = finalH;   // the model's own height (the label sprite above it isn't part of it) — a jump arc clears this
     attachMotion(wrap, wrap.children[0], cfg);
     g = wrap;
   } else {
@@ -2193,7 +2235,11 @@ async function travelGroup(g, from, to, style, kc){
     await addAnim(dur, p=>{ lerpXZ(easeIO(p)); g.position.y = baseY + H + Math.sin(Math.PI*p)*0.35; if(kc) kcApply(0.15+easeIO(p)*0.75); });
     await addAnim(340, p=>{ g.position.y = baseY + (1-easeIO(p))*H; if(kc) kcApply(0.9+easeIO(p)*0.1); });
   } else {
-    const arc = style==='hop' ? 0.35 + dist*0.12 : 0;
+    let arc = style==='hop' ? 0.35 + dist*0.12 : 0;
+    // a JUMP over another piece (Chinese checkers: two cells) must clear it — the old fixed arc sent a tall frog straight through the
+    // rabbit it was jumping. The piece's own height sets the arc (every piece on a board is scaled to the same seat).
+    if (style==='hop' && GRAPH && dist > GSCALE*1.3){ const h = g.userData.pieceH || 0.6;   // the jumped piece is the same size: clear it with a small margin at the top of the arc
+      arc = Math.max(arc, h*1.05 + 0.12); }
     await addAnim(dur, p=>{ lerpXZ(easeIO(p)); g.position.y = baseY + Math.sin(Math.PI*p)*arc; if(kc) kcApply(easeIO(p)); });
   }
   g.position.set(to.x,baseY,to.z);
