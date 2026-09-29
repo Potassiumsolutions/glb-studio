@@ -128,6 +128,8 @@
   .divider{height:1px;background:var(--line);margin:12px 0}
   #loadwrap{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg);z-index:20;flex-direction:column;gap:10px}
   body.player #side{display:none}
+  body.player #stage{flex:1 1 auto;height:auto}   /* exported app: no panel → the board gets the whole screen (the phone rule gives the editor's view only 52vh) */
+  @media (max-width:760px){ body.player #stage #status{top:58px;bottom:auto} }   /* phone: keep the turn pill clear of the bottom camera bar */
   body.player #cambar{top:auto;bottom:12px}
   #playerBar{position:absolute;top:10px;left:12px;display:flex;gap:6px}
   #playerBar button{background:rgba(28,31,40,.9);border:1px solid var(--line);color:var(--txt);border-radius:7px;padding:6px 10px;cursor:pointer;font-size:12px}
@@ -1199,7 +1201,7 @@ import * as Tuck from './tuckbox-designer.js';
 
 const BGC = window.BGC, GAMES = window.BGC_GAMES;
 const TE = window.TileEngine, TLIB = window.TileLibrary;
-const APP_VERSION = 'v1.41';
+const APP_VERSION = 'v1.42';
 const CREDITS = `<b>Ksol Designs</b> — Paul A.T. Ramey<br>www.ksoldesigns.com<br>Built with GLB Studio · Tabletop<br><span class="ver">${APP_VERSION}</span>`;
 // ---- Board credit: a small "KSOL Designs" mark on the board for the FREE build. Owning ANY content pack
 // (TTier expansion) unlocks removing it (⚙ Settings toggle, or click the credit). ----
@@ -3063,8 +3065,11 @@ document.getElementById('stopBtn').onclick=()=>{
 };
 
 /* ================= EXPORT playable app ================= */
-const CORE_FILES = ['bgc-core.js','chess-engine.js','chess-ai.js','checkers-engine.js','checkers-ai.js','sternhalma-engine.js','bgc-ai-worker.js','serve.py'];
-const GAMEDEF_FILES = { chess:'games/chess-gamedef.js', checkers:'games/checkers-gamedef.js', sternhalma:'games/sternhalma-gamedef.js' };
+// every script the page loads (classic <script src> + static module imports) — a missing one stops the exported app at "Loading board…"
+const CORE_FILES = ['bgc-core.js','chess-engine.js','chess-ai.js','checkers-engine.js','checkers-ai.js','sternhalma-engine.js','bgc-ai-worker.js','serve.py',
+  'race-core.js','tile-engine.js','tile-library.js','map-generator.js','modern-generator.js','dungeon-gen.js','tabletop-tier.js',
+  'tile-render.js','cards-deck.js','tuckbox-designer.js','box-templates/templates.js'];
+const GAMEDEF_FILES = { chess:'games/chess-gamedef.js', checkers:'games/checkers-gamedef.js', sternhalma:'games/sternhalma-gamedef.js', racetest:'games/racetest-gamedef.js', ur:'games/ur-gamedef.js' };
 const EXP = {
   manifest:(name)=>JSON.stringify({ name, short_name:name.slice(0,12), start_url:'./index.html',
     display:'standalone', background_color:'#0e1016', theme_color:'#14161c', orientation:'any',
