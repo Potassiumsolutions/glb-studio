@@ -1,0 +1,68 @@
+KSOL DESIGNS GLB STUDIO — LICENSE
+Version 1.0 · effective September 28, 2026
+KSOL Designs · Paul A.T. Ramey · www.ksoldesigns.com · Paul@ksoldesigns.com
+
+This license covers GLB Studio and the content KSOL Designs makes for it: the expansion packs (rigged characters,
+motions, scenes, sets and props), the add-on unlocks (AI Generate and the Tabletop add-ons), and the free starter
+library and sample characters. In short: use GLB Studio to create anything you like, and everything you create is
+yours to share and sell. The only thing you can't do is share or resell the pack files themselves.
+
+"You" means the person who bought or downloaded the content. "The assets" means the KSOL Designs content above.
+"Your work" means anything you make with GLB Studio and the assets: videos, animations, GIFs, sprite sheets,
+images, renders, boards, maps, cards, boxes, games, apps and prints.
+
+
+1. WHAT YOU CAN DO
+
+With any purchase, and with the free starter content, you get a worldwide, non-exclusive, non-transferable,
+perpetual license to use GLB Studio and the assets to make your work. Your work is yours:
+
+  • Share it anywhere: YouTube, TikTok, Instagram, streams, websites, social media.
+  • Sell it and earn money from it, with no extra license, royalty or fee: games and apps (including apps exported
+    from GLB Studio or the Tabletop), videos, ads, client work, printed boards, maps, cards, boxes and posters,
+    3D prints, map packs and VTT maps, and anything else you create.
+  • Use it for personal, school, portfolio and commercial projects alike.
+
+Credit is appreciated ("Made with GLB Studio · KSOL Designs") but never required.
+
+
+2. WHAT IS NOT ALLOWED
+
+  • Sharing, giving away, reselling, sublicensing or uploading the asset files themselves: expansion packs
+    (.glbpack.json), unlock keys (.studiokey), or the models, motions, scenes or props on their own, whether
+    extracted or exported. This includes asset stores, model marketplaces, file-sharing sites and "free download"
+    posts. Selling the assets as assets is not your work.
+  • Passing your unlock keys or pack files to anyone else. Each purchase is for the person who bought it.
+  • Shipping the assets in a way that lets people pull them out as usable standalone files (for example, a loose
+    .glb model folder beside your game). Assets built into your game or rendered into your work are fine.
+  • Using the assets to train or fine-tune AI or machine-learning models, or including them in datasets.
+  • Claiming that you made the assets themselves, or presenting them as your own original models or animations.
+  • Using the assets in content that is illegal, hateful, harassing, or that defames a real person.
+
+
+3. YOUR OWN MODELS AND AI GENERATE
+
+Anything you bring into GLB Studio yourself (your own characters, props and pictures) stays yours. Models you make
+with the AI Generate add-on come from your own pictures through your own fal.ai account: KSOL Designs claims no
+rights in them, and fal.ai's and the model provider's own terms apply. Models generated on meshy.ai or mixamo.com,
+or on any other service, are covered by that service's terms.
+
+
+4. THE GLB STUDIO SOFTWARE
+
+The GLB Studio app itself is free and open source under the MIT License (see the LICENSE file at
+github.com/Potassiumsolutions/glb-studio). The MIT License covers the software code only; the paid packs and
+add-on unlocks are covered by this license.
+
+
+5. GENERAL
+
+  • This license is yours forever and includes future updates to the packs you bought. A later version of this
+    license will never take away rights you already have for content you bought before it.
+  • The assets are provided "as is", without warranty of any kind. KSOL Designs' total liability for any claim is
+    limited to the amount you paid for the content involved.
+  • If you break these terms, your license ends, and you must stop using and delete the assets.
+  • Meshy, Mixamo, fal.ai, TRELLIS and other product names are trademarks of their respective owners. KSOL Designs
+    is not affiliated with or endorsed by them.
+
+Questions? Email Paul@ksoldesigns.com.
