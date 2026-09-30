@@ -67,7 +67,7 @@ When you are set up, tell me to press 🤖 AI → Connect in GLB Studio.`;
         await fetch(base + '/result', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(out) });
       } catch (e) {
         if (my !== loopId) return; fails++;
-        setStat('wait', `Waiting for your AI… (it starts the bridge on this computer, port ${port()} — see step 1)`);
+        setStat('wait', `Waiting for your AI… (it starts the helper on this computer, port ${port()} — see step 1)${fails > 3 ? '<br>Still waiting? If you pressed <b>Block</b> when the browser asked, click the 🔒 / settings icon left of the address, allow <b>apps on this device</b> (local network), and reload.' : ''}`);
         await sleep(Math.min(5000, 1000 + fails * 500));
       }
     }
