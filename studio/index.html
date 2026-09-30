@@ -50,6 +50,14 @@
   @media (max-width:720px){ .flow,.tab .n{display:none} }
   @media (max-width:720px){ nav{flex-wrap:wrap} .tab{padding:6px 10px} }   /* phone: every tab visible (the row was cut off after Stitch) */
   /* About / instructions */
+  #aiSheet{position:absolute;inset:0;z-index:40;background:rgba(4,6,10,.72);display:none;align-items:flex-start;justify-content:center;overflow:auto;padding:34px 18px}
+  #aiSheet.open{display:flex}
+  #aiSheet .step{background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:10px 0}
+  #aiSheet .step h3{margin:0 0 6px;font-size:14px}
+  #aiSheet pre{white-space:pre-wrap;background:#0b1017;border:1px solid var(--line);border-radius:8px;padding:10px;font:12px/1.45 ui-monospace,monospace;color:#cfd9e6;margin:8px 0}
+  #aiSheet .btn2{display:inline-block;cursor:pointer;border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--text);border-radius:8px;padding:7px 12px;font-weight:700;font-size:13px}
+  #aiSheet .btn2.on,#aiSheet .btn2.pri{border-color:var(--accent);background:rgba(91,140,255,.18)}
+  #aiSheet .muted{color:var(--muted);font-size:12.5px}
   #about,#upgrades{position:absolute;inset:0;z-index:40;background:rgba(4,6,10,.72);display:none;align-items:flex-start;justify-content:center;overflow:auto;padding:34px 18px}
   #about.open,#upgrades.open{display:flex}
   #about,#upgrades{scrollbar-width:auto;scrollbar-color:#5b6b85 #0f141b}
@@ -115,6 +123,7 @@
     <div class="lib" id="libBtn" title="Studio Library — shared between all tools">
       <span class="dot">◆</span> Library:&nbsp;<b id="cModels">0</b>&nbsp;models&nbsp;·&nbsp;<b id="cMotions">0</b>&nbsp;motions
     </div>
+    <div class="lib" id="aiBtn" title="Let your own AI assistant (Claude Code, Codex, Gemini…) drive GLB Studio" style="gap:6px"><span id="aiDot" style="color:#6b7688">●</span>&nbsp;🤖&nbsp;AI</div>
     <div class="lib" id="upgradesBtn" title="Unlock expansion packs" style="gap:6px">✨&nbsp;Upgrades</div>
     <div class="lib" id="newVerBtn" title="GLB Studio was updated since this page opened. Reload to use the new version (your Studio Library is kept)." style="display:none;gap:6px;border-color:var(--accent);color:#fff;font-weight:700">🆕&nbsp;New&nbsp;version&nbsp;—&nbsp;reload</div>
     <div class="lib" id="restartBtn" title="Restart this tab: clears what you're working on in it and frees its memory" style="gap:6px">⟳&nbsp;Restart&nbsp;tab</div>
@@ -142,16 +151,18 @@
       <div class="sheet-body">
         <p class="pitch">Everything a game creator needs to make the characters, boards, cards, boxes, videos and the app, in one place, in your browser.</p>
         <p class="lead">GLB Studio takes you from a picture or a 3D model all the way to a <b>rigged, animated character</b>, finished <b>videos</b>, print-ready <b>boards, cards and boxes</b>, 3D-printable <b>minis</b>, and a <b>playable app</b>. Each tab hands its work to the next through a shared <b>Studio Library</b>, so there are no files to shuffle between steps.</p>
-        <figure class="shot"><img src="help/menu.png" alt="Menu bar"><figcaption>The top menu: <b>🪄 Generate · 🧍 Rig · 🐾 Animate · 🎬 Stitch · 🎲 Tabletop</b>. On the right, <b>◆ Library</b> shows what's shared, <b>✨ Upgrades</b> unlocks add-ons and packs, and <b>❔ About</b> opens this guide.</figcaption></figure>
+        <figure class="shot"><img src="help/menu.png" alt="Menu bar"><figcaption>The top menu: <b>🪄 Generate · 🧍 Rig · 🐾 Animate · 🎬 Stitch · 🎲 Tabletop · 🎼 Maestro</b>. On the right, <b>◆ Library</b> shows what's shared, <b>🤖 AI</b> connects your own AI assistant, <b>✨ Upgrades</b> unlocks add-ons and packs, and <b>❔ About</b> opens this guide.</figcaption></figure>
         <div class="callout"><b>Quick start:</b> make or drop in a character → <b>🧍 Rig</b> it → pick motions in <b>🎬 Stitch</b> and render an MP4, or put it on a board in <b>🎲 Tabletop</b> and play. No model yet? Stitch has free sample characters, or make one from a picture with <b>🪄 Generate</b>.</div>
 
         <h2><span class="step">✦</span> 🪄 Generate: turn a picture into a 3D model <span class="pill2">add-on</span></h2>
         <div class="payg">💲 <b>Pay only for what you make</b> · no subscription, no monthly fee · about 2¢ per Draft model</div>
         <p>Drop, paste or crop a picture, choose <b>🏺 Prop</b> (buildings, trees, vehicles, statues) or <b>🧍 Character</b> (to rig and animate), then choose the quality:</p>
         <ul>
-          <li><b>⚡ Draft</b> (about 2¢): good shape with softer paint. Best for game pieces on a map.</li>
+          <li><b>⚡ Draft</b> (about 2¢): good shape with softer paint, a quick check of a picture.</li>
+          <li><b>⚖ Standard</b> (about 2¢): clean paint all over and more detail. Best for game pieces and big, bulky characters.</li>
           <li><b>💎 Hero</b> (about 25–35¢): sharp detail and textures, for close-ups, films and showpieces.</li>
         </ul>
+        <p><b>Try a new picture on ⚖ Standard first.</b> If the shape and hands look right, press <b>💎 Happy with it? Make it in Hero</b>. After every character, GLB Studio <b>checks the hands for you</b> (free, on your computer) and warns you if the AI added a finger or tore a hand. <b>👀 Look at the hands</b> shows them close up. The AI gets hands wrong most often, so picture tips come first: open hands with the fingers spread, and nothing hanging behind the character (long braids, ropes, capes). The tab has a <b>🧹 clean-up prompt</b> to fix a picture you already have.</p>
         <p>Press <b>Generate</b>. The model is shrunk to game size, saved to the Studio Library, and can go straight to <b>🧍 Rig this</b> or <b>🎲 Use in Tabletop</b>. For a character you can rig, use a front-view <b>T-pose</b> picture; the tab has a ready-made prompt to copy into Gemini or any picture AI.</p>
         <figure class="shot"><img src="help/generate.png" alt="Generate tab"><figcaption>Generate: picture on the left, the 3D model on the right, what it cost, and your AI models along the bottom.</figcaption></figure>
         <div class="callout"><b>💲 Where the cost comes from:</b> the models are made by <b>TRELLIS</b> (an image-to-3D AI by Microsoft) running on <b>fal.ai</b>. fal.ai charges <b>your own fal.ai account</b> for each model you make, using the key you set up in the tab's <b>⚙ Set up</b> (about 2 minutes: sign up, add a little credit, create a key, paste it). KSOL Designs receives none of that money and adds nothing on top. You always see the price before you click, and <b>💲 Your costs</b> keeps a running total and history. The add-on itself is a separate one-time purchase that unlocks the tab. <b>This is the only part of GLB Studio with a per-use cost.</b></div>
@@ -162,10 +173,16 @@
 
         <h2><span class="step">2</span> 🐾 Animate: make motions</h2>
         <p>Choose the <b>rig type</b>, pick a motion (walks, runs, jumps, sports, dances, gestures, wing flaps and more), and tune its <b>speed</b>, <b>amplitude</b> and <b>loop length</b>. When it looks right, click <b>➕ Add current animation → Studio Library</b>. It joins Stitch's motion list for that skeleton.</p>
-        <figure class="shot"><img src="help/animate.png" alt="Rig Animator"><figcaption>Animate: pick a rig, choose a motion, tune it, then <b>➕ Add</b> it to the library.</figcaption></figure>
+        <p>Three ways to make <b>your own</b> motions (they appear in the list under their own headings and are saved on your computer):</p>
+        <ul>
+          <li><b>✏ Edit this motion</b>: start from any motion, scrub to a moment and <b>drag the figure</b> (pull a hand or foot, turn the head or body). Each drag sets a key. <b>💾 Save as a new motion</b>; the original is never changed.</li>
+          <li><b>🎥 Motion from a video</b> (people): choose a video or <b>⏺ record with the camera</b> (whole body in the picture, camera still, up to 20 seconds). The body, and the fingers on a fingered rig, are tracked <b>right on your computer</b> (the video is never uploaded) and become a new motion. One camera has to guess depth, so check it from the side, and touch it up with ✏ if needed.</li>
+          <li><b>🤖 Motion from a description</b> (people): <b>📋 Copy the instructions</b> into any AI chat (ChatGPT, Claude, Gemini…), say what you want (<i>"a proud victory jump with both fists up"</i>), paste its answer back and press <b>▶ Make the motion</b>. Or connect your AI (below) and it does all of this for you.</li>
+        </ul>
+        <figure class="shot"><img src="help/animate.png" alt="Rig Animator"><figcaption>Animate: pick a rig and a motion, tune it and <b>➕ Add</b> it to the library, or make your own with ✏ Edit, 🤖 a description or 🎥 a video.</figcaption></figure>
 
         <h2><span class="step">3</span> 🎬 Stitch: make the video</h2>
-        <p><b>Load</b> a rigged character from the <b>◆ Studio Library</b> card (or a free sample). Motions for its skeleton appear in the <b>Motion library</b>; click one to add it as a clip, and it's <b>retargeted</b> onto your character automatically. Then set the scene, props, camera, audio and cross-fades, add more characters if you like, and <b>Render</b> an MP4.</p>
+        <p><b>Load</b> a rigged character from the <b>◆ Studio Library</b> card (or a free sample). Motions for its skeleton appear in the <b>Motion library</b>; click one to add it as a clip, and it's <b>retargeted</b> onto your character automatically. Then set the scene, props, camera, audio and cross-fades, add more characters if you like, and <b>Render</b> an MP4. On characters with fingers, held props (swords, staffs, spears, bats) sit in the fist and the fingers close around the handle.</p>
         <figure class="shot"><img src="help/stitch.png" alt="GLB Stitcher"><figcaption>Stitch: load a character, add motions, build the scene and render.</figcaption></figure>
 
         <h2><span class="step">4</span> 🎲 Tabletop: make the content for your game</h2>
@@ -177,6 +194,13 @@
         </ul>
         <figure class="shot"><img src="help/tabletop.png" alt="Tabletop map builder"><figcaption>Tabletop → Build a Board: a generated map with a walled castle, villages, a stream, roads, farms and mountains.</figcaption></figure>
 
+        <h2><span class="step">5</span> 🎼 Maestro: top-down motion for maps</h2>
+        <p>Plan a play, a battle or a scene seen from above. Put characters, tokens and props on a board (or <b>🎲 Pull from Tabletop</b> to use the board you built), draw each one's <b>path</b> as a chain of points, add formations and timing, and press <b>▶</b>. Each piece runs its own path with its own motions. <b>Record</b> a video, or export the play (JSON/CSV path data or an animated GLB) to use elsewhere. Stitch can send clips and sound straight to Maestro.</p>
+        <figure class="shot"><img src="help/mapview.png" alt="Maestro"><figcaption>Maestro: a football field with an offense and a 4-3 defense added in two clicks; select a player and draw its route.</figcaption></figure>
+
+        <h2><span class="step">🤖</span> Drive GLB Studio with your own AI</h2>
+        <p>If you use an AI assistant that can run programs on your computer (<b>Claude Code</b>, <b>Codex</b>, <b>Gemini CLI</b>, <b>Cursor</b> and others), it can drive GLB Studio for you. It can make motions from your descriptions and check them from the front and side, turn your videos into motions, and add the results to your library. Click <b>🤖 AI</b> (top right), <b>📋 Copy the setup message</b> into a new session of your AI, and when it says it's ready, press <b>🔌 Connect</b>. There are no API keys and nothing is sent to KSOL Designs: your AI starts a small helper on your computer, runs on your own AI subscription, and GLB Studio talks to it. Your browser may ask to let GLB Studio reach "apps on this device"; press <b>Allow</b>.</p>
+
         <h2><span class="step">✦</span> ✨ Upgrades: add-ons and expansion packs</h2>
         <p>The core tools are free. Add-ons (like <b>🪄 AI Generate</b>) and Tabletop packs (hex boards and terrain, battle maps, modern, sci-fi, race games and more) are <b>one-time purchases</b> on <a href="https://www.patreon.com/KsolDesigns" target="_blank" rel="noopener" style="color:var(--accent)">Patreon</a>. Each comes as a small <span class="pill2">.studiokey</span> file: click <b>✨ Upgrades</b>, drop the file in, and it unlocks on that device. Keep the file; if you clear your browser or change computers, just drop it in again.</p>
 
@@ -184,7 +208,7 @@
         <p>Click <b>◆ Library</b> any time to see everything the tabs have shared: rigged characters, AI models and baked motions. You can delete anything you don't need from there.</p>
         <figure class="shot"><img src="help/library.png" alt="Studio Library drawer"><figcaption>The library drawer: everything here is picked up by the other tabs automatically.</figcaption></figure>
 
-        <div class="callout"><b>🔒 Privacy:</b> GLB Studio runs in your browser and your models stay on your computer. The one exception is <b>🪄 Generate</b>, which sends the picture you choose to fal.ai to make the model. Your fal.ai key is sent only to fal.ai. Nothing goes to KSOL Designs.<br><b>Running it:</b> use the hosted link, or run it locally with <code style="background:#0d1119;border:1px solid var(--line);border-radius:5px;padding:1px 6px">run-local.bat</code> (or any static server). The shared library only works inside GLB Studio, because it's tied to that one address.</div>
+        <div class="callout"><b>🔒 Privacy:</b> GLB Studio runs in your browser and your models stay on your computer. The one exception is <b>🪄 Generate</b>, which sends the picture you choose to fal.ai to make the model. Your fal.ai key is sent only to fal.ai. <b>🎥 Motion from a video</b> runs on your computer (the free tracker is downloaded once; your video is never uploaded), and <b>🤖 AI</b> only talks to a helper on your own computer. Nothing goes to KSOL Designs.<br><b>Running it:</b> use the hosted link, or run it locally with <code style="background:#0d1119;border:1px solid var(--line);border-radius:5px;padding:1px 6px">run-local.bat</code> (or any static server). The shared library only works inside GLB Studio, because it's tied to that one address.</div>
 
         <h2><span class="step">♥</span> Why I built this</h2>
         <div class="story">
@@ -219,6 +243,28 @@
     </div>
   </div>
 
+  <div id="aiSheet">
+    <div class="sheet">
+      <div class="sheet-hd">
+        <div><h1>🤖 Drive GLB Studio with your AI</h1><div class="sub">Your own AI assistant makes motions from a description, turns videos into motions, and more — on your computer, on your AI subscription</div></div>
+        <span class="x" id="aiX">✕ Close</span>
+      </div>
+      <div class="sheet-body">
+        <p class="lead">Works with AI assistants that can run programs on your computer — <b>Claude Code</b>, <b>Codex</b>, <b>Gemini CLI</b>, <b>Cursor</b> and others. There are no API keys to enter and nothing is sent to KSOL Designs: your AI starts a small helper on this computer and GLB Studio talks to it.</p>
+        <div class="step"><h3>1 · Give your AI the setup message</h3>
+          <div class="muted">Open a <b>new session</b> of your AI and paste this. It reads the guide, starts the helper and tells you when to connect.</div>
+          <pre id="aiSetupText"></pre>
+          <span class="btn2 pri" id="aiCopy">📋 Copy the setup message</span> <span class="muted" id="aiCopyNote"></span></div>
+        <div class="step"><h3>2 · Connect</h3>
+          <span class="btn2" id="aiConnect">🔌 Connect</span> <span class="muted" id="aiState">Not connected.</span>
+          <div class="muted" style="margin-top:8px">Your browser may ask to let GLB Studio reach this computer (“local network” / “apps on this device”) — press <b>Allow</b>. GLB Studio stays connected until you press Disconnect.</div></div>
+        <div class="step"><h3>3 · Ask for things</h3>
+          <div class="muted">“Make a motion where the character does a proud victory jump with both fists up.” · “Turn the video Downloads/dance.mp4 into a motion.” · “Show me the jump from the side, then make the landing softer.” · “Add it to my library.” Your AI checks its work by looking at the character from the front and side.</div></div>
+        <div class="callout">Using an AI in a chat website (ChatGPT, Claude.ai…) that can't run programs? Use <b>🐾 Animate → 🤖 Motion from a description</b> instead: copy the instructions into the chat, paste its answer back.<br>
+          <span class="muted">Advanced: helper port <input id="aiPort" type="number" min="1024" max="65535" style="width:80px;background:#0b1017;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:2px 6px"> (default 8766 — the same number goes in the helper's GLB_STUDIO_PORT)</span></div>
+      </div>
+    </div>
+  </div>
   <div id="upgrades">
     <div class="sheet">
       <div class="sheet-hd">
@@ -449,5 +495,6 @@
   StudioLib.onChange(refresh);
   StudioLib.ready.then(refresh);
 </script>
+<script src="ai-link.js?v=1"></script>
 </body>
 </html>

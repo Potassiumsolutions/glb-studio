@@ -70,7 +70,7 @@
 <main>
   <aside>
     <div>
-      <h1>🐾 Rig Animator <span class="appver">v1.20.2</span></h1>
+      <h1>🐾 Rig Animator <span class="appver">v1.21.0</span></h1>
       <div class="hint" style="margin-top:0">Procedurally generate original animations for your <b>biped</b>, <b>quadruped</b> and <b>bird</b> rigs — organized by category (boxing, fencing, football, dancing, running, walking, jumping, climbing…) — then export them into the GLB Stitcher motion library.</div>
     </div>
 
@@ -130,6 +130,31 @@
       </div>
     </div>
 
+    <div class="card" id="rcCard">
+      <h2>🤖 Motion from a description</h2>
+      <div class="hint" style="margin-top:0">Describe a motion to <b>any AI chat</b> (ChatGPT, Claude, Gemini…): press <b>📋 Copy the instructions</b>, paste them into the chat, add what you want (<i>“a proud victory jump with both fists up”</i>), then paste its answer (a <b>motion recipe</b>) here. Or connect your AI to GLB Studio (🤖 AI, top right) and it does all of this for you.</div>
+      <button class="btn" id="rcCopy" style="margin:8px 0 6px">📋 Copy the instructions for your AI</button>
+      <textarea id="rcText" rows="5" placeholder='Paste the motion recipe here — it starts with {"name": …' style="width:100%;box-sizing:border-box;padding:7px 9px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);color:var(--text);font:12px ui-monospace,monospace"></textarea>
+      <button class="btn primary" id="rcMake" style="margin-top:6px">▶ Make the motion</button>
+      <div class="hint" id="rcStatus"></div>
+    </div>
+
+    <div class="card" id="mcCard">
+      <h2>🎥 Motion from a video</h2>
+      <div class="hint" style="margin-top:0">Film someone moving — the <b>whole body in the picture</b> (head to feet), the camera held <b>still</b>, good light, up to 20 seconds. GLB Studio tracks the body — and the fingers, on a fingered rig — <b>right here on your computer</b> (free; the video is never uploaded) and turns it into a new motion in <b>🎥 From video</b>.</div>
+      <div id="mcNotBiped" class="hint" style="display:none;color:var(--warn,#f3d892)">Pick a <b>biped</b> rig (with or without fingers) to make a motion from a video.</div>
+      <div id="mcTools">
+        <input type="file" id="mcFile" accept="video/*" hidden>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 6px"><button class="btn" id="mcPick">📁 Choose a video</button><button class="btn" id="mcCam">⏺ Record with the camera</button></div>
+        <video id="mcLive" muted playsinline style="display:none;width:100%;border-radius:8px;margin-bottom:6px;background:#000"></video>
+        <label class="row" style="display:flex;gap:6px;align-items:center;font-size:12px;margin-bottom:6px"><input type="checkbox" id="mcMirror"> Mirrored video (a selfie camera) — swap left and right</label>
+        <label class="block">Name</label>
+        <input id="mcName" type="text" placeholder="My video motion" style="width:100%;box-sizing:border-box;padding:7px 9px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);color:var(--text);margin-bottom:6px">
+        <div id="mcBarW" style="display:none;height:6px;border-radius:4px;background:var(--panel2);overflow:hidden;margin:4px 0"><i id="mcBar" style="display:block;height:100%;width:0;background:#6aa9ff"></i></div>
+        <div class="hint" id="mcStatus"></div>
+      </div>
+    </div>
+
     <div class="card">
       <h2>Send to the Stitcher</h2>
       <div class="hint" style="margin-top:0">In <b>GLB Studio</b>, <b>➕ Add</b> drops the animation straight into the shared Studio Library — it joins 🎬 Stitch's retarget list automatically (no merge step). The downloadable pack is only needed for a standalone Stitcher.</div>
@@ -153,7 +178,7 @@
         </g>
       </svg>
       <div>
-        <div><b>Rig Animator</b> v1.20.2 · part of GLB Studio</div>
+        <div><b>Rig Animator</b> v1.21.0 · part of GLB Studio</div>
         <div class="appfoot-sub">© <span class="cred-year">2026</span> Paul A.T. Ramey · <b>KSOL Designs</b> · <a href="https://www.ksoldesigns.com" target="_blank" rel="noopener">ksoldesigns.com</a></div>
       </div>
     </div>
@@ -183,6 +208,7 @@
 <script type="module">
 import * as THREE from 'three';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+import * as MOCAP from './mocap.js';
 document.querySelectorAll('.cred-year').forEach(e=>e.textContent=String(new Date().getFullYear()));
 
 const $ = s => document.querySelector(s);
@@ -3666,7 +3692,8 @@ const BIPED_MOTIONS=[
   // knee curve), hip and ankle excursions shrink so each foot can be placed deliberately and flat rather
   // than rolled through a heel strike, and the arms are held still for balance and quiet.
   {id:'creep', name:'Cautious Creep', cat:'Walking', type:'move', dur:1.8, build:(t,P)=>{ const A=P.amp;
-    gaitNorm(t,P,1.8,{hip:0.50,knee:0.55,ankle:0.45,crouch:0.45,lean:0.16,
+    gaitNorm(t,P,1.8,{hip:0.50,knee:0.55,ankle:0.45,crouch:0.45,lean:0.16,hipBias:0.22,   // hipBias (2026-09-30 audit: weight 7-13% of a leg AHEAD of the feet — the crouch + lean tipped the body forward, feet trailing)
+      
       armSwing:5,elbow0:1.05,elbowAmp:0.05,armOut:0.20,shDrive:0.10,pelvisRot:2,pelvisList:2,headBob:0});
     sw('Spine02',AX.x,0.10*A); sw('Spine01',AX.x,0.10*A);                  // hunch the upper back over
     const scan=Math.sin(TAU*(t/1.8)*P.speed);                              // head scans, one full sweep per loop
@@ -8048,7 +8075,7 @@ let rigKey='biped', motion=null, playing=true, looping=true, tNow=0, lastMs=perf
 function P(){ return { speed:parseFloat($('#spd').value)||1, amp:parseFloat($('#amp').value)||1 }; }
 function curDur(){ return parseFloat($('#dur').value)||motion.dur; }
 function setRig(k){
-  rigKey=k; const R=RIGS[k]; buildRig(R.tpl, R.orient, R.ground); calibrateFeet(); calibrateSole(); calibrateJoints(); calibrateQuad(); captureQuadRest(); calibrateBird(); calibrateBirdP();
+  rigKey=k; const R=RIGS[k]; buildRig(R.tpl, R.orient, R.ground); if(typeof mcUI==='function') mcUI(); if(typeof rcUI==='function') rcUI(); calibrateFeet(); calibrateSole(); calibrateJoints(); calibrateQuad(); captureQuadRest(); calibrateBird(); calibrateBirdP();
   $('#rigNote').textContent=R.label;
   [...$('#rigSeg').children].forEach(b=>b.classList.toggle('on', b.dataset.rig===k));
   renderMotions(); selectMotion(R.motions[0]);
@@ -8069,6 +8096,7 @@ function renderMotions(){
 function selectMotion(m){
   if(edit && m!==motion){ if(!edStop(true)) return; }
   motion=m; tNow=0; playing=true; $('#play').textContent='⏸'; $('#play').classList.add('on');
+  $('#dur').max=Math.max(4, Math.ceil(m.dur*2));   // a long video motion must fit the duration slider
   $('#dur').value=m.dur.toFixed(1); $('#durVal').textContent=m.dur.toFixed(1)+'s';
   [...$('#mlist').children].forEach(r=>r.classList.toggle('on', r.dataset.id===m.id));
   $('#status').textContent = RIGS[rigKey].label.split(',')[0] + ' · ' + m.name;
@@ -8428,8 +8456,10 @@ function edApply(E, t, D){   // add the edit layer onto the pose the base motion
 // a motion object for the base + edit layer (what plays, what ➕ Add bakes, what is saved)
 function edMotion(base, E, id, name){ return Object.assign({}, base, { id, name, cat:'✏ My motions', userEdit:true, baseId:base.id,
   build:(t,Pm)=>{ base.build(t,Pm); edApply(E, t, base.dur); } }); }
-function userMotionsFor(rk){ const out=[];
-  for(const u of myMotionsAll()){ if(u.rig!==rk) continue; const base=RIGS[rk].motions.find(m=>m.id===u.baseId); if(!base) continue;
+function userMotionsFor(rk){ const out=[]; const all=myMotionsAll();
+  for(const u of all){ if(u.rig===rk && u.kind==='mocap') out.push(mcMotion(u)); if(u.rig===rk && u.kind==='recipe') out.push(rcMotion(u)); }
+  for(const u of all){ if(u.rig!==rk || u.kind==='mocap' || u.kind==='recipe') continue; const mb=all.find(x=>x.kind==='mocap' && x.id===u.baseId && x.rig===rk);
+    const base=RIGS[rk].motions.find(m=>m.id===u.baseId) || (mb && mcMotion(mb)); if(!base) continue;
     out.push(edMotion(base, {keys:u.keys||{}, root:u.root||[], loop:!!u.loop}, u.id, u.name)); }
   return out; }
 // ---- UI ----
@@ -8443,7 +8473,7 @@ function edKeyTimes(){ if(!edit) return []; const s=new Set(); for(const bn in e
 function edTicks(){ const host=$('#edTicks'); if(!host) return; host.innerHTML=''; if(!edit) return; const D=edit.base.dur;
   for(const t of edKeyTimes()){ const d=document.createElement('div'); d.className='edtick'; d.style.left=(t/D*100)+'%'; d.title=t.toFixed(2)+'s'; host.appendChild(d); } }
 function edStart(){ if(!motion) return;
-  const base = motion.userEdit ? RIGS[rigKey].motions.find(m=>m.id===motion.baseId) : motion; if(!base) return;
+  const base = motion.userEdit ? (RIGS[rigKey].motions.find(m=>m.id===motion.baseId) || userMotionsFor(rigKey).find(m=>m.mocap && m.id===motion.baseId)) : motion; if(!base) return;
   const saved = motion.userEdit ? myMotionsAll().find(u=>u.id===motion.id && u.rig===rigKey) : null;
   edit={ base, keys: saved ? JSON.parse(JSON.stringify(saved.keys||{})) : {}, root: saved ? JSON.parse(JSON.stringify(saved.root||[])) : [], loop: saved ? !!saved.loop : (base.type==='move'), dirty:false, name: saved ? saved.name : base.name+' (edited)' };
   motion=edMotion(base, edit, motion.userEdit ? motion.id : 'edit', edit.name);
@@ -8519,18 +8549,164 @@ function edDelete(id){ const all=myMotionsAll(), u=all.find(x=>x.id===id); if(!u
 window.__edTest=()=>{ const h=boneByName['RightHand']; if(!h) return null; animRoot.updateMatrixWorld(true); const v=h.getWorldPosition(new THREE.Vector3()).project(camera); const r=renderer.domElement.getBoundingClientRect(); return {x:r.left+(v.x+1)/2*r.width, y:r.top+(1-v.y)/2*r.height}; };   // dev test hook
 window.__edit={ get state(){ return edit; }, start:edStart, stop:edStop, save:edSave, recordKey:edRecordKey, removeKey:edRemoveKey, list:myMotionsAll, del:edDelete };
 
+// ===== 🎥 MOTION FROM A VIDEO (2026-09-30) — tracking + solve live in mocap.js; here: the card, saving, playback =====
+const isBipedRig=()=>rigKey==='biped'||isHandRig();
+const mcCtx=()=>({ bones:boneByName, list:boneList, resetPose, animRoot });
+function mcMotion(u){ return { id:u.id, name:u.name, cat:'🎥 From video', type:'stay', dur:u.dur, mocap:true,
+  build:(t)=>{ resetPose(); MOCAP.applyRecord(u, t*u.dur/(curDur()||u.dur), mcCtx()); } }; }   // the duration slider stretches / squeezes the capture
+function mcUI(){ const on=isBipedRig(); $('#mcTools').style.display=on?'':'none'; $('#mcNotBiped').style.display=on?'none':''; }
+function mcStatus(t, pct){ $('#mcStatus').innerHTML=t||''; $('#mcBarW').style.display = pct==null ? 'none' : ''; if(pct!=null) $('#mcBar').style.width=Math.round(pct*100)+'%'; }
+let mcBusy=false;
+async function mcMake(src, label, forAI){
+  if(mcBusy){ if(forAI) throw new Error('A video is already being turned into a motion.'); return; } if(!isBipedRig()) return; mcBusy=true; if(edit && !edStop(!forAI)){ mcBusy=false; return; }
+  const name=($('#mcName').value||'').trim() || (label||'Video motion').replace(/\.[a-z0-9]+$/i,'').slice(0,40);
+  try{
+    const rec=await MOCAP.videoToMotion(src, mcCtx(), { mirror:$('#mcMirror').checked, fps:20 }, (p,t)=>mcStatus(t,p));
+    const all=myMotionsAll(); let nm=name, k=2; while(all.some(u=>u.rig===rigKey && u.name.toLowerCase()===nm.toLowerCase()) || RIGS[rigKey].motions.some(m=>m.name.toLowerCase()===nm.toLowerCase())) nm=name+' '+(k++);
+    const u=Object.assign(rec, { id:'mc_'+Date.now().toString(36), name:nm, rig:rigKey, saved:Date.now() });
+    if(!myMotionsSave(all.concat([u]))){ mcStatus('Made, but there is no room left to keep it on this computer — delete an older 🎥 or ✏ motion and try again.'); return; }
+    renderMotions(); const m=mcMotion(u); selectMotion(m); [...$('#mlist').children].forEach(r=>r.classList.toggle('on', r.dataset.id===u.id));
+    playing=true; $('#play').textContent='❚❚'; $('#play').classList.add('on');
+    const miss=rec.frames-rec.seen;
+    mcStatus('✔ “'+nm+'” is in <b>🎥 From video</b> ('+rec.dur.toFixed(1)+' s'+(miss?' · the person was lost on '+miss+' of '+rec.frames+' frames — those were filled in':'')+'). ✏ Edit it, or ➕ Add it to the Studio Library for the Stitcher.');
+    return { id:u.id, name:nm, seconds:rec.dur, framesWithoutPerson:miss, frames:rec.frames };
+  }catch(e){ console.warn('[mocap]', e); mcStatus('⚠ '+(e.message||e)); if(forAI) throw e; }
+  finally{ mcBusy=false; } }
+$('#mcPick').onclick=()=>$('#mcFile').click();
+$('#mcFile').onchange=e=>{ const f=e.target.files[0]; e.target.value=''; if(f) mcMake(f, f.name); };
+// ⏺ record with the camera: a 3-2-1 countdown, then up to 15 s (press again to stop early)
+let mcRec=null;
+$('#mcCam').onclick=async ()=>{
+  if(mcRec){ mcRec.stop(); return; }
+  let stream; try{ stream=await navigator.mediaDevices.getUserMedia({ video:{ width:1280, height:720 }, audio:false }); }
+  catch(e){ mcStatus('⚠ The camera could not be opened ('+(e.message||e.name)+'). You can still 📁 choose a video file.'); return; }
+  const live=$('#mcLive'); live.srcObject=stream; live.style.display=''; await live.play().catch(()=>{});
+  $('#mcMirror').checked=true;   // a laptop / phone front camera shows you like a mirror
+  for(const n of [3,2,1]){ mcStatus('Step back so your whole body is in the picture… '+n); await new Promise(r=>setTimeout(r,1000)); }
+  const chunks=[]; const mr=new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('video/webm;codecs=vp9')?'video/webm;codecs=vp9':'video/webm' });
+  mr.ondataavailable=e=>{ if(e.data.size) chunks.push(e.data); };
+  const done=new Promise(r=>{ mr.onstop=r; }); mcRec=mr; mr.start(); $('#mcCam').textContent='⏹ Stop recording'; mcStatus('⏺ Recording — move! (press ⏹ to stop, or it stops by itself after 15 s)');
+  const cap=setTimeout(()=>{ if(mr.state==='recording') mr.stop(); }, 15000);
+  await done; clearTimeout(cap); mcRec=null; $('#mcCam').textContent='⏺ Record with the camera';
+  stream.getTracks().forEach(t=>t.stop()); live.style.display='none'; live.srcObject=null;
+  mcMake(new Blob(chunks, { type:'video/webm' }), 'Camera motion'); };
+
+// ===== 🤖 MOTION RECIPES (2026-09-30) — a motion described as a few KEY POSES in plain joint angles. Any AI (or a person) can
+// write one; the Animator builds it with its own posing helpers, so it plays, edits (✏), bakes and ➕ adds like any other motion.
+// Units: degrees; every field optional; missing = relaxed standing. Between keys each value eases smoothly (and wraps last → first
+// when "loop" is on). Feet stay on the floor unless "jump" lifts the body.
+const RC_HAND={ relax:'relax', open:'open', fist:'power', point:'trigger', thumbsup:'thumbsup', wave:'wave', flat:'flat', spread:'splay', loose:'loosefist' };
+const RC_FIELDS={ leftArm:['raise','forward','elbow'], rightArm:['raise','forward','elbow'], leftLeg:['forward','out','knee'], rightLeg:['forward','out','knee'],
+  spine:['bend','side','twist'], head:['nod','turn','tilt'], body:['turn','jump'] };
+function rcCheck(r){
+  if(!r || typeof r!=='object') throw new Error('A recipe is a JSON object: {"name": …, "duration": …, "keys": [ … ]}.');
+  if(!Array.isArray(r.keys) || !r.keys.length) throw new Error('The recipe needs a "keys" list with at least one pose.');
+  const D=+r.duration; if(!(D>=0.2 && D<=30)) throw new Error('"duration" must be seconds between 0.2 and 30.');
+  const warn=[];
+  for(const k of r.keys){ if(!(k.t>=0 && k.t<=D)) throw new Error('Every key needs a time "t" between 0 and the duration.'); const p=k.pose||{};
+    for(const g in p){ if(/Hand$/.test(g)){ if(!RC_HAND[p[g]]) warn.push(g+': unknown hand shape “'+p[g]+'” (use '+Object.keys(RC_HAND).join(', ')+')'); continue; }
+      if(!RC_FIELDS[g]){ warn.push('unknown part “'+g+'”'); continue; }
+      for(const f in p[g]) if(!RC_FIELDS[g].includes(f)) warn.push(g+'.'+f+' is not used (use '+RC_FIELDS[g].join(', ')+')'); } }
+  return warn; }
+function rcSample(r, t){   // the pose at time t: per numeric field, eased between the keys that set it; hands switch at the key
+  const D=+r.duration, keys=r.keys.slice().sort((a,b)=>a.t-b.t), out={};
+  const val=(k,g,f)=>(k.pose&&k.pose[g]&&typeof k.pose[g][f]==='number')?k.pose[g][f]:0;   // a part a key leaves out is RELAXED at that key (0), as the recipe rules say
+  const num=(g,f)=>{ const ks=keys.map(k=>({t:k.t, pose:{[g]:{[f]:val(k,g,f)}}})); if(ks.length===1) return ks[0].pose[g][f];
+    let i=ks.findIndex(k=>k.t>t); let a,b,f0;
+    if(i===0||i===-1){ if(!r.loop) return (i===0?ks[0]:ks[ks.length-1]).pose[g][f]; a=ks[ks.length-1]; b=ks[0]; const span=(b.t+D)-a.t; f0=((t<a.t?t+D:t)-a.t)/(span||1); }
+    else { a=ks[i-1]; b=ks[i]; f0=(t-a.t)/((b.t-a.t)||1); }
+    const e=f0*f0*(3-2*f0); return a.pose[g][f]+(b.pose[g][f]-a.pose[g][f])*e; };
+  for(const g in RC_FIELDS){ out[g]={}; for(const f of RC_FIELDS[g]) out[g][f]=num(g,f); }
+  for(const h of ['leftHand','rightHand']){ let v=null; for(const k of keys){ if(k.t<=t+1e-6 && k.pose&&k.pose[h]) v=k.pose[h]; } if(!v){ const f=keys.find(k=>k.pose&&k.pose[h]); v=f?f.pose[h]:null; } out[h]=v; }
+  return out; }
+function rcBuild(r, t){
+  const s=rcSample(r, t), R=a=>a*Math.PI/180;
+  bstandBare();
+  for(const [Ar,k] of [[B_LARM,'leftArm'],[B_RARM,'rightArm']]){ const a=s[k]; if(a.raise) armO(Ar,R(a.raise)); if(a.forward) armF(Ar,R(a.forward)); if(a.elbow) elb(Ar,R(Math.max(0,Math.min(150,a.elbow)))); }
+  for(const [L,k] of [[B_LLEG,'leftLeg'],[B_RLEG,'rightLeg']]){ const a=s[k]; if(a.forward) legF(L,R(a.forward)); if(a.out) sw(L.up,AX.z,R(a.out)*L.s); if(a.knee) kneeB(L,R(Math.max(0,Math.min(150,a.knee)))); }
+  const sp=s.spine; for(const bn of BIPED_SPINE){ if(sp.bend) sw(bn,AX.x,R(sp.bend)/3); if(sp.side) sw(bn,AX.z,-R(sp.side)/3); if(sp.twist) sw(bn,AX.y,R(sp.twist)/3); }
+  const hd=s.head; if(hd.nod){ sw(B_NECK,AX.x,R(hd.nod)*0.4); sw(B_HEAD,AX.x,R(hd.nod)*0.6); } if(hd.turn){ sw(B_NECK,AX.y,R(hd.turn)*0.4); sw(B_HEAD,AX.y,R(hd.turn)*0.6); } if(hd.tilt) sw(B_HEAD,AX.z,-R(hd.tilt));
+  if(s.body.turn) sw('Hips',AX.y,R(s.body.turn));
+  if(isHandRig()) for(const [h,sd] of [['leftHand','L'],['rightHand','R']]) if(s[h] && RC_HAND[s[h]] && HL_POSES[RC_HAND[s[h]]]) hlApplyPose(sd, hlPose(RC_HAND[s[h]]));
+  // stand on the floor (the lowest foot touches it), then lift for a jump
+  animRoot.updateMatrixWorld(true); const floor=rcFloor(); let low=Infinity; const v=new THREE.Vector3();
+  for(const n of ['LeftFoot','RightFoot','LeftToeBase','RightToeBase']) if(boneByName[n]) low=Math.min(low, boneByName[n].getWorldPosition(v).y);
+  if(isFinite(low)) animRoot.position.y += floor-low + Math.max(0, s.body.jump||0); animRoot.updateMatrixWorld(true); }
+let _rcFloor=null, _rcFloorRig=null;
+function rcFloor(){ if(_rcFloor!=null && _rcFloorRig===rigKey) return _rcFloor; const keepQ={}, keepP=animRoot.position.clone(); for(const n of boneList) keepQ[n]=boneByName[n].quaternion.clone();
+  bstandBare(); animRoot.updateMatrixWorld(true); const v=new THREE.Vector3(); let low=Infinity; for(const n of ['LeftFoot','RightFoot','LeftToeBase','RightToeBase']) if(boneByName[n]) low=Math.min(low, boneByName[n].getWorldPosition(v).y);
+  for(const n of boneList) boneByName[n].quaternion.copy(keepQ[n]); animRoot.position.copy(keepP); animRoot.updateMatrixWorld(true); _rcFloorRig=rigKey; return (_rcFloor=low); }
+function rcMotion(u){ const r=u.recipe; return { id:u.id, name:u.name, cat:'🤖 From a recipe', type:r.moves?'move':'stay', dur:+r.duration, recipe:true,
+  build:(t)=>{ rcBuild(r, t*(+r.duration)/(curDur()||+r.duration)); } }; }
+function rcSave(r, replaceId){   // → the saved record; throws on a bad recipe
+  if(!isBipedRig()) throw new Error('Pick a biped rig (with or without fingers) first — recipes are for people.');
+  if(typeof r==='string'){ const m=r.match(/\{[\s\S]*\}/); if(!m) throw new Error('No recipe found — paste the part that starts with { and ends with }.'); r=JSON.parse(m[0]); }
+  const warn=rcCheck(r); const all=myMotionsAll(); const name=String(r.name||'Recipe motion').trim().slice(0,60)||'Recipe motion';
+  const old=replaceId ? all.find(u=>u.id===replaceId && u.kind==='recipe') : null;
+  let nm=name, k=2; if(!old) while(all.some(u=>u.rig===rigKey && u.name.toLowerCase()===nm.toLowerCase()) || RIGS[rigKey].motions.some(m=>m.name.toLowerCase()===nm.toLowerCase())) nm=name+' '+(k++);
+  const u=old ? Object.assign(old,{ recipe:r, name:nm, saved:Date.now() }) : { id:'rc_'+Date.now().toString(36)+Math.random().toString(36).slice(2,5), name:nm, rig:rigKey, kind:'recipe', recipe:r, saved:Date.now() };
+  if(!myMotionsSave(old ? all : all.concat([u]))) throw new Error('No room left to keep it on this computer — delete an older motion first.');
+  renderMotions(); const m=rcMotion(u); selectMotion(m); [...$('#mlist').children].forEach(x=>x.classList.toggle('on', x.dataset.id===u.id));
+  return { id:u.id, name:nm, warnings:warn }; }
+const RC_PROMPT=`You are writing a MOTION RECIPE for GLB Studio's Rig Animator (a 3-D character animation tool). Reply with ONE JSON object only.
+Format:
+{"name": "short name", "duration": seconds (0.2-30), "loop": true|false, "moves": false,
+ "keys": [ {"t": seconds, "pose": { …parts… }}, … ]}
+Parts (all angles in DEGREES, all optional — anything left out is relaxed standing; values ease smoothly from key to key):
+ "leftArm"/"rightArm": {"raise": out to the side (0 = hanging down, 90 = horizontal, 170 = straight up), "forward": swing forward (90 = pointing ahead, negative = back), "elbow": bend 0-150}
+ "leftLeg"/"rightLeg": {"forward": thigh forward (90 = knee up to hip height, negative = back), "out": to the side, "knee": bend 0-150}
+ "spine": {"bend": lean forward (+) / back (−), "side": lean to the character's own left (+), "twist": turn the chest to its left (+)}
+ "head": {"nod": look down (+) / up (−), "turn": look to its left (+), "tilt": ear toward its left shoulder (+)}
+ "body": {"turn": turn the whole body (+ = to its left), "jump": metres off the floor (feet stay on the floor unless this is > 0)}
+ "leftHand"/"rightHand": "relax" | "open" | "fist" | "point" | "thumbsup" | "wave" | "flat" | "spread" | "loose"   (fingered characters)
+"left"/"right" are the CHARACTER's own left and right. For an arm overhead use "raise" (150-170) with "forward" 0 — "forward" swings about the shoulder, so on a raised arm it tips the arm over the top. Bent knees lower the body by themselves (feet stay planted) — use them for squats, crouches and landings.
+Tips: 3-8 keys is plenty; start and end on the same pose when "loop" is true; a jump = crouch (knees 60-90) → "jump": 0.3-0.5 with legs tucked → land (knees 40) → stand.
+The motion to make: `;
+function rcUI(){ const on=isBipedRig(); $('#rcCard').style.display=on?'':'none'; }
+$('#rcCopy').onclick=async ()=>{ try{ await navigator.clipboard.writeText(RC_PROMPT); $('#rcStatus').innerHTML='Copied! Paste it into your AI chat, finish the last line with the motion you want, then paste its answer above.'; }catch(e){ $('#rcText').value=RC_PROMPT; $('#rcStatus').textContent='Copy the text above into your AI chat (then clear this box and paste its answer).'; } };
+$('#rcMake').onclick=()=>{ try{ const r=rcSave($('#rcText').value); $('#rcStatus').innerHTML='✔ “'+r.name+'” is in <b>🤖 From a recipe</b>.'+(r.warnings.length?'<br>⚠ '+r.warnings.slice(0,4).join('<br>⚠ '):'')+' ✏ Edit it or ➕ Add it to the Studio Library.'; }
+  catch(e){ $('#rcStatus').textContent='⚠ '+(e.message||e); } };
+window.__recipe={ save:rcSave, check:rcCheck, sample:rcSample, prompt:()=>RC_PROMPT };
+
+// ===== 🤖 AI HOOKS (2026-09-30) — what the Studio shell's 🤖 AI link calls when the user's own AI drives GLB Studio =====
+function aiFind(q){ const all=RIGS[rigKey].motions.concat(userMotionsFor(rigKey)); const s=String(q||'').toLowerCase();
+  const m=all.find(x=>x.id===q) || all.find(x=>x.name.toLowerCase()===s); if(!m) throw new Error('No motion “'+q+'” on the '+rigKey+' rig (list_motions shows them).'); return m; }
+const AI_VIEWS={ front:[0,0.1], side:[Math.PI/2,0.1], back:[Math.PI,0.1], 'three-quarter':[0.65,0.18] };
+window.__ai={
+  status:()=>({ rig:rigKey, rigs:Object.keys(RIGS), motion:motion?{ id:motion.id, name:motion.name, dur:+(+motion.dur).toFixed(2) }:null }),
+  setRig:k=>{ if(!RIGS[k]) throw new Error('No rig “'+k+'”. Rigs: '+Object.keys(RIGS).join(', ')); if(edit && !edStop(false)) throw new Error('The user is editing a motion.'); setRig(k); renderMotions(); return { rig:k, motions:RIGS[k].motions.length }; },
+  list:f=>{ const s=String(f||'').toLowerCase(); return RIGS[rigKey].motions.concat(userMotionsFor(rigKey)).filter(m=>!s || (m.name+' '+(m.cat||'')).toLowerCase().includes(s))
+    .map(m=>({ id:m.id, name:m.name, cat:m.cat||'', dur:+(+m.dur).toFixed(2), mine:!!(m.userEdit||m.mocap||m.recipe) })); },
+  make:(recipe, replaceId)=>rcSave(recipe, replaceId),
+  getRecipe:id=>{ const u=myMotionsAll().find(x=>x.id===id && x.kind==='recipe'); if(!u) throw new Error('No recipe motion with id '+id); return u.recipe; },
+  play:q=>{ const m=aiFind(q); selectMotion(m); return { id:m.id, name:m.name, dur:+(+m.dur).toFixed(2) }; },
+  look:(view, times)=>{ if(!motion) throw new Error('No motion selected.'); const V=AI_VIEWS[view||'three-quarter']||AI_VIEWS['three-quarter'];
+    const keep={ yaw:cam.yaw, pitch:cam.pitch }, wasPlaying=playing; playing=false; cam.yaw=V[0]; cam.pitch=V[1]; applyCam();
+    const D=curDur(); const ts=(times&&times.length?times:[tNow]).slice(0,6).map(t=>Math.max(0,Math.min(D,+t||0)));
+    const src=renderer.domElement, H=360, W=Math.round(H*Math.min(1.2, src.width/src.height)); const out=document.createElement('canvas'); out.width=W*ts.length; out.height=H; const g=out.getContext('2d');
+    ts.forEach((t,i)=>{ setRootY(0); motion.build(t, P()); animRoot.updateMatrixWorld(true); renderer.render(scene,camera);
+      const sw=src.height*W/H; g.drawImage(src, (src.width-sw)/2, 0, sw, src.height, i*W, 0, W, H);
+      g.fillStyle='rgba(0,0,0,.55)'; g.fillRect(i*W+4,4,58,18); g.fillStyle='#fff'; g.font='12px sans-serif'; g.fillText(t.toFixed(2)+' s', i*W+9, 17); });
+    tNow=ts[ts.length-1]; cam.yaw=keep.yaw; cam.pitch=keep.pitch; applyCam(); playing=wasPlaying;
+    return { motion:motion.name, view:view||'three-quarter', times:ts, images:[out.toDataURL('image/png')] }; },
+  video:async (url, name, mirror, fileName)=>{ if(!isBipedRig()) throw new Error('Pick a biped rig first (set_rig bipedhand).');
+    if(name) $('#mcName').value=name; $('#mcMirror').checked=!!mirror; const r=await mcMake(url, fileName||'Video motion', true); return r; },
+  add:async id=>{ if(id) window.__ai.play(id); if(!motion) throw new Error('No motion selected.'); await addToPack(null, { ai:true }); return { added:motion.name, status:$('#status').textContent }; },
+};
+window.__mocap={ make:(src,label)=>mcMake(src,label), mod:MOCAP, ctx:mcCtx, rig:k=>setRig(k), seek:t=>{ tNow=t; playing=false; }, view:(yaw,pitch)=>{ cam.yaw=yaw; cam.pitch=pitch; applyCam(); }, get motion(){ return motion; } };   // test hook (headless: pass a video URL)
+
 // ===== Pack =====
 const pack={ skeletons:{}, motions:[], clips:{}, poses:{} };
-async function addToPack(){
-  if(!motion) return;
+async function addToPack(ev, opts){
+  if(!motion) return; const aiReplace=!!(opts && opts.ai && (motion.recipe || motion.mocap));
   if(edit && (edit.dirty || motion.id==='edit')){ alert('💾 Save your edited motion first, then ➕ Add it.'); return; }
   const D=curDur(), params=P(); const sk=skeletonEntry(); const sig=sk.sig;
   if(!pack.skeletons[sig]) pack.skeletons[sig]={ boneNames:sk.boneNames, rest:sk.rest };
   const id='ra_'+rigKey+'_'+motion.id+'_'+Math.round(D*100)+'_'+Math.round(params.amp*100)+'_'+Math.round(params.speed*100);
-  if(pack.motions.some(x=>x.id===id)){ $('#status').textContent='Already in the pack: '+motion.name; return; }
+  if(pack.motions.some(x=>x.id===id)){ if(!aiReplace){ $('#status').textContent='Already in the pack: '+motion.name; return; } pack.motions=pack.motions.filter(x=>x.id!==id); }
   // FENCE: an entry with this id already in the shared Studio Library would be replaced → ask twice
   if(window.StudioLib){ try{ const have=(await StudioLib.listMotions()).find(x=>x.id===id);
-    if(have){ if(!confirm('“'+(have.name||motion.name)+'” is already in the Studio Library.\n\nReplace it with this version?')) return;
+    if(have && !aiReplace){ if(!confirm('“'+(have.name||motion.name)+'” is already in the Studio Library.\n\nReplace it with this version?')) return;
       if(!confirm('Are you sure? The library copy will be overwritten (the built-in original stays safe).')) return; } }catch(e){} }
   const entry={ id, name:motion.name+(params.amp!==1||params.speed!==1?' ('+params.speed.toFixed(1)+'× spd, '+params.amp.toFixed(1)+'× amp)':''),
     type:motion.type, tags:[motion.type, rigKey].concat(motion.cat?[motion.cat.toLowerCase()]:[]), cat:motion.cat||'', sig, duration:D };

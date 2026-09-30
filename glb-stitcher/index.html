@@ -1023,7 +1023,7 @@ import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 
 const $ = s => document.querySelector(s);
-const APP_NAME='GLB Stitcher', APP_VERSION='1.11.1', APP_BUILD='2026-09-29';   // version shown in About + footer
+const APP_NAME='GLB Stitcher', APP_VERSION='1.11.2', APP_BUILD='2026-09-30';   // version shown in About + footer
 // Bump APP_BUILD whenever the app or the bundled motion library changes. It is printed to the console and
 // shown in the footer so "am I running the current version?" can be answered by looking, not by guessing —
 // a stale browser tab kept an old build alive twice while the files on disk were already up to date.
@@ -4139,7 +4139,7 @@ window.__dbg={ get clips(){return clips}, get characters(){return characters}, g
 Object.assign(window.__dbg,{ equipPropUrl: async (url, name)=>{ const ch=characters[characters.length-1]; if(!ch) return 'no character'; const gltf=await loader.loadAsync(url);   // review renders: put a prop in the hand
     const bones=charBoneNames(ch); const bone=bones.find(n=>/righthand/i.test(n))||'RightHand'; ch.prop={ name:name||url.split('/').pop(), src:gltf.scene, bone, pos:[0,0,0], rot:[0,0,0], scale:1, _fresh:true };
     fitPropScale(ch); applyCharProps(); refreshView(); return 'equipped '+ch.prop.name; } });
-Object.assign(window.__dbg,{ addMotionClip:(m)=>addMotionClip(m), mlActiveSig:()=>mlActiveSig(), sigFitsChar:(a,b)=>sigFitsChar(a,b), libIndex:()=>libIndex, showClip:(i)=>showClip(i), renderFrame:()=>renderFrame() });
+Object.assign(window.__dbg,{ addMotionClip:(m)=>addMotionClip(m), mlActiveSig:()=>mlActiveSig(), sigFitsChar:(a,b)=>sigFitsChar(a,b), libIndex:()=>libIndex, showClip:(i)=>showClip(i), renderFrame:()=>renderFrame(), aimHeldProps:()=>aimHeldProps() });
 function refreshView(){ applyCharProps(); if(typeof sizeWater==='function') sizeWater(); if(!clips.length){ renderFrame(); return; } if(isEnsemble()) showEnsemble(); else showClip(selIndex); }
 
 // ---------- Ensemble (multiple characters on stage at once) ----------
@@ -5362,16 +5362,20 @@ function wrapGripFingers(c, inst, amt){ if(amt==null) amt=1;
   shift.multiplyScalar(amt/holding.length); if(shift.length()<0.08){ inst.position.copy(inst.parent.worldToLocal(O.clone().add(shift))); inst.updateMatrixWorld(true); O.add(shift); }
   // 2) curl each phalanx about the handle axis so its far joint lands on a circle a little WIDER than the handle (Paul 2026-09-29: "the
   //    fingers opened up a little more on the staff") — a relaxed hold, fingers round the handle, not pressed flat into it
-  const curlR=want+1.8*ft;
-  const rotAbout=(p,o,th)=>p.clone().sub(o).applyAxisAngle(ax,th).add(o);
+  const curlR=want+Math.min(1.8*ft,0.6*R);   // looseness sized to the HANDLE (2026-09-30: sized to the hand it pried a goblin's big fingers off a thin sword grip)
+  // Each phalanx bends about its OWN hinge: the handle axis made square to that phalanx (2026-09-30 audit: turning a finger about the
+  // handle axis itself rolled the middle joints 40-140°). A rotation about an axis square to the bone is a pure bend — no roll.
+  const rotAbout=(p,o,th,hx)=>p.clone().sub(o).applyAxisAngle(hx,th).add(o);
   for(const h of holding) for(const j of h.ch){
     const tipBone=B[j[2].name.replace(/3$/,'4')];
     for(let k=0;k<3;k++){ const bone=j[k], o=W(bone); const nxt = k<2 ? W(j[k+1]) : (tipBone ? W(tipBone) : W(j[2]).clone().add(W(j[2]).sub(W(j[1])).multiplyScalar(0.8)));
-      const err=th=>Math.abs(perp(rotAbout(nxt,o,th),O).length()-curlR);
+      const dph=nxt.clone().sub(o).normalize(), hx=ax.clone().addScaledVector(dph,-ax.dot(dph)); if(hx.lengthSq()<1e-6) continue; hx.normalize();
+      const err=th=>Math.abs(perp(rotAbout(nxt,o,th,hx),O).length()-curlR);
       let best=0, be=err(0); for(let s=-16;s<=16;s++){ const th=s*0.05, e=err(th); if(e<be-1e-5 || (Math.abs(e-be)<1e-5 && Math.abs(th)<Math.abs(best))){ be=e; best=th; } }
       for(let step=0.025; step>0.002; step/=2) for(const th of [best-step,best+step]){ const e=err(th); if(e<be){ be=e; best=th; } }
+      if(perp(rotAbout(nxt,o,best,hx),O).length()>perp(nxt,O).length() && Math.abs(best)>0.35) best=Math.sign(best)*0.35;   // never OPEN a finger more than 20° off its authored curl
       if(Math.abs(best)<1e-4) continue;
-      const wq=bone.getWorldQuaternion(new Q()), pq=bone.parent.getWorldQuaternion(new Q()), r=new Q().setFromAxisAngle(ax,best*amt);
+      const wq=bone.getWorldQuaternion(new Q()), pq=bone.parent.getWorldQuaternion(new Q()), r=new Q().setFromAxisAngle(hx,best*amt);
       bone.quaternion.copy(pq.invert().multiply(r.multiply(wq))); bone.updateMatrixWorld(true); } } }
 function renderFrame(){
   aimHeldProps();
