@@ -70,7 +70,7 @@
 <main>
   <aside>
     <div>
-      <h1>🐾 Rig Animator <span class="appver">v1.21.0</span></h1>
+      <h1>🐾 Rig Animator <span class="appver">v1.21.1</span></h1>
       <div class="hint" style="margin-top:0">Procedurally generate original animations for your <b>biped</b>, <b>quadruped</b> and <b>bird</b> rigs — organized by category (boxing, fencing, football, dancing, running, walking, jumping, climbing…) — then export them into the GLB Stitcher motion library.</div>
     </div>
 
@@ -178,7 +178,7 @@
         </g>
       </svg>
       <div>
-        <div><b>Rig Animator</b> v1.21.0 · part of GLB Studio</div>
+        <div><b>Rig Animator</b> v1.21.1 · part of GLB Studio</div>
         <div class="appfoot-sub">© <span class="cred-year">2026</span> Paul A.T. Ramey · <b>KSOL Designs</b> · <a href="https://www.ksoldesigns.com" target="_blank" rel="noopener">ksoldesigns.com</a></div>
       </div>
     </div>
@@ -8659,7 +8659,7 @@ Parts (all angles in DEGREES, all optional — anything left out is relaxed stan
  "head": {"nod": look down (+) / up (−), "turn": look to its left (+), "tilt": ear toward its left shoulder (+)}
  "body": {"turn": turn the whole body (+ = to its left), "jump": metres off the floor (feet stay on the floor unless this is > 0)}
  "leftHand"/"rightHand": "relax" | "open" | "fist" | "point" | "thumbsup" | "wave" | "flat" | "spread" | "loose"   (fingered characters)
-"left"/"right" are the CHARACTER's own left and right. For an arm overhead use "raise" (150-170) with "forward" 0 — "forward" swings about the shoulder, so on a raised arm it tips the arm over the top. Bent knees lower the body by themselves (feet stay planted) — use them for squats, crouches and landings.
+"left"/"right" are the CHARACTER's own left and right. On a RAISED arm (raise 110-170), "forward" works the other way round: a NEGATIVE value pushes the hand out in front of the face, a small POSITIVE one (15-25) keeps it up beside the head — a wave is raise 120-155, forward 20, the elbow 25-40, swinging between two keys. Bent knees lower the body by themselves (feet stay planted) — use them for squats, crouches and landings.
 Tips: 3-8 keys is plenty; start and end on the same pose when "loop" is true; a jump = crouch (knees 60-90) → "jump": 0.3-0.5 with legs tucked → land (knees 40) → stand.
 The motion to make: `;
 function rcUI(){ const on=isBipedRig(); $('#rcCard').style.display=on?'':'none'; }
@@ -8683,7 +8683,7 @@ window.__ai={
   look:(view, times)=>{ if(!motion) throw new Error('No motion selected.'); const V=AI_VIEWS[view||'three-quarter']||AI_VIEWS['three-quarter'];
     const keep={ yaw:cam.yaw, pitch:cam.pitch }, wasPlaying=playing; playing=false; cam.yaw=V[0]; cam.pitch=V[1]; applyCam();
     const D=curDur(); const ts=(times&&times.length?times:[tNow]).slice(0,6).map(t=>Math.max(0,Math.min(D,+t||0)));
-    const src=renderer.domElement, H=360, W=Math.round(H*Math.min(1.2, src.width/src.height)); const out=document.createElement('canvas'); out.width=W*ts.length; out.height=H; const g=out.getContext('2d');
+    const src=renderer.domElement, H=ts.length>3?400:540, W=Math.round(H*Math.min(1.2, src.width/src.height)); const out=document.createElement('canvas'); out.width=W*ts.length; out.height=H; const g=out.getContext('2d');
     ts.forEach((t,i)=>{ setRootY(0); motion.build(t, P()); animRoot.updateMatrixWorld(true); renderer.render(scene,camera);
       const sw=src.height*W/H; g.drawImage(src, (src.width-sw)/2, 0, sw, src.height, i*W, 0, W, H);
       g.fillStyle='rgba(0,0,0,.55)'; g.fillRect(i*W+4,4,58,18); g.fillStyle='#fff'; g.font='12px sans-serif'; g.fillText(t.toFixed(2)+' s', i*W+9, 17); });

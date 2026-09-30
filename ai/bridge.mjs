@@ -17,7 +17,7 @@ import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 
-const VERSION = '1.0.0';
+const VERSION = '1.0.1';
 const PORT = +(process.env.GLB_STUDIO_PORT || 8766);
 const HOST = '127.0.0.1';
 const PAGE_ORIGINS = [/^https:\/\/potassiumsolutions\.github\.io$/, /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/];
@@ -31,7 +31,7 @@ spine {bend: forward(+)/back(-), side: lean to its own left(+), twist: chest to 
 head {nod: down(+)/up(-), turn: to its left(+), tilt: ear to its left shoulder(+)}
 body {turn: whole body to its left(+), jump: metres off the floor}
 leftHand/rightHand: relax|open|fist|point|thumbsup|wave|flat|spread|loose (fingered rigs).
-Left/right = the character's own. Arm overhead = raise 150-170 with forward 0 (forward swings about the shoulder, so on a raised arm it tips the arm over the top). Bent knees lower the body with the feet planted (squats, crouches, landings). 3-8 keys is plenty.`;
+Left/right = the character's own. On a RAISED arm (raise 110-170) "forward" works the other way round: negative pushes the hand out in front of the face, +15..25 keeps it beside the head (a wave: raise 120-155, forward 20, elbow 25-40, two keys swinging). Always check with look from the FRONT and the SIDE. Bent knees lower the body with the feet planted (squats, crouches, landings). 3-8 keys is plenty.`;
 const TOOLS = [
   { name: 'studio_status', description: 'Is GLB Studio connected? Which version, which tabs, which rig is on the Animator.', inputSchema: { type: 'object', properties: {} } },
   { name: 'show_tab', description: 'Switch GLB Studio to a tab: generate, rig, animate, stitch, tabletop, mapview.', inputSchema: { type: 'object', properties: { tab: { type: 'string', enum: ['generate', 'rig', 'animate', 'stitch', 'tabletop', 'mapview'] } }, required: ['tab'] } },
@@ -40,7 +40,7 @@ const TOOLS = [
   { name: 'make_motion', description: 'Create a NEW motion on the Animator from a motion recipe (describe-a-motion). Returns its id. To change it later, call again with replace_id. ' + RECIPE_HELP, inputSchema: { type: 'object', properties: { recipe: { type: 'object' }, replace_id: { type: 'string', description: 'id of one of YOUR recipe motions to overwrite (optional)' } }, required: ['recipe'] } },
   { name: 'get_recipe', description: 'Read back the recipe of a motion made from a recipe (to adjust it).', inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } },
   { name: 'play_motion', description: 'Select and play a motion on the Animator (by id or exact name).', inputSchema: { type: 'object', properties: { id: { type: 'string' }, name: { type: 'string' } } } },
-  { name: 'look', description: 'Take a picture of the Animator character so you can check a motion: view front|side|back|three-quarter, at a time in seconds (or "times": up to 6 times for a strip). Returns an image.', inputSchema: { type: 'object', properties: { view: { type: 'string', enum: ['front', 'side', 'back', 'three-quarter'] }, time: { type: 'number' }, times: { type: 'array', items: { type: 'number' } } } } },
+  { name: 'look', description: 'Take a picture of the Animator character so you can check a motion: view front|side|back|three-quarter, at a time in seconds (or "times": up to 6 moments in one strip — use 1-3 for a closer look). Returns an image; it is also saved as a PNG (in save_to, a folder, if given — otherwise the system temp folder) and the path is in "saved".', inputSchema: { type: 'object', properties: { view: { type: 'string', enum: ['front', 'side', 'back', 'three-quarter'] }, time: { type: 'number' }, times: { type: 'array', items: { type: 'number' } }, save_to: { type: 'string' } } } },
   { name: 'motion_from_video', description: 'Turn a video file ON THIS COMPUTER (a person moving, whole body in view, camera still, up to 20 s) into a new Animator motion. Tracking runs in the browser; nothing is uploaded. Give the full file path.', inputSchema: { type: 'object', properties: { path: { type: 'string' }, name: { type: 'string' }, mirror: { type: 'boolean', description: 'true for a mirrored selfie video' } }, required: ['path'] } },
   { name: 'add_to_library', description: 'Send the current Animator motion (or the one with this id) to the Studio Library, so the 🎬 Stitch tab can use it on any character.', inputSchema: { type: 'object', properties: { id: { type: 'string' } } } },
   { name: 'list_library', description: 'List what is in the shared Studio Library (characters/models and motions).', inputSchema: { type: 'object', properties: {} } },
@@ -110,11 +110,11 @@ const call = (tool, args) => owner ? runTool(tool, args, 240000) : callVia(tool,
 
 // pictures: MCP returns them as images; they are also saved to a file (for agents that read files instead)
 let shot = 0;
-function toContent(r) {
+function toContent(r, saveTo) {
   if (!r.ok) return { content: [{ type: 'text', text: '⚠ ' + (r.error || 'failed') }], isError: true };
   const res = r.result, content = []; const imgs = (res && res.images) || [];
   const rest = Object.assign({}, res); delete rest.images;
-  for (const im of imgs) { const b64 = String(im).replace(/^data:image\/\w+;base64,/, ''); const f = path.join(os.tmpdir(), `glb-studio-look-${process.pid}-${++shot}.png`);
+  for (const im of imgs) { const b64 = String(im).replace(/^data:image\/\w+;base64,/, ''); let dir = os.tmpdir(); if (saveTo) { try { fs.mkdirSync(saveTo, { recursive: true }); dir = saveTo; } catch (e) {} } const f = path.join(dir, `glb-studio-look-${Date.now().toString(36)}-${++shot}.png`);
     try { fs.writeFileSync(f, Buffer.from(b64, 'base64')); (rest.saved = rest.saved || []).push(f); } catch (e) {}
     content.push({ type: 'image', data: b64, mimeType: 'image/png' }); }
   content.unshift({ type: 'text', text: JSON.stringify(rest, null, 1) }); return { content }; }
@@ -133,7 +133,7 @@ async function mcp() {
           instructions: 'Drive GLB Studio (a browser 3-D character / animation studio) for the user. Start with studio_status; if it is not connected, ask the user to press 🤖 AI → Connect in GLB Studio. To make a motion from a description: set_rig bipedhand → make_motion with a recipe → look (front and side, several times) → adjust with make_motion replace_id → add_to_library when the user is happy.' } });
         else if (m.method === 'ping') out({ jsonrpc: '2.0', id: m.id, result: {} });
         else if (m.method === 'tools/list') out({ jsonrpc: '2.0', id: m.id, result: { tools: TOOLS } });
-        else if (m.method === 'tools/call') { const r = await call(m.params.name, m.params.arguments || {}); out({ jsonrpc: '2.0', id: m.id, result: toContent(r) }); }
+        else if (m.method === 'tools/call') { const a = m.params.arguments || {}; const r = await call(m.params.name, a); out({ jsonrpc: '2.0', id: m.id, result: toContent(r, a.save_to) }); }
         else out({ jsonrpc: '2.0', id: m.id, error: { code: -32601, message: 'method not found: ' + m.method } });
       } catch (e) { out({ jsonrpc: '2.0', id: m.id, error: { code: -32000, message: String(e.message || e) } }); } } });
   process.stdin.on('end', () => process.exit(0));
@@ -141,9 +141,10 @@ async function mcp() {
 
 const [cmd, ...rest] = process.argv.slice(2);
 if (cmd === 'mcp') mcp();
-else if (cmd === 'serve') { if (!(await ensureLink())) process.exit(1); }
+else if (cmd === 'serve') { if (!(await ensureLink())) { log('nothing to start — use: node bridge.mjs call <tool> …'); process.exit(0); } }
 else if (cmd === 'tools') { for (const t of TOOLS) console.log(t.name + ' — ' + t.description.split('. ')[0]); }
 else if (cmd === 'call') { const [tool, json] = rest; let args = {}; try { args = json ? JSON.parse(json) : {}; } catch (e) { console.error('args must be JSON'); process.exit(2); }
-  try { const r = await callVia(tool, args); const c = toContent(r); for (const x of c.content) if (x.type === 'text') console.log(x.text); process.exit(r.ok ? 0 : 1); }
+  try { const r = await callVia(tool, args); const c = toContent(r, args.save_to); for (const x of c.content) if (x.type === 'text') console.log(x.text);
+    process.exit(!r.ok ? 1 : (r.result && r.result.connected === false) ? 3 : 0); }   // 3 = the helper runs but GLB Studio has not connected (yet)
   catch (e) { console.error('No bridge is running. Start one with: node bridge.mjs serve   (then press 🤖 AI → Connect in GLB Studio)'); process.exit(1); } }
 else { console.log('GLB Studio bridge ' + VERSION + '\n  node bridge.mjs mcp | serve | tools | call <tool> \'<json>\''); }

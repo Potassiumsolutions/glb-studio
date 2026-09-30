@@ -47,6 +47,8 @@
   .empty{color:var(--muted);font-size:12.5px;padding:8px 4px}
   .tag{font-size:10px;padding:1px 6px;border-radius:20px;background:#22304a;color:#a9c2ee;margin-left:6px}
   @media (max-width:1600px){ .flow{display:none} }
+  @media (max-width:1560px) and (min-width:721px){ header{gap:8px 8px} .lib{padding:6px 8px;gap:6px;font-size:12px} .tab{padding-left:10px;padding-right:10px} }   /* keep the header on one row with the 🤖 AI button (2026-09-30) */
+  @media (max-width:1420px) and (min-width:721px){ .lib .lbl{display:none} }   /* icons only; the tooltips still name them */
   @media (max-width:720px){ .flow,.tab .n{display:none} }
   @media (max-width:720px){ nav{flex-wrap:wrap} .tab{padding:6px 10px} }   /* phone: every tab visible (the row was cut off after Stitch) */
   /* About / instructions */
@@ -124,10 +126,10 @@
       <span class="dot">◆</span> Library:&nbsp;<b id="cModels">0</b>&nbsp;models&nbsp;·&nbsp;<b id="cMotions">0</b>&nbsp;motions
     </div>
     <div class="lib" id="aiBtn" title="Let your own AI assistant (Claude Code, Codex, Gemini…) drive GLB Studio" style="gap:6px"><span id="aiDot" style="color:#6b7688">●</span>&nbsp;🤖&nbsp;AI</div>
-    <div class="lib" id="upgradesBtn" title="Unlock expansion packs" style="gap:6px">✨&nbsp;Upgrades</div>
+    <div class="lib" id="upgradesBtn" title="Unlock expansion packs" style="gap:6px">✨<span class="lbl">&nbsp;Upgrades</span></div>
     <div class="lib" id="newVerBtn" title="GLB Studio was updated since this page opened. Reload to use the new version (your Studio Library is kept)." style="display:none;gap:6px;border-color:var(--accent);color:#fff;font-weight:700">🆕&nbsp;New&nbsp;version&nbsp;—&nbsp;reload</div>
-    <div class="lib" id="restartBtn" title="Restart this tab: clears what you're working on in it and frees its memory" style="gap:6px">⟳&nbsp;Restart&nbsp;tab</div>
-    <div class="lib" id="aboutBtn" title="How KSOL Designs GLB Studio works" style="gap:6px">❔&nbsp;About</div>
+    <div class="lib" id="restartBtn" title="Restart this tab: clears what you're working on in it and frees its memory" style="gap:6px">⟳<span class="lbl">&nbsp;Restart&nbsp;tab</span></div>
+    <div class="lib" id="aboutBtn" title="How KSOL Designs GLB Studio works" style="gap:6px">❔<span class="lbl">&nbsp;About</span></div>
   </header>
   <main>
     <aside id="drawer">
@@ -152,6 +154,7 @@
         <p class="pitch">Everything a game creator needs to make the characters, boards, cards, boxes, videos and the app, in one place, in your browser.</p>
         <p class="lead">GLB Studio takes you from a picture or a 3D model all the way to a <b>rigged, animated character</b>, finished <b>videos</b>, print-ready <b>boards, cards and boxes</b>, 3D-printable <b>minis</b>, and a <b>playable app</b>. Each tab hands its work to the next through a shared <b>Studio Library</b>, so there are no files to shuffle between steps.</p>
         <figure class="shot"><img src="help/menu.png" alt="Menu bar"><figcaption>The top menu: <b>🪄 Generate · 🧍 Rig · 🐾 Animate · 🎬 Stitch · 🎲 Tabletop · 🎼 Maestro</b>. On the right, <b>◆ Library</b> shows what's shared, <b>🤖 AI</b> connects your own AI assistant, <b>✨ Upgrades</b> unlocks add-ons and packs, and <b>❔ About</b> opens this guide.</figcaption></figure>
+        <div class="callout" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap"><span><b>📘 The full manual</b>: every tab step by step, with pictures (18 pages, PDF).</span><a href="GLB-Studio-User-Manual.pdf" target="_blank" rel="noopener" style="color:#fff;background:var(--accent);border-radius:8px;padding:6px 12px;font-weight:700;text-decoration:none">⬇ Download the manual</a></div>
         <div class="callout"><b>Quick start:</b> make or drop in a character → <b>🧍 Rig</b> it → pick motions in <b>🎬 Stitch</b> and render an MP4, or put it on a board in <b>🎲 Tabletop</b> and play. No model yet? Stitch has free sample characters, or make one from a picture with <b>🪄 Generate</b>.</div>
 
         <h2><span class="step">✦</span> 🪄 Generate: turn a picture into a 3D model <span class="pill2">add-on</span></h2>

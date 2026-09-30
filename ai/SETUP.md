@@ -52,25 +52,27 @@ Start the helper in the background, then call the tools from the command line. T
 ```bash
 node ~/glb-studio-ai/bridge.mjs serve        # leave running (in the background)
 node ~/glb-studio-ai/bridge.mjs tools        # list the tools
-node ~/glb-studio-ai/bridge.mjs call studio_status
-node ~/glb-studio-ai/bridge.mjs call make_motion '{"recipe":{"name":"Wave hello","duration":2,"loop":true,"keys":[{"t":0,"pose":{"rightArm":{"raise":150,"elbow":30},"rightHand":"open"}},{"t":1,"pose":{"rightArm":{"raise":130,"elbow":60},"rightHand":"open"}},{"t":2,"pose":{"rightArm":{"raise":150,"elbow":30},"rightHand":"open"}}]}}'
+node ~/glb-studio-ai/bridge.mjs call studio_status   # exit code 3 = helper running, GLB Studio not connected yet
+node ~/glb-studio-ai/bridge.mjs call make_motion '{"recipe":{"name":"Wave hello","duration":2,"loop":true,"keys":[{"t":0,"pose":{"rightArm":{"raise":155,"forward":20,"elbow":25},"rightHand":"wave"}},{"t":0.5,"pose":{"rightArm":{"raise":120,"forward":20,"elbow":40},"rightHand":"wave"}},{"t":1,"pose":{"rightArm":{"raise":155,"forward":20,"elbow":25},"rightHand":"wave"}}]}}'
 ```
 
-The full recipe rules are in the `make_motion` description (`node bridge.mjs tools` shows the first line; `http://127.0.0.1:8766/tools` has everything).
+`look` pictures are saved as PNG files. Pass `"save_to":"<a folder>"` to choose where; otherwise they go to the system temp folder. The path is printed under `"saved"`, so open it and really look. The full recipe rules are in the `make_motion` description (`node bridge.mjs tools` shows the first line; `http://127.0.0.1:8766/tools` has everything).
 
 ## Step 3: connect
 Tell the person: **"In GLB Studio, press 🤖 AI (top right), then 🔌 Connect."**
 
-The browser may ask to let the site reach "apps on this device" or the "local network". They should press **Allow**. Then call `studio_status`; it should say `"connected": true`.
+The browser may ask to let the site reach "apps on this device" or the "local network". They should press **Allow**. Then call `studio_status`; it should say `"connected": true`. The page checks for the helper every few seconds, so right after you start the helper, give it up to about 10 seconds and repeat `studio_status` until it's connected. Pressing Connect before you start the helper is fine too.
 
 ## Working well
 - **Make a motion:** call `set_rig` with `bipedhand`, then `make_motion`, then `look` from the **front and the side** at several moments. Fix anything that looks wrong with `make_motion replace_id=…`. When the person is happy, call `add_to_library`.
 - Recipes use the **character's** own left and right, angles in degrees, and 3–8 key poses. Bent knees lower the body with the feet planted. `"body":{"jump":0.4}` lifts it off the floor.
+- **Arms raised above the shoulder:** `forward` works the other way round. A negative value pushes the hand out in front of the face, while a small positive one (+15 to +25) keeps it beside the head. A wave is `raise` 120–155, `forward` 20 and `elbow` 25–40, swinging between two keys. This only shows **from the side**, so always check the side view.
+- `set_rig` opens the 🐾 Animate tab for the person.
 - **Show the person** what you made. The motion plays in their 🐾 Animate tab, and pictures from `look` are worth sharing.
 - **Videos:** the whole body must be in view and the camera still, and the clip can be up to 20 seconds. Use `mirror: true` for a selfie video.
 - **Nothing is deleted or overwritten** except your own recipe motions, and only when you pass `replace_id`.
 
 ## If something goes wrong
 - **"not connected"**: GLB Studio isn't open, or Connect wasn't pressed. It could also be on a different port: the 🤖 AI panel has a port box, and the helper uses `GLB_STUDIO_PORT`.
-- **Port 8766 is busy**: another helper is already running. That's fine; a second copy forwards to it.
+- **Port 8766 is busy**: another helper is already running. That's fine: `call` and `mcp` use the running one, and `serve` just says so and exits.
 - **The browser blocked the connection**: in the site's settings, allow access to the local network or apps on this device, then press Connect again. Safari sometimes refuses; Chrome, Edge and Firefox work.
