@@ -70,7 +70,7 @@
 <main>
   <aside>
     <div>
-      <h1>🐾 Rig Animator <span class="appver">v1.20.1</span></h1>
+      <h1>🐾 Rig Animator <span class="appver">v1.20.2</span></h1>
       <div class="hint" style="margin-top:0">Procedurally generate original animations for your <b>biped</b>, <b>quadruped</b> and <b>bird</b> rigs — organized by category (boxing, fencing, football, dancing, running, walking, jumping, climbing…) — then export them into the GLB Stitcher motion library.</div>
     </div>
 
@@ -153,7 +153,7 @@
         </g>
       </svg>
       <div>
-        <div><b>Rig Animator</b> v1.20.1 · part of GLB Studio</div>
+        <div><b>Rig Animator</b> v1.20.2 · part of GLB Studio</div>
         <div class="appfoot-sub">© <span class="cred-year">2026</span> Paul A.T. Ramey · <b>KSOL Designs</b> · <a href="https://www.ksoldesigns.com" target="_blank" rel="noopener">ksoldesigns.com</a></div>
       </div>
     </div>
@@ -3674,7 +3674,7 @@ const BIPED_MOTIONS=[
   // Backward walking is not a reversed forward walk: the step is much shorter, the knee stays flexed, and
   // the foot reaches back to contact with the TOE, so the ankle never rolls through a heel strike.
   {id:'backpedal', name:'Backpedal', cat:'Walking', type:'move', dur:1.15, build:(t,P)=>gaitNorm(t,P,1.15,
-    {dir:-1,hip:0.62,knee:0.85,ankle:0.50,lean:-0.05,armSwing:14,elbow0:0.32,pelvisRot:3,pelvisList:3})},
+    {dir:-1,hip:0.62,knee:0.85,ankle:0.50,hipBias:0.29,lean:-0.05,armSwing:14,elbow0:0.32,pelvisRot:3,pelvisList:3})},   // hipBias (2026-09-30, Paul: "backpedal still tweaks the body"): dir:-1 flips the walk curve about 0°, not about its 13.4° mean, so both legs trailed ~17° behind the hips (body tipped forward, hips thrust) — this recentres them, as Backward Run does
   // Exhaustion: short steps, feet barely clearing the floor, knees never fully extending, heavy forward
   // slump, almost no arm swing.
   {id:'trudge', name:'Weary Trudge', cat:'Walking', type:'move', dur:1.5, build:(t,P)=>{ const A=P.amp;
