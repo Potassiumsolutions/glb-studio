@@ -28,6 +28,10 @@
   'use strict';
   const TE = root.TileEngine || (typeof require !== 'undefined' && require('./tile-engine.js'));
   const P = TE.PATH, B = TE.BIOME, gridFor = TE.gridFor, keyOf = TE.keyOf, NATURAL = TE.NATURAL, pairKey = TE.pairKey;
+  // a tile gets a BRIDGE where a way crosses water: any road meeting the river (as before), or a TRAIL that passes THROUGH a river
+  // (≥2 trail edges and ≥2 river edges) — trails used to vanish into the water and reappear on the far bank.
+  const crossesWater = (sig) => { const n = (x) => sig.filter(v => v === x).length;
+    return n(P.RIVER) > 0 && (n(P.ROAD) > 0 || (n(P.TRAIL) >= 2 && n(P.RIVER) >= 2)); };
 
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   const GEN = 'gen~';
@@ -750,7 +754,7 @@
     for (const k of keys) {
       const sig = edges[k], bm = biome[k];
       let feat = feature[k] !== undefined ? feature[k] : defaultFeature(bm);
-      if (!locked.has(k) && sig.includes(P.ROAD) && sig.includes(P.RIVER)) feat = 'bridge';     // a road bridging the river
+      if (!locked.has(k) && crossesWater(sig)) feat = 'bridge';     // a road OR trail bridging the river (trails used to run into the water and out the far bank)
       const id = registerGen(defs, gridKind, bm, sig, feat);
       const rec = { defId: id, rot: 0 };
       if (mtnMass[k] !== undefined) rec.mass = mtnMass[k];
@@ -850,7 +854,7 @@
     board.clear(); let placed = 0;
     for (const k of keys) { const sig = edges[k], bm = biome[k];
       let feat = feature[k] !== undefined ? feature[k] : defFeat(bm);
-      if (!coreSet.has(k) && sig.includes(P.ROAD) && sig.includes(P.RIVER)) feat = 'bridge';
+      if (!coreSet.has(k) && crossesWater(sig)) feat = 'bridge';
       board.set(k, { defId: registerGen(defs, gridKind, bm, sig, feat), rot: 0 }); placed++; }
     const walls = (rc.draw || []).filter(s => s.type === 'wall');
     const strokes = tracePathStrokes(keys, k => cellOf[k], k => pos[k], k => edges[k], g).map(s => s.type === 'river' ? Object.assign(s, { w: 1 }) : s);   // the moat's feed is a narrow stream
@@ -1330,7 +1334,7 @@
     /* ---- 6. realise every new cell as a connector-exact tile ---- */
     for (const c of newCellsSorted){ const k=keyOf(c), bm=decided[k], sig=edges[k];
       let feat = featOf[k] !== undefined ? featOf[k] : _FEAT[bm];
-      if(sig.includes(P.ROAD)&&sig.includes(P.RIVER)) feat='bridge';
+      if(crossesWater(sig)) feat='bridge';
       const id = registerGen(defs, gridKind, bm, sig, feat);
       board.set(k, { defId:id, rot:0 }); }
     // trace the new section's tile-edge roads (settlement roads) into swept strokes too (carried paths are

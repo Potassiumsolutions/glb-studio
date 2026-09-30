@@ -72,6 +72,9 @@
   #bright input[type=range]{width:110px} #brV{min-width:34px;color:var(--text)} #bright .btn,#brLbl{white-space:nowrap}
   @media (max-width:520px){ #bright{flex-wrap:wrap;row-gap:4px} #bright input[type=range]{width:76px} #brLbl{display:none} }
   #info .warn{color:var(--warn);margin-top:4px}
+  #info .ok{color:#9be3bf;margin-top:4px}
+  #info .btn{margin-top:6px}
+  @keyframes gpulse{0%,100%{box-shadow:0 0 0 0 rgba(203,184,255,0)}50%{box-shadow:0 0 0 6px rgba(203,184,255,.8)}} .gpulse{animation:gpulse 1s ease-in-out 3}
   #empty{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);text-align:center;pointer-events:none;padding:20px}
   #empty .big{font-size:42px}
   #srcThumb{position:absolute;left:12px;bottom:12px;width:92px;height:92px;border-radius:8px;border:1px solid var(--line);object-fit:contain;background:#0d1119;display:none}
@@ -135,20 +138,23 @@
       <ul>
         <li><b>Front view</b>, whole body in frame, head to feet</li>
         <li><b>T-pose</b> (arms straight out) or A-pose — arms away from the body</li>
-        <li>Plain background, nothing held in the hands, no long capes</li>
+        <li><b>Open hands, fingers spread apart</b> — no fists, nothing held (the AI gets hands wrong most often)</li>
+        <li><b>Nothing behind or hanging off</b> — long braids, ropes, capes and scarves get fused to the body</li>
+        <li>Plain white background, one character only</li>
       </ul>
       <button class="btn sm" id="copyPrompt">📋 Copy a picture prompt for Gemini / any image AI</button>
+      <button class="btn sm" id="copyFix" style="margin-top:4px">🧹 Already have a picture? Copy a clean-up prompt</button>
       <div class="hint" id="copyNote"></div>
     </div>
 
     <h2><span class="num">3</span> Quality</h2>
-    <div class="hint" style="margin:-2px 0 8px">💲 Prices are what <b>fal.ai</b> charges <b>your own fal.ai account</b> to run the TRELLIS 3D AI, per model you make. Nothing else in GLB Studio has a per-use cost.</div>
+    <div class="hint" style="margin:-2px 0 8px">💲 Prices are what <b>fal.ai</b> charges <b>your own fal.ai account</b> to run the TRELLIS 3D AI — for <b>every</b> model you make, including ones that come out wrong (the AI sometimes gets hands wrong: an extra or a missing finger). <b>Try a picture on ⚖ Standard first</b> (about 2¢); if the shape and hands look right, make it again in 💎 Hero. Nothing else in GLB Studio has a per-use cost.</div>
     <div class="seg" id="tierSeg">
       <div class="opt" data-v="draft"><div class="t">⚡ Draft <span class="rec">quick check</span></div><div class="s"><b class="pr" id="prDraft">$0.02</b> · fastest; softer paint — try a picture out first · ~30 s–2 min</div></div>
       <div class="opt on" data-v="standard"><div class="t">⚖ Standard <span class="rec" style="background:#1f3a2e;color:#9be3bf">big / bulky characters · game pieces</span></div><div class="s"><b class="pr" id="prStd">$0.02</b> · clean paint all over (never bare spots), more detail than Draft · ~1–3 min</div></div>
       <div class="opt" data-v="hero"><div class="t">💎 Hero <span class="rec" style="background:#2a2440;color:#cbb8ff">slim characters · close-ups</span></div><div class="s"><b class="pr" id="prHero">$0.25–0.35</b> · sharpest detail &amp; textures. Bulky, heavily folded bodies can come back with unpainted patches (filled automatically, but they can look smeared) — use Standard for those · ~1–3 min</div></div>
     </div>
-    <div id="heroWarn" class="hint" style="display:none;margin:8px 0 2px;padding:8px 10px;border:1px solid #6b5520;background:#2a2312;border-radius:8px;color:#f3d892">⚠ <b>Hero on large or bulky models</b> (giants, big bellies, arms close to the body): the AI can leave <b>holes</b> — patches it couldn't paint. GLB Studio <b>fills them automatically</b> from the surrounding colours, but big ones can look smeared. <b>⚖ Standard never leaves holes</b> and costs about 2¢.</div>
+    <div id="heroWarn" class="hint" style="display:none;margin:8px 0 2px;padding:8px 10px;border:1px solid #6b5520;background:#2a2312;border-radius:8px;color:#f3d892">⚠ <b>Hero on large or bulky models</b> (giants, big bellies, arms close to the body): the AI can leave <b>holes</b> — patches it couldn't paint. GLB Studio <b>fills them automatically</b> from the surrounding colours, but big ones can look smeared. <b>⚖ Standard never leaves holes</b> and costs about 2¢.<br>💡 <b>New picture?</b> Make it on ⚖ Standard first to check the shape and hands — then come back to Hero.</div>
     <div class="row" id="resRow" style="display:none"><label>Detail</label>
       <select id="res"><option value="512">Standard</option><option value="1024" selected>High</option><option value="1536">Ultra</option></select></div>
     <div class="row"><label>Texture</label><select id="tex"></select></div>
@@ -278,6 +284,7 @@
 </div></div>
 
 <script src="../studio/studio-lib.js?v=meta1"></script>
+<script src="hand-check.js?v=1"></script>
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
@@ -292,7 +299,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
 const $ = s => document.querySelector(s);
-const APP_VERSION = '1.0.1';
+const APP_VERSION = '1.0.2';
 const PARAMS = new URLSearchParams(location.search);
 const MOCK = PARAMS.get('mock');                 // test hook: ?mock=<glb url> skips fal.ai entirely (no cost)
 
@@ -365,7 +372,10 @@ setTimeout(function loadPrefs(){ let p=null; try{ p=JSON.parse(localStorage.getI
   if(p.res) $('#res').value=p.res; if(p.tex && [...$('#tex').options].some(o=>o.value===p.tex)) $('#tex').value=p.tex; if(p.size) $('#size').value=p.size; updateGo(); }, 0);
 ['#res','#tex','#size'].forEach(q=>$(q).addEventListener('change', savePrefs));
 document.querySelectorAll('#kindSeg .opt,#tierSeg .opt').forEach(o=>o.addEventListener('click', ()=>setTimeout(savePrefs,0)));
-const GEMINI_PROMPT = 'Full-body character reference picture of [DESCRIBE YOUR CHARACTER HERE], standing in a T-pose with both arms held straight out to the sides at shoulder height, palms facing down, legs straight and slightly apart. Seen straight from the front, the whole body in frame from the top of the head to the feet with some space around it. Plain white background, soft even lighting, no shadows on the ground, nothing held in the hands, no cape, no text or logos. Clean, detailed, colourful 3D game-character style.';
+const GEMINI_PROMPT = 'Full-body character reference picture of [DESCRIBE YOUR CHARACTER HERE], standing in a T-pose with both arms held straight out to the sides at shoulder height, palms facing down, legs straight and slightly apart. Both hands open with the five fingers spread apart and clearly separated. Seen straight from the front, the whole body in frame from the top of the head to the feet with some space around it. Plain white background, soft even lighting, no shadows on the ground, nothing held in the hands, nothing hanging behind or off the body (no cape, no long braids or ponytail, no rope, no scarf), no text or logos. Clean, detailed, colourful 3D game-character style.';
+const FIX_PROMPT = 'Redraw this exact character (same face, outfit and colours) as a full-body front view standing in a T-pose: arms straight out to the sides at shoulder height, both hands open with the five fingers spread apart and clearly separated, legs straight and slightly apart. Remove anything held in the hands and anything hanging behind or off the body (capes, long braids or ponytails, ropes, scarves). Plain white background, soft even lighting, whole body in frame from head to feet.';
+$('#copyFix').onclick=async ()=>{ try{ await navigator.clipboard.writeText(FIX_PROMPT); $('#copyNote').innerHTML='Copied! Open Gemini (or any picture AI), attach <b>your picture</b>, paste this, then drop the new picture here.'; }
+  catch(e){ $('#copyNote').textContent=FIX_PROMPT; } };
 $('#copyPrompt').onclick=async ()=>{ try{ await navigator.clipboard.writeText(GEMINI_PROMPT); $('#copyNote').innerHTML='Copied! Paste it into Gemini (or any picture AI), replace <b>[DESCRIBE YOUR CHARACTER HERE]</b>, then drop the result here.'; }
   catch(e){ $('#copyNote').textContent=GEMINI_PROMPT; } };
 
@@ -444,7 +454,7 @@ function updateGo(){ const b=$('#goBtn'); const ok=!!img && !busy;
   b.disabled=!ok; b.textContent = `🪄 Generate — ${usd(PRICE[tier]())}`;
   const cn=$('#costNote'); if(cn) cn.innerHTML = MOCK ? 'Test mode — no charge' : `This model will cost <b class="pr">${usd(PRICE[tier]())}</b>, charged by fal.ai to your fal.ai account`;
   b.title = !img ? 'Choose a picture first' : ''; }
-let busy=false, abortCtl=null, cancelUrl=null;
+let busy=false, abortCtl=null, cancelUrl=null, lastGen=null;
 function setStatus(t, cls, pct){ const s=$('#status'); s.style.display=t?'block':'none'; s.className=cls||''; $('#stTxt').innerHTML=t||''; $('#stBar').style.width=(pct||0)+'%'; $('#stBar').parentElement.style.display = cls==='err'||!t ? 'none':'block'; }
 function falError(status, body){
   const d = (body && (body.detail || body.error || body.message)) || '';
@@ -530,7 +540,7 @@ async function generate(){
     const secs=Math.round((performance.now()-t0)/1000);
     const meta={ ai:'trellis', tier, res: tier==='hero'?+$('#res').value:null, tex:+$('#tex').value, usd: MOCK?0:price, secs, made:Date.now(), bright };
     const id = await StudioLib.addModel({ name, skeleton: kind==='char'?'unrigged':'prop', glb:glbBytes, thumb, meta });
-    await showModel(id);
+    lastGen={ id, tier, img }; await showModel(id);
     setStatus(`✔ Done in ${secs} s · cost ${MOCK?'$0 (test)':usd(price)} · ${fmtMB(glbBytes.length)}${size!=='raw'&&rawSize>glbBytes.length?` (shrunk from ${fmtMB(rawSize)})`:''}${bright?` · lightened +${bright}% to match your picture`:''}`, '', 100);
   }catch(e){
     if(submitted && !charged && !MOCK) logCost({t:Date.now(), name, tier, res: tier==='hero'?+$('#res').value:null, usd:0, ok:false, why: e.name==='AbortError'?'cancelled':'failed'});
@@ -736,7 +746,7 @@ async function showModel(id){
   const buf = await m.glb.arrayBuffer();
   const gltf = await new Promise((res,rej)=>loader.parse(buf,'',res,rej));
   if(current){ scene.remove(current); current.traverse(o=>{ if(o.geometry) o.geometry.dispose(); }); }
-  current=gltf.scene; currentId=id; currentMeta=m; patchBright(current); setBrPct(0);
+  current=gltf.scene; currentId=id; currentMeta=m; handFocus=0; patchBright(current); setBrPct(0);
   // stand it on the grid, centred, and frame the camera round it
   const box=new THREE.Box3().setFromObject(current), size=box.getSize(new THREE.Vector3()), ctr=box.getCenter(new THREE.Vector3());
   const s = 1.6/Math.max(size.x,size.y,size.z,1e-6); current.scale.setScalar(s);
@@ -751,10 +761,44 @@ async function showModel(id){
     if(ratio<0.55) warn='⚠ The arms look close to the body. Rigging works best when the picture shows a T-pose or A-pose (arms away from the body).';
     if(size.z>size.y*0.8) warn='⚠ This doesn\'t look like a standing character — check the picture shows the whole body from the front.'; }
   const info=$('#info'); info.style.display='block';
-  const mt=m.meta||{}; info.innerHTML = `<b style="color:var(--text)">${esc(m.name)}</b><br>${m.skeleton==='unrigged'?'🧍 Character (not rigged yet)':'🏺 Prop'} · ${Math.round(tris).toLocaleString()} triangles · ${fmtMB(m.size||0)}`+(mt.tier?`<br>💲 <b class="pr">${usd(mt.usd)}</b> · ${mt.tier==='hero'?'💎 Hero '+(mt.res||''):mt.tier==='standard'?'⚖ Standard':'⚡ Draft'} · made in ${mt.secs} s`+(mt.bright?` · ☀ ${mt.bright>0?'+':''}${mt.bright}%`:''):'')+(warn?`<div class="warn">${warn}</div>`:'');
+  const mt=m.meta||{}; info.innerHTML = `<b style="color:var(--text)">${esc(m.name)}</b><br>${m.skeleton==='unrigged'?'🧍 Character (not rigged yet)':'🏺 Prop'} · ${Math.round(tris).toLocaleString()} triangles · ${fmtMB(m.size||0)}`+(mt.tier?`<br>💲 <b class="pr">${usd(mt.usd)}</b> · ${mt.tier==='hero'?'💎 Hero '+(mt.res||''):mt.tier==='standard'?'⚖ Standard':'⚡ Draft'} · made in ${mt.secs} s`+(mt.bright?` · ☀ ${mt.bright>0?'+':''}${mt.bright}%`:''):'')+(warn?`<div class="warn">${warn}</div>`:'')+
+    (m.skeleton==='unrigged'?'<div id="handRes" class="hint" style="margin:4px 0 0">✋ Checking the hands…</div>':'')+
+    (lastGen && lastGen.id===id && lastGen.tier!=='hero' && lastGen.img===img ? `<br><button class="btn sm" id="toHero">💎 Happy with it? Make it in Hero — ${usd(PRICE.hero())}</button>`:'');
+  const th=$('#toHero'); if(th) th.onclick=()=>{ const o=document.querySelector('#tierSeg .opt[data-v="hero"]'); if(o) o.click();
+    const g=$('#goBtn'); g.scrollIntoView({block:'center',behavior:'smooth'}); g.classList.remove('gpulse'); void g.offsetWidth; g.classList.add('gpulse');
+    th.outerHTML='<div class="hint" style="margin:6px 0 0">💎 Hero is selected — press <b>Generate</b> on the left when you\'re ready (same picture).</div>'; };
+  if(m.skeleton==='unrigged') runHandCheck(id);
   const t=$('#srcThumb'); if(m.thumb){ t.src=m.thumb; t.style.display='block'; } else t.style.display='none';
   renderShelf();
 }
+/* ---------------- hand check: free, in the browser, right after a character arrives ---------------- */
+const handCache=new Map(); let handFocus=0;
+async function runHandCheck(id){
+  let r=handCache.get(id);
+  if(!r){ await new Promise(res=>setTimeout(res,60));          // let the model draw first
+    if(currentId!==id || !current || !window.HandCheck) return;
+    try{ current.updateMatrixWorld(true); const pos=[], idx=[]; const v=new THREE.Vector3();
+      current.traverse(o=>{ if(!o.isMesh) return; const g=o.geometry, pa=g.attributes.position, base=pos.length/3;
+        for(let i=0;i<pa.count;i++){ v.fromBufferAttribute(pa,i).applyMatrix4(o.matrixWorld); pos.push(v.x,v.y,v.z); }
+        if(g.index){ const a=g.index.array; for(let i=0;i<a.length;i++) idx.push(a[i]+base); } else for(let i=0;i<pa.count;i++) idx.push(i+base); });
+      r=HandCheck.checkHands(new Float32Array(pos), new Uint32Array(idx)); }
+    catch(e){ console.warn('[aigen] hand check', e); r={ok:null,note:'hands could not be read'}; }
+    handCache.set(id,r); }
+  const el=$('#handRes'); if(!el || currentId!==id) return;
+  const look='<button class="btn sm" id="lookHands">👀 Look at the hands</button>';
+  if(r.ok===false){ const th=$('#toHero'); if(th){ if(th.previousSibling&&th.previousSibling.nodeName==='BR') th.previousSibling.remove(); th.remove(); } el.className='warn'; el.innerHTML='⚠ <b>Check the hands:</b> '+esc(r.note)+'. The AI sometimes adds a finger or tears a hand. If it\'s wrong, try the picture again (a new try often comes out right) or clean the picture up first with the 🧹 prompt.<br>'+look; }
+  else if(r.ok===true){ el.className='ok'; el.innerHTML='✋ Hands checked — no extra fingers found. '+look; }
+  else { el.className='hint'; el.innerHTML='✋ '+esc(r.note||'hands could not be read')+' — have a look yourself before rigging. '+look; }
+  $('#lookHands').onclick=lookAtHands; }
+// frame one hand close up; each press switches hands, the third goes back to the whole model
+function lookAtHands(){ if(!current) return; handFocus=(handFocus+1)%3;
+  const box=new THREE.Box3().setFromObject(current), H=box.max.y-box.min.y;
+  if(handFocus===0){ const s=box.getSize(new THREE.Vector3()); frameCam(s.x,s.y,s.z); return; }
+  const right=handFocus===1, edge=right?box.min.x:box.max.x, v=new THREE.Vector3(), c=new THREE.Vector3(); let n=0;
+  current.traverse(o=>{ if(!o.isMesh) return; const pa=o.geometry.attributes.position;
+    for(let i=0;i<pa.count;i++){ v.fromBufferAttribute(pa,i).applyMatrix4(o.matrixWorld); if(Math.abs(v.x-edge)<0.09*H){ c.add(v); n++; } } });
+  if(!n) return; c.divideScalar(n); controls.target.copy(c);
+  camera.position.set(c.x+(right?-1:1)*0.04*H, c.y+0.30*H, c.z+0.14*H); controls.update(); }   // from above: T-pose palms face down, so the fingers show spread
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 /* ---------------- actions ---------------- */

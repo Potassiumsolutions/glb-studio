@@ -63,7 +63,7 @@
 <body>
 <div id="app">
   <div class="side">
-    <h1>Character Rigger <span class="appver">v1.4.0</span></h1>
+    <h1>Character Rigger <span class="appver">v1.4.1</span></h1>
     <div class="tag">Rig your own textured characters onto a standard, retargetable skeleton for the GLB Stitcher.</div>
 
     <div class="card">
@@ -160,7 +160,7 @@
         </g>
       </svg>
       <div>
-        <div><b>Character Rigger</b> v1.4.0 · part of GLB Studio</div>
+        <div><b>Character Rigger</b> v1.4.1 · part of GLB Studio</div>
         <div class="appfoot-sub">© <span class="cred-year">2026</span> Paul A.T. Ramey · <b>KSOL Designs</b> · <a href="https://www.ksoldesigns.com" target="_blank" rel="noopener">ksoldesigns.com</a></div>
       </div>
     </div>
@@ -593,6 +593,13 @@ function smartFitBiped(){
       const c=slice((x,y,z)=>Math.abs(x-px)<w && band(y) && Math.abs(y-p.y)<0.16*H); if(!c) continue;
       if(n===pre+'Hand') dHand={dy:c.y-p.y, dz:c.z-p.z}; p.y=c.y; p.z=c.z; }
     if(dHand) for(const n of BONE_NAMES) if(n.startsWith(pre+'Hand') && n!==pre+'Hand'){ const p=J(n); p.y+=dHand.dy; p.z+=dHand.dz; }
+    // SHOULDER (2026-09-29, Paul: the goblin's shoulder joints sat ABOVE his shoulders): the arm joint was the template's, scaled by height —
+    // right for Mixamo proportions, too high on a hunched, big-headed, short-necked goblin. Measure the upper arm's cross-section centre at
+    // 40% and 70% of the way to the elbow and follow that line back in to the shoulder, so the joint sits INSIDE the arm (only ever lowered, by at most 8% of the height).
+    { const cs=[0.40,0.70].map(a=>{ const px=sh.x+(fo.x-sh.x)*a; return slice((x,y,z)=>Math.abs(x-px)<w && band(y) && y<sh.y+0.06*H && y>sh.y-0.16*H); });
+      if(cs[0] && cs[1] && Math.abs(cs[1].x-cs[0].x)>1e-6){ const sl=(cs[1].y-cs[0].y)/(cs[1].x-cs[0].x), ny=cs[0].y+sl*(sh.x-cs[0].x), dy=ny-sh.y;
+        if(dy<0 && dy>-0.08*H){ sh.y=ny;   /* LOWER only: a joint above the arm is the fault; sleeves / shoulder armour can pull the measured centre UP */ sh.z=(cs[0].z+cs[1].z)/2; const cl=J(pre+'Shoulder'); if(cl && cl.y>sh.y) cl.y=cl.y+(sh.y-cl.y)*0.5;   // the collarbone follows halfway
+          (window.__armFit=window.__armFit||{})[pre]={dy:+(dy/H).toFixed(3)}; } } }
     { const k=(fo.x-sh.x)/((ha.x-sh.x)||1); fo.y=sh.y+(ha.y-sh.y)*k; fo.z=sh.z+(ha.z-sh.z)*k; }   /* straight T-pose arm: the elbow ON the shoulder→wrist line (off it, the rest pose has a bend and the upper arm rolled past its limit — giant) */
     // ── LEG ──
     const up=J(pre+'UpLeg'), kn=J(pre+'Leg'), an=J(pre+'Foot'), toe=J(pre+'ToeBase'); if(!up||!kn||!an) continue;

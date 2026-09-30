@@ -1730,7 +1730,16 @@ function scatter(group, def, gridKind, seed, mass, variant){
     const w=new THREE.Mesh(topGeo(gridKind), new THREE.MeshStandardMaterial({ color:0x6fb8e6, roughness:0.42, metalness:0.08, transparent:true, opacity:0.55, depthWrite:false }));
     w.position.y=TOP+0.006; w.renderOrder=1; group.add(w); }
   else if(f==='bridge'){ const modernB=/^(urban|suburb|park|lot)$/.test(def.biome) || def.edges.some(e=>e.path===P.RAIL);   // concrete deck for streets / railways
-    const pl=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.04,modernB?0.34:0.26), mat(modernB?0x8e9196:0x6b4a2e,{roughness:1})); pl.position.y=TOP+0.05; group.add(pl); }
+    // the deck runs ALONG the road / trail over the water (it used to be one fixed box, so a north–south road met it side-on and
+    // looked like it stopped at the river). Axis = the road/trail edges' midpoints; a trail gets a narrow plank footbridge.
+    const wayEdges=def.edges.map((e,i)=>({e,i})).filter(o=>o.e.path===P.ROAD||o.e.path===P.RAIL||o.e.path===P.TRAIL);
+    const trailOnly=wayEdges.length>0 && wayEdges.every(o=>o.e.path===P.TRAIL);
+    let ax=1, az=0; if(wayEdges.length){ const [x0,z0]=g.edgeMid(wayEdges[0].i); if(wayEdges.length>1){ const [x1,z1]=g.edgeMid(wayEdges[1].i); ax=x0-x1; az=z0-z1; } else { ax=x0; az=z0; } }
+    const L=Math.hypot(ax,az)||1, deckLen=0.5, deckW=trailOnly?0.16:(modernB?0.34:0.26);
+    const pl=new THREE.Mesh(new THREE.BoxGeometry(deckLen,0.04,deckW), mat(modernB?0x8e9196:(trailOnly?0x7a5534:0x6b4a2e),{roughness:1}));
+    pl.position.y=TOP+0.05; pl.rotation.y=Math.atan2(-az/L, ax/L); group.add(pl);
+    if(!modernB){ for(const s of [-1,1]){ const rail=new THREE.Mesh(new THREE.BoxGeometry(deckLen,0.035,0.018), mat(0x4e3420,{roughness:1}));   // side rails so it reads as a bridge
+        rail.position.set(-az/L*s*deckW/2, TOP+0.085, ax/L*s*deckW/2); rail.rotation.y=pl.rotation.y; group.add(rail); } } }
   // transition strips along the N/first edge
   else if(f==='citywall'){ const [ex,ez]=g.edgeMid(0); wallSeg(group, ex*0.9, ez*0.9, edgeLenOf(gridKind), 0.24); }
   else if(f==='treeline'){ const [ex,ez]=g.edgeMid(0); for(let i=-2;i<=2;i++){ const t=Math.atan2(ex,ez)+Math.PI/2; group.add(tree(ex*0.8+Math.sin(t)*i*0.14, ez*0.8+Math.cos(t)*i*0.14, 0.7)); } }

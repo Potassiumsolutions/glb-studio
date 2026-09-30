@@ -1201,7 +1201,7 @@ import * as Tuck from './tuckbox-designer.js';
 
 const BGC = window.BGC, GAMES = window.BGC_GAMES;
 const TE = window.TileEngine, TLIB = window.TileLibrary;
-const APP_VERSION = 'v1.42';
+const APP_VERSION = 'v1.44';
 const CREDITS = `<b>Ksol Designs</b> — Paul A.T. Ramey<br>www.ksoldesigns.com<br>Built with GLB Studio · Tabletop<br><span class="ver">${APP_VERSION}</span>`;
 // ---- Board credit: a small "KSOL Designs" mark on the board for the FREE build. Owning ANY content pack
 // (TTier expansion) unlocks removing it (⚙ Settings toggle, or click the credit). ----
@@ -1237,11 +1237,11 @@ const roleName = (roleKey)=> (roleMap[roleKey]||{}).name || roleKey;
 const roleShort= (roleKey)=> ((roleMap[roleKey]||{}).role || roleKey).toUpperCase();
 
 /* ---------- roster (per role config + optional GLB template) ---------- */
-let roster = {};        // roleKey -> { travel, scale, name, glb, bytes, motionId, finisherId }
+let roster = {};        // roleKey -> { travel, scale, name, glb, bytes, motionId, finisherId, idleId }
 let boardDesign = 'classic';
 function blankRoster(){
   roster = {};
-  for (const k of roleKeys()) roster[k] = { travel:'auto', scale:1, name:'', glb:null, bytes:null, motionId:'', finisherId:'' };
+  for (const k of roleKeys()) roster[k] = { travel:'auto', scale:1, name:'', glb:null, bytes:null, motionId:'', finisherId:'', idleId:'' };
 }
 
 /* ================= three.js scene ================= */
@@ -1757,28 +1757,29 @@ async function libManifest(){ if(LIBMAN) return LIBMAN;
   try{ LIBMAN=await (await fetch('motions/lib.json',{cache:'no-store'})).json(); }catch(e){ LIBMAN={}; } return LIBMAN; }
 async function getLibClip(id){
   if(!id) return null; if(LIBCLIPS.has(id)) return LIBCLIPS.get(id);
-  let clipJson, rest={}, meta={};
+  let clipJson, rest={}, meta={}, srcFull=null;
   try{
     if (appCfg && appCfg.exported){
       clipJson = await (await fetch('motions/lib/'+id+'.json',{cache:'no-store'})).json();
       meta = (await libManifest())[id]||{}; rest = meta.rest||{};
+      if(meta.restP){ const R={}; for(const b in rest) if(meta.restP[b]) R[b]={q:rest[b], p:meta.restP[b]}; srcFull={rest:R, rootWorldQ:meta.rootWorldQ||null}; }
     } else {
       await loadLibrary();
       clipJson = await (await fetch(LIBRARY_URL+'m/'+id+'.json',{cache:'no-store'})).json();
       meta = LIB.byId[id]||{}; const sk=LIB.skeletons[meta.sig];
-      if(sk&&sk.rest){ for(const b in sk.rest) rest[b]=sk.rest[b].q; }
+      if(sk&&sk.rest){ for(const b in sk.rest) rest[b]=sk.rest[b].q; srcFull={rest:sk.rest, rootWorldQ:sk.rootWorldQ||null}; }
     }
   }catch(e){ console.warn('[lib] clip load failed', id, e); return null; }
   const clip=THREE.AnimationClip.parse(clipJson);
   clip.tracks=clip.tracks.filter(tr=>tr.name.endsWith('.quaternion'));
   const srcRest=new Map(); for(const b in rest) srcRest.set(b, new THREE.Quaternion().fromArray(rest[b]));
   const e={clip, bones:new Set(clip.tracks.map(tr=>tr.name.split('.')[0])), srcRest,
-    airborne:/Flight/i.test(meta.cat||''), name:meta.name||id, cat:meta.cat||'', sig:meta.sig||''};
+    airborne:/Flight/i.test(meta.cat||''), name:meta.name||id, cat:meta.cat||'', sig:meta.sig||'', srcFull};
   LIBCLIPS.set(id,e); return e;
 }
 async function ensureAssignedClips(){
   const ids=new Set();
-  for(const k of roleKeys()){ const r=roster[k]; if(r.motionId)ids.add(r.motionId); if(r.finisherId)ids.add(r.finisherId); }
+  for(const k of roleKeys()){ const r=roster[k]; if(r.motionId)ids.add(r.motionId); if(r.finisherId)ids.add(r.finisherId); const iid=idleClipId(r); if(iid)ids.add(iid); }
   for(const id of ids){ if(!LIBCLIPS.has(id)) await getLibClip(id); }
 }
 function compatMotions(model, types){
@@ -1801,7 +1802,8 @@ function pickMotion(model, role){
 }
 function captureBind(model){ const map=new Map(); model.traverse(o=>{ if(o.isBone) map.set(o.name, o.quaternion.clone()); }); return map; }
 function rootBoneName(model){ let r=null; model.traverse(o=>{ if(o.isBone && !r && !(o.parent && o.parent.isBone)) r=o.name; }); return r; }
-function retargetClip(motion, bindMap, rootName, dropRoot){
+function retargetClip(motion, bindMap, rootName, dropRoot, restModel){
+  if(restModel && motion.srcFull && isImportedRig(restModel)){ try{ const c=waRetarget(motion, restModel, dropRoot); if(c) return c; }catch(e){ console.warn('[Tabletop] world-aligned retarget failed', e); } }
   const q=new THREE.Quaternion(), out=new THREE.Quaternion();
   const tracks=[];
   for (const tr of motion.clip.tracks){
@@ -1819,6 +1821,120 @@ function retargetClip(motion, bindMap, rootName, dropRoot){
   }
   return new THREE.AnimationClip(motion.clip.name, motion.clip.duration, tracks);
 }
+/* 🧍 WORLD-ALIGNED RETARGET for T-pose rigs (v1.44) — a trimmed port of the Stitcher's worldAlignedQuats (glb-stitcher/index.html
+   is the source of truth). Our Character Rigger's T-pose rigs (glTF extras ksolRestPose:'tpose': the Man / Woman samples, the Goblin…)
+   and Mixamo / ActorCore rigs rest in a T-pose while the library template rests A-ish, so the plain parent-frame transfer above laid
+   every motion on top of horizontal arms: a "Relaxed Idle" held both arms straight out in front like a zombie. Here each bone is first
+   re-aimed onto the template's rest, then takes the template's WORLD rotation. Kept: bone alignment (pelvis/chest/palm side references,
+   feet heading-only, fingers ride the palm, wings rigid) + ARM CLEARANCE. Left out: root travel + foot-contact IK (a board piece is
+   grounded by the board and never takes root translation). restModel must be in its BIND pose (a roster proto or a fresh clone). */
+function isImportedRig(root){ let hit=false; root.traverse(o=>{ if((o.isBone && /^(mixamorig|CC_Base_)/i.test(o.name)) || (o.userData && o.userData.ksolRestPose==='tpose')) hit=true; }); return hit; }
+const _WA_PRIMARY={ Hips:'Spine', Spine:'Spine01', Spine01:'Spine02', Spine02:'neck', neck:'Head', Head:'head_end', LeftHand:'LeftHandMiddle1', RightHand:'RightHandMiddle1' };
+const _WA_SIDE={ Hips:['LeftUpLeg','RightUpLeg'], Spine02:['LeftShoulder','RightShoulder'], LeftHand:['LeftHandIndex1','LeftHandPinky1'], RightHand:['RightHandPinky1','RightHandIndex1'] };
+const _waCache=new WeakMap();   // restModel → Map(library clip entry → [clip keepRoot, clip dropRoot])
+function waRetarget(motion, restModel, dropRoot){
+  const src=motion.srcFull; if(!src || !src.rest) return null;
+  let byM=_waCache.get(restModel); if(!byM){ byM=new Map(); _waCache.set(restModel, byM); }
+  const ck=byM.get(motion)||[]; if(ck[dropRoot?1:0]) return ck[dropRoot?1:0];
+  const V=THREE.Vector3, Q=THREE.Quaternion, sR=src.rest;
+  const tR={}, tb=[]; restModel.traverse(o=>{ if(o.isBone && !tR[o.name]){ tR[o.name]={p:o.position.toArray(), q:o.quaternion.toArray()}; tb.push(o); } });
+  if(!tb.length) return null;
+  const tParent={}; for(const b of tb){ let p=b.parent; while(p && p.isBone && !tR[p.name]) p=p.parent; tParent[b.name]=(p&&p.isBone)?p.name:null; }
+  const inSrc=n=>!!(sR[n] && sR[n].p && sR[n].q);
+  const sParent={}; for(const b of tb){ if(!inSrc(b.name)) continue; let p=tParent[b.name]; while(p && !inSrc(p)) p=tParent[p]; sParent[b.name]=p; }
+  const rootName=tb[0].name; if(!inSrc(rootName)) return null;
+  const tPW=new Q(); for(let o=tb[0].parent; o && o!==restModel; o=o.parent) tPW.premultiply(o.quaternion);   // root's parent frame, in the model's own space
+  const sPW=new Q(); if(src.rootWorldQ) sPW.fromArray(src.rootWorldQ).multiply(new Q().fromArray(sR[rootName].q).invert());
+  const restWorld=(R, par, PW, names)=>{ const W={}, P={};
+    for(const n of names){ const p=par[n]; const pq=p?W[p]:PW, pp=p?P[p]:new V();
+      W[n]=pq.clone().multiply(new Q().fromArray(R[n].q)); P[n]=pp.clone().add(new V().fromArray(R[n].p).applyQuaternion(pq)); }
+    return {W,P}; };
+  const tNames=tb.map(b=>b.name), sNames=tNames.filter(inSrc);
+  const T=restWorld(tR, tParent, tPW, tNames), S=restWorld(sR, sParent, sPW, sNames);
+  const kids={}; for(const n of sNames){ const p=sParent[n]; if(p){ (kids[p]=kids[p]||[]).push(n); } }
+  const A={};
+  const frame=(d,l)=>{ const x=d.clone().normalize(); const z=new V().crossVectors(x,l).normalize(); const y=new V().crossVectors(z,x);
+    return new Q().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x,y,z)); };
+  for(const n of sNames){
+    if(/Wing/.test(n) && sParent[n] && A[sParent[n]]){ A[n]=A[sParent[n]].clone(); continue; }   // wings ride their parent rigidly
+    const ks=kids[n]||[];
+    let c=_WA_PRIMARY[n]; if(!(c && inSrc(c) && T.P[c])) c=ks.length===1?ks[0]:null;
+    if(!c){ const p=sParent[n]; A[n]=p?A[p].clone():new Q(); continue; }
+    const ds=S.P[c].clone().sub(S.P[n]), dt=T.P[c].clone().sub(T.P[n]);
+    if(ds.lengthSq()<1e-12 || dt.lengthSq()<1e-12){ const p=sParent[n]; A[n]=p?A[p].clone():new Q(); continue; }
+    if(/(Foot|ToeBase)$/.test(n)){ const up=new V(0,1,0); const hs=ds.clone().setY(0), ht=dt.clone().setY(0);   // feet: heading only (flat maps to flat)
+      if(hs.lengthSq()>1e-10 && ht.lengthSq()>1e-10){ A[n]=frame(hs,up).multiply(frame(ht,up).invert()); continue; } }
+    const side=_WA_SIDE[n];
+    if(side && inSrc(side[0]) && inSrc(side[1]) && T.P[side[0]] && T.P[side[1]]){
+      const ls=S.P[side[0]].clone().sub(S.P[side[1]]), lt=T.P[side[0]].clone().sub(T.P[side[1]]);
+      A[n]=frame(ds,ls).multiply(frame(dt,lt).invert());
+    } else if(/Hand(Thumb|Index|Middle|Ring|Pinky)\d$/.test(n) && sParent[n] && A[sParent[n]]){
+      const pA=A[sParent[n]], dtA=dt.clone().normalize().applyQuaternion(pA);
+      A[n]=new Q().setFromUnitVectors(dtA, ds.clone().normalize()).multiply(pA);
+    } else A[n]=new Q().setFromUnitVectors(dt.clone().normalize(), ds.clone().normalize());
+  }
+  const qt={}; let times=[];
+  for(const t of motion.clip.tracks){ const dot=t.name.lastIndexOf('.'); if(t.name.slice(dot+1)!=='quaternion') continue;
+    const b=t.name.slice(0,dot); if(!inSrc(b)) continue; qt[b]=t.createInterpolant(); times=times.concat(Array.from(t.times)); }
+  times=[...new Set(times.map(x=>+x.toFixed(5)))].sort((a,b)=>a-b);
+  if(!times.length) return null;
+  // ARM CLEARANCE (T-pose rigs): angles copied from the template can hang an arm INSIDE hips wider than the template's → swing it
+  // out about body-forward just enough that elbow / forearm / wrist clear this character's own torso silhouette (bind pose).
+  const _gc=(a,v,k)=>k===0?a.getX(v):k===1?a.getY(v):k===2?a.getZ(v):a.getW(v);
+  let ksol=false; restModel.traverse(o=>{ if(o.userData && o.userData.ksolRestPose==='tpose') ksol=true; });
+  let CLR=null;
+  if(ksol && !window.__noArmClear && T.P.Hips && T.P.LeftUpLeg && T.P.RightUpLeg && T.P.Spine02){
+    let sm=null; restModel.traverse(o=>{ if(o.isSkinnedMesh && o.skeleton && (!sm || o.geometry.attributes.position.count>sm.geometry.attributes.position.count)) sm=o; });
+    const up=T.P.Spine02.clone().sub(T.P.Hips).normalize(), lat0=T.P.LeftUpLeg.clone().sub(T.P.RightUpLeg);
+    const lat=lat0.clone().addScaledVector(up,-lat0.dot(up)).normalize(), fwd=new V().crossVectors(lat,up).normalize();
+    const Bq=new Q().setFromRotationMatrix(new THREE.Matrix4().makeBasis(lat, up, fwd));
+    const bodyInHips=T.W.Hips.clone().invert().multiply(Bq);
+    const height=Math.max(...tNames.map(n=>T.P[n].y))-Math.min(...tNames.map(n=>T.P[n].y));
+    if(sm && height>1e-6 && fwd.z>0.5){
+      const bn=sm.skeleton.bones.map(b=>b.name), pa=sm.geometry.attributes.position, si=sm.geometry.attributes.skinIndex, sw=sm.geometry.attributes.skinWeight;
+      const TORSO=/^(Hips|Spine|Spine01|Spine02|LeftUpLeg|RightUpLeg)$/;
+      const toBody=new Q().copy(Bq).invert(), o0=T.P.Hips.clone(), NB=48, lo=-0.45*height, hi=0.25*height;
+      const bins=[...Array(NB)].map(()=>({L:0,R:0,z0:1e9,z1:-1e9}));
+      if(si && sw) for(let v=0; v<pa.count; v+=2){ let bw=0, bb=-1; for(let k=0;k<4;k++){ const w=_gc(sw,v,k); if(w>bw){ bw=w; bb=_gc(si,v,k); } }
+        if(bb<0 || !TORSO.test(bn[bb]||'')) continue;
+        const q=new V().fromBufferAttribute(pa,v).applyMatrix4(sm.bindMatrix).sub(o0).applyQuaternion(toBody);
+        const i=Math.floor((q.y-lo)/(hi-lo)*NB); if(i<0||i>=NB) continue; const B=bins[i];
+        if(q.x>0) B.L=Math.max(B.L,q.x); else B.R=Math.max(B.R,-q.x); B.z0=Math.min(B.z0,q.z); B.z1=Math.max(B.z1,q.z); (B.pts=B.pts||[]).push(q.x,q.z); }
+      CLR={ bodyInHips, bins, lo, hi, NB, r:0.022*height, marg:0.01*height }; }
+  }
+  const out={}; for(const n of sNames) out[n]=new Float32Array(times.length*4);
+  const SWi={}; for(const n of sNames) SWi[n]=S.W[n].clone().invert();
+  const Ws={}, Wt={}, tmp=new Q();
+  times.forEach((time,fi)=>{
+    for(const n of sNames){ const p=sParent[n]; const pq=p?Ws[p]:sPW;
+      const lq= qt[n] ? tmp.fromArray(qt[n].evaluate(time)).normalize() : tmp.fromArray(sR[n].q);
+      Ws[n]=pq.clone().multiply(lq); }
+    for(const n of tNames){ const p=tParent[n]; const pq=p?Wt[p]:tPW;
+      Wt[n]= inSrc(n) ? Ws[n].clone().multiply(SWi[n]).multiply(A[n]).multiply(T.W[n]) : pq.clone().multiply(new Q().fromArray(tR[n].q)); }
+    if(CLR && Wt.Hips){
+      const Pw={}; for(const n of tNames){ const p=tParent[n]; Pw[n]= p ? Pw[p].clone().add(new V().fromArray(tR[n].p).applyQuaternion(Wt[p])) : T.P[n].clone(); }
+      const Bw=Wt.Hips.clone().multiply(CLR.bodyInHips), Bi=Bw.clone().invert(), fw=new V(0,0,1).applyQuaternion(Bw), org=Pw.Hips;
+      const clearNeed=(pts, pivot, s)=>{ let need=0;
+        for(const p of pts){ const q=p.clone().sub(org).applyQuaternion(Bi);
+          const i=Math.floor((q.y-CLR.lo)/(CLR.hi-CLR.lo)*CLR.NB); if(i<0||i>=CLR.NB) continue; const B=CLR.bins[i];
+          let half=0; const pz=B.pts||[], zr=1.6*CLR.r; for(let k=0;k<pz.length;k+=2){ if(Math.abs(pz[k+1]-q.z)<zr){ const x=pz[k]*s; if(x>half) half=x; } }
+          if(!(half>0)) continue;
+          if(q.x*s < -0.25*half) continue;
+          const d=half+CLR.r+CLR.marg-q.x*s; if(d<=0) continue;
+          const lev=p.distanceTo(pivot); if(lev<1e-6) continue;
+          need=Math.max(need, Math.asin(Math.min(1, d/lev))); }
+        return need; };
+      for(const [L,s] of [['Left',1],['Right',-1]]){
+        if(!Pw[L+'Arm'] || !Pw[L+'ForeArm'] || !Pw[L+'Hand']) continue;
+        const need=clearNeed([Pw[L+'ForeArm'], Pw[L+'ForeArm'].clone().lerp(Pw[L+'Hand'],0.5), Pw[L+'Hand']], Pw[L+'Arm'], s);
+        if(need>1e-4){ const R=new Q().setFromAxisAngle(fw, s*Math.min(need, 0.9));
+          for(const n of tNames) if(n===L+'Arm' || n===L+'ForeArm' || n.startsWith(L+'Hand')) Wt[n]=R.clone().multiply(Wt[n]); } } }
+    for(const n of sNames){ const p=tParent[n]; const pq=p?Wt[p]:tPW; const l=pq.clone().invert().multiply(Wt[n]);
+      out[n][fi*4]=l.x; out[n][fi*4+1]=l.y; out[n][fi*4+2]=l.z; out[n][fi*4+3]=l.w; }
+  });
+  const tracks=[]; for(const n of sNames){ if(dropRoot && n===rootName) continue; tracks.push(new THREE.QuaternionKeyframeTrack(n+'.quaternion', Float32Array.from(times), out[n])); }
+  const clip=new THREE.AnimationClip(motion.clip.name, motion.clip.duration, tracks);
+  ck[dropRoot?1:0]=clip; byM.set(motion, ck); return clip; }
 function attachMotion(wrap, model, cfg){
   const bind = captureBind(model);
   const root = rootBoneName(model);
@@ -1826,17 +1942,48 @@ function attachMotion(wrap, model, cfg){
   let used=false;
   const travel = cfg && cfg.motionId ? LIBCLIPS.get(cfg.motionId) : null;
   if (travel){
-    const act = mixer.clipAction(retargetClip(travel, bind, root, !travel.airborne));
+    const act = mixer.clipAction(retargetClip(travel, bind, root, !travel.airborne, cfg.glb));
     if (travel.airborne) wrap.userData.flyAction=act; else wrap.userData.walkAction=act; used=true;
   }
   if (!wrap.userData.walkAction && MOTIONS.length){ const walk=pickMotion(model,'walk'); if(walk){ wrap.userData.walkAction=mixer.clipAction(retargetClip(walk,bind,root,true)); used=true; } }
   if (!wrap.userData.flyAction  && MOTIONS.length){ const fly =pickMotion(model,'fly');  if(fly ){ wrap.userData.flyAction =mixer.clipAction(retargetClip(fly, bind,root,false)); used=true; } }
   const fin = cfg && cfg.finisherId ? LIBCLIPS.get(cfg.finisherId) : null;
-  if (fin){ const fa=mixer.clipAction(retargetClip(fin,bind,root,false)); fa.setLoop(THREE.LoopOnce,1); fa.clampWhenFinished=true; wrap.userData.finisherAction=fa; used=true; }
-  if (!used) return;
-  wrap.userData.mixer = mixer;
+  if (fin){ const fa=mixer.clipAction(retargetClip(fin,bind,root,false,cfg.glb)); fa.setLoop(THREE.LoopOnce,1); fa.clampWhenFinished=true; wrap.userData.finisherAction=fa; used=true; }
+  wrap.userData.bind = bind; wrap.userData.rootBone = root;   // kept for a late-arriving idle (captured now, while the model is still in its bind pose)
+  if (used) wrap.userData.mixer = mixer;
   model.traverse(o=>{ if(o.isSkinnedMesh && !wrap.userData.skeleton) wrap.userData.skeleton=o.skeleton; });
+  attachIdle(wrap, model, cfg);
 }
+/* 🧍 STANDING IDLE between moves (v1.44): a rigged biped used to stand in its rig's T-pose (arms straight out) whenever it
+   wasn't walking — bad in videos. Each piece now loops a gentle idle from the library: the role's Idle pick, or (auto) the
+   same best-fit standing idle the builder minis use (bAutoPose), at a random phase + speed so a row of pawns doesn't breathe
+   in lock-step. Walk / finisher cross-fade out of and back into it. 'rest', or nothing compatible → the rig's own pose as before. */
+function idleClipId(r){ if(!r || r.idleId==='rest') return null; return r.idleId || r._autoIdle || null; }
+function resolveAutoIdle(r){ if(!r || !r.glb) return Promise.resolve(null);
+  if(r._autoIdleFor!==r.glb){ const glb=r.glb; r._autoIdleFor=glb; r._autoIdle=null;
+    r._autoIdleP=bAutoPose(glb).catch(()=>null).then(id=>{ if(r._autoIdleFor===glb) r._autoIdle=id||null; return id||null; }); }
+  return r._autoIdleP; }
+function attachIdle(wrap, model, cfg){
+  if(!cfg || !cfg.glb || cfg.idleId==='rest' || !wrap.userData.bind || !wrap.userData.skeleton) return;
+  const go=id=>{ const m=id && LIBCLIPS.get(id); if(!m || wrap.userData.idleAction) return;
+    const mixer = wrap.userData.mixer || (wrap.userData.mixer = new THREE.AnimationMixer(model));
+    const a = mixer.clipAction(retargetClip(m, wrap.userData.bind, wrap.userData.rootBone, true, cfg.glb));
+    a.setLoop(THREE.LoopRepeat, Infinity); a.timeScale = 0.85 + Math.random()*0.3;
+    wrap.userData.idleAction = a;
+    if(!wrap.userData.animating){ idleOn(wrap, null, Math.random()); mixer.update(0); } };
+  const id = idleClipId(cfg);
+  if(id && LIBCLIPS.has(id)){ go(id); return; }
+  (async()=>{ const iid = cfg.idleId || await resolveAutoIdle(cfg); if(!iid) return;
+    if(!LIBCLIPS.has(iid)) await getLibClip(iid); go(iid); if(window.bumpRender) window.bumpRender(); })()
+    .catch(e=>console.warn('[Tabletop] idle attach failed', e)); }
+// start (or resume) the idle; fromAct = the walk/finisher that just ended → cross-fade out of it. false = no idle for this piece.
+function idleOn(g, fromAct, phase){ const ia=g && g.userData.idleAction; if(!ia) return false;
+  ia.reset(); if(phase!=null) ia.time = phase*ia.getClip().duration; ia.play();
+  if(fromAct && fromAct.isScheduled()) fromAct.crossFadeTo(ia, 0.25, false);
+  g.userData.idling = true; return true; }
+// hand over from the idle to a walk / finisher that has just been play()ed
+function idleOff(g, toAct){ const ia=g && g.userData.idleAction; if(!ia || !g.userData.idling) return; g.userData.idling=false;
+  if(toAct) ia.crossFadeTo(toAct, 0.2, false); else ia.stop(); }
 function buildPiece(roleKey){
   const cfg = roster[roleKey]; const side = sideOf(roleKey);
   let g;
@@ -1890,7 +2037,7 @@ function printSizeFor(scale){ const s=scale||1; return s<=0.6?'tiny':s<=1.3?'med
 async function printPosed(proto, poseId, frac){ let inst; try{ inst=skeletonClone(proto); }catch(e){ inst=proto.clone(true); }
   inst.position.set(0,0,0); inst.quaternion.identity(); inst.scale.setScalar(1); let used=null;
   if(poseId && poseId!=='rest' && boneSet(inst).size){ try{ const id=poseId==='auto'?await bAutoPose(inst):poseId, m=id?await getLibClip(id):null;
-    if(m){ const clip=retargetClip(m, captureBind(inst), rootBoneName(inst), true), mx=new THREE.AnimationMixer(inst); mx.clipAction(clip).play(); mx.setTime(clip.duration*Math.min(0.999,Math.max(0,frac==null?0.3:frac))); used=id; } }catch(e){ console.warn('[print] pose failed', e); } }
+    if(m){ const clip=retargetClip(m, captureBind(inst), rootBoneName(inst), true, inst), mx=new THREE.AnimationMixer(inst); mx.clipAction(clip).play(); mx.setTime(clip.duration*Math.min(0.999,Math.max(0,frac==null?0.3:frac))); used=id; } }catch(e){ console.warn('[print] pose failed', e); } }
   inst.updateMatrixWorld(true); inst.traverse(o=>{ if(o.isSkinnedMesh && o.skeleton) o.skeleton.update(); });
   return {inst, used}; }
 // every visible mesh → world-space vertices (skinning + morphs applied) + triangle indices
@@ -2222,8 +2369,8 @@ async function travelGroup(g, from, to, style, kc){
   const startAct = ()=>{ if(act){ act.reset(); act.setLoop(THREE.LoopRepeat, Infinity); act.enabled=true;
       const clipDur = (act.getClip().duration)||1; const cycles = Math.max(1, Math.round(dist));
       act.timeScale = Math.max(0.5, Math.min(3.5, cycles*clipDur*1000/dur));
-      act.play(); g.userData.animating=true; } };
-  const stopAct = ()=>{ if(act){ act.stop(); act.timeScale=1; } g.userData.animating=false; if(g.userData.skeleton) g.userData.skeleton.pose(); };
+      act.play(); idleOff(g, act); g.userData.animating=true; } };
+  const stopAct = ()=>{ g.userData.animating=false; if(idleOn(g, act)) return; if(act){ act.stop(); act.timeScale=1; } if(g.userData.skeleton) g.userData.skeleton.pose(); };
   const baseY = g.userData.seatY || 0;                 // pieces on a Sternhalma pad/rock sit above y=0
   const lerpXZ = e=>{ g.position.x=from.x+(to.x-from.x)*e; g.position.z=from.z+(to.z-from.z)*e; };
 
@@ -2769,13 +2916,16 @@ function fillClipSelect(sel, model, types, current, noneLabel){
 }
 function populateMotionSel(sel, cfg){ fillClipSelect(sel, cfg.glb, ['move'], cfg.motionId, '(auto — by body type)'); }
 function populateFinisherSel(sel, cfg){ fillClipSelect(sel, cfg.glb, ['action','stay'], cfg.finisherId, '(none)'); }
+function populateIdleSel(sel, cfg){ fillClipSelect(sel, cfg.glb, ['idle','stay'], cfg.idleId, 'Auto — standing idle');
+  const o=document.createElement('option'); o.value='rest'; o.textContent='As rigged (T-pose)'; sel.insertBefore(o, sel.children[1]||null); sel.value=cfg.idleId||'';
+  if(cfg.glb && !cfg.idleId) resolveAutoIdle(cfg).then(id=>{ const e=id && LIB && LIB.byId[id]; if(sel.options[0]) sel.options[0].textContent = e ? 'Auto — '+e.name : 'Auto — (none fits: as rigged)'; }); }
 function previewMotion(roleKey){
   let any=false;
   pieces.forEach(g=>{ if(g.userData.roleKey===roleKey){
     const act=g.userData.walkAction||g.userData.flyAction;
-    if(act && g.userData.mixer){ act.reset(); act.setLoop(THREE.LoopRepeat,Infinity); act.enabled=true; act.play(); g.userData.animating=true; any=true;
+    if(act && g.userData.mixer){ act.reset(); act.timeScale=1; act.setLoop(THREE.LoopRepeat,Infinity); act.enabled=true; act.play(); idleOff(g, act); g.userData.animating=true; any=true;
       clearTimeout(g.userData._prevT);
-      g.userData._prevT=setTimeout(()=>{ act.stop(); g.userData.animating=false; if(g.userData.skeleton) g.userData.skeleton.pose(); }, 2600); }
+      g.userData._prevT=setTimeout(()=>{ g.userData.animating=false; if(idleOn(g, act)) return; act.stop(); if(g.userData.skeleton) g.userData.skeleton.pose(); }, 2600); }
   }});
   return any;
 }
@@ -2783,10 +2933,10 @@ function playFinisherOn(g){
   const act=g&&g.userData.finisherAction, mixer=g&&g.userData.mixer;
   if(!act||!mixer) return Promise.resolve(false);
   return new Promise(res=>{
-    act.reset(); act.setLoop(THREE.LoopOnce,1); act.clampWhenFinished=true; act.enabled=true; act.play(); g.userData.animating=true;
+    act.reset(); act.setLoop(THREE.LoopOnce,1); act.clampWhenFinished=true; act.enabled=true; act.play(); idleOff(g, act); g.userData.animating=true;
     const ms=Math.min(2600,(act.getClip().duration||1)*1000+120);
     clearTimeout(g.userData._finT);
-    g.userData._finT=setTimeout(()=>{ act.stop(); g.userData.animating=false; if(g.userData.skeleton) g.userData.skeleton.pose(); res(true); }, ms);
+    g.userData._finT=setTimeout(()=>{ g.userData.animating=false; if(!idleOn(g, act)){ act.stop(); if(g.userData.skeleton) g.userData.skeleton.pose(); } res(true); }, ms);
   });
 }
 function previewFinisher(roleKey){ let any=false;
@@ -2814,6 +2964,8 @@ function renderSlots(){
             <div style="display:flex;gap:6px"><select data-motion="${k}" style="flex:1"></select><button class="btn sec" data-prev="${k}" title="Preview" style="width:auto;padding:4px 10px">▶</button></div></div>
           <div style="grid-column:1/3"><label class="fld">Finisher <span class="mini" style="opacity:.6">(plays once when this piece captures)</span></label>
             <div style="display:flex;gap:6px"><select data-fin="${k}" style="flex:1"></select><button class="btn sec" data-finprev="${k}" title="Preview finisher" style="width:auto;padding:4px 10px">▶</button></div></div>
+          <div style="grid-column:1/3"><label class="fld">Idle <span class="mini" style="opacity:.6">(how it stands between moves)</span></label>
+            <select data-idle="${k}" style="width:100%"></select></div>
           <div><label class="fld">Scale</label><input type="number" data-scale="${k}" value="${cfg.scale}" step="0.1" min="0.2" style="width:100%"></div>
           <div><label class="fld">&nbsp;</label><span class="mini" data-name="${k}">${cfg.name||'—'}</span></div>
           <div style="grid-column:1/3"><button class="btn sec" data-print="${k}" style="width:100%" title="Save this piece as a 3D-printable STL / 3MF — posed, scaled in mm for your board or a 5-ft grid">🖨 3D print (STL / 3MF)…</button></div>
@@ -2831,6 +2983,8 @@ function renderSlots(){
       div.querySelector(`[data-prev="${k}"]`).onclick=()=>{ if(!previewMotion(k)) alert('Load a model and pick a motion first.'); };
       const fsel = div.querySelector(`[data-fin="${k}"]`); populateFinisherSel(fsel, cfg);
       fsel.onchange = async ()=>{ cfg.finisherId=fsel.value; if(cfg.finisherId) await getLibClip(cfg.finisherId); persist(); rebuildPieces(); previewFinisher(k); };
+      const isel = div.querySelector(`[data-idle="${k}"]`); populateIdleSel(isel, cfg);
+      isel.onchange = async ()=>{ cfg.idleId=isel.value; if(cfg.idleId && cfg.idleId!=='rest') await getLibClip(cfg.idleId); persist(); rebuildPieces(); };
       div.querySelector(`[data-finprev="${k}"]`).onclick=()=>{ if(!previewFinisher(k)) alert('Load a model and pick a finisher first.'); };
       div.querySelector(`[data-scale="${k}"]`).onchange=(e)=>{ cfg.scale=+e.target.value||1; persist(); rebuildPieces(); };
       div.querySelector(`[data-load="${k}"]`).onclick=()=>loadModel(k);
@@ -2861,6 +3015,7 @@ function applyLoadedModel(roleKey,bytes,name){
       if(nm) nm.textContent=name||'model';
       const msel=document.querySelector(`[data-motion="${roleKey}"]`); if(msel) populateMotionSel(msel, roster[roleKey]);
       const fsel=document.querySelector(`[data-fin="${roleKey}"]`); if(fsel) populateFinisherSel(fsel, roster[roleKey]);
+      const isel=document.querySelector(`[data-idle="${roleKey}"]`); if(isel) populateIdleSel(isel, roster[roleKey]);
       res(true);
     }, ()=>res(false));
   });
@@ -2921,21 +3076,21 @@ async function restoreModelsFromIDB(){
 const RKEY = ()=> 'bgc.'+def.id+'.roster';
 function persist(){
   try{ const slim={ boardDesign, roles:{} };
-    for(const k of roleKeys()){ const x=roster[k]; slim.roles[k]={travel:x.travel,scale:x.scale,name:x.name,motionId:x.motionId||'',finisherId:x.finisherId||''}; }
+    for(const k of roleKeys()){ const x=roster[k]; slim.roles[k]={travel:x.travel,scale:x.scale,name:x.name,motionId:x.motionId||'',finisherId:x.finisherId||'',idleId:x.idleId||''}; }
     localStorage.setItem(RKEY(), JSON.stringify(slim));
   }catch(e){}
 }
 function restore(){
   try{ const s=JSON.parse(localStorage.getItem(RKEY())||'null'); if(!s) return;
     boardDesign=s.boardDesign||'classic';
-    for(const k of roleKeys()){ const r=s.roles&&s.roles[k]; if(r){ roster[k].travel=r.travel; roster[k].scale=r.scale; roster[k].name=r.name||''; roster[k].motionId=r.motionId||''; roster[k].finisherId=r.finisherId||''; } }
+    for(const k of roleKeys()){ const r=s.roles&&s.roles[k]; if(r){ roster[k].travel=r.travel; roster[k].scale=r.scale; roster[k].name=r.name||''; roster[k].motionId=r.motionId||''; roster[k].finisherId=r.finisherId||''; roster[k].idleId=r.idleId||''; } }
   }catch(e){}
 }
 document.getElementById('saveRoster').onclick=async ()=>{
   const cfg={ gameId:def.id, boardDesign, roles:{} };
   const zip=new JSZip();
   for(const k of roleKeys()){ const x=roster[k]; let model=null; if(x.bytes){ model=`models/${k}.glb`; zip.file(model, x.bytes); }
-    cfg.roles[k]={travel:x.travel,scale:x.scale,name:x.name,motionId:x.motionId||'',finisherId:x.finisherId||'',model}; }
+    cfg.roles[k]={travel:x.travel,scale:x.scale,name:x.name,motionId:x.motionId||'',finisherId:x.finisherId||'',idleId:x.idleId||'',model}; }
   zip.file('roster.json', JSON.stringify(cfg,null,2));
   const blob=await zip.generateAsync({type:'blob',compression:'DEFLATE'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`${def.id}-roster.zip`; a.click();
@@ -2946,10 +3101,12 @@ document.getElementById('loadRoster').onchange=async (e)=>{ const f=e.target.fil
   try{
     const zip=await JSZip.loadAsync(f);
     const cfg=JSON.parse(await zip.file('roster.json').async('string'));
+    // older GLB Chess rosters store {w:{p,n,b,r,q,k}, b:{…}} instead of {roles:{wp,…}} → read them as roles (chess only)
+    if(!cfg.roles && cfg.w && cfg.b && typeof cfg.w==='object'){ cfg.roles={}; for(const side of ['w','b']) for(const t in cfg[side]) cfg.roles[side+t]=cfg[side][t]; cfg.gameId=cfg.gameId||'chess'; }
     if(cfg.gameId && cfg.gameId!==def.id){ alert(`This roster is for "${cfg.gameId}", but the current game is "${def.id}". Switch games first.`); e.target.value=''; return; }
     boardDesign=cfg.boardDesign||'classic';
     for(const k of roleKeys()){ const s=cfg.roles&&cfg.roles[k]; if(!s) continue;
-      roster[k].travel=s.travel||'auto'; roster[k].scale=s.scale||1; roster[k].name=s.name||''; roster[k].motionId=s.motionId||''; roster[k].finisherId=s.finisherId||'';
+      roster[k].travel=s.travel||'auto'; roster[k].scale=s.scale||1; roster[k].name=s.name||''; roster[k].motionId=s.motionId||''; roster[k].finisherId=s.finisherId||''; roster[k].idleId=s.idleId||'';
       if(s.model && zip.file(s.model)){ const bytes=await zip.file(s.model).async('uint8array'); await applyLoadedModel(k,bytes,s.name); idbPut(def.id+':'+k,{bytes,name:s.name}); }
     }
     document.getElementById('boardDesign').value=boardDesign; buildBoard(boardDesign); renderSlots(); rebuildPieces(); persist();
@@ -3134,7 +3291,8 @@ async function exportApp(){
           try{ const o=await optimizeModel(r.bytes, 0.10, 1024); if(o && o.length){ savedBytes+=r.bytes.length-o.length; out=o; } }
           catch(e){ console.warn('optimize failed, using original', model, e); } }
         zip.file(model, out); n++; }
-      cfg.roles[k]={ model, travel:r.travel, scale:r.scale, motionId:r.motionId||'', finisherId:r.finisherId||'' };
+      if(r.glb && !r.idleId) await resolveAutoIdle(r);   // bake the auto idle to a concrete clip (the exported app has no library index to search)
+      cfg.roles[k]={ model, travel:r.travel, scale:r.scale, motionId:r.motionId||'', finisherId:r.finisherId||'', idleId: r.glb ? (idleClipId(r)||'rest') : '' };
     }
     if(document.getElementById('incMusic').checked){
       try{ const mb=await (await fetch('assets/pp-music.mp3',{cache:'no-store'})).arrayBuffer();
@@ -3146,12 +3304,12 @@ async function exportApp(){
       try{ zip.file('motions/rests.json', await (await fetch('motions/rests.json?v='+Date.now(),{cache:'no-store'})).text()); }catch(e){}
     }catch(e){ console.warn('motion bundle failed', e); }
     try{ await loadLibrary(); const ids=new Set();
-      for(const k of roleKeys()){ const r=roster[k]; if(r.motionId)ids.add(r.motionId); if(r.finisherId)ids.add(r.finisherId); }
+      for(const k of roleKeys()){ const r=roster[k]; if(r.motionId)ids.add(r.motionId); if(r.finisherId)ids.add(r.finisherId); const iid=idleClipId(r); if(iid)ids.add(iid); }
       if(ids.size){ const man={};
         for(const id of ids){ try{
           zip.file('motions/lib/'+id+'.json', await (await fetch(LIBRARY_URL+'m/'+id+'.json?v='+Date.now(),{cache:'no-store'})).text());
-          const meta=LIB.byId[id]||{}, sk=LIB.skeletons[meta.sig]||{}; const rest={}; if(sk.rest){ for(const b in sk.rest) rest[b]=sk.rest[b].q; }
-          man[id]={name:meta.name||id, cat:meta.cat||'', sig:meta.sig||'', rest};
+          const meta=LIB.byId[id]||{}, sk=LIB.skeletons[meta.sig]||{}; const rest={}, restP={}; if(sk.rest){ for(const b in sk.rest){ rest[b]=sk.rest[b].q; restP[b]=sk.rest[b].p; } }
+          man[id]={name:meta.name||id, cat:meta.cat||'', sig:meta.sig||'', rest, restP, rootWorldQ:sk.rootWorldQ||null};   // restP/rootWorldQ: world-aligned retarget for T-pose rigs
         }catch(e){ console.warn('lib clip bundle failed', id, e); } }
         zip.file('motions/lib.json', JSON.stringify(man)); }
     }catch(e){ console.warn('library bundle failed', e); }
@@ -3175,7 +3333,7 @@ document.getElementById('exportApp').onclick=exportApp;
 /* ================= player mode (exported app) ================= */
 async function loadExportedModels(cfg){
   for(const k of roleKeys()){ const pc=cfg.roles[k]; if(!pc) continue;
-    roster[k].travel=pc.travel||'auto'; roster[k].scale=pc.scale||1; roster[k].motionId=pc.motionId||''; roster[k].finisherId=pc.finisherId||'';
+    roster[k].travel=pc.travel||'auto'; roster[k].scale=pc.scale||1; roster[k].motionId=pc.motionId||''; roster[k].finisherId=pc.finisherId||''; roster[k].idleId=pc.idleId||'';
     if(pc.model){ try{ const buf=await (await fetch(pc.model,{cache:'no-store'})).arrayBuffer();
       await new Promise((res,rej)=>gltf.parse(buf,'',(g)=>{roster[k].glb=g.scene;res();},rej));
     }catch(e){ console.warn('model load failed',pc.model,e); } }
@@ -3514,7 +3672,7 @@ async function bAutoPose(model){ await loadLibrary(); const bs=boneSet(model); i
   for(const id of AUTO_POSES) if(bPoseScore(bs,id)>=0.9) return id;
   let best=null, sc=0; for(const m of (LIB.motions||[])){ if(m.type!=='idle' && m.type!=='stay') continue; const v=bPoseScore(bs,m.id); if(v>sc){ sc=v; best=m.id; } } return sc>=0.9?best:null; }
 async function bApplyPose(model, poseId){ let id=poseId==='auto' ? await bAutoPose(model) : poseId; if(!id) return null; const m=await getLibClip(id); if(!m) return null;
-  const clip=retargetClip(m, captureBind(model), rootBoneName(model), true), mx=new THREE.AnimationMixer(model), a=mx.clipAction(clip); a.play(); mx.setTime(clip.duration*0.3);
+  const clip=retargetClip(m, captureBind(model), rootBoneName(model), true, model), mx=new THREE.AnimationMixer(model), a=mx.clipAction(clip); a.play(); mx.setTime(clip.duration*0.3);
   model.updateMatrixWorld(true); model.traverse(o=>{ if(o.isSkinnedMesh && o.skeleton) o.skeleton.update(); }); return id; }
 async function bMiniPoseUI(el, pr){ const wrap=el.querySelector('#mmPoseWrap'), sel=el.querySelector('#mmPose'); if(!wrap||!sel) return;
   if(!pr.model || !pr.model.src){ wrap.style.display='none'; return; }
@@ -3543,7 +3701,7 @@ async function bGifEnc(){ if(!window.__gifenc) window.__gifenc=await import('htt
 // the pose's motion over one loop, as frames (same framing for every frame so the token doesn't jitter)
 async function bTokenAnimFrames(src, pose, style, px, n){ const key='glb:'+src.type+':'+(src.pack||'')+':'+(src.cat||'')+':'+src.ref, proto=await glbProto(key, glbFetcherFor(src)); if(!proto) return null;
   let inst; try{ inst=skeletonClone(proto); }catch(e){ inst=proto.clone(true); } let id=pose==='rest'?null:(pose==='auto'||!pose?await bAutoPose(inst):pose); const m=id?await getLibClip(id):null; if(!m) return null;
-  const clip=retargetClip(m, captureBind(inst), rootBoneName(inst), true), mx=new THREE.AnimationMixer(inst); mx.clipAction(clip).play(); mx.setTime(0);
+  const clip=retargetClip(m, captureBind(inst), rootBoneName(inst), true, inst), mx=new THREE.AnimationMixer(inst); mx.clipAction(clip).play(); mx.setTime(0);
   inst.updateMatrixWorld(true); inst.traverse(o=>{ if(o.isSkinnedMesh&&o.skeleton){ o.skeleton.update(); o.computeBoundingBox(); } if(o.isMesh) o.frustumCulled=false; });
   let box=new THREE.Box3().setFromObject(inst); const size=new THREE.Vector3(), ctr=new THREE.Vector3(); box.getSize(size); inst.scale.multiplyScalar(1/Math.max(size.x,size.y,size.z,1e-6)); inst.updateMatrixWorld(true); box=new THREE.Box3().setFromObject(inst); box.getSize(size); box.getCenter(ctr); const H=Math.max(size.y,1e-3);
   const sc=new THREE.Scene(); sc.add(new THREE.HemisphereLight(0xffffff,0x3a3a44,1.25)); const d=new THREE.DirectionalLight(0xffffff,1.7); d.position.set(ctr.x+H*0.6, box.max.y+H*2, ctr.z+H*1.2); d.target.position.copy(ctr); sc.add(d); sc.add(d.target); sc.add(inst);
@@ -8044,10 +8202,10 @@ function loop(){
   let active=false;
   for (let i=anims.length-1;i>=0;i--){ const a=anims[i]; let p=(now-a.t0)/a.dur; if(p>1)p=1; a.fn(p); if(p>=1){ anims.splice(i,1); a.res(); } active=true; }
   const dt=_mixClock.getDelta();
-  pieces.forEach(g=>{ if(g.userData.animating && g.userData.mixer){ g.userData.mixer.update(dt); active=true; } });
+  let idling=false; pieces.forEach(g=>{ const u=g.userData; if(!u.mixer) return; if(u.animating){ u.mixer.update(dt); active=true; } else if(u.idling){ u.mixer.update(dt); idling=true; } });
   controls.update();
   if(!active && window.__batchBusy && (now-_camMoveT)>250 && (now-_lastActivity)>150){ if((_idleN++ % 10)!==0) return; }   // ⚡ board being batched & user idle → ~6fps so the merge finishes fast
-  else if(!active && (now-_lastActivity)>500){ if((_idleN++ % 3)!==0) return; }   // idle → ~20fps
+  else if(!active && (now-_lastActivity)>500){ if((_idleN++ % (idling?2:3))!==0) return; }   // idle → ~20fps (~30 while pieces breathe in their idle)
   else _idleN=0;
   // ⚡ v1.38: while ONLY the camera moves the sun's shadow map can't change (it's fitted to the board, not the view) → reuse it;
   // soft shading (GTAO ≈ doubles the frame) pauses until the camera has been still for ¼ s, then one full frame redraws it.
@@ -8071,7 +8229,19 @@ function populateGameSel(){ const sel=document.getElementById('gameSel'); sel.in
   const oc=document.createElement('option'); oc.value=CARDS_ID; oc.textContent='🃏 Cards — deck designer'; sel.appendChild(oc);
   const ot=document.createElement('option'); ot.value=TUCK_ID; ot.textContent='📦 Box designer — TGC packaging'; sel.appendChild(ot); }
 
-// Set def + rebuild everything for a game (authoring mode).
+// Game switches go through requestGame(): selectGame awaits (clips, saved models), so a switch made while
+// another game is still setting up used to run alongside it (or, during boot, was dropped) and the requested
+// game never finished. Now switches run one at a time and the newest request wins.
+let _gameWant=null, _gameRun=null, _gameReadyRes;
+const _gameReady=new Promise(r=>_gameReadyRes=r);        // released once motions + library are loaded
+const gameStale=()=>_gameWant!=null;                     // a newer switch is waiting → stop this setup early
+function requestGame(id){ _gameWant=id;
+  if(!_gameRun) _gameRun=(async()=>{ try{ await _gameReady;
+      while(_gameWant!=null){ const g=_gameWant; _gameWant=null;
+        try{ await selectGame(g); }catch(e){ console.warn('[Tabletop] game setup failed', g, e); } } }
+    finally{ _gameRun=null; } })();
+  return _gameRun; }
+// Set def + rebuild everything for a game (authoring mode). Call via requestGame().
 async function selectGame(id){
   if(id===TUCK_ID){ enterTuck(); return; }
   if(TUCK) leaveTuck();
@@ -8105,9 +8275,9 @@ async function selectGame(id){
   if (plRow){ plRow.hidden = !(GRAPH && def.numPlayers!=null); if(!plRow.hidden) document.getElementById('playersSel').value=String(def.numPlayers); }
   document.getElementById('cambar').querySelectorAll('button[data-side],.cam-sep').forEach(b=> b.style.display = (GRAPH||RACE) ? 'none':'');  // 2-side view toggle is meaningless on the star/track
   const slCb=document.getElementById('setupLabels'); if(slCb) slCb.checked = settings.pieceLabels;
-  await ensureAssignedClips();
+  await ensureAssignedClips(); if(gameStale()) return;
   renderSlots();
-  await restoreModelsFromIDB();
+  await restoreModelsFromIDB(); if(gameStale()) return;
   renderSlots();
   document.getElementById('diceBar').hidden = !RACE;
   state=def.setup(); history=[]; moveLog=[]; selected=null; legalNow=[]; raceRoll=null; raceLegal=null;
@@ -8172,17 +8342,21 @@ if(appCfg){
 } else {
   MUSIC_URL = 'assets/pp-music.mp3';
   populateDesigns(); populateGameSel();
+  const gsel=document.getElementById('gameSel');
+  let gselCur=null;                                                   // the game the selector last committed to
+  gsel.onchange = ()=>{ if(busy||cpuThinking){ if(gselCur) gsel.value=gselCur; return; }   // mid-move: refuse, and say so by snapping back
+    gselCur=gsel.value; localStorage.setItem('bgc.lastGame', gsel.value); requestGame(gsel.value); };
   const ui=initSettingsUI();
   document.getElementById('openSettings').onclick=ui.openSettings;
   document.getElementById('openWins').onclick=ui.openWins;
   await loadMotions();
   await loadLibrary();
-  const gsel=document.getElementById('gameSel');
   const last=localStorage.getItem('bgc.lastGame');
   const avail=id=>[...gsel.options].some(o=>o.value===id);            // only games actually offered (race may be locked)
-  gsel.value = (last && GAMES[last] && avail(last)) ? last : (gsel.options[0] ? gsel.options[0].value : Object.keys(GAMES)[0]);
-  await selectGame(gsel.value);
-  gsel.onchange = async ()=>{ if(busy||cpuThinking) return; localStorage.setItem('bgc.lastGame', gsel.value); await selectGame(gsel.value); };
+  if(_gameWant==null){                                                 // nothing picked while we were loading → open the last game
+    gsel.value = (last && GAMES[last] && avail(last)) ? last : (gsel.options[0] ? gsel.options[0].value : Object.keys(GAMES)[0]);
+    gselCur=gsel.value; requestGame(gsel.value); }
+  const firstRun=_gameRun; _gameReadyRes(); await firstRun;          // resolves once the newest requested game is fully set up
   resize(); loop();
   document.getElementById('loadwrap').style.display='none';
   // dev self-checks
@@ -8196,7 +8370,7 @@ async function bTakeHandoff(){ let h=null; try{ h=JSON.parse(localStorage.getIte
   if(!h || h.to!=='tabletop' || Date.now()-h.t>120000 || !window.StudioLib) return;
   localStorage.removeItem('studio.handoff');
   try{ const m=(await bAiModels()).find(x=>x.id===h.id); if(!m) return;
-    if(!BUILD){ const gsel=document.getElementById('gameSel'); gsel.value=BUILDER_ID; await selectGame(BUILDER_ID); }   // keep a board that's already open
+    if(!BUILD){ const gsel=document.getElementById('gameSel'); gsel.value=BUILDER_ID; await requestGame(BUILDER_ID); }   // keep a board that's already open
     bLibSrc='ai'; document.querySelectorAll('#bLibSrcSeg button').forEach(x=>x.classList.toggle('on',x.dataset.src==='ai'));
     bSelectGlbProp(bAiSrc(m), (m.skeleton==='prop'?'🏺 ':'🧍 ')+m.name);
     document.getElementById('bLibWrap')?.scrollIntoView({block:'center'});
@@ -8209,7 +8383,7 @@ window.__pump = async (ms)=>{ const end=performance.now()+(ms||4000);
     const now=performance.now();
     for(let i=anims.length-1;i>=0;i--){ const a=anims[i]; let p=(now-a.t0)/a.dur; if(p>1)p=1; a.fn(p); if(p>=1){ anims.splice(i,1); a.res(); } }
     const dt=_mixClock.getDelta();
-    pieces.forEach(g=>{ if(g.userData.animating && g.userData.mixer) g.userData.mixer.update(dt); });
+    pieces.forEach(g=>{ if((g.userData.animating||g.userData.idling) && g.userData.mixer) g.userData.mixer.update(dt); });
     try{ renderer.render(scene,camera); }catch(e){}
     if(!anims.length && !busy) break;
     await new Promise(r=>setTimeout(r,16));
@@ -8227,7 +8401,7 @@ window.__move = (fromLabel,toLabel)=>{ const nodes=BGC.boardNodes(def);
   const from=byLabel[fromLabel], to=byLabel[toLabel];
   const mv=def.legalFrom(state,from).find(m=>destOf(m)===to); if(mv){ performMove(mv); return 'ok'; } return 'illegal'; };
 window.__cpuMove = async ()=>{ const mv=await aiMove(state,'medium'); if(mv){ await performMove(mv); return 'ok'; } return 'none'; };
-window.__switch = (id)=>selectGame(id).then(()=>{ const g=document.getElementById('gameSel'); if(g) g.value=id; return 'switched to '+id; });
+window.__switch = (id)=>requestGame(id).then(()=>{ const g=document.getElementById('gameSel'); if(g) g.value=id; return 'switched to '+id; });
 // Dev (race): inspect state, force a specific roll+best move, or run CPU-vs-CPU.
 window.__raceState = ()=>({ turn:def.turnOf(state), pos:JSON.parse(JSON.stringify(state.pos)),
   over:def.status(state).over, winner:def.status(state).winner||null, plies:state.plies,
@@ -8283,7 +8457,7 @@ window.__bDetachAt = (x,y)=>{ try{ return bDetachGenAt({clientX:x,clientY:y}); }
 window.__bGenIds = ()=>{ const out=[]; builderGroup.traverse(o=>{ if(o.userData.gid!=null && o.visible){ const bb=new THREE.Box3().setFromObject(o), p=bb.getCenter(new THREE.Vector3()); out.push({gid:o.userData.gid, f:o.userData.gt.f, x:p.x, y:p.y, z:p.z}); } }); return out; };
 window.__bHero=bHeroProps; window.__bPropBox=(i)=>{ const g=bld._propMeshes&&bld._propMeshes[i]; if(!g) return null; const v=new THREE.Box3().setFromObject(g).getSize(new THREE.Vector3()); return {x:+v.x.toFixed(3),y:+v.y.toFixed(3),z:+v.z.toFixed(3)}; }; window.__bAssets = ()=>bAssetCatalog().map(e=>e.cat+'|'+e.label);
 window.__art = (st)=>{ if(st) bld.artStyle=st; return bld.artStyle||'clean'; };
-window.__scene = ()=>scene; window.__bRebuild = ()=>bRender(); window.__batch = ()=>window.__batchInfo||null;
+window.__scene = ()=>scene; window.__cam = ()=>({camera, controls}); window.__bRebuild = ()=>bRender(); window.__batch = ()=>window.__batchInfo||null;
 window.__perf = (n, noShadow)=>{ n=n||20; const _au=renderer.shadowMap.autoUpdate; if(noShadow) renderer.shadowMap.autoUpdate=false; const c={obj:0,mesh:0,line:0,sprite:0,inst:0,tris:0}; scene.traverse(o=>{ if(!o.visible) return; c.obj++; if(o.isInstancedMesh) c.inst++; if(o.isMesh) c.mesh++; else if(o.isLine) c.line++; else if(o.isSprite) c.sprite++; });   // dev: scene size + real frame cost
   renderer.info.autoReset=false; renderer.info.reset(); const t0=performance.now(); for(let i=0;i<n;i++){ if(_composer&&_aoOn) _composer.render(); else renderer.render(scene,camera); } renderer.getContext().finish(); const ms=(performance.now()-t0)/n;
   const r={...c, calls:renderer.info.render.calls/n|0, triangles:renderer.info.render.triangles/n|0, geometries:renderer.info.memory.geometries, textures:renderer.info.memory.textures, msPerFrame:+ms.toFixed(1)}; renderer.info.autoReset=true; renderer.shadowMap.autoUpdate=_au; return r; };

@@ -1023,7 +1023,7 @@ import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 
 const $ = s => document.querySelector(s);
-const APP_NAME='GLB Stitcher', APP_VERSION='1.11.0', APP_BUILD='2026-09-28';   // version shown in About + footer
+const APP_NAME='GLB Stitcher', APP_VERSION='1.11.1', APP_BUILD='2026-09-29';   // version shown in About + footer
 // Bump APP_BUILD whenever the app or the bundled motion library changes. It is printed to the console and
 // shown in the footer so "am I running the current version?" can be answered by looking, not by guessing —
 // a stale browser tab kept an old build alive twice while the files on disk were already up to date.
@@ -5300,7 +5300,27 @@ function fistCentre(get, side){ const C=new THREE.Vector3(); let n=0;
   return n ? C.multiplyScalar(1/n) : null; }
 const _fistBones=new WeakMap();
 function fistOfRoot(root, side){ let m=_fistBones.get(root); if(!m){ m={}; root.traverse(o=>{ if(o.isBone && /Hand(Index|Middle|Ring|Pinky)[123]$/.test(o.name)) m[o.name]=o; }); _fistBones.set(root,m); } return fistCentre(n=>m[n], side); }
-function aimHeldProps(){ for(const c of clips){ const pa=c.srcClip&&c.srcClip.propAxis; if(!pa||!pa.ax||!c.root||!c.action) continue;
+// ── NO HANDLE LINE IN THE MOTION (2026-09-29, Paul: "the sword should be 90 degrees with the hand … it is just an extension of the
+// arm"; then "the goblin sword points down instead of up"). Idle / walk / jump / flourish motions carry no propAxis, so the prop kept
+// its MOUNT angle — measured on the Goblin's sneak: the blade came out of the PINKY side of the fist (an ice-pick grip), pointing down
+// while the thumb side pointed up. Now a fist holds the handle along its KNUCKLE line (index → pinky base, square to the forearm) with
+// the blade out of the THUMB side, tipped a little further up (the wrist's natural cock), settled into the fist tunnel, fingers wrapped.
+function aimByFist(c){ const inst=heldPropOf(c.root); if(!inst||!inst.parent||!inst.userData.baseQ) return;
+  const side=/left/i.test(inst.parent.name)?'Left':'Right';
+  if(!c._fistAim || c._fistAim.side!==side){ const m={}; c.root.traverse(o=>{ if(o.isBone) m[o.name]=o; });
+    c._fistAim={ side, fa:m[side+'ForeArm'], h:m[side+'Hand'], i1:m[side+'HandIndex1'], p1:m[side+'HandPinky1'] }; }
+  const J=c._fistAim; if(!J.fa||!J.h||!J.i1||!J.p1) return;       // plain (fingerless) hands keep the mount as it was
+  inst.quaternion.copy(inst.userData.baseQ); if(inst.userData.baseP) inst.position.copy(inst.userData.baseP); inst.updateMatrixWorld(true);
+  const W=b=>b.getWorldPosition(new THREE.Vector3()), fa=W(J.h).sub(W(J.fa)).normalize();
+  inst.getWorldQuaternion(_paQ); const cur=new THREE.Vector3(0,1,0).applyQuaternion(_paQ);
+  const w=1;
+  const k=W(J.i1).sub(W(J.p1)); k.addScaledVector(fa,-k.dot(fa)); if(k.lengthSq()<1e-10) return; k.normalize();   // thumb side, always
+  _paW.copy(k).add(new THREE.Vector3(0,1.0,0)).normalize();                                  // tipped well up (Paul: "up"): a thumb facing the viewer would otherwise aim the blade at the camera
+  _paQ2.setFromUnitVectors(cur,_paW).multiply(_paQ); inst.quaternion.copy(inst.parent.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(_paQ2)); inst.updateMatrixWorld(true);
+  const F=fistOfRoot(c.root, side);
+  if(F){ const O=inst.getWorldPosition(new THREE.Vector3()), d=F.sub(O); d.addScaledVector(_paW,-d.dot(_paW)); if(d.lengthSq()>1e-10){ inst.position.copy(inst.parent.worldToLocal(O.addScaledVector(d,w))); inst.updateMatrixWorld(true); } }
+  if(!window.__noGripWrap) wrapGripFingers(c, inst, w); }
+function aimHeldProps(){ for(const c of clips){ if(!c.root||!c.action) continue; const pa=c.srcClip&&c.srcClip.propAxis; if(!pa||!pa.ax){ if(!window.__noFistAim) aimByFist(c); continue; }
     const inst=heldPropOf(c.root); if(!inst||!inst.parent||!inst.userData.baseQ) continue;
     const T=pa.times, n=T.length, dur=c.duration||T[n-1]||1; let t=c.action.time%dur; if(t<0) t+=dur;
     let k=0; while(k<n-2 && T[k+1]<t) k++; const a=Math.max(0,Math.min(1,(t-T[k])/((T[k+1]-T[k])||1))), A=pa.ax;
@@ -5311,7 +5331,48 @@ function aimHeldProps(){ for(const c of clips){ const pa=c.srcClip&&c.srcClip.pr
     inst.quaternion.copy(inst.parent.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(_paQ2));
     if(inst.userData.baseP) inst.position.copy(inst.userData.baseP); inst.updateMatrixWorld(true);
     const F=fistOfRoot(c.root, /left/i.test(inst.parent.name)?'Left':'Right');   // the handle line through the fist tunnel — only sideways, the user's along-the-handle offset stays
-    if(F){ const O=inst.getWorldPosition(new THREE.Vector3()), d=F.sub(O); d.addScaledVector(_paW,-d.dot(_paW)); if(d.lengthSq()>1e-10){ inst.position.copy(inst.parent.worldToLocal(O.add(d))); inst.updateMatrixWorld(true); } } } }
+    if(F){ const O=inst.getWorldPosition(new THREE.Vector3()), d=F.sub(O); d.addScaledVector(_paW,-d.dot(_paW)); if(d.lengthSq()>1e-10){ inst.position.copy(inst.parent.worldToLocal(O.add(d))); inst.updateMatrixWorld(true); } }
+    if(!window.__noGripWrap) wrapGripFingers(c, inst); } }
+// ── FINGERS WRAP THE HANDLE (2026-09-29, Paul: "the spear is misaligned with the hands and the fingers disappear into the staff handle").
+// The hand layer curls every grip by the same fixed amount, so a 5.4 cm staff had the fingers 2 cm INSIDE the wood and a 3 cm spear
+// shaft sat in a loose, uneven fist. Here, per frame: the handle line is moved so it rests against the KNUCKLES at its own radius
+// (+ a finger's half-thickness) on the palm side, then each finger (both hands, when both hold it) is curled joint by joint about the
+// handle's axis so every joint lies on that circle — the fingers close ON the handle, whatever its thickness.
+const _wrapR=new WeakMap();
+function _propShaftR(inst, ax){ let r=_wrapR.get(inst); if(r!=null) return r; const V3=THREE.Vector3, P=[]; inst.updateMatrixWorld(true);
+  inst.traverse(o=>{ if(!o.isMesh) return; const pos=o.geometry.attributes.position; const st=Math.max(1,Math.floor(pos.count/4000)); for(let i=0;i<pos.count;i+=st) P.push(new V3().fromBufferAttribute(pos,i).applyMatrix4(o.matrixWorld)); });
+  if(P.length<8) return null; const C=P.reduce((s,v)=>s.add(v),new V3()).multiplyScalar(1/P.length);
+  const R=P.map(v=>{ const d=v.clone().sub(C); return d.addScaledVector(ax,-d.dot(ax)).length(); }).sort((a,b)=>a-b);
+  r=R[Math.floor(R.length*0.5)]; if(!(r>0.003 && r<0.06)) r=null; _wrapR.set(inst, r); return r; }   // median radial size = the shaft (a spear head / club end is the minority)
+function wrapGripFingers(c, inst, amt){ if(amt==null) amt=1;
+  const V3=THREE.Vector3, Q=THREE.Quaternion, ax=_paW.clone(), R=_propShaftR(inst, ax); if(!R) return;
+  const B={}; if(!c._wrapBones){ c._wrapBones={}; c.root.traverse(o=>{ if(o.isBone && /Hand(Index|Middle|Ring|Pinky)[1234]$/.test(o.name)) c._wrapBones[o.name]=o; }); } Object.assign(B, c._wrapBones);
+  const W=b=>b.getWorldPosition(new V3()), O=inst.getWorldPosition(new V3());
+  const perp=(p,o)=>{ const d=p.clone().sub(o); return d.addScaledVector(ax,-d.dot(ax)); };
+  const FN=['Index','Middle','Ring','Pinky'];
+  const hands=['Right','Left'].map(side=>{ const ch=FN.map(fn=>[1,2,3].map(k=>B[side+'Hand'+fn+k])).filter(j=>j.every(Boolean)); if(ch.length<3) return null;
+      const K=ch.reduce((s,j)=>s.add(W(j[0])),new V3()).multiplyScalar(1/ch.length); return {side, ch, K}; }).filter(Boolean);
+  if(!hands.length) return;
+  const ft=0.22*W(hands[0].ch[1][0]).distanceTo(W(hands[0].ch[1][1]));   // a finger's half-thickness, from this hand's own proportions
+  const want=R+ft, holding=hands.filter(h=>perp(h.K,O).length()<want+0.06);   // hands actually on this handle
+  if(!holding.length) return;
+  // 1) the handle rests against the knuckles: each hand asks for the line at `want` from its knuckles, toward where its fingers curl
+  const shift=new V3(); for(const h of holding){ const mid=h.ch.reduce((s,j)=>s.add(W(j[1])),new V3()).multiplyScalar(1/h.ch.length);
+      let n=perp(mid,h.K); if(n.lengthSq()<1e-10) n=perp(O,h.K); n.normalize(); const P=h.K.clone().addScaledVector(n,want); shift.add(perp(P,O)); }
+  shift.multiplyScalar(amt/holding.length); if(shift.length()<0.08){ inst.position.copy(inst.parent.worldToLocal(O.clone().add(shift))); inst.updateMatrixWorld(true); O.add(shift); }
+  // 2) curl each phalanx about the handle axis so its far joint lands on a circle a little WIDER than the handle (Paul 2026-09-29: "the
+  //    fingers opened up a little more on the staff") — a relaxed hold, fingers round the handle, not pressed flat into it
+  const curlR=want+1.8*ft;
+  const rotAbout=(p,o,th)=>p.clone().sub(o).applyAxisAngle(ax,th).add(o);
+  for(const h of holding) for(const j of h.ch){
+    const tipBone=B[j[2].name.replace(/3$/,'4')];
+    for(let k=0;k<3;k++){ const bone=j[k], o=W(bone); const nxt = k<2 ? W(j[k+1]) : (tipBone ? W(tipBone) : W(j[2]).clone().add(W(j[2]).sub(W(j[1])).multiplyScalar(0.8)));
+      const err=th=>Math.abs(perp(rotAbout(nxt,o,th),O).length()-curlR);
+      let best=0, be=err(0); for(let s=-16;s<=16;s++){ const th=s*0.05, e=err(th); if(e<be-1e-5 || (Math.abs(e-be)<1e-5 && Math.abs(th)<Math.abs(best))){ be=e; best=th; } }
+      for(let step=0.025; step>0.002; step/=2) for(const th of [best-step,best+step]){ const e=err(th); if(e<be){ be=e; best=th; } }
+      if(Math.abs(best)<1e-4) continue;
+      const wq=bone.getWorldQuaternion(new Q()), pq=bone.parent.getWorldQuaternion(new Q()), r=new Q().setFromAxisAngle(ax,best*amt);
+      bone.quaternion.copy(pq.invert().multiply(r.multiply(wq))); bone.updateMatrixWorld(true); } } }
 function renderFrame(){
   aimHeldProps();
   updateXray();
@@ -6810,7 +6871,10 @@ function bakeHandContact(clip, root, hands, pax){
     if(w>0.001){ touched=true;
       if(cRest && shwC>0){ const Rq0=WQ(R.ha), Tr=rposAt(t).multiplyScalar(shwC).applyQuaternion(WQ(C2).multiply(cRest.clone().invert())).add(W(R.sh)); ik2(R, Tr); setWQ(R.ha, Rq0); }   // the lead hand to its place by the body
       const Rq=WQ(R.ha), qRel=Rq.clone().invert().multiply(WQ(L.ha)), rel=relAt(t).multiplyScalar(kFore);
-      const target=()=>{ const T=(hands.linked ? rel.clone() : rel.clone().applyQuaternion(WQ(R.ha))).add(W(R.ha)); return T.lerpVectors(W(L.ha), T, w); };   // linked handles store the offset in WORLD (body) terms — the hand's own roll differs per rig
+      const clapN=()=>{ if(!clapLike || hands.linked) return null; const k=knuckOf(R), m=B('RightHandMiddle1'); if(!k||!m) return null;   // FINGERED clap (2026-09-29, Paul: the hands were not aligned vertically):
+        const f=W(m).sub(W(R.ha)).normalize(), n=new THREE.Vector3().crossVectors(f,k).normalize(); if(n.lengthSq()<0.5) return null;   // rel is in the TEMPLATE's hand-bone axes, and the Man's hand bone is rolled differently → his left hand
+        if(n.dot(W(L.ha).sub(W(R.ha)))<0) n.negate(); return n; };                                                                          // sat 4 cm ABOVE the right. Put it straight out from the right PALM instead (knuckles × fingers).
+      const target=()=>{ const n=clapN(); const T=(hands.linked ? rel.clone() : n ? n.multiplyScalar(rel.length()) : rel.clone().applyQuaternion(WQ(R.ha))).add(W(R.ha)); return T.lerpVectors(W(L.ha), T, w); };   // linked handles store the offset in WORLD (body) terms — the hand's own roll differs per rig
       let T=target();
       // a CLAP: BOTH arms close the gap, half each (the left arm alone swung ~70° in one frame on a wide-shouldered clap), then the left
       // arm takes up what is left

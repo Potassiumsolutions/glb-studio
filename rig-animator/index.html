@@ -70,7 +70,7 @@
 <main>
   <aside>
     <div>
-      <h1>🐾 Rig Animator <span class="appver">v1.20.0</span></h1>
+      <h1>🐾 Rig Animator <span class="appver">v1.20.1</span></h1>
       <div class="hint" style="margin-top:0">Procedurally generate original animations for your <b>biped</b>, <b>quadruped</b> and <b>bird</b> rigs — organized by category (boxing, fencing, football, dancing, running, walking, jumping, climbing…) — then export them into the GLB Stitcher motion library.</div>
     </div>
 
@@ -153,7 +153,7 @@
         </g>
       </svg>
       <div>
-        <div><b>Rig Animator</b> v1.20.0 · part of GLB Studio</div>
+        <div><b>Rig Animator</b> v1.20.1 · part of GLB Studio</div>
         <div class="appfoot-sub">© <span class="cred-year">2026</span> Paul A.T. Ramey · <b>KSOL Designs</b> · <a href="https://www.ksoldesigns.com" target="_blank" rel="noopener">ksoldesigns.com</a></div>
       </div>
     </div>
@@ -2698,9 +2698,13 @@ const _sgE=new THREE.Vector3(), _sgH=new THREE.Vector3(), _sgP=new THREE.Vector3
 // so on the template the hands stopped in an open V (Clapping) or slid through each other (Applaud) and never touched on any
 // character. Here the wrists close to one hand-thickness apart with the palms turned to face each other, fingers up and
 // forward. c = 0 apart … 1 together; open = how far each hand travels out (m).
-function clapHands(center, c, open){ const g=0.017+open*(1-c);
+function clapHands(center, c, open, g0){ const g=(g0==null?0.017:g0)+open*(1-c);   // g0 = half the wrist gap at contact (palm thickness)
   reachIK(B_RARM, center.clone().add(V(-g,0,0)), V(-0.5,-0.3,-0.3)); reachIK(B_LARM, center.clone().add(V(g,0,0)), V(0.5,-0.3,-0.3));
-  handFrame(B_RARM, {fingers:V(0,0.75,0.65), palm:V(1,0,0)}); handFrame(B_LARM, {fingers:V(0,0.75,0.65), palm:V(-1,0,0)}); }   // handFrame = the anatomical frame on the fingered rig, the Meshy-hand convention on the plain biped
+  // fingered rig: the wrist falls ~12° short of the roll, so the palms tilted top-inward and crossed in an X at contact (Paul 2026-09-29).
+  // Ask for the palms to face a little UP by CLAP_ROLL so they land VERTICAL and parallel (plain biped keeps its approved bake).
+  const cr=(isHandRig()?CLAP_ROLL:0);
+  handFrame(B_RARM, {fingers:V(0,0.75,0.65), palm:V(1,cr,0)}); handFrame(B_LARM, {fingers:V(0,0.75,0.65), palm:V(-1,cr,0)}); }
+let CLAP_ROLL=0.30;   // handFrame = the anatomical frame on the fingered rig, the Meshy-hand convention on the plain biped
 function reachIK(Ar, target, pole){
   if(!(Ar===B_LARM || Ar===B_RARM)){ _reachIKCore(Ar, target, pole); return; }
   let tgt=PHYS_GUARDS.reachLine ? handClear(target,[Ar],{shoulderR:0}) : (PHYS_GUARDS.targetClear ? bodyClear(target) : target);
@@ -4481,7 +4485,7 @@ const BIPED_MOTIONS=[
     landFeet(1-smooth(clamp((tuck-0.12)/0.22,0,1)), 0.02, 0.02, {width:0.085, dorsiAir:-0.30});   // planted at both ends, blended (the if/else slid the feet 19 cm)
     [B_LARM,B_RARM].forEach(Ar=>{ armF(Ar,tuck*1.0*A); elb(Ar,(0.3+tuck*1.5)*A); armO(Ar,-0.25*tuck*A); });
     groundClamp(0,'up');  bodyFloor('roll'); }},                                               // a roll rides over the floor, never through it
-  {id:'thrust', name:'Spear Thrust', cat:'Combat', type:'stay', dur:0.8, build:(t,P)=>{ const A=P.amp, u=(t/0.8*P.speed)%1, chamber=ramp(u,0,0.35), p=bump(u,0.55,0.35);
+  {id:'thrust', name:'Spear Thrust', cat:'Combat', type:'stay', dur:0.8, handsLinked:true, build:(t,P)=>{ const A=P.amp, u=(t/0.8*P.speed)%1, chamber=ramp(u,0,0.35), p=bump(u,0.55,0.35);
     fightStance(A,{dropKnee:0.34*p, lead:0.20+0.26*p, rear:-0.22, rearHeel:-0.30*p, z:0.20*p*A, lean:0.22*p});
     reachF(B_RARM,(0.3+0.7*p),A); elb(B_RARM,(0.9*chamber*(1-p))*A);          // rear hand: drawn back (elbow cocked) → drives the spear forward
     reachF(B_LARM,(0.4+0.6*p),A); elb(B_LARM,(0.6-0.3*p)*A);                   // lead hand guides forward
@@ -4489,8 +4493,13 @@ const BIPED_MOTIONS=[
     // FINGERED hands (2026-09-27): both fists hold the shaft with the thumbs toward the point, the shaft running from the rear
     // hand toward the target, so the spear points FORWARD (it pointed back past the hip)
     if(isHandRig()){ animRoot.updateMatrixWorld(true);
-      const d=bodyV(0,-0.05,1).normalize();   // a spear drives straight ahead (the line between the two fists ran across the body)
-      twoHandGrip('thumb', d); } }},
+      // 2026-09-29 re-author: the fists sat SIDE BY SIDE across the chest, so the shaft (the line through them) pointed sideways. A spear
+      // is held on ONE forward line — rear (right) fist by the hip, lead (left) fist out in front — and the thrust drives both forward.
+      const ch=new THREE.Vector3(); boneByName['Spine02'].getWorldPosition(ch);
+      reachIK(B_RARM, ch.clone().add(bodyV(-0.13, -0.22, 0.06+0.34*p*A)), bodyV(-0.6,-0.7,-0.3));
+      reachIK(B_LARM, ch.clone().add(bodyV(-0.03, -0.10, 0.34+0.34*p*A)), bodyV(0.5,-0.8,0));
+      animRoot.updateMatrixWorld(true);
+      twoHandGrip('thumb', handsAxis()); _propAxisNow=handsAxis().clone();   /* 2026-09-29: linked like Spear — Ready — the spear hung under both hands (held by one wrist, the other fist empty); now both fists sit ON the shaft, point forward */ } }},
   // An archer stands SIDE-ON to the target with the feet roughly perpendicular to the shooting line and
   // the legs near-straight — the stability comes from the stance being narrow and square to the draw, not
   // from crouching. The draw itself is a fixed geometry: the bow arm locks out along the shooting line at
@@ -5368,6 +5377,7 @@ const BIPED_MOTIONS=[
     reachIK(B_LARM, shL.clone().add(V(-B_LARM.s*0.10*bow, -0.40, 0.10+0.14*bow)), V(B_LARM.s*0.4,-0.8,-0.2)); }},
   {id:'chwave', name:'Wave to Crowd', cat:'Cheer', type:'stay', dur:1.4, build:(t,P)=>{ bstand(); const A=P.amp, w=Math.sin(TAU*(t/0.6)*P.speed);
     [B_LARM,B_RARM].forEach((Ar,i)=>{ reachUp(Ar,0.85,A); wristW(Ar,(i?w:-w)*0.4*A); });   // both arms up, hands sweep
+    sw(B_LARM.sh,AX.z,0.30*A); sw(B_RARM.sh,AX.z,-0.30*A);   // 2026-09-29 (Paul: the Woman's shoulders collapsed): arms overhead LIFT the collarbones — with the clavicle still, the whole raise bent at the shoulder joint and caved the skin
     sw(B_HEAD,AX.z,w*0.05*A); setRootY(0.01*A); }},
   {id:'chflex', name:'Flex Victory', cat:'Cheer', type:'stay', dur:1.6, build:(t,P)=>{ bstand(); const A=P.amp, k=eio(clamp((t/1.6*P.speed)%1/0.4,0,1)), pump=Math.sin(TAU*(t/1.6)*P.speed);
     [B_LARM,B_RARM].forEach(Ar=>{ armO(Ar,(1.4+0.05*pump)*k*A); elb(Ar,2.0*k*A); armF(Ar,0.3*k*A); });   // double-biceps flex
@@ -5693,7 +5703,7 @@ const BIPED_MOTIONS=[
     sw(B_HEAD,AX.y,0.2*A); }},
   {id:'swchop', name:'Overhead Sword Chop', cat:'Swordplay', type:'stay', dur:0.9, handsLinked:true, build:(t,P)=>{ const A=P.amp, u=(t/0.9*P.speed)%1, rec=eio(clamp((u-0.80)/0.20,0,1)), wind=eio(clamp(u/0.4,0,1))*(1-rec), strike=eio(clamp((u-0.4)/0.35,0,1))*(1-rec);   // round 2: RECOVER to the guard (it jumped from the impact back to the start at every loop)
     fightStance(A,{turn:0.2, knee:0.34, dropKnee:0.24*strike, lead:0.16, rear:-0.18, rearHeel:-0.24*strike, z:0.06*strike*A, lean:0.22*strike});
-    const rp=V(0.10,1.25,0.20).lerp(V(0.06,1.92,-0.08),wind).lerp(V(0.04,0.94,0.50),strike);      // rest → overhead → down out front (hands finish at hip height: the blade stands vertical below them)
+    const rp=V(0.10,1.25,0.20).lerp(V(0.06,1.92,-0.08),wind).lerp(V(-0.02,1.00,0.70),strike);      // rest → overhead → down out front. 2026-09-29 (Paul: the goblin's right arm sank into its body): finish with the arms EXTENDED — hands higher, further out and on the sword side (was 0.04,0.94,0.50: on short, pot-bellied rigs the tucked forearms crossed the chest into the belly)
     // Pole SWINGS with the arm (forward at the top → down-back at impact) and the wrists cock then snap, exactly as
     // the axe chops: a fixed 'up-back' pole was parallel to the overhead reach and rolled the arm through the strike.
     const pole=V(0, 0.2-1.0*strike, 1-1.3*strike);
@@ -5758,6 +5768,13 @@ const BIPED_MOTIONS=[
     // sword arm leads the (leftward) spin: wound back on the right → cuts across the front at full reach → out past the left side → back.
     reachIK(B_RARM, orbitAt([[0,bodyV(-0.40,1.26,0.06)],[0.30,bodyV(-0.30,1.28,0.38)],[0.50,bodyV(0.05,1.24,0.52)],[0.66,bodyV(0.42,1.24,0.30)],[0.83,bodyV(0.02,1.22,0.44)],[1.0,bodyV(-0.40,1.26,0.06)]], g, {arms:[B_RARM]}), bodyV(-0.3,-1,0.1));
     armO(B_LARM,0.6*A); armF(B_LARM,-0.1*A);
+    // 2026-09-29 (Paul: "the sword should be 90° with the hand — it is just an extension of the arm"): the blade had no grip spec, so it
+    // followed the wrist (23° off the forearm the whole spin). Held like every other slash now: the blade SQUARE to the forearm, pointing
+    // UP-and-forward along the cut (a forehand sweep's blade leads the hand), gripped by the fist (hand-layer power grip, propAxis for the Stitcher).
+    if(isHandRig()){ animRoot.updateMatrixWorld(true); const up=new THREE.Vector3(0,1,0);
+      const fa=boneByName[B_RARM.hand].getWorldPosition(new THREE.Vector3()).sub(boneByName[B_RARM.fore].getWorldPosition(new THREE.Vector3())).normalize();
+      const blade=up.clone().addScaledVector(fa,-up.dot(fa)).normalize().lerp(bodyV(0,0,1).addScaledVector(fa,-bodyV(0,0,1).dot(fa)).normalize(),0.35).normalize();
+      gripHandle(B_RARM, _ghP(B_RARM), blade, bodyV(-0.3,-1,0.1)); }
     [B_LLEG,B_RLEG].forEach(L=>kneeB(L,0.2*A)); leanF(0.08*A); setRootY(-0.05*A); }},
   // ═════ MOUNTED / RIDING ══════════════════════════════════════════════════════════════════════════
   // Poses for a rider sitting on a mount (the mount system snaps the rider's root to the mount's saddle
@@ -6662,15 +6679,15 @@ const DRAGON_MOTIONS=[
     dTuckLegsTight(0.9*P.amp);                                          // legs tucked in for flight (same as glide)
     DRAGON_NECK.forEach(b=>sw(b,AX.x,0.10*P.amp)); sw('head',AX.x,0.05*P.amp);
     dTailWave(cyc*0.5,0.08*P.amp); sw('chest',AX.x,beat*0.05*P.amp);    // body pitches with the beat
-    animRoot.position.y += 0.24*(t/1.0)*P.amp;                          // the flap CLIMBS 0.24 per cycle (carries between clips)
-    animRoot.position.z += 0.70*t*P.amp;                                // …and travels forward as it climbs
+    animRoot.position.addScaledVector(UP_LOCAL, (0.24*(t/1.0)*P.amp));   // 2026-09-29: along the rig's OWN up (raw .y is FORWARD on this rotated rig → climbs came out as travel)                          // the flap CLIMBS 0.24 per cycle (carries between clips)
+    /* 2026-09-29: no raw .z travel — on this rotated rig it is DOWN (the dragon/pegasus sank metres per clip); the Stitcher adds winged rigs' forward travel itself (finalizeAdvance). Was: += 0.70*t*P.amp */
   }},
   {id:'dragon_glide', name:'Glide', cat:'Locomotion', type:'move', dur:3.2, build:(t,P)=>{ resetPose(); const a=TAU*(t/3.2)*P.speed;
     dSoarWings(P.amp, Math.sin(a)*0.04);                               // wings flat + perpendicular to the body
     dTuckLegsTight(0.9*P.amp); dTailWave((t/3.2)*P.speed*0.3,0.05*P.amp);   // legs bent + swept back close to the body
     sw('chest',AX.x,Math.sin(a)*0.02*P.amp);
-    animRoot.position.z += 0.90*t*P.amp;                                // glides FORWARD (faster than the flap — trading height for speed)
-    animRoot.position.y -= 0.06*(t/3.2)*P.amp;                          // …losing 0.06 of altitude per clip = 1/4 of a flap's climb
+    /* 2026-09-29: no raw .z travel — on this rotated rig it is DOWN (the dragon/pegasus sank metres per clip); the Stitcher adds winged rigs' forward travel itself (finalizeAdvance). Was: += 0.90*t*P.amp */
+    animRoot.position.addScaledVector(UP_LOCAL, -(0.06*(t/3.2)*P.amp));   // 2026-09-29: along the rig's OWN up (raw .y is FORWARD on this rotated rig → climbs came out as travel)                          // …losing 0.06 of altitude per clip = 1/4 of a flap's climb
   }},
   {id:'dragon_soar', name:'Soar', cat:'Locomotion', type:'move', dur:4.0, build:(t,P)=>{ resetPose(); const a=TAU*(t/4.0)*P.speed;
     dSoarWings(P.amp, Math.sin(a*0.6)*0.04);                            // wings flat + perpendicular to the body
@@ -6678,7 +6695,7 @@ const DRAGON_MOTIONS=[
     sw('chest',AX.x, -0.05*P.amp + Math.sin(a*0.5)*0.015*P.amp);        // gentle nose-up soaring attitude
     DRAGON_NECK.forEach(b=>sw(b,AX.y,Math.sin(a*0.4)*0.02*P.amp));
     dTailWave((t/4.0)*P.speed*0.2,0.03*P.amp);
-    animRoot.position.z += 0.80*t*P.amp;                                // soars FORWARD, holding altitude (no vertical change)
+    /* 2026-09-29: no raw .z travel — on this rotated rig it is DOWN (the dragon/pegasus sank metres per clip); the Stitcher adds winged rigs' forward travel itself (finalizeAdvance). Was: += 0.80*t*P.amp */
   }},
   {id:'dragon_soar_r', name:'Soar — Bank Right', cat:'Locomotion', type:'move', dur:3.6, build:(t,P)=>{ resetPose(); const a=TAU*(t/3.6)*P.speed;
     flightArc(t, 3.6, 1, 0.80*P.amp);                                   // TURN FIRST: clean world-Y yaw on the Hips (before the roll, so the bank never noses down mid-turn)
@@ -6701,8 +6718,8 @@ const DRAGON_MOTIONS=[
     ['frontleg0','R_frontleg0','backleg0','R_backleg0'].forEach(k=>sw(k,AX.x,-0.28*P.amp)); // … slightly bent (landing gear)
     sw('chest',AX.x,-0.12*P.amp); DRAGON_NECK.forEach(b=>sw(b,AX.x,0.08*P.amp)); sw('head',AX.x,0.18*P.amp);   // nose-up flare, head watches the landing
     dTailWave((t/3.0)*P.speed*0.3, 0.06*P.amp);
-    animRoot.position.z += 0.35*t*P.amp;                                // drifts forward a little as it settles
-    animRoot.position.y -= 0.55*(t/3.0)*P.amp;                          // DESCENDS — loses altitude each clip (carries → chain to bring it down)
+    /* 2026-09-29: no raw .z travel — on this rotated rig it is DOWN (the dragon/pegasus sank metres per clip); the Stitcher adds winged rigs' forward travel itself (finalizeAdvance). Was: += 0.35*t*P.amp */
+    animRoot.position.addScaledVector(UP_LOCAL, -(0.55*(t/3.0)*P.amp));   // 2026-09-29: along the rig's OWN up (raw .y is FORWARD on this rotated rig → climbs came out as travel)                          // DESCENDS — loses altitude each clip (carries → chain to bring it down)
   }},
   {id:'dragon_takeoff', name:'Take Off', cat:'Action', type:'action', dur:1.8, build:(t,P)=>{ resetPose(); const u=((t/1.8)*P.speed)%1;
     const crouch = u<0.30 ? (0.5-0.5*Math.cos(Math.PI*u/0.30)) : Math.max(0,1-(u-0.30)/0.20);   // load, then explode
@@ -6716,7 +6733,7 @@ const DRAGON_MOTIONS=[
     const beat = u<0.28 ? 0.55 : Math.sin(TAU*2.0*((u-0.28)/0.72));      // ~2 flap cycles after the wind-up
     dWingBeat(beat*1.3*P.amp, Math.max(0,beat)*0.4*P.amp);
     DRAGON_NECK.forEach(b=>sw(b,AX.x,-leap*0.18*P.amp));
-    animRoot.position.y += (-0.12*crouch + 0.95*leap)*P.amp;            // climb along local Y (retargets to world-up; setRootY's UP_LOCAL maps to Z on oriented rigs)
+    animRoot.position.addScaledVector(UP_LOCAL, ((-0.12*crouch + 0.95*leap)*P.amp));   // 2026-09-29: along the rig's OWN up (raw .y is FORWARD on this rotated rig → climbs came out as travel)            // climb along local Y (retargets to world-up; setRootY's UP_LOCAL maps to Z on oriented rigs)
   }},
   {id:'dragon_tailswipe', name:'Tail Swipe', cat:'Action', type:'action', dur:1.4, build:(t,P)=>{ resetPose(); const u=((t/1.4)*P.speed)%1;
     // BODY-DRIVEN swipe: wind up ~1/8 turn one way, then spin a FULL turn the other way — the tail (a child of the
@@ -6804,19 +6821,19 @@ const PEGASUS_MOTIONS=[
     pegTrotLegs(cyc, P.amp, 1.0);      // legs TROT in time with the wing flaps (diagonal pairs alternate each flap)
     QUAD_TAIL.forEach((b,i)=>sw(b,AX.x,(0.10+Math.sin(TAU*cyc-i*0.3)*0.04)*P.amp));   // tail streams
     sw('chest',AX.x,Math.sin(TAU*cyc)*0.05*P.amp); sw('head',AX.x,0.05*P.amp);   // body bobs with the stroke
-    animRoot.position.y += 0.24*(t/1.0)*P.amp;                          // the flap CLIMBS 0.24 per cycle (carries between clips)
-    animRoot.position.z += 0.70*t*P.amp;                                // …and travels forward as it climbs
+    animRoot.position.addScaledVector(UP_LOCAL, (0.24*(t/1.0)*P.amp));   // 2026-09-29: along the rig's OWN up (raw .y is FORWARD on this rotated rig → climbs came out as travel)                          // the flap CLIMBS 0.24 per cycle (carries between clips)
+    /* 2026-09-29: no raw .z travel — on this rotated rig it is DOWN (the dragon/pegasus sank metres per clip); the Stitcher adds winged rigs' forward travel itself (finalizeAdvance). Was: += 0.70*t*P.amp */
   }},
   {id:'peg_glide', name:'Glide', cat:'Locomotion', type:'move', dur:3.2, build:(t,P)=>{ resetPose(); const a=TAU*(t/3.2)*P.speed;
     dSoarWings(P.amp, Math.sin(a)*0.60); pegTrotLegs(a/TAU, P.amp, 0.6);   // ONE slow full flap over the glide (a = one cycle across the clip), around the flat hold
     QUAD_TAIL.forEach(b=>sw(b,AX.x,0.08*P.amp)); sw('chest',AX.x,Math.sin(a)*0.02*P.amp);
-    animRoot.position.z += 0.90*t*P.amp;                                // glides FORWARD (faster than the flap — trading height for speed)
-    animRoot.position.y -= 0.06*(t/3.2)*P.amp;                          // …losing 0.06 of altitude per clip = 1/4 of a flap's climb
+    /* 2026-09-29: no raw .z travel — on this rotated rig it is DOWN (the dragon/pegasus sank metres per clip); the Stitcher adds winged rigs' forward travel itself (finalizeAdvance). Was: += 0.90*t*P.amp */
+    animRoot.position.addScaledVector(UP_LOCAL, -(0.06*(t/3.2)*P.amp));   // 2026-09-29: along the rig's OWN up (raw .y is FORWARD on this rotated rig → climbs came out as travel)                          // …losing 0.06 of altitude per clip = 1/4 of a flap's climb
   }},
   {id:'peg_soar', name:'Soar', cat:'Locomotion', type:'move', dur:4.0, build:(t,P)=>{ resetPose(); const a=TAU*(t/4.0)*P.speed;
     dSoarWings(P.amp, Math.sin(a*0.6)*0.04); pegTrotLegs(a/TAU, P.amp, 0.6);   // wings flat; legs TROT gently, like Fly
     QUAD_TAIL.forEach(b=>sw(b,AX.x,0.06*P.amp)); sw('chest',AX.x,-0.04*P.amp+Math.sin(a*0.5)*0.015*P.amp);
-    animRoot.position.z += 0.80*t*P.amp;                                // soars FORWARD, holding altitude (no vertical change)
+    /* 2026-09-29: no raw .z travel — on this rotated rig it is DOWN (the dragon/pegasus sank metres per clip); the Stitcher adds winged rigs' forward travel itself (finalizeAdvance). Was: += 0.80*t*P.amp */
   }},
   {id:'peg_soar_r', name:'Soar — Bank Right', cat:'Locomotion', type:'move', dur:3.6, build:(t,P)=>{ resetPose(); const a=TAU*(t/3.6)*P.speed;
     flightArc(t, 3.6, 1, 0.80*P.amp);                                   // TURN FIRST: clean world-Y yaw before the roll, so the bank holds level through the turn
@@ -6840,8 +6857,8 @@ const PEGASUS_MOTIONS=[
     ['frontleg','R_frontleg'].forEach(h=>sw(h,AX.x,0.35*P.amp)); ['frontleg0','R_frontleg0'].forEach(k=>sw(k,AX.x,-0.30*P.amp));   // front legs reach forward-down to land
     ['backleg','R_backleg'].forEach(h=>sw(h,AX.x,-0.12*P.amp)); ['backleg0','R_backleg0'].forEach(k=>sw(k,AX.x,-0.22*P.amp));      // hind legs drop down under
     QUAD_TAIL.forEach(b=>sw(b,AX.x,0.10*P.amp)); sw('chest',AX.x,-0.10*P.amp); sw('head',AX.x,0.15*P.amp);
-    animRoot.position.z += 0.35*t*P.amp;                                // drifts forward a little as it settles
-    animRoot.position.y -= 0.55*(t/3.0)*P.amp;                          // DESCENDS — loses altitude each clip (carries → chain to bring it down)
+    /* 2026-09-29: no raw .z travel — on this rotated rig it is DOWN (the dragon/pegasus sank metres per clip); the Stitcher adds winged rigs' forward travel itself (finalizeAdvance). Was: += 0.35*t*P.amp */
+    animRoot.position.addScaledVector(UP_LOCAL, -(0.55*(t/3.0)*P.amp));   // 2026-09-29: along the rig's OWN up (raw .y is FORWARD on this rotated rig → climbs came out as travel)                          // DESCENDS — loses altitude each clip (carries → chain to bring it down)
   }},
   {id:'peg_takeoff', name:'Take Off', cat:'Action', type:'action', dur:1.8, build:(t,P)=>{ resetPose(); const u=((t/1.8)*P.speed)%1;
     const crouch = u<0.30 ? (0.5-0.5*Math.cos(Math.PI*u/0.30)) : Math.max(0,1-(u-0.30)/0.20);
@@ -6853,7 +6870,7 @@ const PEGASUS_MOTIONS=[
     pegTuckLegs(leap*0.95*P.amp);
     const beat = u<0.28 ? 0.55 : Math.sin(TAU*2.0*((u-0.28)/0.72)); dWingBeat(beat*1.3*P.amp, Math.max(0,beat)*0.4*P.amp);
     QUAD_TAIL.forEach(b=>sw(b,AX.x,leap*0.08*P.amp));
-    animRoot.position.y += (-0.12*crouch + 0.95*leap)*P.amp;            // climb along local Y (retargets to world-up)
+    animRoot.position.addScaledVector(UP_LOCAL, ((-0.12*crouch + 0.95*leap)*P.amp));   // 2026-09-29: along the rig's OWN up (raw .y is FORWARD on this rotated rig → climbs came out as travel)            // climb along local Y (retargets to world-up)
   }},
   {id:'peg_rear', name:'Rear Up', cat:'Action', type:'action', dur:3.0, build:(t,P)=>{ resetPose(); const u=((t/3.0)*P.speed)%1;
     const rear=envUpDown(u,0.30,0.68); const A=P.amp;
@@ -7533,7 +7550,7 @@ const HL_POSES={
   blade:hp([.05,.05,.08,.10],.10,0,.3), clinch:hp([.55,.60,.62,.65],.50,0,.3),
   splay:hp([.10,.10,.10,.12],.10,.60,.3), bridge:hp([.10,.10,.10,.10],0,.35,.08),
   // weight-bearing / contact
-  flat:hp([.02,.02,.02,.03],.05,.60,.1), push:hp([.05,.05,.06,.08],.15,.50,.1), brace:hp([.05,.05,.06,.08],.10,.60,.25),
+  flat:hp([.02,.02,.02,.03],.05,.60,.1), clapflat:hp([.02,.02,.03,.04],.08,.10,.04), push:hp([.05,.05,.06,.08],.15,.50,.1), brace:hp([.05,.05,.06,.08],.10,.60,.25),
   reach:hp([.10,.10,.12,.15],.10,.30,.4), hook:hp([.70,.70,.70,.70],.30,.05,.12,{j:'hook'}),
   crate:hp([.72,.72,.72,.72],.20,.20,.1,{j:'hook'}), ropegrip:hp([.75,.80,.80,.80],.80,0,.08),
   // fighting
@@ -7940,8 +7957,8 @@ const FINGER_MOTIONS=[
     const c=Math.abs(Math.sin(TAU*t/0.8*P.speed));           // 0 apart .. 1 together
     idleSway(t,P,0.8); animRoot.updateMatrixWorld(true);
     const chest=new THREE.Vector3(); boneByName['Spine02'].getWorldPosition(chest);
-    clapHands(chest.clone().add(V(0,0.10,0.30)), c, 0.11);   // palms meet at the peak (they stopped 9 cm apart)
-    handPose('R','relax',0.2); handPose('L','relax',0.2); }},
+    clapHands(chest.clone().add(V(0,0.10,0.30)), c, 0.11, 0.026);   // palms meet at the peak (they stopped 9 cm apart)
+    handPose('R','clapflat',1); handPose('L','clapflat',1); }},   // 2026-09-29 (Paul: the hands missed each other): stop at PALM THICKNESS (was 3.4 cm wrist-to-wrist → the curled fingers passed through the other hand) + fingers straight & together so palm meets palm
   {id:'raisefist', name:'Raised Fist', cat:'Hand Gestures', type:'stay', dur:1.0, build:(t,P)=>{ bstand(); const A=P.amp;
     const p=Math.max(0,Math.sin(TAU*t/1.0*P.speed));
     idleSway(t,P,1.0); animRoot.updateMatrixWorld(true);
