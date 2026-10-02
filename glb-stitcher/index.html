@@ -107,6 +107,9 @@
   .vc-grid button:hover,.vc-top:hover{border-color:var(--accent);background:var(--accent);color:#00142e}
   .vc-home{color:var(--muted);font-size:14px}
   .vc-top{height:22px;font-size:11px}
+  #navCube{display:block;width:84px;height:84px;cursor:pointer;margin:0 auto;touch-action:none}
+  .vc-row{display:flex;gap:4px}
+  .vc-row button{flex:1}
   .node-link{position:absolute;bottom:34px;right:12px;z-index:6;background:rgba(20,26,34,.9);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer}
   .node-link:hover{border-color:var(--accent)}
   .node-link:disabled{opacity:.45;cursor:default}
@@ -827,18 +830,8 @@
       </div>
       <div class="viewcube" id="viewCube" title="Snap the camera to a preset view">
         <div class="vc-lbl">View</div>
-        <div class="vc-grid">
-          <button data-yaw="-45"  data-camy="2.4"  data-vpos="0" title="Isometric — front-left">◤</button>
-          <button data-yaw="0"    data-camy="0.15" data-vpos="0" title="Front (straight on)">F</button>
-          <button data-yaw="45"   data-camy="2.4"  data-vpos="0" title="Isometric — front-right">◥</button>
-          <button data-yaw="-90"  data-camy="0.15" data-vpos="0" title="Left side">L</button>
-          <button class="vc-home" data-home="1" title="Default 3/4 view">◎</button>
-          <button data-yaw="90"   data-camy="0.15" data-vpos="0" title="Right side">R</button>
-          <button data-yaw="-135" data-camy="2.4"  data-vpos="0" title="Isometric — back-left">◣</button>
-          <button data-yaw="180"  data-camy="0.15" data-vpos="0" title="Back">B</button>
-          <button data-yaw="135"  data-camy="2.4"  data-vpos="0" title="Isometric — back-right">◢</button>
-        </div>
-        <button class="vc-top" data-top="1" title="Straight-down top view">Top ↧</button>
+        <canvas id="navCube" width="84" height="84" title="Click a face, edge or corner to look from that side · drag the cube to orbit"></canvas>
+        <div class="vc-row"><button class="vc-top vc-home" data-home="1" title="Default 3/4 view">◎</button><button class="vc-top" data-top="1" title="Straight-down top view">Top ↧</button></div>
       </div>
       <div class="node-editor" id="nodeEditor">
         <button class="node-link" id="linkNodes" title="Connect the selected GLBs in order" disabled>🔗 Link selected</button>
@@ -925,7 +918,7 @@
       <h3>Camera</h3>
       <ul>
         <li><b>Orbit:</b> middle-drag, or hold <b>Alt</b>/<b>Space</b> and drag (or use <b>🎥 Orbit view</b>). Wheel = zoom. Sliders in panel 3 set padding, height, yaw and vertical position.</li>
-        <li><b>View cube</b> (bottom-right) snaps to Front/Side/Iso angles; <b>Top</b> looks straight down (great for laying out obstacles on the grid). The cube works even before you load a character.</li>
+        <li><b>View cube</b> (bottom-right): click a face, edge or corner to look from that side, or drag the cube to orbit. <b>◎</b> resets the view; <b>Top</b> looks straight down (great for laying out obstacles on the grid). The cube works even before you load a character.</li>
         <li><b>Cinematic camera move</b> (panel 3) eases the camera across the whole video — push-in, pull-out, or drift-orbit.</li>
         <li><b>🎥 Camera cube</b> (panel 3) is a camera you place in the scene, separate from your editing view: drag its arrows (W) / rings (E) or <b>📍 put it at your view</b>, then <b>◆ Set key</b> at different playhead times to fly it. <b>Travel with the character</b> keeps its offset as the character moves; <b>Keep aimed</b> keeps the character centred. Tick <b>Use camera cube viewpoint</b> to preview &amp; render through it — the corner <b>🖼 Cube view</b> shows the shot while you edit.</li>
       </ul>
@@ -1023,7 +1016,7 @@ import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 
 const $ = s => document.querySelector(s);
-const APP_NAME='GLB Stitcher', APP_VERSION='1.11.2', APP_BUILD='2026-09-30';   // version shown in About + footer
+const APP_NAME='GLB Stitcher', APP_VERSION='1.11.3', APP_BUILD='2026-10-01';   // version shown in About + footer
 // Bump APP_BUILD whenever the app or the bundled motion library changes. It is printed to the console and
 // shown in the footer so "am I running the current version?" can be answered by looking, not by guessing —
 // a stale browser tab kept an old build alive twice while the files on disk were already up to date.
@@ -3498,6 +3491,40 @@ $('#viewCube').addEventListener('click', e=>{
   setView(+b.dataset.yaw, +b.dataset.camy, b.dataset.vpos!==undefined?+b.dataset.vpos:undefined);
 });
 
+// ---------- Orientation cube (the same cube as the Tabletop): click a face / edge / corner to look from that side,
+// drag the cube to orbit. Character space: the character faces +Z, so its FRONT is seen from +Z and +X is its
+// RIGHT side (matches the yaw slider, where 90° = right side). Drives setView / setTopView like the old buttons did.
+(function(){
+  const cv=document.getElementById('navCube'); if(!cv || !window.WebGLRenderingContext) return;
+  const SZ=84, nr=new THREE.WebGLRenderer({canvas:cv, antialias:true, alpha:true}); nr.setPixelRatio(Math.min(2,devicePixelRatio)); nr.setSize(SZ,SZ,false);
+  const ns=new THREE.Scene(), ncam=new THREE.PerspectiveCamera(36,1,0.1,20); ncam.position.set(0,0,4.6); ncam.lookAt(0,0,0);
+  ns.add(new THREE.HemisphereLight(0xffffff,0x445566,1.05));
+  const nl=new THREE.DirectionalLight(0xffffff,0.65); nl.position.set(3,5,6); ns.add(nl);
+  const faceTex=(txt,bg)=>{ const S=128,c=document.createElement('canvas'); c.width=c.height=S; const x=c.getContext('2d');
+    x.fillStyle=bg; x.fillRect(0,0,S,S); x.strokeStyle='rgba(20,24,32,.5)'; x.lineWidth=7; x.strokeRect(4,4,S-8,S-8);
+    x.fillStyle='#12141a'; x.font=`bold ${txt.length>4?27:34}px system-ui,Arial,sans-serif`; x.textAlign='center'; x.textBaseline='middle'; x.fillText(txt,S/2,S/2+2);
+    const t=new THREE.CanvasTexture(c); if('SRGBColorSpace' in THREE) t.colorSpace=THREE.SRGBColorSpace; t.anisotropy=4; return t; };
+  // BoxGeometry material order: +x,-x,+y,-y,+z,-z
+  const faces=[['RIGHT','#cdd8ea'],['LEFT','#cdd8ea'],['TOP','#eef2f8'],['BASE','#98a4b4'],['FRONT','#dbe4f1'],['BACK','#cdd8ea']];
+  const cube=new THREE.Mesh(new THREE.BoxGeometry(1.75,1.75,1.75), faces.map(([t,bg])=>new THREE.MeshStandardMaterial({map:faceTex(t,bg), roughness:0.72, metalness:0})));
+  cube.add(new THREE.LineSegments(new THREE.EdgesGeometry(cube.geometry), new THREE.LineBasicMaterial({color:0x2a3040}))); ns.add(cube);
+  const ray=new THREE.Raycaster(), v2=new THREE.Vector2();
+  const pick=ev=>{ const r=cv.getBoundingClientRect(); v2.x=((ev.clientX-r.left)/r.width)*2-1; v2.y=-((ev.clientY-r.top)/r.height)*2+1;
+    ray.setFromCamera(v2,ncam); const hit=ray.intersectObject(cube,false)[0]; if(!hit) return null;
+    const p=cube.worldToLocal(hit.point.clone()), half=0.875, snap=a=>Math.abs(a)>half*0.55?Math.sign(a):0;   // near a face → that axis counts (face / edge / corner)
+    return new THREE.Vector3(snap(p.x),snap(p.y),snap(p.z)); };
+  const lookFrom=d=>{ const h=Math.hypot(d.x,d.z);
+    if(!h){ if(d.y>=0) setTopView(); else setView(Math.round(gYaw()), parseFloat($('#camY').min), 0); return; }   // TOP = straight down, BASE = lowest angle
+    setView(Math.round(Math.atan2(d.x,d.z)*180/Math.PI), d.y>0?2.4:(d.y<0?-0.6:0.15), 0); };          // upper edges/corners = the old iso views
+  let down=null;
+  cv.addEventListener('pointerdown',ev=>{ ev.stopPropagation(); ev.preventDefault(); down={x:ev.clientX,y:ev.clientY,lx:ev.clientX,ly:ev.clientY,moved:false}; try{cv.setPointerCapture(ev.pointerId);}catch(_){} });
+  cv.addEventListener('pointermove',ev=>{ if(!down) return;
+    if(Math.abs(ev.clientX-down.x)+Math.abs(ev.clientY-down.y)>3) down.moved=true;
+    if(down.moved){ if(topView){ topView=false; } nudgeCam((ev.clientX-down.lx)*0.8, -(ev.clientY-down.ly)*0.01); down.lx=ev.clientX; down.ly=ev.clientY; } });
+  cv.addEventListener('pointerup',ev=>{ if(!down) return; const d=down; down=null; if(d.moved) return; const dir=pick(ev); if(dir && dir.lengthSq()) lookFrom(dir); });
+  window.__navCube={ render(){ cube.quaternion.copy(camera.quaternion).invert(); nr.render(ns,ncam); } };
+})();
+
 // ---------- Character quick-tools popup ----------
 let charPopChar=null, charPopPinned=false;
 function clickedModel(e){
@@ -5394,6 +5421,7 @@ function renderFrame(){
   renderer.render(scene,camera);
   ccAfterRender(trans);             // 🎥 camera cube: corner "cube view" (editing only, never in exports)
   positionGizmoChip();
+  if(window.__navCube) window.__navCube.render();   // keep the orientation cube in step with the view
 }
 function renderOverlay(op){ fadeMat.opacity=op; renderer.render(fadeScene,fadeCam); }
 function snapshotCanvas(){
