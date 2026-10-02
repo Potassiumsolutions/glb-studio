@@ -104,6 +104,8 @@
   .story{border-left:3px solid var(--accent);background:rgba(91,140,255,.07);border-radius:0 10px 10px 0;padding:6px 18px 10px;margin:8px 0}
   .story p{font-size:14px;line-height:1.65;color:#d3dbe8}
   .story p.sig{color:var(--muted);font-style:italic;margin-top:10px}
+  .watch{display:inline-flex;align-items:center;gap:7px;margin:0 0 8px;padding:5px 12px;border-radius:9px;border:1px solid #6a2e2e;background:rgba(255,80,80,.10);color:#ffd2d2;font-size:13px;font-weight:600;text-decoration:none}
+  .watch:hover{background:rgba(255,80,80,.2);color:#fff}
   .payg{display:inline-block;margin:4px 0 8px;padding:6px 12px;border-radius:9px;border:1px solid #2e6a52;background:linear-gradient(135deg,rgba(55,208,160,.16),rgba(91,140,255,.10));color:#bff0da;font-size:13px}
   .payg b{color:#eafff5}
 </style>
@@ -154,10 +156,11 @@
         <p class="pitch">Everything a game creator needs to make the characters, boards, cards, boxes, videos and the app, in one place, in your browser.</p>
         <p class="lead">GLB Studio takes you from a picture or a 3D model all the way to a <b>rigged, animated character</b>, finished <b>videos</b>, print-ready <b>boards, cards and boxes</b>, 3D-printable <b>minis</b>, and a <b>playable app</b>. Each tab hands its work to the next through a shared <b>Studio Library</b>, so there are no files to shuffle between steps.</p>
         <figure class="shot"><img src="help/menu.png" alt="Menu bar"><figcaption>The top menu: <b>🪄 Generate · 🧍 Rig · 🐾 Animate · 🎬 Stitch · 🎲 Tabletop · 🎼 Maestro</b>. On the right, <b>◆ Library</b> shows what's shared, <b>🤖 AI</b> connects your own AI assistant, <b>✨ Upgrades</b> unlocks add-ons and packs, and <b>❔ About</b> opens this guide.</figcaption></figure>
-        <div class="callout" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap"><span><b>📘 The full manual</b>: every tab step by step, with pictures (18 pages, PDF).</span><a href="GLB-Studio-User-Manual.pdf" target="_blank" rel="noopener" style="color:#fff;background:var(--accent);border-radius:8px;padding:6px 12px;font-weight:700;text-decoration:none">⬇ Download the manual</a></div>
+        <div class="callout" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap"><span><b>📘 The full manual</b>: every tab step by step, with pictures (20 pages, PDF). <b>▶ Or watch</b> the whole studio in one 10-minute video.</span><span style="display:flex;gap:8px;flex-wrap:wrap"><a href="https://youtu.be/TVR_tN5dO9Y" target="_blank" rel="noopener" style="color:#fff;background:#c0392b;border-radius:8px;padding:6px 12px;font-weight:700;text-decoration:none">▶ Watch the how-to (10 min)</a><a href="GLB-Studio-User-Manual.pdf" target="_blank" rel="noopener" style="color:#fff;background:var(--accent);border-radius:8px;padding:6px 12px;font-weight:700;text-decoration:none">⬇ Download the manual</a></span></div>
         <div class="callout"><b>Quick start:</b> make or drop in a character → <b>🧍 Rig</b> it → pick motions in <b>🎬 Stitch</b> and render an MP4, or put it on a board in <b>🎲 Tabletop</b> and play. No model yet? Stitch has free sample characters, or make one from a picture with <b>🪄 Generate</b>.</div>
 
         <h2><span class="step">✦</span> 🪄 Generate: turn a picture into a 3D model <span class="pill2">add-on</span></h2>
+        <a class="watch" href="https://youtu.be/_3DHdxpyiMs" target="_blank" rel="noopener">▶ Watch How-To #1 (about 2 min)</a>
         <div class="payg">💲 <b>Pay only for what you make</b> · no subscription, no monthly fee · about 2¢ per Draft model</div>
         <p>Drop, paste or crop a picture, choose <b>🏺 Prop</b> (buildings, trees, vehicles, statues) or <b>🧍 Character</b> (to rig and animate), then choose the quality:</p>
         <ul>
@@ -171,10 +174,12 @@
         <div class="callout"><b>💲 Where the cost comes from:</b> the models are made by <b>TRELLIS</b> (an image-to-3D AI by Microsoft) running on <b>fal.ai</b>. fal.ai charges <b>your own fal.ai account</b> for each model you make, using the key you set up in the tab's <b>⚙ Set up</b> (about 2 minutes: sign up, add a little credit, create a key, paste it). KSOL Designs receives none of that money and adds nothing on top. You always see the price before you click, and <b>💲 Your costs</b> keeps a running total and history. The add-on itself is a separate one-time purchase that unlocks the tab. <b>This is the only part of GLB Studio with a per-use cost.</b></div>
 
         <h2><span class="step">1</span> 🧍 Rig: give a model a skeleton</h2>
+        <a class="watch" href="https://youtu.be/nSjJAUkPNS8" target="_blank" rel="noopener">▶ Watch How-To #2 (about 2 min)</a>
         <p>Drop a textured <span class="pill2">.glb</span>, <span class="pill2">.gltf</span> or <span class="pill2">.fbx</span> (works with models generated on meshy.ai and mixamo.com), or press <b>🧍 Rig this</b> in Generate. Pick the <b>skeleton type</b>. There are 19: biped, biped + fingers, quadruped, bird, snake, fish, whale/dolphin, great ape, dragon, pegasus, elephant, giraffe, reptile, frog, rabbit, crab, lobster, manta ray and jellyfish. The skeleton <b>fits itself</b> to the model; drag any joint to fine-tune it (<b>🪞 Symmetric</b> copies each change to the other side). Click <b>Bind &amp; preview weights</b> to check the skin, then <b>⬇ Export rigged GLB</b>. The export downloads <b>and</b> goes into the Studio Library.</p>
         <figure class="shot"><img src="help/rig.png" alt="Character Rigger"><figcaption>Rig: a Generate-made orc, fitted to the biped skeleton automatically and bound, ready to export.</figcaption></figure>
 
         <h2><span class="step">2</span> 🐾 Animate: make motions</h2>
+        <a class="watch" href="https://youtu.be/4VmEKSGQ_O4" target="_blank" rel="noopener">▶ Watch How-To #3 (about 2 min)</a>
         <p>Choose the <b>rig type</b>, pick a motion (walks, runs, jumps, sports, dances, gestures, wing flaps and more), and tune its <b>speed</b>, <b>amplitude</b> and <b>loop length</b>. When it looks right, click <b>➕ Add current animation → Studio Library</b>. It joins Stitch's motion list for that skeleton.</p>
         <p>Three ways to make <b>your own</b> motions (they appear in the list under their own headings and are saved on your computer):</p>
         <ul>
@@ -185,10 +190,12 @@
         <figure class="shot"><img src="help/animate.png" alt="Rig Animator"><figcaption>Animate: pick a rig and a motion, tune it and <b>➕ Add</b> it to the library, or make your own with ✏ Edit, 🤖 a description or 🎥 a video.</figcaption></figure>
 
         <h2><span class="step">3</span> 🎬 Stitch: make the video</h2>
-        <p><b>Load</b> a rigged character from the <b>◆ Studio Library</b> card (or a free sample). Motions for its skeleton appear in the <b>Motion library</b>; click one to add it as a clip, and it's <b>retargeted</b> onto your character automatically. Then set the scene, props, camera, audio and cross-fades, add more characters if you like, and <b>Render</b> an MP4. On characters with fingers, held props (swords, staffs, spears, bats) sit in the fist and the fingers close around the handle.</p>
+        <a class="watch" href="https://youtu.be/SdMR69cmNpE" target="_blank" rel="noopener">▶ Watch How-To #4 (about 2 min)</a>
+        <p><b>Load</b> a rigged character from the <b>◆ Studio Library</b> card (or a free sample). Motions for its skeleton appear in the <b>Motion library</b>; click one to add it as a clip, and it's <b>retargeted</b> onto your character automatically. Then set the scene, props, camera (drag the <b>view cube</b> in the corner of the 3D view to orbit, or click a face to look from that side), audio and cross-fades, add more characters if you like, and <b>Render</b> an MP4. On characters with fingers, held props (swords, staffs, spears, bats) sit in the fist and the fingers close around the handle.</p>
         <figure class="shot"><img src="help/stitch.png" alt="GLB Stitcher"><figcaption>Stitch: load a character, add motions, build the scene and render.</figcaption></figure>
 
         <h2><span class="step">4</span> 🎲 Tabletop: make the content for your game</h2>
+        <a class="watch" href="https://youtu.be/cbMt-WRC2yM" target="_blank" rel="noopener">▶ Watch How-To #5 (about 2 min)</a>
         <p>Maps and boards, cards, boxes and minis, print-ready for The Game Crafter, ready for virtual tabletops, or built into your own app. You can play-test it right there with your characters as the pieces. Use the <b>Game</b> list at the top left:</p>
         <ul>
           <li><b>Chess, Checkers and Chinese Checkers</b> (free), plus race games like the <b>Royal Game of Ur</b> with the Race Games pack, played with your own rigged characters as the pieces. Set up the teams, then play against the computer or a friend.</li>
@@ -198,6 +205,7 @@
         <figure class="shot"><img src="help/tabletop.png" alt="Tabletop map builder"><figcaption>Tabletop → Build a Board: a generated map with a walled castle, villages, a stream, roads, farms and mountains.</figcaption></figure>
 
         <h2><span class="step">5</span> 🎼 Maestro: top-down motion for maps</h2>
+        <a class="watch" href="https://youtu.be/3Co917sUURk" target="_blank" rel="noopener">▶ Watch How-To #6 (about 2 min)</a>
         <p>Plan a play, a battle or a scene seen from above. Put characters, tokens and props on a board (or <b>🎲 Pull from Tabletop</b> to use the board you built), draw each one's <b>path</b> as a chain of points, add formations and timing, and press <b>▶</b>. Each piece runs its own path with its own motions. <b>Record</b> a video, or export the play (JSON/CSV path data or an animated GLB) to use elsewhere. Stitch can send clips and sound straight to Maestro.</p>
         <figure class="shot"><img src="help/mapview.png" alt="Maestro"><figcaption>Maestro: a football field with an offense and a 4-3 defense added in two clicks; select a player and draw its route.</figcaption></figure>
 
