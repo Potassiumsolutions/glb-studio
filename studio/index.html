@@ -9,7 +9,7 @@
   *{box-sizing:border-box}
   html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:14px/1.4 system-ui,Segoe UI,Roboto,sans-serif;overflow:hidden}
   #app{display:flex;flex-direction:column;height:100%;position:relative}
-  header{display:flex;align-items:center;flex-wrap:wrap;gap:10px 14px;padding:8px 14px;background:var(--bar);border-bottom:1px solid var(--line);flex:0 0 auto}
+  header{position:relative;z-index:50;display:flex;align-items:center;flex-wrap:wrap;gap:10px 14px;padding:8px 14px;background:var(--bar);border-bottom:1px solid var(--line);flex:0 0 auto}
   .brand{display:flex;align-items:center;gap:9px;font-weight:700;letter-spacing:.2px;white-space:nowrap}
   .brand .logo{width:22px;height:22px;border-radius:6px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:inline-block}
   nav{display:flex;gap:6px}
@@ -45,10 +45,23 @@
   .row .del{cursor:pointer;color:#c96;border:1px solid var(--line);border-radius:6px;padding:2px 7px;font-size:11px}
   .row .del:hover{color:#f88;border-color:#5a3a3a}
   .empty{color:var(--muted);font-size:12.5px;padding:8px 4px}
+  /* ☰ tool menu (the active tool's File menu, rolled up into this bar) + ⧉ undock this bar (2026-10-02) */
+  #toolMenuWrap{position:relative;display:none} #toolMenuWrap.has{display:flex}
+  #toolMenuPop{position:absolute;right:0;top:calc(100% + 6px);min-width:210px;background:var(--bar);border:1px solid var(--line);border-radius:10px;box-shadow:0 14px 34px rgba(0,0,0,.5);padding:6px;z-index:60;display:none}
+  #toolMenuPop.open{display:block}
+  #toolMenuPop button{display:block;width:100%;text-align:left;background:none;border:0;color:var(--text);padding:8px 10px;border-radius:7px;font:inherit;font-size:13px;cursor:pointer}
+  #toolMenuPop button:hover{background:#1c2432}
+  header.undocked{flex-wrap:wrap}
+  #layWrap{position:relative;display:flex} #layPop{position:absolute;right:0;top:calc(100% + 6px);min-width:230px;background:var(--bar);border:1px solid var(--line);border-radius:10px;box-shadow:0 14px 34px rgba(0,0,0,.5);padding:6px;z-index:60;display:none}
+  #layPop.open{display:block} #layPop button{display:block;width:100%;text-align:left;background:none;border:0;color:var(--text);padding:8px 10px;border-radius:7px;font:inherit;font-size:13px;cursor:pointer} #layPop button:hover{background:#1c2432}
+  #layPop .hint{font-size:11px;color:var(--muted);padding:4px 10px 6px;line-height:1.35} #layBtn.saved{border-color:var(--accent2);color:#fff} #layBtn.pending{border-color:#d29922;color:#fff}
+  #barBack{display:none;position:fixed;top:6px;left:50%;transform:translateX(-50%);z-index:70;cursor:pointer;border:1px solid var(--line);background:var(--bar);color:var(--muted);border-radius:8px;padding:4px 9px;font-size:12px;opacity:.75}
+  #barBack:hover{opacity:1;color:var(--text);border-color:var(--accent)}
+  body.bar-out #barBack{display:block}
   .tag{font-size:10px;padding:1px 6px;border-radius:20px;background:#22304a;color:#a9c2ee;margin-left:6px}
-  @media (max-width:1600px){ .flow{display:none} }
+  @media (max-width:2100px){ .flow{display:none} }
   @media (max-width:1560px) and (min-width:721px){ header{gap:8px 8px} .lib{padding:6px 8px;gap:6px;font-size:12px} .tab{padding-left:10px;padding-right:10px} }   /* keep the header on one row with the 🤖 AI button (2026-09-30) */
-  @media (max-width:1420px) and (min-width:721px){ .lib .lbl{display:none} }   /* icons only; the tooltips still name them */
+  @media (max-width:1700px) and (min-width:721px){ .lib .lbl{display:none} }   /* icons only; the tooltips still name them */
   @media (max-width:720px){ .flow,.tab .n{display:none} }
   @media (max-width:720px){ nav{flex-wrap:wrap} .tab{padding:6px 10px} }   /* phone: every tab visible (the row was cut off after Stitch) */
   /* About / instructions */
@@ -131,8 +144,12 @@
     <div class="lib" id="upgradesBtn" title="Unlock expansion packs" style="gap:6px">✨<span class="lbl">&nbsp;Upgrades</span></div>
     <div class="lib" id="newVerBtn" title="GLB Studio was updated since this page opened. Reload to use the new version (your Studio Library is kept)." style="display:none;gap:6px;border-color:var(--accent);color:#fff;font-weight:700">🆕&nbsp;New&nbsp;version&nbsp;—&nbsp;reload</div>
     <div class="lib" id="restartBtn" title="Restart this tab: clears what you're working on in it and frees its memory" style="gap:6px">⟳<span class="lbl">&nbsp;Restart&nbsp;tab</span></div>
+    <div id="toolMenuWrap"><div class="lib" id="toolMenuBtn" title="This tool's menu (save / load project, how to use…)" style="gap:6px">☰<span class="lbl">&nbsp;Menu</span></div><div id="toolMenuPop"></div></div>
     <div class="lib" id="aboutBtn" title="How KSOL Designs GLB Studio works" style="gap:6px">❔<span class="lbl">&nbsp;About</span></div>
+    <div id="layWrap"><div class="lib" id="layBtn" title="Window layout: save where your undocked panels sit (any monitor) and put them back with one click" style="gap:6px">🗔<span class="lbl">&nbsp;Layout</span></div><div id="layPop"><button type="button" id="laySave">💾 Save this layout</button><button type="button" id="layRestore">↺ Restore my layout</button><button type="button" id="layDock">⇤ Dock everything</button><div class="hint" id="layHint">Saves which panels are in their own windows, where those windows sit (on any monitor) and how big they are, the open tab, and panel states.</div></div></div>
+    <div class="lib" id="barUndock" title="Undock this bar into its own window — drag it onto another monitor and the tool below gets the whole screen. Close that window (or press again) to dock it back.">⧉</div>
   </header>
+  <div id="barBack" title="The Studio bar is in its own window — click to bring it back">⧉ Studio bar</div>
   <main>
     <aside id="drawer">
       <div class="dhead"><b>◆ Studio Library</b><span class="x" id="drawerX">✕</span></div>
@@ -176,6 +193,7 @@
         <h2><span class="step">1</span> 🧍 Rig: give a model a skeleton</h2>
         <a class="watch" href="https://youtu.be/nSjJAUkPNS8" target="_blank" rel="noopener">▶ Watch How-To #2 (about 2 min)</a>
         <p>Drop a textured <span class="pill2">.glb</span>, <span class="pill2">.gltf</span> or <span class="pill2">.fbx</span> (works with models generated on meshy.ai and mixamo.com), or press <b>🧍 Rig this</b> in Generate. Pick the <b>skeleton type</b>. There are 19: biped, biped + fingers, quadruped, bird, snake, fish, whale/dolphin, great ape, dragon, pegasus, elephant, giraffe, reptile, frog, rabbit, crab, lobster, manta ray and jellyfish. The skeleton <b>fits itself</b> to the model; drag any joint to fine-tune it (<b>🪞 Symmetric</b> copies each change to the other side). Click <b>Bind &amp; preview weights</b> to check the skin, then <b>⬇ Export rigged GLB</b>. The export downloads <b>and</b> goes into the Studio Library.</p>
+        <p><b>🎨 Show weights</b> colours the model by which bone moves each part. Click the model (or a joint) to pick a bone: red is all its own, blue is none. Drag <b>Test bend</b> / <b>Test turn</b> to flex it and see how the skin follows. If it tears or stretches: <b>Reach</b> makes the bone grab more or less of the skin, <b>↰ Give its skin to the parent</b> fixes a tip joint (beak, toe tip) that bends what it shouldn't, <b>▣ Hold together from here out</b> keeps a foot, hand or skull in one piece, and <b>≈ Smooth its edges</b> softens a hard crease. Or <b>🖌 paint</b> it: pick <b>＋ Add</b>, <b>− Remove</b> or <b>≈ Smooth</b>, set the brush size and strength, and drag on the model (Ctrl+Z takes back the last stroke). Your fixes are listed (✕ removes one), go into the export, and come back when you re-open the rig.</p>
         <figure class="shot"><img src="help/rig.png" alt="Character Rigger"><figcaption>Rig: a Generate-made orc, fitted to the biped skeleton automatically and bound, ready to export.</figcaption></figure>
 
         <h2><span class="step">2</span> 🐾 Animate: make motions</h2>
@@ -294,6 +312,7 @@
   </div>
 </div>
 <script src="studio-lib.js"></script>
+<script src="undock.js"></script>
 <script>
   const TOOLS = {
     rig:      '../character-rigger/index.html',
@@ -322,7 +341,50 @@
     frame = f; curTool = tool; location.hash = tool;
     // an already-open tool re-checks for a hand-off (Generate → Rig this / Use in Tabletop) when it's shown again
     if(wasOpen){ try{ f.contentWindow.dispatchEvent(new f.contentWindow.Event('ksol-shown')); }catch(e){} }
+    syncToolMenu(); if(!wasOpen) f.addEventListener('load', ()=>{ if(f===frame) syncToolMenu(); });
   }
+  // ☰ the active tool's own File menu, rolled up into this bar (a tool offers it as window.studioMenu() → [{label, run}])
+  const tmWrap=document.getElementById('toolMenuWrap'), tmPop=document.getElementById('toolMenuPop');
+  function toolMenuItems(){ try{ const fn=frame && frame.contentWindow && frame.contentWindow.studioMenu; return typeof fn==='function' ? (fn()||[]) : []; }catch(e){ return []; } }
+  function syncToolMenu(){ tmWrap.classList.toggle('has', toolMenuItems().length>0); tmPop.classList.remove('open'); }
+  document.getElementById('toolMenuBtn').addEventListener('click', e=>{ e.stopPropagation(); const items=toolMenuItems(); tmPop.innerHTML='';
+    items.forEach(it=>{ const b=document.createElement('button'); b.type='button'; b.textContent=it.label; b.onclick=ev=>{ ev.stopPropagation(); tmPop.classList.remove('open'); try{ it.run(); }catch(err){ console.warn('[studio] menu', err); } }; tmPop.appendChild(b); });
+    document.getElementById('layPop').classList.remove('open'); tmPop.classList.toggle('open'); });
+  document.addEventListener('click', ()=>tmPop.classList.remove('open'));
+  // ⧉ undock the Studio bar itself into its own window
+  const BAR={key:'studioBar', title:'GLB Studio — bar', width:Math.min(1500, screen.availWidth||1500), height:150, onChange:out=>{ document.body.classList.toggle('bar-out', out); const u=document.getElementById('barUndock'); if(u){ u.textContent=out?'⇤':'⧉'; u.title=out?'Dock this bar back into the main window':'Undock this bar into its own window — drag it onto another monitor and the tool below gets the whole screen. Close that window (or press again) to dock it back.'; } }};
+  document.getElementById('barUndock').addEventListener('click', ()=>{ if(window.Undock) Undock.toggle(document.querySelector('#app > header') || document.querySelector('header'), BAR); });
+  document.getElementById('barBack').addEventListener('click', ()=>{ if(window.Undock) Undock.dock(BAR.key); });
+  // 🗔 LAYOUT MEMORY (2026-10-02, Paul: 'hit a button and it returns the menus to my saved locations')
+  const LAY_KEY='ksol.studioLayout', layBtn=document.getElementById('layBtn'), layPop=document.getElementById('layPop'), layHint=document.getElementById('layHint');
+  if(window.Undock) Undock.register(BAR.key, ()=>document.querySelector('#app > header')||document.querySelector('header'), BAR);
+  const readLay=()=>{ try{ return JSON.parse(localStorage.getItem(LAY_KEY)||'null'); }catch(e){ return null; } };
+  const anyOut=l=>!!l && [l.shell, ...Object.values(l.tools||{})].some(s=>s && Object.values(s.panels||{}).some(p=>p.out));
+  function layMark(){ const l=readLay(); layBtn.classList.toggle('saved', !!l); layBtn.title = l ? 'Window layout saved '+new Date(l.t).toLocaleString()+' — click ↺ Restore to put your windows back' : 'Window layout: save where your undocked panels sit (any monitor) and put them back with one click'; }
+  const toolU=k=>{ try{ const f=frames[k]; return f && f.contentWindow && f.contentWindow.Undock; }catch(e){ return null; } };
+  async function saveLayout(){ if(window.Undock) await Undock.askScreens();
+    const l={ v:1, t:Date.now(), tool:curTool, shell:window.Undock?Undock.state():null, tools:{} };
+    for(const k of Object.keys(frames)){ const U=toolU(k); if(U) l.tools[k]=U.state(); }
+    try{ localStorage.setItem(LAY_KEY, JSON.stringify(l)); }catch(e){} layMark(); layHint.textContent='✔ Saved. After you launch GLB Studio, open 🗔 Layout → ↺ Restore my layout.'; }
+  const waitFor=(fn,ms)=>new Promise(res=>{ const t0=Date.now(); const tick=()=>{ let ok=false; try{ ok=fn(); }catch(e){} if(ok||Date.now()-t0>ms) res(ok); else setTimeout(tick,150); }; tick(); });
+  async function restoreLayout(){ const l=readLay(); if(!l){ layHint.textContent='No saved layout yet — arrange your windows, then 💾 Save this layout.'; return; }
+    if(window.Undock) Undock.askScreens();   // no await: keep this click's permission to open windows
+    if(l.tool && l.tool!==curTool) show(l.tool);
+    let blocked=[];
+    if(window.Undock) blocked=blocked.concat(Undock.apply(l.shell));
+    for(const [k,st] of Object.entries(l.tools||{})){ if(!frames[k]) show(k), show(l.tool||curTool);
+      if(!toolU(k)) await waitFor(()=>toolU(k) && frames[k].contentDocument.readyState==='complete', 15000);
+      const U=toolU(k); if(U) blocked=blocked.concat(U.apply(st)); }
+    layBtn.classList.toggle('pending', blocked.length>0);
+    layHint.textContent = blocked.length ? 'Your browser opens one new window per click — click ↺ Restore again ('+blocked.length+' more to place).' : '✔ Layout restored.';
+    if(blocked.length) layPop.classList.add('open'); }
+  layBtn.addEventListener('click', e=>{ e.stopPropagation(); tmPop.classList.remove('open'); layPop.classList.toggle('open'); });
+  layPop.addEventListener('click', e=>e.stopPropagation());
+  document.getElementById('laySave').addEventListener('click', ()=>saveLayout());
+  document.getElementById('layRestore').addEventListener('click', ()=>restoreLayout());
+  document.getElementById('layDock').addEventListener('click', ()=>{ if(window.Undock) Undock.dock(BAR.key); for(const k of Object.keys(frames)){ const U=toolU(k); if(U){ const st=U.state(); for(const key of Object.keys(st.panels)) U.dock(key); } } layHint.textContent='All panels docked.'; });
+  document.addEventListener('click', ()=>layPop.classList.remove('open'));
+  layMark(); if(anyOut(readLay())){ layBtn.classList.add('pending'); layHint.textContent='You have a saved layout — click ↺ Restore my layout to put your windows back.'; }
   function restartTool(tool){ const f=frames[tool]; if(f){ f.src = TOOLS[tool] + '?b=' + Date.now(); } }
   document.getElementById('restartBtn').addEventListener('click', ()=>{
     const name=(tabs.find(t=>t.dataset.tool===curTool)||{}).textContent||'this tab';

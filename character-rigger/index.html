@@ -42,6 +42,12 @@
   input[type=range]{flex:1;accent-color:var(--accent)}
   .val{min-width:36px;text-align:right;color:var(--muted);font-size:11px}
   .hint{color:var(--muted);font-size:11px;line-height:1.5}
+  /* 🎨 weight view */
+  #wvTools{border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-top:6px}
+  #wvTools select{flex:1;min-width:0;background:var(--bg,#0e1116);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:4px}
+  .wvfix{display:flex;flex-direction:column;gap:4px;margin:6px 0} .wvfix button.btn{margin-top:0;padding:6px;font-size:12px}
+  .wvchip{display:inline-block;border:1px solid var(--line);border-radius:10px;padding:1px 7px;margin:2px 2px 0 0} .wvchip a{cursor:pointer;color:var(--muted);margin-left:3px} .wvchip a:hover{color:#f77}
+  .wppaint{display:flex;gap:4px} .wppaint button.btn{margin-top:0;padding:5px 2px;font-size:12px} .wppaint button.btn.on{border-color:var(--accent);background:rgba(91,140,255,.22);color:#fff}
   .step{display:flex;gap:7px;align-items:flex-start;margin-bottom:7px}
   .step .n{flex:0 0 18px;height:18px;border-radius:50%;background:var(--accent);color:#00142e;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:1px}
   .step .t{font-size:11.5px;color:var(--muted)}
@@ -63,7 +69,7 @@
 <body>
 <div id="app">
   <div class="side">
-    <h1>Character Rigger <span class="appver">v1.4.1</span></h1>
+    <h1>Character Rigger <span class="appver">v1.6.0</span></h1>
     <div class="tag">Rig your own textured characters onto a standard, retargetable skeleton for the GLB Stitcher.</div>
 
     <div class="card">
@@ -96,6 +102,8 @@
   <button data-rig="lobster">🦞 Lobster</button>
   <button data-rig="manta">🥏 Manta</button>
   <button data-rig="jellyfish">🎐 Jellyfish</button>
+  <button data-rig="dinobiped">🦖 Dino (2 legs)</button>
+  <button data-rig="dinoquad">🦕 Dino (4 legs)</button>
       </div>
       <div class="seg" id="birdPose" style="margin-top:6px;display:none">
         <button data-pose="ground" class="on">🦶 Perched / on ground</button>
@@ -135,6 +143,28 @@
       <h2>3 · Skin &amp; export</h2>
       <div class="row"><label>Skin falloff</label><input type="range" id="falloff" min="1.5" max="6" step="0.25" value="3"><span class="val" id="falloffV">3.0</span></div>
       <button class="btn ghost" id="bindPreview">⚙ Bind &amp; preview weights</button>
+      <button class="btn ghost" id="wvToggle" title="Colour the model by which bone moves each part; pick a bone to flex it and fix tears">🎨 Show weights</button>
+      <div id="wvTools" style="display:none">
+        <div class="row"><label>Bone</label><select id="wvBone"></select></div>
+        <div class="hint">Click the model to pick the bone that owns that spot (or click a joint). <b>All bones</b>: one colour per bone. <b>One bone</b>: red = all its own, blue = none.</div>
+        <div id="wvBoneTools">
+          <div class="row" title="Flex the chosen bone up / down to see how the skin follows (preview only)"><label>Test bend</label><input type="range" id="wvBend" min="-90" max="90" step="1" value="0"><span class="val" id="wvBendV">0°</span></div>
+          <div class="row" title="Turn the chosen bone left / right (preview only)"><label>Test turn</label><input type="range" id="wvTurn" min="-90" max="90" step="1" value="0"><span class="val" id="wvTurnV">0°</span></div>
+          <div class="row" title="How far this bone reaches into the mesh: more = it grabs more of the skin around it"><label>Reach</label><input type="range" id="wvReach" min="0.4" max="2.5" step="0.05" value="1"><span class="val" id="wvReachV">1.00×</span></div>
+          <div class="wvfix">
+            <button class="btn ghost" id="wvParent" title="A tip joint (beak tip, toe tip, tail end) should own no skin — hand all of it to the bone before it">↰ Give its skin to the parent bone</button>
+            <button class="btn ghost" id="wvRigid" title="Everything from this joint outward moves with this bone — a foot, hand or skull that is tearing or stretching into spikes">▣ Hold together from here out</button>
+            <button class="btn ghost" id="wvSmooth" title="Blend the weights around this bone over the surface — softens a hard crease or tear line">≈ Smooth its edges</button>
+          </div>
+          <div class="hint" style="margin-top:4px"><b>🖌 Paint</b> this bone's weight: pick a brush, then drag on the model (click the brush again to go back to orbiting).</div>
+          <div class="wppaint"><button class="btn ghost" id="wpAdd" title="Paint: give more of the skin under the brush to this bone">＋ Add</button><button class="btn ghost" id="wpRemove" title="Paint: take skin under the brush away from this bone (it goes to the neighbours)">− Remove</button><button class="btn ghost" id="wpSmooth" title="Paint: blend the weights under the brush with their neighbours">≈ Smooth</button></div>
+          <div class="row"><label>Brush size</label><input type="range" id="wpSize" min="0.005" max="0.12" step="0.005" value="0.03"><span class="val" id="wpSizeV">3.0%</span></div>
+          <div class="row"><label>Strength</label><input type="range" id="wpStr" min="0.05" max="1" step="0.05" value="0.5"><span class="val" id="wpStrV">50%</span></div>
+        </div>
+        <div class="hint" id="wvList">No weight fixes yet.</div>
+        <div class="hint">Ctrl+Z takes back the last fix.</div>
+        <button class="btn ghost" id="wvReset">↺ Reset weight fixes</button>
+      </div>
       <button class="btn" id="saveOverBtn" style="display:none">💾 Save over the original</button>
       <label class="row" id="keepOrigRow" style="display:none;margin-top:8px" title="On: the rigged character is saved as a NEW Studio Library entry and the unrigged 🪄 Generate model stays too. Off: the rigged character replaces it."><input type="checkbox" id="keepOrig"> <span style="flex:1;color:var(--text)">Keep the unrigged model in the library too</span></label>
       <button class="btn" id="exportBtn" disabled>⬇ Export rigged GLB</button>
@@ -160,7 +190,7 @@
         </g>
       </svg>
       <div>
-        <div><b>Character Rigger</b> v1.4.1 · part of GLB Studio</div>
+        <div><b>Character Rigger</b> v1.6.0 · part of GLB Studio</div>
         <div class="appfoot-sub">© <span class="cred-year">2026</span> Paul A.T. Ramey · <b>KSOL Designs</b> · <a href="https://www.ksoldesigns.com" target="_blank" rel="noopener">ksoldesigns.com</a></div>
       </div>
     </div>
@@ -234,6 +264,11 @@ const BIRD_MIRROR={"Bone_006":"Bone_009","Bone_005":"Bone_008","Bone_004":"Bone_
 // (the bird is rigged wings-spread; this variant is a better default for a perched/standing bird mesh).
 const BIRD_GROUND_TEMPLATE=[{"name":"Bone_000","parent":null,"t":[0.004967880435287952,0.6934616565704346,-0.01910165697336197],"q":[0,0,0,1]},{"name":"Bone_001","parent":"Bone_000","t":[4.656612873077393e-10,0.21591495001216243,0.2159149201615688],"q":[0,0,0,1]},{"name":"Bone_003","parent":"Bone_001","t":[-4.656612873077393e-10,0.01079561088140002,0.36705539882242133],"q":[0,0,0,1]},{"name":"Bone_002","parent":"Bone_003","t":[0,-0.03238719336330731,0.05397872745606547],"q":[0,0,0,1]},{"name":"Bone_006","parent":"Bone_001","t":[0.11875321716070175,-0.377851255477177,-0.1403447089131968],"q":[0,0,0,1]},{"name":"Bone_005","parent":"Bone_006","t":[0.0431829705915564,-6.098224436534849e-8,0.1079574400010832],"q":[0,0,0,1]},{"name":"Bone_004","parent":"Bone_005","t":[0.010795741872573233,-0.010795717764219614,0.01079577287912506],"q":[0,0,0,1]},{"name":"Bone_021","parent":"Bone_004","t":[0.010795754064704538,2.8050879952168373e-8,-0.010795723111644367],"q":[0,0,0,1]},{"name":"Bone_020","parent":"Bone_021","t":[0.02159156232576731,-0.03238724982119301,1.965624130129129e-8],"q":[0,0,0,1]},{"name":"Bone_023","parent":"Bone_004","t":[0.01079573877414658,-0.01079574881684664,0.03238724838745599],"q":[0,0,0,1]},{"name":"Bone_022","parent":"Bone_023","t":[0.010795751161243539,-0.03238721592022381,0.021591445994594616],"q":[0,0,0,1]},{"name":"Bone_026","parent":"Bone_004","t":[-0.021591495529785176,-0.010795751571417767,0.03238725968678219],"q":[0,0,0,1]},{"name":"Bone_025","parent":"Bone_026","t":[-1.912442990081864e-8,-0.032387194399079,0.021591485798268334],"q":[0,0,0,1]},{"name":"Bone_024","parent":"Bone_025","t":[-3.4337060694777932e-9,-3.495522699070719e-8,0.010795744787984118],"q":[0,0,0,1]},{"name":"Bone_009","parent":"Bone_001","t":[-0.11875322461128235,-0.377851255477177,-0.1403447089131968],"q":[0,0,0,1]},{"name":"Bone_008","parent":"Bone_009","t":[-0.04318296606546612,-2.0199834027678776e-9,0.10795746467881387],"q":[0,0,0,1]},{"name":"Bone_007","parent":"Bone_008","t":[-0.021591500305714162,-0.010795783452170804,0.010795698415630578],"q":[0,0,0,1]},{"name":"Bone_029","parent":"Bone_007","t":[-0.010795765066407031,1.1944502831262582e-8,-0.01079572289837874],"q":[0,0,0,1]},{"name":"Bone_028","parent":"Bone_029","t":[-0.02159149976174332,-0.0323871796870987,5.408323233702106e-9],"q":[0,0,0,1]},{"name":"Bone_027","parent":"Bone_028","t":[-0.01079573861597144,-3.1628935581728967e-9,0.010795736375801446],"q":[0,0,0,1]},{"name":"Bone_031","parent":"Bone_007","t":[-3.2021888418665156e-8,-0.010795769613853867,0.03238723842071273],"q":[0,0,0,1]},{"name":"Bone_030","parent":"Bone_031","t":[-0.021591469352176845,-0.032387241508231024,0.021591506168596536],"q":[0,0,0,1]},{"name":"Bone_034","parent":"Bone_007","t":[0.03238721714305917,-0.010795769185514392,0.03238724489419742],"q":[0,0,0,1]},{"name":"Bone_033","parent":"Bone_034","t":[-6.554360332255982e-9,-0.032387193564851924,0.021591501784203188],"q":[0,0,0,1]},{"name":"Bone_032","parent":"Bone_033","t":[-0.010795756227192227,-0.010795704691277719,-2.258615156014443e-9],"q":[0,0,0,1]},{"name":"Bone_011","parent":"Bone_001","t":[-4.656612873077393e-10,-0.26989381164263626,-0.36705543049725403],"q":[0,0,0,1]},{"name":"Bone_010","parent":"Bone_011","t":[0,-0.3454639506625107,-0.34546379583300535],"q":[0,0,0,1]},{"name":"Bone_015","parent":"Bone_001","t":[-0.14034472405910492,0.10795751877100224,0.05397874004121353],"q":[0,0,0,1]},{"name":"Bone_014","parent":"Bone_015","t":[-0.03303497282706355,0.06963265067726243,-0.170032864758127],"q":[0,0,0,1]},{"name":"Bone_013","parent":"Bone_014","t":[-0.0408079023113104,0.1279295393681137,-0.062075510162899195],"q":[0,0,0,1]},{"name":"Bone_012","parent":"Bone_013","t":[-0.0718996432139985,0.08042806650088918,-0.7530031527410064],"q":[0,0,0,1]},{"name":"Bone_019","parent":"Bone_001","t":[0.14034470915794373,0.10795751877100224,0.05397874004121353],"q":[0,0,0,1]},{"name":"Bone_018","parent":"Bone_019","t":[0.033034980472359976,0.06963271202162424,-0.17003300376928496],"q":[0,0,0,1]},{"name":"Bone_017","parent":"Bone_018","t":[0.04080792052476512,0.12792961042116557,-0.06207553009775754],"q":[0,0,0,1]},{"name":"Bone_016","parent":"Bone_017","t":[0.0738428939484903,0.0788089214054295,-0.7718959847658842],"q":[0,0,0,1]}];
 // left<->right mirror pairs — handles biped (Left/Right) AND quadruped (base / R_base) naming
+// 🦖 dinosaur skin radii (fraction of model height): a T-rex thigh or tail base is several times thicker than a human
+// limb, so the generic table under-reached and the hips kept the tail base / thigh skin (stretching on every swish/step).
+function dinoRadius(n){ n=n.replace(/^R_/,''); const T={ Hips:0.14, spine01:0.14, chest:0.13, neck01:0.08, neck02:0.07, neck03:0.06, head:0.07, headend:0.04, jaw:0.045, jawend:0.03,
+  tail:0.11, tail1:0.09, tail2:0.07, tail3:0.055, tail4:0.045, tail5:0.035, tail6:0.03, backleg:0.10, backleg0:0.06, backleg1:0.04, backleg2:0.03,
+  frontleg:0.08, frontleg0:0.055, frontleg1:0.04, frontleg2:0.03, arm:0.03, arm0:0.025, arm1:0.02, arm2:0.015 }; return T[n]||0; }
 function computeMirror(names){ const set=new Set(names), m={};
   for(const n of names){
     if(n.startsWith('Left')){ const r='Right'+n.slice(4); if(set.has(r)) m[n]=r; }
@@ -299,6 +334,15 @@ const MANTA_PRIMARY_CHILD={"spine1":"head","ceph":"ceph1","R_ceph":"R_ceph1","fi
 
 const JELLYFISH_TEMPLATE=[{"name":"apex","parent":null,"t":[0,1.7,0],"q":[0,0,0,1]},{"name":"hub","parent":"apex","t":[0,-0.45,0],"q":[0,0,0,1]},{"name":"spoke0","parent":"hub","t":[0.45,-0.1,0],"q":[0,0,0,1]},{"name":"rim0","parent":"spoke0","t":[0.55,-0.23,0],"q":[0,0,0,1]},{"name":"ten0a","parent":"rim0","t":[-0.02,-0.42,0],"q":[0,0,0,1]},{"name":"ten0b","parent":"ten0a","t":[-0.08,-0.42,0],"q":[0,0,0,1]},{"name":"spoke1","parent":"hub","t":[0.3182,-0.1,0.3182],"q":[0,0,0,1]},{"name":"rim1","parent":"spoke1","t":[0.3889,-0.23,0.3889],"q":[0,0,0,1]},{"name":"ten1a","parent":"rim1","t":[-0.0141,-0.42,-0.0141],"q":[0,0,0,1]},{"name":"ten1b","parent":"ten1a","t":[-0.0566,-0.42,-0.0566],"q":[0,0,0,1]},{"name":"spoke2","parent":"hub","t":[0,-0.1,0.45],"q":[0,0,0,1]},{"name":"rim2","parent":"spoke2","t":[0,-0.23,0.55],"q":[0,0,0,1]},{"name":"ten2a","parent":"rim2","t":[0,-0.42,-0.02],"q":[0,0,0,1]},{"name":"ten2b","parent":"ten2a","t":[0,-0.42,-0.08],"q":[0,0,0,1]},{"name":"spoke3","parent":"hub","t":[-0.3182,-0.1,0.3182],"q":[0,0,0,1]},{"name":"rim3","parent":"spoke3","t":[-0.3889,-0.23,0.3889],"q":[0,0,0,1]},{"name":"ten3a","parent":"rim3","t":[0.0141,-0.42,-0.0141],"q":[0,0,0,1]},{"name":"ten3b","parent":"ten3a","t":[0.0566,-0.42,-0.0566],"q":[0,0,0,1]},{"name":"spoke4","parent":"hub","t":[-0.45,-0.1,0],"q":[0,0,0,1]},{"name":"rim4","parent":"spoke4","t":[-0.55,-0.23,0],"q":[0,0,0,1]},{"name":"ten4a","parent":"rim4","t":[0.02,-0.42,0],"q":[0,0,0,1]},{"name":"ten4b","parent":"ten4a","t":[0.08,-0.42,0],"q":[0,0,0,1]},{"name":"spoke5","parent":"hub","t":[-0.3182,-0.1,-0.3182],"q":[0,0,0,1]},{"name":"rim5","parent":"spoke5","t":[-0.3889,-0.23,-0.3889],"q":[0,0,0,1]},{"name":"ten5a","parent":"rim5","t":[0.0141,-0.42,0.0141],"q":[0,0,0,1]},{"name":"ten5b","parent":"ten5a","t":[0.0566,-0.42,0.0566],"q":[0,0,0,1]},{"name":"spoke6","parent":"hub","t":[0,-0.1,-0.45],"q":[0,0,0,1]},{"name":"rim6","parent":"spoke6","t":[0,-0.23,-0.55],"q":[0,0,0,1]},{"name":"ten6a","parent":"rim6","t":[0,-0.42,0.02],"q":[0,0,0,1]},{"name":"ten6b","parent":"ten6a","t":[0,-0.42,0.08],"q":[0,0,0,1]},{"name":"spoke7","parent":"hub","t":[0.3182,-0.1,-0.3182],"q":[0,0,0,1]},{"name":"rim7","parent":"spoke7","t":[0.3889,-0.23,-0.3889],"q":[0,0,0,1]},{"name":"ten7a","parent":"rim7","t":[-0.0141,-0.42,0.0141],"q":[0,0,0,1]},{"name":"ten7b","parent":"ten7a","t":[-0.0566,-0.42,0.0566],"q":[0,0,0,1]}];
 const JELLYFISH_PRIMARY_CHILD={"spoke0":"rim0","rim0":"ten0a","ten0a":"ten0b","spoke1":"rim1","rim1":"ten1a","ten1a":"ten1b","spoke2":"rim2","rim2":"ten2a","ten2a":"ten2b","spoke3":"rim3","rim3":"ten3a","ten3a":"ten3b","spoke4":"rim4","rim4":"ten4a","ten4a":"ten4b","spoke5":"rim5","rim5":"ten5a","ten5a":"ten5b","spoke6":"rim6","rim6":"ten6a","ten6a":"ten6b","spoke7":"rim7","rim7":"ten7a","ten7a":"ten7b"};
+// 🦖 DINOSAUR rigs (2026-10-02, build_dino_rigs.cjs). Identity-q local offsets, facing +Z, left = +X, feet y≈0.
+// dinobiped (theropod / hadrosaur on two legs): Hips→spine01→chest→neck01→neck02→head(+headend,jaw); 7-bone tail; legs
+// backleg (hip) → backleg0 (knee, forward) → backleg1 (ankle, raised — a dinosaur stands on its toes like a bird) → backleg2
+// (toe tip); small forelimbs arm→arm0→arm1→arm2. dinoquad (sauropod / stegosaur / ceratopsian): same body + neck03, four
+// columnar legs under the quad's frontleg/backleg names. Both: per-bone skin radii from the dino's real proportions.
+const DINOBIPED_TEMPLATE=[{"name":"Hips","parent":null,"t":[0,0.611,0.1045],"q":[0,0,0,1]},{"name":"spine01","parent":"Hips","t":[0,0.045,0.2065],"q":[0,0,0,1]},{"name":"chest","parent":"spine01","t":[0,-0.0055,0.2065],"q":[0,0,0,1]},{"name":"neck01","parent":"chest","t":[0,0.023,0.135],"q":[0,0,0,1]},{"name":"neck02","parent":"neck01","t":[0,0.0495,0.0495],"q":[0,0,0,1]},{"name":"head","parent":"neck02","t":[0,0.1145,0.108],"q":[0,0,0,1]},{"name":"headend","parent":"head","t":[0,0.0045,0.234],"q":[0,0,0,1]},{"name":"jaw","parent":"head","t":[0,-0.029,0.034],"q":[0,0,0,1]},{"name":"jawend","parent":"jaw","t":[0,-0.173,0.127],"q":[0,0,0,1]},{"name":"tail","parent":"Hips","t":[0,-0.0145,-0.1715],"q":[0,0,0,1]},{"name":"tail1","parent":"tail","t":[0,-0.0125,-0.1525],"q":[0,0,0,1]},{"name":"tail2","parent":"tail1","t":[0,-0.013,-0.153],"q":[0,0,0,1]},{"name":"tail3","parent":"tail2","t":[0,0.003,-0.168],"q":[0,0,0,1]},{"name":"tail4","parent":"tail3","t":[0,0.0225,-0.1545],"q":[0,0,0,1]},{"name":"tail5","parent":"tail4","t":[0,0.0315,-0.1645],"q":[0,0,0,1]},{"name":"tail6","parent":"tail5","t":[0,-0.06,-0.1685],"q":[0,0,0,1]},{"name":"backleg","parent":"Hips","t":[0.1263,-0.025,0],"q":[0,0,0,1]},{"name":"backleg0","parent":"backleg","t":[0.016,-0.2432,0.0827],"q":[0,0,0,1]},{"name":"backleg1","parent":"backleg0","t":[-0.0292,-0.2258,-0.101],"q":[0,0,0,1]},{"name":"backleg2","parent":"backleg1","t":[0.0275,-0.105,0.1325],"q":[0,0,0,1]},{"name":"arm","parent":"chest","t":[0.06,-0.055,0],"q":[0,0,0,1]},{"name":"arm0","parent":"arm","t":[0.027,-0.072,0.0635],"q":[0,0,0,1]},{"name":"arm1","parent":"arm0","t":[0.0235,-0.043,0.115],"q":[0,0,0,1]},{"name":"arm2","parent":"arm1","t":[0.0145,-0.0325,0.0505],"q":[0,0,0,1]},{"name":"R_backleg","parent":"Hips","t":[-0.1263,-0.025,0],"q":[0,0,0,1]},{"name":"R_backleg0","parent":"R_backleg","t":[-0.016,-0.2432,0.0827],"q":[0,0,0,1]},{"name":"R_backleg1","parent":"R_backleg0","t":[0.0292,-0.2258,-0.101],"q":[0,0,0,1]},{"name":"R_backleg2","parent":"R_backleg1","t":[-0.0275,-0.105,0.1325],"q":[0,0,0,1]},{"name":"R_arm","parent":"chest","t":[-0.06,-0.055,0],"q":[0,0,0,1]},{"name":"R_arm0","parent":"R_arm","t":[-0.027,-0.072,0.0635],"q":[0,0,0,1]},{"name":"R_arm1","parent":"R_arm0","t":[-0.0235,-0.043,0.115],"q":[0,0,0,1]},{"name":"R_arm2","parent":"R_arm1","t":[-0.0145,-0.0325,0.0505],"q":[0,0,0,1]}];
+const DINOBIPED_PRIMARY_CHILD={"Hips":"spine01","spine01":"chest","chest":"neck01","neck01":"neck02","neck02":"head","head":"headend","tail":"tail1","tail1":"tail2","tail2":"tail3","tail3":"tail4","tail4":"tail5","tail5":"tail6","backleg":"backleg0","backleg0":"backleg1","backleg1":"backleg2","arm":"arm0","arm0":"arm1","arm1":"arm2","R_backleg":"R_backleg0","R_backleg0":"R_backleg1","R_backleg1":"R_backleg2","R_arm":"R_arm0","R_arm0":"R_arm1","R_arm1":"R_arm2","jaw":"jawend"};
+const DINOQUAD_TEMPLATE=[{"name":"Hips","parent":null,"t":[0,0.5325,-0.1225],"q":[0,0,0,1]},{"name":"spine01","parent":"Hips","t":[0,0.063,0.3395],"q":[0,0,0,1]},{"name":"chest","parent":"spine01","t":[0,0.013,0.3395],"q":[0,0,0,1]},{"name":"neck01","parent":"chest","t":[0,-0.0175,0.0545],"q":[0,0,0,1]},{"name":"neck02","parent":"neck01","t":[0,-0.0155,0.0585],"q":[0,0,0,1]},{"name":"neck03","parent":"neck02","t":[0,-0.0105,0.0915],"q":[0,0,0,1]},{"name":"head","parent":"neck03","t":[0,-0.1015,0.061],"q":[0,0,0,1]},{"name":"headend","parent":"head","t":[0,-0.0415,0.1665],"q":[0,0,0,1]},{"name":"jaw","parent":"head","t":[0,-0.0155,-0.0225],"q":[0,0,0,1]},{"name":"jawend","parent":"jaw","t":[0,-0.0935,0.1655],"q":[0,0,0,1]},{"name":"tail","parent":"Hips","t":[0,-0.0035,-0.134],"q":[0,0,0,1]},{"name":"tail1","parent":"tail","t":[0,-0.003,-0.119],"q":[0,0,0,1]},{"name":"tail2","parent":"tail1","t":[0,-0.0025,-0.1195],"q":[0,0,0,1]},{"name":"tail3","parent":"tail2","t":[0,-0.018,-0.13],"q":[0,0,0,1]},{"name":"tail4","parent":"tail3","t":[0,0.004,-0.1045],"q":[0,0,0,1]},{"name":"tail5","parent":"tail4","t":[0,0.002,-0.1225],"q":[0,0,0,1]},{"name":"tail6","parent":"tail5","t":[0,0.1235,-0.1135],"q":[0,0,0,1]},{"name":"backleg","parent":"Hips","t":[0.1118,-0.0295,0],"q":[0,0,0,1]},{"name":"backleg0","parent":"backleg","t":[0.026,-0.2015,0.1242],"q":[0,0,0,1]},{"name":"backleg1","parent":"backleg0","t":[-0.0368,-0.191,-0.1368],"q":[0,0,0,1]},{"name":"backleg2","parent":"backleg1","t":[0.0397,-0.0985,0.094],"q":[0,0,0,1]},{"name":"frontleg","parent":"chest","t":[0.1158,-0.072,0],"q":[0,0,0,1]},{"name":"frontleg0","parent":"frontleg","t":[0.0145,-0.247,-0.0985],"q":[0,0,0,1]},{"name":"frontleg1","parent":"frontleg0","t":[0.0195,-0.193,0.0358],"q":[0,0,0,1]},{"name":"frontleg2","parent":"frontleg1","t":[-0.013,-0.0845,0.091],"q":[0,0,0,1]},{"name":"R_backleg","parent":"Hips","t":[-0.1118,-0.0295,0],"q":[0,0,0,1]},{"name":"R_backleg0","parent":"R_backleg","t":[-0.026,-0.2015,0.1242],"q":[0,0,0,1]},{"name":"R_backleg1","parent":"R_backleg0","t":[0.0368,-0.191,-0.1368],"q":[0,0,0,1]},{"name":"R_backleg2","parent":"R_backleg1","t":[-0.0397,-0.0985,0.094],"q":[0,0,0,1]},{"name":"R_frontleg","parent":"chest","t":[-0.1158,-0.072,0],"q":[0,0,0,1]},{"name":"R_frontleg0","parent":"R_frontleg","t":[-0.0145,-0.247,-0.0985],"q":[0,0,0,1]},{"name":"R_frontleg1","parent":"R_frontleg0","t":[-0.0195,-0.193,0.0358],"q":[0,0,0,1]},{"name":"R_frontleg2","parent":"R_frontleg1","t":[0.013,-0.0845,0.091],"q":[0,0,0,1]}];
+const DINOQUAD_PRIMARY_CHILD={"Hips":"spine01","spine01":"chest","chest":"neck01","neck01":"neck02","neck02":"neck03","neck03":"head","head":"headend","tail":"tail1","tail1":"tail2","tail2":"tail3","tail3":"tail4","tail4":"tail5","tail5":"tail6","backleg":"backleg0","backleg0":"backleg1","backleg1":"backleg2","frontleg":"frontleg0","frontleg0":"frontleg1","frontleg1":"frontleg2","R_backleg":"R_backleg0","R_backleg0":"R_backleg1","R_backleg1":"R_backleg2","R_frontleg":"R_frontleg0","R_frontleg0":"R_frontleg1","R_frontleg1":"R_frontleg2","jaw":"jawend"};
 const RIGS={ biped:{tpl:BIPED_TEMPLATE, pc:BIPED_PRIMARY_CHILD, label:'biped', bones:24},
              bipedhand:{tpl:BIPED_HAND_TEMPLATE, pc:BIPEDHAND_PRIMARY_CHILD, label:'biped + fingers (standard finger naming)', bones:54},
              bipedfairy:{tpl:BIPED_FAIRY_TEMPLATE, pc:BIPEDFAIRY_PRIMARY_CHILD, label:'biped + fingers + wings (fairy / angel)', bones:70},
@@ -318,7 +362,9 @@ const RIGS={ biped:{tpl:BIPED_TEMPLATE, pc:BIPED_PRIMARY_CHILD, label:'biped', b
              crab:{tpl:CRAB_TEMPLATE, pc:CRAB_PRIMARY_CHILD, label:'crab (wide carapace + 8 sideways legs + 2 claws + eyestalks)', bones:36},
              lobster:{tpl:LOBSTER_TEMPLATE, pc:LOBSTER_PRIMARY_CHILD, label:'lobster / crayfish (cephalothorax + segmented abdomen + tail fan + 2 claws + antennae)', bones:41},
              manta:{tpl:MANTA_TEMPLATE, pc:MANTA_PRIMARY_CHILD, label:'manta ray (flat disc + 2 oscillating pectoral fins + cephalic fins + long tail)', bones:21},
-             jellyfish:{tpl:JELLYFISH_TEMPLATE, pc:JELLYFISH_PRIMARY_CHILD, label:'jellyfish (radial bell + 8 pulsing rim spokes + trailing tentacles)', bones:34} };
+             jellyfish:{tpl:JELLYFISH_TEMPLATE, pc:JELLYFISH_PRIMARY_CHILD, label:'jellyfish (radial bell + 8 pulsing rim spokes + trailing tentacles)', bones:34},
+             dinobiped:{tpl:DINOBIPED_TEMPLATE, pc:DINOBIPED_PRIMARY_CHILD, label:'dinosaur on two legs (T-rex / raptor / hadrosaur — bird-like legs, long tail, jaw, small arms)', bones:32},
+             dinoquad:{tpl:DINOQUAD_TEMPLATE, pc:DINOQUAD_PRIMARY_CHILD, label:'dinosaur on four legs (sauropod / stegosaur / ceratopsian — long neck + tail, jaw)', bones:33} };
 function setRig(type){
   rigType = RIGS[type] ? type : 'biped';
   const r=RIGS[rigType];
@@ -470,12 +516,13 @@ function _handleMeshScene(gltf, file){
     autoFit();
     // RE-OPEN A RIGGED GLB: if the file already has every bone of the current rig, put the joints back where they were
     // (same normalisation as the mesh) so a saved rig can be tweaked instead of starting over from the auto-fit.
-    let reopened=false;
+    let reopened=false; skinTune={reach:{},ops:[]}; WV.bone=-1;
     { const byName={}; gltf.scene.updateMatrixWorld(true); gltf.scene.traverse(o=>{ if(o.isBone && !byName[o.name]) byName[o.name]=o; });
       if(BONE_NAMES.length && BONE_NAMES.every(n=>byName[n])){
         const off=new THREE.Vector3(-ctr.x,-bb.min.y,-ctr.z), w=new THREE.Vector3();
         BONE_NAMES.forEach((n,i)=>{ byName[n].getWorldPosition(w); jointPos[i].copy(w).add(off).multiplyScalar(s); });
-        fitBase=jointPos.map(p=>p.clone()); resetSkXf(); refreshSkeleton(); reopened=true; } }
+        fitBase=jointPos.map(p=>p.clone()); resetSkXf(); refreshSkeleton(); reopened=true;
+        gltf.scene.traverse(o=>{ const t=o.userData&&o.userData.ksolSkinTune; if(t&&t.ops&&t.reach) skinTune={reach:Object.assign({},t.reach), ops:t.ops.slice()}; }); } }
     _reopenPending=false; _reopened=reopened;
     if(reopened) $('#meshInfo').innerHTML+='<br>🦴 <b>existing rig restored</b> — drag joints to adjust, then <b>💾 Save over the original</b> (or Export a copy)';
     if(_palmsNote) $('#meshInfo').innerHTML+='<br>'+_palmsNote;
@@ -1320,12 +1367,15 @@ function computeSkin(){
   // well inside the torso, a fingertip 5 cm from a thigh is not part of the thigh. Fractions of the model height.
   const H=modelHeight||2;
   const radius=TEMPLATE.map(b=>{ const n=b.name;
+    if(rigType==='dinobiped'||rigType==='dinoquad'){ const o=window.__boneRadius&&window.__boneRadius[n]; if(o) return o; const r=dinoRadius(n); if(r) return r*H; }   // 🦖 dinos: measured radii (fitter) or their real proportions
     if(/^(Hips|Spine|Spine0[12]|chest|neck|Head|head|saddle|spine0[1-4])$/.test(n)) return 0.11*H;
     if(/(UpLeg|Arm$|Shoulder|^frontleg$|^R_frontleg$|^backleg$|^R_backleg$|neck0[1-4])/.test(n)) return 0.06*H;
     if(/(^Left|^Right)(Leg|ForeArm)$|leg[01]$/.test(n)) return 0.045*H;
     if(/Hand(Thumb|Index|Middle|Ring|Pinky)\d/.test(n)) return 0.012*H;   // finger phalanges: thin, so they don't grab neighbours/palm
     if(/(Hand|Foot|ToeBase|leg2$|head_end|headfront|headend|earend|ear)/.test(n)) return 0.03*H;
     return 0.035*H; });
+  for(let i=0;i<radius.length;i++){ const f=skinTune.reach[TEMPLATE[i].name]; if(f) radius[i]*=f; }   // 🎨 weight-view Reach
+  skinRadius=radius;
   // SURFACE DISTANCE: straight-line distance cannot tell a fingertip resting against a thigh from the thigh's own skin
   // (an ape's hands hang on its legs). Measure each bone's reach along the MESH as well: from the skin nearest the bone's
   // axis outward over the surface. Skin that belongs to the bone's own body part is a short walk from it; the thigh
@@ -1335,6 +1385,7 @@ function computeSkin(){
   const geo=geodesicReach(pos, n, segs, radius);           // geo[b*n+v] in units of bone b's radius (Infinity = no path)
   const GEO_FREE=4, GEO_FAR=8, GEO_PENALTY=20;
   const d=new Float32Array(NB);
+  const dinoNeck=TEMPLATE.map(b=>(rigType==='dinobiped'||rigType==='dinoquad') && /^neck0\d$/.test(b.name));
   for(let v=0; v<n; v++){
     const px=pos.getX(v), py=pos.getY(v), pz=pos.getZ(v);
     let gmin=Infinity; for(let b=0;b<NB;b++) gmin=Math.min(gmin, geo[b*n+v]);
@@ -1347,6 +1398,9 @@ function computeSkin(){
         const fPerp  = Math.max(0, Math.min(1, (perp-0.45*g.L)/(0.50*g.L))); // off the leg axis
         const f=Math.max(fAbove,fPerp); if(f>0) db*=(1+6*f);             // body vert → push the leg out of contention
       }
+      if(dinoNeck[b]){ const sA=segs[b].a, sB=segs[b].b, ex=sB.x-sA.x, ey=sB.y-sA.y, ez=sB.z-sA.z, ll=ex*ex+ey*ey+ez*ez||1e-9;   // 🦖 NECK-BELOW guard
+        const tt=Math.max(0,Math.min(1,((px-sA.x)*ex+(py-sA.y)*ey+(pz-sA.z)*ez)/ll)), cyy=sA.y+ey*tt, under=(cyy-0.55*radius[b])-py;
+        if(under>0) db*=(1+8*Math.min(1, under/radius[b])); }   // a neck owns its own tube, never the legs/chest hanging below it (Stegosaurus front legs)
       if(gmin<Infinity){ const r=Math.max(0, Math.min(1, (geo[b*n+v]-GEO_FREE)/(GEO_FAR-GEO_FREE))); if(r>0) db*=(1+GEO_PENALTY*r); }   // a loose part (no path from any bone) keeps the plain rule
       d[b]=db; }
     // Keep the 4 nearest, but CONTINUOUSLY: the 5th bone's weight is subtracted from the kept four, so the 4th fades to
@@ -1360,7 +1414,55 @@ function computeSkin(){
   }
   if(rigType==='bipedhand' || rigType==='bipedfairy') refineHandSkin(pos, n, segs, radius, geo, skinIndex, skinWeight);   // fingers: one phalanx each, not the broad Hand bone
   if(rigType==='bipedfairy') skinFairyWings(pos, n, skinIndex, skinWeight);   // wing skin follows only its own wing; the body never follows a wing
+  if(rigType==='dinobiped'||rigType==='dinoquad') dinoSkullWeights(pos, n, skinIndex, skinWeight, geo, radius);   // 🦖 the skull moves as ONE piece
   return {skinIndex, skinWeight};
+}
+// 🦖 RIGID SKULL (2026-10-02, Paul: "face stretched / collapses inward" on the Triceratops + Stegosaurus). Distance weights split
+// a dinosaur's head between head, jaw, chin and the last neck bones, so horns, frill and face pulled apart whenever the head
+// turned. A skull is one bone: every vertex in front of the skull plane (just behind the head joint — far enough back to take
+// a frill) is the HEAD's, except the lower jaw (below the mouth line, in front of the hinge) which is the JAW's. A narrow band
+// at the skull plane and at the mouth line blends, so the neck and the lips still bend smoothly.
+function dinoSkullWeights(pos, n, skinIndex, skinWeight, geo, radius){
+  const J=nm=>IDX[nm]!=null?jointPos[IDX[nm]]:null; const H=J('head'), E=J('headend'), JW=J('jaw'), JE=J('jawend');
+  const NK=J('neck03')||J('neck02'); if(!H||!E||!NK) return;
+  const iH=IDX['head'], iJ=IDX['jaw']!=null?IDX['jaw']:IDX['head'];
+  const GEO_NECK=['neck01','neck02','neck03','chest','spine01','frontleg','R_frontleg'].map(x=>IDX[x]).filter(x=>x!=null);
+  const hl=E.distanceTo(H)||0.1;                                    // head length
+  const fwd=E.clone().sub(NK).normalize();                         // back of the neck → snout
+  const SO=window.__skullOpts||{}; const back=(SO.back!=null?SO.back:0.35)*hl;  // skull plane this far behind the head joint (crests)
+  const band=0.22*hl;
+  // mouth line in the sagittal (y,z) plane: from the jaw hinge forward to just above the chin
+  const mA=JW?{y:JW.y,z:JW.z}:null, mB=(JW&&JE)?{y:JE.y+0.45*(JW.y-JE.y)+0.15*(E.y-JW.y), z:JE.z+0.35*(E.z-JE.z)}:null;
+  const mdz=mB?mB.z-mA.z:0, mdy=mB?mB.y-mA.y:0, mlen=Math.hypot(mdz,mdy)||1;
+  const mBand=0.07*hl;
+  const sm=x=>{ x=Math.max(0,Math.min(1,x)); return x*x*(3-2*x); };
+  let nHead=0, nJaw=0;
+  for(let v=0; v<n; v++){
+    const px=pos.getX(v), py=pos.getY(v), pz=pos.getZ(v);
+    const t=(px-H.x)*fwd.x+(py-H.y)*fwd.y+(pz-H.z)*fwd.z + back;     // >0 = in front of the skull plane
+    let wSkull=sm(t/band);
+    if(SO.frillY!=null && pz>SO.frillZ) wSkull=Math.max(wSkull, sm((py-SO.frillY)/(0.06*hl)));   // a FRILL (Triceratops): the plate above the shoulders is skull
+    if(SO.frillGeo && geo && pz>SO.frillZ){   // round 2 (Paul: "tears top of shield / tears fan"): a FRILL is whatever is a shorter walk over the SKIN from
+      // the skull than from the neck/chest — the plate is attached to the skull, so all of it goes with the head however it is tilted
+      const dH=geo[iH*n+v]*radius[iH]; let dN=Infinity; for(const b of GEO_NECK) dN=Math.min(dN, geo[b*n+v]*radius[b]);
+      if(isFinite(dH)) wSkull=Math.max(wSkull, sm((dN-dH)/(0.10*hl)+0.5)); }
+    if(SO.frillWide){ const F=SO.frillWide; if(pz>F.z0 && pz<F.z1 && py>F.yMin) wSkull=Math.max(wSkull, sm((Math.abs(px)-F.x)/(0.05*hl))); }   // the frill's outer lobes stick out wider than the neck
+    if(SO.frillLine){ const [[z0,y0],[z1,y1]]=SO.frillLine; if(pz>z0-0.02){ const yl=y0+(y1-y0)*Math.max(0,Math.min(1,(pz-z0)/(z1-z0))); wSkull=Math.max(wSkull, sm((py-yl)/(0.05*hl))); } }   // frill above a SLOPED neck-top line
+    { const fy=SO.floorY!=null?SO.floorY:((JE?JE.y:H.y-0.3*hl)-0.12*hl); wSkull*=sm((py-fy)/(0.06*hl)); }   // nothing below the skull's floor (just under the chin) is skull — a low-hung head (Stegosaurus) otherwise caught the front feet
+    if(wSkull<=0) continue;
+    // lower jaw: below the mouth line and in front of the hinge
+    let wJaw=0;
+    if(mB && iJ!==iH){ const below=((pz-mA.z)*mdy-(py-mA.y)*mdz)/mlen;   // + = below the line (y up, z forward)
+      const ahead=((pz-mA.z)*mdz+(py-mA.y)*mdy)/mlen;
+      wJaw=sm((below+mBand)/(2*mBand))*sm((ahead+0.05*hl)/(0.15*hl)); }
+    // blend: existing weights × (1-wSkull) + skull (head/jaw) × wSkull
+    const W={}; for(let k=0;k<4;k++){ const b=skinIndex[v*4+k], w=skinWeight[v*4+k]*(1-wSkull); if(w>0) W[b]=(W[b]||0)+w; }
+    W[iH]=(W[iH]||0)+wSkull*(1-wJaw); if(wJaw>0) W[iJ]=(W[iJ]||0)+wSkull*wJaw;
+    const top=Object.entries(W).sort((a,b)=>b[1]-a[1]).slice(0,4); const sum=top.reduce((s,e)=>s+e[1],0)||1;
+    for(let k=0;k<4;k++){ skinIndex[v*4+k]=top[k]?+top[k][0]:0; skinWeight[v*4+k]=top[k]?top[k][1]/sum:0; }
+    if(wSkull>0.99){ if(wJaw>0.5) nJaw++; else nHead++; }
+  }
+  window.__skullStats={nHead, nJaw, hl:+hl.toFixed(3)};
 }
 // Per-bone shortest-path distance over the mesh surface (Dijkstra from the skin nearest the bone's axis), in units of
 // that bone's radius. Vertices are welded by position first (glTF splits them at UV seams). Returns a flat array
@@ -1472,6 +1574,7 @@ function buildBones(){
 let previewSkinned=null;
 function buildSkinnedMesh(){
   const {skinIndex, skinWeight}=computeSkin();
+  applySkinOps(skinIndex, skinWeight);   // 🎨 weight-view fixes
   const geo=meshGeo.clone();
   geo.setAttribute('skinIndex', new THREE.BufferAttribute(skinIndex,4));
   geo.setAttribute('skinWeight', new THREE.BufferAttribute(skinWeight,4));
@@ -1487,15 +1590,183 @@ function buildSkinnedMesh(){
 $('#bindPreview').onclick=()=>{
   if(!meshGeo){ setStatus('Load a mesh first.'); return; }
   setStatus('Binding skin…');
-  setTimeout(()=>{
-    if(previewSkinned){ scene.remove(previewSkinned); previewSkinned=null; }
-    const {skinned}=buildSkinnedMesh();
-    if(meshObj) meshObj.visible=false;
-    scene.add(skinned); previewSkinned=skinned;
-    // quick wiggle to show the skin deforms: nudge the arms, then restore
-    setStatus('Skin bound. Exported rig will deform like this. (mesh hidden; showing skinned copy)');
-  },10);
+  setTimeout(()=>{ rebindPreview(); setStatus('Skin bound. Exported rig will deform like this. (mesh hidden; showing skinned copy)'); },10);
 };
+// ═════ 🎨 WEIGHT VIEW + TUNING (2026-10-02, Paul: "start the weight view") ═════════════════════════════════════════════════
+// See which bone owns which skin, flex a bone to see tears, and fix them. Every change lives in skinTune and is applied to the
+// EXPORTED rig as well (computeSkin reads the reach factors; buildSkinnedMesh runs the fixes after it) and travels inside the
+// rigged GLB (glTF extras ksolSkinTune), so re-opening the rig keeps the tuning.
+//   reach[bone]  × that bone's skin radius (how far it grabs the mesh)
+//   ops: {t:'parent', b} this bone's skin goes to its parent (a tip joint should own nothing — a beak tip, a toe tip)
+//        {t:'rigid',  b} from this joint outward everything moves with this bone (a foot, a hand, a skull held together)
+//        {t:'smooth', b} blend the weights around this bone over the surface (soft joints, no tear lines)
+let skinTune={reach:{}, ops:[]}, skinRadius=[];
+const WV={on:false, bone:-1, bend:0, turn:0, rest:null};
+const wvMat=new THREE.MeshLambertMaterial({vertexColors:true, side:THREE.DoubleSide});
+const WV_OPS={parent:'its skin → parent', rigid:'held together from here out', smooth:'edges smoothed'};
+let _wvAdj=null;
+function wvAdjacency(){                                   // welded vertex neighbours (glTF splits vertices at UV seams)
+  if(_wvAdj && _wvAdj.geo===meshGeo) return _wvAdj;
+  const P=meshGeo.attributes.position, n=P.count, q=(modelHeight||2)*1e-5, key=new Map(), rep=new Int32Array(n);
+  for(let v=0;v<n;v++){ const k=Math.round(P.getX(v)/q)+','+Math.round(P.getY(v)/q)+','+Math.round(P.getZ(v)/q); let r=key.get(k); if(r===undefined){ r=v; key.set(k,v); } rep[v]=r; }
+  const nb=new Map(), add=(a,b)=>{ if(a===b) return; let s=nb.get(a); if(!s) nb.set(a,s=new Set()); s.add(b); };
+  const I=meshGeo.index, nt=I?I.count/3:n/3;
+  for(let t=0;t<nt;t++){ const a=rep[I?I.getX(t*3):t*3], b=rep[I?I.getX(t*3+1):t*3+1], c=rep[I?I.getX(t*3+2):t*3+2]; add(a,b); add(b,a); add(b,c); add(c,b); add(a,c); add(c,a); }
+  return _wvAdj={geo:meshGeo, rep, nb};
+}
+// SYMMETRIC (the rig's Symmetric switch): a fix on a left bone also applies to its right twin, paint strokes with x mirrored
+const wvTwin=nm=>{ const t=MIRROR&&MIRROR[nm]; return t&&t!==nm&&IDX[t]!=null ? t : null; };
+function wvMirrorOp(o){ const t=wvTwin(o.b); if(!t) return null; const m=Object.assign({}, o, {b:t}); if(o.pts) m.pts=o.pts.map(p=>[-p[0],p[1],p[2]]); delete m.sym; return m; }
+function applySkinOps(skinIndex, skinWeight){
+  if(!skinTune.ops.length || !meshGeo) return;
+  const pos=meshGeo.attributes.position, n=pos.count;
+  const row=v=>{ const m=new Map(); for(let k=0;k<4;k++){ const w=skinWeight[v*4+k]; if(w>0){ const b=skinIndex[v*4+k]; m.set(b,(m.get(b)||0)+w); } } return m; };
+  const put=(v,m)=>{ const a=[...m.entries()].filter(e=>e[1]>1e-5).sort((x,y)=>y[1]-x[1]).slice(0,4); const s=a.reduce((t,e)=>t+e[1],0)||1;
+    for(let k=0;k<4;k++){ skinIndex[v*4+k]=a[k]?a[k][0]:0; skinWeight[v*4+k]=a[k]?a[k][1]/s:0; } };
+  const desc=b=>{ const out=new Set([b]); let grew=true; while(grew){ grew=false; TEMPLATE.forEach((t,i)=>{ if(t.parent!=null && out.has(IDX[t.parent]) && !out.has(i)){ out.add(i); grew=true; } }); } return out; };
+  const rad=i=>skinRadius[i]||0.035*(modelHeight||2), v3=new THREE.Vector3();
+  const segs=boneSegments();
+  const all=[]; for(const o of skinTune.ops){ all.push(o); if(o.sym){ const m=wvMirrorOp(o); if(m) all.push(m); } }
+  for(const op of all){ const b=IDX[op.b]; if(b==null) continue; const par=TEMPLATE[b].parent!=null?IDX[TEMPLATE[b].parent]:null;
+    if(op.t==='parent'){ if(par==null) continue;
+      for(let v=0;v<n;v++){ const m=row(v), w=m.get(b); if(!w) continue; m.delete(b); m.set(par,(m.get(par)||0)+w); put(v,m); } }
+    else if(op.t==='rigid'){ if(par==null) continue;
+      const a=jointPos[b], dir=a.clone().sub(jointPos[par]); const L=dir.length()||0.1; dir.normalize();
+      const R=Math.max(2.5*rad(b), 0.9*L), band=Math.max(0.35*rad(b), 0.12*L), keep=desc(b);
+      for(let v=0;v<n;v++){ v3.set(pos.getX(v)-a.x,pos.getY(v)-a.y,pos.getZ(v)-a.z); const t=v3.dot(dir); if(t<-band) continue;
+        if(v3.addScaledVector(dir,-t).length()>R) continue;
+        let f=Math.min(1,(t+band)/(2*band)); f=f*f*(3-2*f);
+        const m=row(v); let moved=0; for(const [bb,w] of [...m]){ if(keep.has(bb)) continue; const d=w*f; m.set(bb,w-d); moved+=d; }
+        if(moved>0){ m.set(b,(m.get(b)||0)+moved); put(v,m); } } }
+    else if(op.t==='paint'){ for(const pt of op.pts) wpDab(skinIndex, skinWeight, op, pt); }
+    else if(op.t==='smooth'){ const {rep,nb}=wvAdjacency(), s=segs[b], R=2*rad(b);
+      const zone=[]; const seen=new Set();
+      for(let v=0;v<n;v++){ const r=rep[v]; if(seen.has(r)) continue; seen.add(r); if(distToSegment(pos.getX(r),pos.getY(r),pos.getZ(r), s.a, s.b)<=R) zone.push(r); }
+      let W=new Map(zone.map(r=>[r,row(r)])); const inZone=new Set(zone);
+      for(let it=0;it<8;it++){ const next=new Map();
+        for(const r of zone){ const acc=new Map(); const own=W.get(r); for(const [k,w] of own) acc.set(k,0.5*w);
+          const ns=nb.get(r); if(!ns||!ns.size){ next.set(r,own); continue; } const f=0.5/ns.size;
+          for(const q2 of ns){ const m=W.get(q2) || (inZone.has(q2)?null:row(q2)); if(!m) continue; for(const [k,w] of m) acc.set(k,(acc.get(k)||0)+f*w); }
+          next.set(r,acc); }
+        W=next; }
+      for(let v=0;v<n;v++){ const m=W.get(rep[v]); if(m) put(v,m); } }
+  }
+}
+function wvHeat(w,c){ return w<0.002 ? c.setRGB(0.10,0.12,0.22) : c.setHSL(0.66*(1-Math.min(1,w)), 0.85, 0.5); }
+function paintWeights(){ if(!previewSkinned) return;
+  const g=previewSkinned.geometry, si=g.attributes.skinIndex, sw=g.attributes.skinWeight, n=si.count;
+  let col=g.attributes.color; if(!col||col.count!==n){ col=new THREE.BufferAttribute(new Float32Array(n*3),3); g.setAttribute('color',col); }
+  const c=new THREE.Color(), tmp=new THREE.Color(), pal=TEMPLATE.map((_,i)=>new THREE.Color().setHSL((i*0.61803)%1, 0.7, 0.55));
+  for(let v=0;v<n;v++){
+    if(WV.bone>=0){ let w=0; for(let k=0;k<4;k++) if(si.getComponent(v,k)===WV.bone) w+=sw.getComponent(v,k); wvHeat(w,c); }
+    else { c.setRGB(0,0,0); for(let k=0;k<4;k++){ const w=sw.getComponent(v,k); if(w>0) c.add(tmp.copy(pal[si.getComponent(v,k)]).multiplyScalar(w)); } }
+    col.setXYZ(v,c.r,c.g,c.b); }
+  col.needsUpdate=true; }
+function applyTestPose(){ if(!previewSkinned || !WV.rest) return; const bones=previewSkinned.skeleton.bones;
+  bones.forEach((bn,i)=>bn.quaternion.copy(WV.rest[i]));
+  if(WV.bone>=0 && (WV.bend || WV.turn)){ const bn=bones.find(x=>x.name===TEMPLATE[WV.bone].name); if(bn){ previewSkinned.updateMatrixWorld(true);
+    const pw=new THREE.Quaternion(); if(bn.parent) bn.parent.getWorldQuaternion(pw); const inv=pw.clone().invert();
+    const r=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0).applyQuaternion(inv), WV.bend*Math.PI/180)
+      .multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0).applyQuaternion(inv), WV.turn*Math.PI/180));
+    bn.quaternion.copy(r.multiply(bn.quaternion)); } }
+  previewSkinned.updateMatrixWorld(true); }
+function rebindPreview(){
+  if(!meshGeo) return;
+  if(previewSkinned){ scene.remove(previewSkinned); previewSkinned=null; }
+  const {skinned}=buildSkinnedMesh();
+  if(meshObj) meshObj.visible=false;
+  scene.add(skinned); previewSkinned=skinned; WV.rest=skinned.skeleton.bones.map(b=>b.quaternion.clone());
+  if(WV.on){ skinned.material=wvMat; paintWeights(); }
+  applyTestPose(); wvList(); }
+function wvList(){ const el=$('#wvList'); if(!el) return; const r=Object.entries(skinTune.reach);
+  const items=[...r.map(([b,f])=>({txt:`${b}: reach ${(+f).toFixed(2)}×`, del:()=>{ delete skinTune.reach[b]; }})),
+               ...skinTune.ops.map((o,i)=>({txt:`${o.b}${o.sym?' ⇆ '+(wvTwin(o.b)||''):''}: ${o.t==='paint' ? 'painted ('+o.m+')' : (WV_OPS[o.t]||o.t)}`, del:()=>{ skinTune.ops.splice(i,1); }}))];
+  el.innerHTML = items.length ? '<b>Your fixes</b> (kept in the export): '+items.map((it,i)=>`<span class="wvchip">${it.txt} <a data-i="${i}" title="Remove">✕</a></span>`).join(' ') : 'No weight fixes yet.';
+  el.querySelectorAll('a[data-i]').forEach(a=>a.onclick=()=>{ items[+a.dataset.i].del(); wvRebind(); }); }
+function wvRebind(){ setStatus('Re-skinning…'); setTimeout(()=>{ rebindPreview(); setStatus('Skin updated — this is how the exported rig will deform.'); },10); }
+function wvFillBones(){ const s=$('#wvBone'); s.innerHTML='<option value="-1">— all bones (one colour each) —</option>'+TEMPLATE.map((b,i)=>`<option value="${i}">${b.name}</option>`).join(''); s.value=String(WV.bone); }
+function setWVBone(i, fromMesh){ WV.bone=i; WV.bend=0; WV.turn=0; $('#wvBone').value=String(i); $('#wvBend').value=0; $('#wvTurn').value=0; $('#wvBendV').textContent='0°'; $('#wvTurnV').textContent='0°';
+  const f=i>=0 ? (skinTune.reach[TEMPLATE[i].name]||1) : 1; $('#wvReach').value=f; $('#wvReachV').textContent=f.toFixed(2)+'×';
+  $('#wvBoneTools').style.opacity = i>=0 ? 1 : 0.45; $('#wvBoneTools').style.pointerEvents = i>=0 ? '' : 'none';
+  if(fromMesh && i>=0){ selJoint=i; multiSel.clear(); refreshSkeleton(); showSel(); }
+  applyTestPose(); paintWeights(); }
+$('#wvToggle').onclick=()=>{ if(!meshGeo){ setStatus('Load a mesh first.'); return; }
+  WV.on=!WV.on; $('#wvToggle').textContent = WV.on ? '🎨 Hide weights' : '🎨 Show weights'; $('#wvTools').style.display = WV.on ? '' : 'none';
+  if(WV.on){ WP.r=(+$('#wpSize').value)*(modelHeight||2); wvFillBones(); setWVBone(WV.bone,false); if(!previewSkinned) wvRebind(); else { previewSkinned.material=wvMat; paintWeights(); wvList(); } }
+  else { if(previewSkinned) previewSkinned.material=meshMat; if(WP.mode) wpSetMode(WP.mode); } };
+$('#wvBone').onchange=e=>setWVBone(+e.target.value, true);
+$('#wvBend').oninput=e=>{ WV.bend=+e.target.value; $('#wvBendV').textContent=WV.bend+'°'; applyTestPose(); };
+$('#wvTurn').oninput=e=>{ WV.turn=+e.target.value; $('#wvTurnV').textContent=WV.turn+'°'; applyTestPose(); };
+$('#wvReach').oninput=e=>{ $('#wvReachV').textContent=(+e.target.value).toFixed(2)+'×'; };
+$('#wvReach').onchange=e=>{ if(WV.bone<0) return; const f=+e.target.value, nm=TEMPLATE[WV.bone].name, tw=$('#mirror').checked?wvTwin(nm):null; for(const k of [nm,tw]){ if(!k) continue; if(Math.abs(f-1)<0.01) delete skinTune.reach[k]; else skinTune.reach[k]=f; } wvRebind(); };
+for(const [id,t] of [['wvParent','parent'],['wvRigid','rigid'],['wvSmooth','smooth']]) $('#'+id).onclick=()=>{ if(WV.bone<0) return; const b=TEMPLATE[WV.bone].name;
+  if(t==='parent' && TEMPLATE[WV.bone].parent==null){ setStatus('The root bone has no parent.'); return; }
+  if(!skinTune.ops.some(o=>o.t===t && o.b===b)) skinTune.ops.push({t,b, sym:$('#mirror').checked && !!wvTwin(b)}); wvRebind(); };
+$('#wvReset').onclick=()=>{ if(!skinTune.ops.length && !Object.keys(skinTune.reach).length) return; if(!confirm('Remove all your weight fixes?')) return; skinTune={reach:{},ops:[]}; setWVBone(WV.bone,false); wvRebind(); };
+// click the model (without dragging) to pick the bone that owns that spot; clicking a joint picks that joint's bone
+let _wvDown=null;
+renderer.domElement.addEventListener('pointerdown', e=>{ _wvDown={x:e.clientX, y:e.clientY, b:e.button, sel:selJoint}; }, true);
+renderer.domElement.addEventListener('pointerup', e=>{ const d=_wvDown; _wvDown=null; if(!WV.on || !d || d.b!==0) return;
+  if(selJoint!==d.sel && selJoint>=0){ setWVBone(selJoint,false); return; }
+  if(Math.abs(e.clientX-d.x)+Math.abs(e.clientY-d.y)>4 || !previewSkinned) return;
+  const p=ndc(e); ray.setFromCamera(p, camera); const hit=ray.intersectObject(previewSkinned,false)[0]; if(!hit || !hit.face) return;
+  const g=previewSkinned.geometry, si=g.attributes.skinIndex, sw=g.attributes.skinWeight; let best=-1, bw=-1;
+  for(const v of [hit.face.a, hit.face.b, hit.face.c]) for(let k=0;k<4;k++){ const w=sw.getComponent(v,k); if(w>bw){ bw=w; best=si.getComponent(v,k); } }
+  if(best>=0){ setWVBone(best,true); setStatus('Bone: '+TEMPLATE[best].name+' — drag Test bend / Test turn to flex it.'); } });
+// 🖌 WEIGHT PAINT (phase 2): with a bone picked, choose Add / Remove / Smooth and drag on the model. Each stroke is one fix
+// {t:'paint', b, m:'add'|'remove'|'smooth', r, s, pts:[[x,y,z]…]} in mesh space, so it re-applies identically on every re-skin and
+// in the export. While painting, the stroke is written straight into the preview's weights (no full re-skin) for live feedback.
+const WP={mode:null, r:0.06, s:0.5, stroke:null};
+let _wpGrid=null;
+function wpGrid(cell){ if(_wpGrid && _wpGrid.geo===meshGeo && _wpGrid.cell===cell) return _wpGrid;
+  const P=meshGeo.attributes.position, n=P.count, map=new Map(), key=(x,y,z)=>x+','+y+','+z;
+  for(let v=0;v<n;v++){ const k=key(Math.floor(P.getX(v)/cell),Math.floor(P.getY(v)/cell),Math.floor(P.getZ(v)/cell)); let a=map.get(k); if(!a) map.set(k,a=[]); a.push(v); }
+  return _wpGrid={geo:meshGeo, cell, map, key}; }
+function wpNear(pt, r){ const G=wpGrid(Math.max(0.01, r)), P=meshGeo.attributes.position, out=[], cx=Math.floor(pt[0]/G.cell), cy=Math.floor(pt[1]/G.cell), cz=Math.floor(pt[2]/G.cell), r2=r*r;
+  for(let i=-1;i<=1;i++) for(let j=-1;j<=1;j++) for(let k=-1;k<=1;k++){ const a=G.map.get(G.key(cx+i,cy+j,cz+k)); if(!a) continue;
+    for(const v of a){ const dx=P.getX(v)-pt[0], dy=P.getY(v)-pt[1], dz=P.getZ(v)-pt[2], d2=dx*dx+dy*dy+dz*dz; if(d2<r2) out.push([v, 1-Math.sqrt(d2)/r]); } }
+  return out; }
+// one brush dab on raw 4-wide arrays (used live on the preview AND by applySkinOps for the export)
+function wpDab(si, sw, op, pt){ const b=IDX[op.b]; if(b==null) return; const par=TEMPLATE[b].parent!=null?IDX[TEMPLATE[b].parent]:null;
+  const row=v=>{ const m=new Map(); for(let k=0;k<4;k++){ const w=sw[v*4+k]; if(w>0){ const q=si[v*4+k]; m.set(q,(m.get(q)||0)+w); } } return m; };
+  const put=(v,m)=>{ const a=[...m.entries()].filter(e=>e[1]>1e-5).sort((x,y)=>y[1]-x[1]).slice(0,4); const s=a.reduce((t,e)=>t+e[1],0)||1;
+    for(let k=0;k<4;k++){ si[v*4+k]=a[k]?a[k][0]:0; sw[v*4+k]=a[k]?a[k][1]/s:0; } };
+  const hits=wpNear(pt, op.r);
+  if(op.m==='smooth'){ const {rep,nb}=wvAdjacency(); const upd=[];
+    for(const [v,f] of hits){ const ns=nb.get(rep[v]); if(!ns||!ns.size) continue; const acc=new Map(), own=row(v), a=op.s*f*f*(3-2*f);
+      for(const [q,w] of own) acc.set(q,(1-a)*w); for(const q of ns){ for(const [k,w] of row(q)) acc.set(k,(acc.get(k)||0)+a*w/ns.size); } upd.push([v,acc]); }
+    for(const [v,m] of upd) put(v,m); return; }
+  for(const [v,f] of hits){ const a=op.s*f*f*(3-2*f); const m=row(v), wb=m.get(b)||0;
+    if(op.m==='add'){ const nw=wb+a*(1-wb), rest=1-wb, k=rest>1e-6?(1-nw)/rest:0; for(const [q,w] of m) if(q!==b) m.set(q,w*k); m.set(b,nw); }
+    else { const nw=wb*(1-a), freed=wb-nw; m.set(b,nw); let rest=0; for(const [q,w] of m) if(q!==b) rest+=w;
+      if(rest>1e-6){ for(const [q,w] of m) if(q!==b) m.set(q,w+freed*w/rest); } else if(par!=null) m.set(par,(m.get(par)||0)+freed); }
+    put(v,m); } }
+function wpSetMode(m){ WP.mode = WP.mode===m ? null : m; for(const [id,k] of [['wpAdd','add'],['wpRemove','remove'],['wpSmooth','smooth']]) $('#'+id).classList.toggle('on', WP.mode===k);
+  renderer.domElement.style.cursor = WP.mode ? 'crosshair' : ''; if(WP.mode && (WV.bend||WV.turn)){ WV.bend=WV.turn=0; $('#wvBend').value=0; $('#wvTurn').value=0; $('#wvBendV').textContent='0°'; $('#wvTurnV').textContent='0°'; applyTestPose(); }
+  if(!WP.mode) wpRing.visible=false; }
+const wpRing=new THREE.Mesh(new THREE.SphereGeometry(1,16,10), new THREE.MeshBasicMaterial({color:0xffd15b, wireframe:true, transparent:true, opacity:0.35, depthTest:false}));
+wpRing.visible=false; wpRing.renderOrder=20; scene.add(wpRing);
+function wpHit(e){ if(!previewSkinned) return null; const p=ndc(e); ray.setFromCamera(p, camera); const h=ray.intersectObject(previewSkinned,false)[0]; return h ? h.point : null; }
+$('#wpAdd').onclick=()=>wpSetMode('add'); $('#wpRemove').onclick=()=>wpSetMode('remove'); $('#wpSmooth').onclick=()=>wpSetMode('smooth');
+$('#wpSize').oninput=e=>{ WP.r=+e.target.value*(modelHeight||2); $('#wpSizeV').textContent=(+e.target.value*100).toFixed(1)+'%'; };
+$('#wpStr').oninput=e=>{ WP.s=+e.target.value; $('#wpStrV').textContent=Math.round(WP.s*100)+'%'; };
+renderer.domElement.addEventListener('pointerdown', e=>{ if(!WV.on || !WP.mode || WV.bone<0 || e.button!==0) return; const pt=wpHit(e); if(!pt) return;
+  e.stopImmediatePropagation(); e.preventDefault(); renderer.domElement.setPointerCapture(e.pointerId);
+  WP.stroke={t:'paint', b:TEMPLATE[WV.bone].name, m:WP.mode, r:+WP.r.toFixed(4), s:WP.s, pts:[], sym:$('#mirror').checked && !!wvTwin(TEMPLATE[WV.bone].name)}; wpAddPt(pt); }, true);
+renderer.domElement.addEventListener('pointermove', e=>{ if(!WV.on || !WP.mode) return; const pt=wpHit(e);
+  if(pt){ wpRing.position.copy(pt); wpRing.scale.setScalar(WP.r); wpRing.visible=true; } else wpRing.visible=false;
+  if(WP.stroke){ e.stopImmediatePropagation(); if(pt) wpAddPt(pt); } }, true);
+renderer.domElement.addEventListener('pointerup', e=>{ if(!WP.stroke) return; e.stopImmediatePropagation(); const s=WP.stroke; WP.stroke=null;
+  if(s.pts.length){ skinTune.ops.push(s); wvList(); setStatus('Painted '+s.b+' ('+s.m+', '+s.pts.length+' dabs) — kept in the export.'); } }, true);
+function wpAddPt(pt){ const s=WP.stroke, last=s.pts[s.pts.length-1], p=[+pt.x.toFixed(4),+pt.y.toFixed(4),+pt.z.toFixed(4)];
+  if(last && Math.hypot(p[0]-last[0],p[1]-last[1],p[2]-last[2]) < s.r*0.35) return;          // space the dabs at ~1/3 brush
+  s.pts.push(p); const g=previewSkinned.geometry, si=g.attributes.skinIndex, sw=g.attributes.skinWeight;
+  wpDab(si.array, sw.array, s, p); if(s.sym){ const t=wvTwin(s.b); if(t) wpDab(si.array, sw.array, Object.assign({},s,{b:t}), [-p[0],p[1],p[2]]); } si.needsUpdate=true; sw.needsUpdate=true; paintWeights(); }
+
+// Ctrl+Z while the weight view is open: take back the last weight fix (paint stroke, button fix or reach change)
+document.addEventListener('keydown', e=>{ if(!WV.on || !(e.ctrlKey||e.metaKey) || e.key.toLowerCase()!=='z' || /^(INPUT|SELECT|TEXTAREA)$/.test((e.target&&e.target.tagName)||'')) return;
+  if(skinTune.ops.length){ const o=skinTune.ops.pop(); e.preventDefault(); setStatus('Undid: '+o.b+' '+(o.t==='paint'?'paint stroke':(WV_OPS[o.t]||o.t))); wvRebind(); } });
+window.__wv={ WV, get tune(){ return skinTune; }, set tune(v){ skinTune=v; }, rebindPreview, setWVBone, paintWeights, WP, wpSetMode, skinHash:()=>{ if(!previewSkinned) return 0; const a=previewSkinned.geometry.attributes.skinWeight.array, x=previewSkinned.geometry.attributes.skinIndex.array; let h=0; for(let i=0;i<a.length;i++) h+=a[i]*(x[i]+1)*((i%97)+1); return h; }, buildGLB:()=>buildRiggedGLB(), rigType:()=>rigType };   // debug / tests
 
 // ---------- save over the original (re-opened rigs) ----------
 function syncSaveOver(){ const b=$('#saveOverBtn'); if(!b) return; const can=!!(meshGeo && _reopened && (_srcHandle || _srcLibId));
@@ -1531,6 +1802,7 @@ $('#saveOverBtn').onclick=async()=>{
 // Armature wrapper for export. Fingered biped rigs are fitted to T-pose meshes (Mixamo-style rest), so they carry a
 // `ksolRestPose:'tpose'` flag (glTF extras) that tells the GLB Stitcher to use its world-aligned retarget for them.
 function exportHolder(skinned){ const h=new THREE.Group(); h.name='Armature'; h.add(skinned);
+  if(skinTune.ops.length || Object.keys(skinTune.reach).length) h.userData.ksolSkinTune=JSON.parse(JSON.stringify(skinTune));   // 🎨 weight fixes travel with the rig
   if(rigType==='bipedhand' || rigType==='biped' || rigType==='bipedfairy') h.userData.ksolRestPose='tpose';
   // FORWARD (glTF extras ksolForward, armature space): the way this rig faces, read off the fitted feet (heel → toe; else
   // left-hip × up) so the Stitcher's facing arrow and anything else downstream know it without guessing from bone names

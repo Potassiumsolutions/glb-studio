@@ -27,6 +27,9 @@
   .app-menu-sep{height:1px;background:var(--line,#252c37);margin:5px 2px}
   .modal-ov{position:fixed;inset:0;background:rgba(4,7,11,.72);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px}
   .modal-ov[hidden]{display:none}
+  /* 2026-10-02 (Paul: "can't scroll the popup"): a popup taller than the window was cut off top and bottom with no way to reach the rest — every popup now stays inside the window and scrolls */
+  .modal-ov{overflow-y:auto}
+  .modal-card{max-height:calc(100vh - 40px);overflow-y:auto;overscroll-behavior:contain}
   .modal-card{background:var(--panel,#0e1218);border:1px solid var(--line,#252c37);border-radius:12px;padding:20px 22px;max-width:440px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.5)}
   .about-title{display:flex;align-items:baseline;gap:10px;margin-bottom:8px}
   .about-ver{font-size:12px;font-weight:600;color:var(--accent2);background:var(--panel2,#161b23);border:1px solid var(--line,#252c37);border-radius:99px;padding:2px 9px;white-space:nowrap}
@@ -167,6 +170,19 @@
   .sidebar-tabs button{flex:1;font-size:12px;padding:7px 3px;border:1px solid var(--line);background:var(--panel2);color:var(--muted);cursor:pointer;border-radius:8px}
   .sidebar-tabs button:hover{color:var(--text)}
   .sidebar-tabs button.on{background:var(--panel);color:var(--text);font-weight:600;border-color:var(--accent)}
+  /* dock / undock / hide the left panel (2026-10-02, Paul: give the 3D view all the room on multi-monitor setups) */
+  .sidebar-tabs button.sb-tool{flex:0 0 30px;padding:7px 0;font-size:13px}
+  body.sb-hidden .sidebar{display:none}
+  #sbShow{display:none;position:absolute;left:0;top:50%;transform:translateY(-50%);z-index:30;padding:14px 5px;border:1px solid var(--line);border-left:0;border-radius:0 9px 9px 0;background:var(--panel2);color:var(--text);cursor:pointer;font-size:13px}
+  #sbShow:hover{border-color:var(--accent)}
+  body.sb-hidden #sbShow, body.sb-out #sbShow{display:block}
+  body.in-studio > header{display:none}
+  /* the node editor and the flow strip can go to their own window too (Paul: "upsize that window so we could see many more characters") */
+  .node-undock{position:absolute;top:10px;right:12px;z-index:7;font-size:12px;padding:6px 10px;border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:8px;cursor:pointer}
+  .node-undock:hover{border-color:var(--accent)}
+  .node-editor.undocked{position:relative!important;inset:auto!important;display:block!important;height:100vh!important;min-height:100vh}
+  .timeline.undocked{max-height:none!important;min-height:100vh;height:auto}
+  .timeline.undocked .tl-row{flex-wrap:wrap;row-gap:4px}   /* inside GLB Studio the File menu lives in the Studio bar (next to About) */
   .node-hint{position:absolute;left:12px;bottom:12px;right:12px;font-size:11px;color:var(--muted);pointer-events:none}
   .node-marquee{position:absolute;border:1px solid var(--accent);background:rgba(91,157,255,.14);border-radius:2px;pointer-events:none;z-index:7}
   .scrubber{display:flex;align-items:center;gap:10px;padding:8px 12px 2px;position:relative}
@@ -835,6 +851,7 @@
       </div>
       <div class="node-editor" id="nodeEditor">
         <button class="node-link" id="linkNodes" title="Connect the selected GLBs in order" disabled>🔗 Link selected</button>
+        <button class="node-undock" id="nodeUndock" type="button" title="Open the node editor in its own window — drag it onto another monitor and make it as big as you like; the 3D view stays here. Close that window (or press again) to put it back.">⧉ Own window</button>
         <svg id="nodeWires"></svg>
         <div class="node-layer" id="nodeLayer"></div>
         <div class="node-hint">Each row is a character's own timeline · click a <b>▶ Start</b> (or a character in the list) to make it <b>active</b> — new movements are added to the active character · click a movement to select it; the next movement you add is inserted right after it · drag a movement's <b>▸ out</b> onto another's <b>in ◂</b> to reorder within that character · click a wire to drop a link · <b>Ctrl+C / X / V</b> copy · cut · paste and <b>Del</b> delete the selected node(s) · <b>Ctrl+D</b> duplicate · <b>Ctrl+A</b> select all</div>
@@ -868,6 +885,7 @@
       <span class="st lbl">⏱ Scrub</span>
       <input id="scrub" type="range" min="0" max="1000" value="0" step="1" title="Drag to jump to any moment in the stitched scene — also acts as the playhead during Preview playback">
       <span class="st" id="scrubT">0.00s</span>
+      <button class="sbtn" id="flowUndock" type="button" title="Open the flow (every character's row of clips) in its own window — drag it onto another monitor and make it as big as you like. Close that window (or press again) to put it back.">⧉</button>
     </div>
     <div class="timeline" id="timeline"></div>
   </section>
@@ -1007,6 +1025,7 @@
 }
 </script>
 <script src="../studio/studio-lib.js"></script>
+<script src="../studio/undock.js"></script>
 <script type="module">
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
@@ -1016,7 +1035,7 @@ import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 
 const $ = s => document.querySelector(s);
-const APP_NAME='GLB Stitcher', APP_VERSION='1.11.3', APP_BUILD='2026-10-01';   // version shown in About + footer
+const APP_NAME='GLB Stitcher', APP_VERSION='1.11.5', APP_BUILD='2026-10-02';   // version shown in About + footer
 // Bump APP_BUILD whenever the app or the bundled motion library changes. It is printed to the console and
 // shown in the footer so "am I running the current version?" can be answered by looking, not by guessing —
 // a stale browser tab kept an old build alive twice while the files on disk were already up to date.
@@ -3049,6 +3068,7 @@ function zoomCam(step){                           // dolly in / out via the fram
 }
 // Free-look: tumble the whole view (Alt + right-drag) — the character stays exactly where/what it is.
 function freeView(dx, dy){
+  if(camDir){ rotCamDir(-dx*0.005, dy*0.005); return; }
   viewYaw   = clampN(viewYaw   + dx*0.005, -Math.PI, Math.PI);
   viewPitch = clampN(viewPitch - dy*0.005, -1.55, 1.55);   // ~±89°: nearly overhead / underneath (Top-view button = exact straight-down)
   orbitCamera(0); renderFrame();
@@ -3059,7 +3079,7 @@ let viewFreeMode=false;   // Orbit-view button: plain left-drag tumbles the view
 let topView=false;        // straight-down top view (view-cube Top button)
 function applyView(){ if(clips.length) refreshView(); else { orbitCamera(0); renderFrame(); } }   // works with or without a character
 function resetCamera(){                           // back to the default camera view (leaves model heading/placement)
-  resetFreeView(); topView=false;
+  resetFreeView(); topView=false; camDir=null;
   $('#pad').value=1.4; $('#camY').value=0.2; $('#vpos').value=-0.35; $('#camYaw').value=0;
   const c=clips[selIndex]; if(c&&c.cam&&c.cam.custom){ Object.assign(c.cam,{yaw:0,camY:0.2,vpos:-0.35,pad:1.4}); }
   $('#camYaw').dispatchEvent(new Event('input')); applyView();
@@ -3070,7 +3090,7 @@ function resetView(){                             // camera + model heading back
 // Snap the camera to a preset angle (view-cube). Drives the same yaw/height/vpos sliders the whole
 // pipeline reads, so the choice persists into preview + render and works in ensemble ("Show all") too.
 function setView(yaw, camY, vpos){
-  topView=false;
+  topView=false; camDir=null;
   $('#camYaw').value=yaw; $('#camY').value=camY; if(vpos!==undefined) $('#vpos').value=vpos;
   const c=clips[selIndex]; if(c&&c.cam&&c.cam.custom){ c.cam.yaw=yaw; c.cam.camY=camY; if(vpos!==undefined) c.cam.vpos=vpos; }
   $('#camYawVal').textContent=yaw+'°';
@@ -3078,7 +3098,20 @@ function setView(yaw, camY, vpos){
   if(vpos!==undefined) $('#vposVal').textContent=(+vpos).toFixed(2);
   applyView();
 }
-function setTopView(){ topView=true; applyView(); }   // straight-down (view-cube Top)
+function setTopView(){ snapCamDir(new THREE.Vector3(0,1,0)); }   // straight-down (view-cube Top) — glides there like the cube
+// ── view-cube camera moves ──
+function curCamDir(){ if(camDir) return camDir.clone(); const t=_camLook||{x:0,y:0,z:0}; return camera.position.clone().sub(new THREE.Vector3(t.x,t.y,t.z)).normalize(); }
+function rotCamDir(dYaw, dPitch){                // orbit the cube direction: yaw about vertical, pitch over the top (stops just short of the poles)
+  topView=false; let d=curCamDir(); d.applyAxisAngle(new THREE.Vector3(0,1,0), dYaw);
+  const right=new THREE.Vector3(d.z,0,-d.x); if(right.lengthSq()>1e-8){ right.normalize(); const e=d.clone().applyAxisAngle(right, -dPitch); if(Math.abs(e.y)<0.995) d=e; }
+  camDir=d.normalize(); orbitCamera(0); renderFrame(); }
+let _cubeAnim=0;
+function snapCamDir(target){                      // glide (600 ms, ease in-out) from the current view direction to `target`
+  topView=false; const from=curCamDir(), to=target.clone().normalize(), q=new THREE.Quaternion().setFromUnitVectors(from,to), id=++_cubeAnim, t0=performance.now();
+  const step=now=>{ if(id!==_cubeAnim) return; const u=Math.min(1,(now-t0)/600), e=u<0.5?2*u*u:1-Math.pow(-2*u+2,2)/2;
+    camDir=from.clone().applyQuaternion(new THREE.Quaternion().slerp(q,e)); if(u>=1) camDir=to.clone();
+    orbitCamera(0); renderFrame(); if(u<1) requestAnimationFrame(step); };
+  requestAnimationFrame(step); }
 function setCursor(){ canvasEl.style.cursor = !clips.length ? 'default' : ((camKey||viewFreeMode) ? 'move' : 'grab'); }
 
 // ---------- Move gizmo (axis-locked translation handles, slicer-style) ----------
@@ -3513,16 +3546,16 @@ $('#viewCube').addEventListener('click', e=>{
     ray.setFromCamera(v2,ncam); const hit=ray.intersectObject(cube,false)[0]; if(!hit) return null;
     const p=cube.worldToLocal(hit.point.clone()), half=0.875, snap=a=>Math.abs(a)>half*0.55?Math.sign(a):0;   // near a face → that axis counts (face / edge / corner)
     return new THREE.Vector3(snap(p.x),snap(p.y),snap(p.z)); };
-  const lookFrom=d=>{ const h=Math.hypot(d.x,d.z);
-    if(!h){ if(d.y>=0) setTopView(); else setView(Math.round(gYaw()), parseFloat($('#camY').min), 0); return; }   // TOP = straight down, BASE = lowest angle
-    setView(Math.round(Math.atan2(d.x,d.z)*180/Math.PI), d.y>0?2.4:(d.y<0?-0.6:0.15), 0); };          // upper edges/corners = the old iso views
+  // the cube shows the CHARACTER's sides: it turns with the model's heading, so FRONT is always the way the character faces
+  const charQ=()=>new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0), isEnsemble()?0:(heading||0));
+  const lookFrom=d=>snapCamDir(d.clone().normalize().applyQuaternion(charQ()));   // face / edge / corner → glide there (Tabletop-style)
   let down=null;
   cv.addEventListener('pointerdown',ev=>{ ev.stopPropagation(); ev.preventDefault(); down={x:ev.clientX,y:ev.clientY,lx:ev.clientX,ly:ev.clientY,moved:false}; try{cv.setPointerCapture(ev.pointerId);}catch(_){} });
   cv.addEventListener('pointermove',ev=>{ if(!down) return;
     if(Math.abs(ev.clientX-down.x)+Math.abs(ev.clientY-down.y)>3) down.moved=true;
-    if(down.moved){ if(topView){ topView=false; } nudgeCam((ev.clientX-down.lx)*0.8, -(ev.clientY-down.ly)*0.01); down.lx=ev.clientX; down.ly=ev.clientY; } });
+    if(down.moved){ _cubeAnim++; rotCamDir(-(ev.clientX-down.lx)*0.012, (ev.clientY-down.ly)*0.012); down.lx=ev.clientX; down.ly=ev.clientY; } });
   cv.addEventListener('pointerup',ev=>{ if(!down) return; const d=down; down=null; if(d.moved) return; const dir=pick(ev); if(dir && dir.lengthSq()) lookFrom(dir); });
-  window.__navCube={ render(){ cube.quaternion.copy(camera.quaternion).invert(); nr.render(ns,ncam); } };
+  window.__navCube={ render(){ cube.quaternion.copy(camera.quaternion).invert().multiply(charQ()); nr.render(ns,ncam); } };
 })();
 
 // ---------- Character quick-tools popup ----------
@@ -4074,9 +4107,18 @@ if($('#hpX')) $('#hpX').addEventListener('click', hideHeldPropPop);
   const bar=document.createElement('div'); bar.className='sidebar-tabs';
   bar.innerHTML=TABS.map(([id,l])=>`<button type="button" data-t="${id}">${l}</button>`).join('');
   sb.insertBefore(bar, sb.firstChild);
+  // ⧉ undock into its own window (drag it to another monitor; closing that window docks it back) · ◀ hide · ▶ (stage edge) brings it back
+  bar.insertAdjacentHTML('beforeend','<button type="button" class="sb-tool" id="sbUndock" title="Undock: open this panel in its own window — drag it onto another monitor. Close that window (or press again) to dock it back.">⧉</button><button type="button" class="sb-tool" id="sbHide" title="Hide this panel to give the view more room (the ▶ tab on the left edge brings it back)">◀</button>');
+  const UDK={key:'stitchPanel', title:'GLB Stitcher — panel', width:430, onChange:out=>{ document.body.classList.toggle('sb-out', out); const u=document.getElementById('sbUndock'); if(u){ u.textContent=out?'⇤':'⧉'; u.title=out?'Dock this panel back into the main window':'Undock: open this panel in its own window — drag it onto another monitor. Close that window (or press again) to dock it back.'; } const h=document.getElementById('sbHide'); if(h) h.style.display=out?'none':''; }};
+  const setHidden=v=>{ document.body.classList.toggle('sb-hidden', v); try{ localStorage.setItem('sbHidden', v?'1':''); }catch(_){} window.dispatchEvent(new Event('resize')); };
+  bar.querySelector('#sbUndock').onclick=()=>{ if(window.Undock) Undock.toggle(sb, UDK); };
+  if(window.Undock){ Undock.register(UDK.key, sb, UDK); Undock.registerState('stitchPanelHidden', ()=>document.body.classList.contains('sb-hidden'), v=>setHidden(!!v)); }   // 💾 saved / restored with the Studio layout
+  bar.querySelector('#sbHide').onclick=()=>setHidden(true);
+  { const st=document.querySelector('.stage'); if(st){ const b=document.createElement('button'); b.id='sbShow'; b.type='button'; b.textContent='▶'; b.title='Show the panel'; b.onclick=()=>{ if(window.Undock && Undock.isOut(UDK.key)) Undock.dock(UDK.key); else setHidden(false); }; st.appendChild(b); } }
+  try{ if(localStorage.getItem('sbHidden')) document.body.classList.add('sb-hidden'); }catch(_){}
   function setTab(t){ cards.forEach(c=>{ c.style.display=(c.dataset.tab===t)?'':'none'; });
-    bar.querySelectorAll('button').forEach(b=>b.classList.toggle('on', b.dataset.t===t)); try{ localStorage.setItem('sbTab',t); }catch(_){} }
-  bar.querySelectorAll('button').forEach(b=>b.onclick=()=>setTab(b.dataset.t));
+    bar.querySelectorAll('button[data-t]').forEach(b=>b.classList.toggle('on', b.dataset.t===t)); try{ localStorage.setItem('sbTab',t); }catch(_){} }
+  bar.querySelectorAll('button[data-t]').forEach(b=>b.onclick=()=>setTab(b.dataset.t));
   let init='cast'; try{ init=localStorage.getItem('sbTab')||'cast'; }catch(_){} if(!TABS.some(x=>x[0]===init)) init='cast';
   setTab(init);
 })();
@@ -4453,7 +4495,12 @@ function bakeRigScale(root, animClips){
   // Imported Mixamo/ActorCore rigs are unit-consistent (bones + mesh both cm); their bone span is naturally only ~87% of
   // the mesh height (joints sit inside the body, the skull top has no skinned bone) — scaling would stretch the skeleton
   // 15% past the mesh and every joint would pivot from the wrong place (arms swung into the torso).
-  if(Math.abs(boneScale-1) > 0.1 && !(root.userData&&root.userData.importedRig)){
+  // A rig can declare its bones are already in the mesh's units (glTF extras ksolUnits:'mesh', stamped by our dino pipeline):
+  // a creature whose plates/frill/sail stand far above its spine has a bone span much shorter than its mesh, and stretching
+  // its skeleton to the mesh height made every joint pivot from the wrong place (2026-10-02: a Stegosaurus head swung
+  // forward and stretched the neck instead of tipping; skeleton 1.6× its mesh).
+  let unitsOK=false; root.traverse(o=>{ if(o.userData && o.userData.ksolUnits==='mesh') unitsOK=true; });
+  if(Math.abs(boneScale-1) > 0.1 && !unitsOK && !(root.userData&&root.userData.importedRig)){
     root.traverse(o=>{ if(o.isBone) o.position.multiplyScalar(boneScale); });
     if(animClips) for(const clip of animClips){ if(!clip||!clip.tracks) continue;
       for(const t of clip.tracks){ if(/\.position$/.test(t.name)){ for(let i=0;i<t.values.length;i++) t.values[i]*=boneScale; } } }
@@ -4957,6 +5004,15 @@ function nodeCut(srcId){   // clicking a wire drops that link → downstream cli
 }
 $('#nodeToggle').addEventListener('click', ()=>{ const on=$('#nodeEditor').classList.toggle('show'); $('#nodeToggle').classList.toggle('on',on); if(on){ nodeScrollX=0; renderNodes(); if(playingClipId) setPlayingClip(playingClipId); } });
 $('#linkNodes').addEventListener('click', linkSelected);
+// ⧉ node editor / flow strip in their own windows (Undock moves the elements; lookups and drags keep working)
+{ const NODE={key:'stitchNodes', title:'GLB Stitcher — nodes', width:Math.min(1400,screen.availWidth||1400), height:Math.min(900,screen.availHeight||900), onChange:out=>{ const b=document.getElementById('nodeUndock'); if(b) b.textContent=out?'⇤ Put back':'⧉ Own window';
+    const ed=document.getElementById('nodeEditor'); if(out){ ed.classList.add('show'); } else { const t=document.getElementById('nodeToggle'); ed.classList.toggle('show', !!(t&&t.classList.contains('on'))); }
+    setTimeout(()=>{ try{ renderNodes(); }catch(_){} }, 50); }};
+  $('#nodeUndock').addEventListener('click', e=>{ e.stopPropagation(); if(window.Undock) Undock.toggle(document.getElementById('nodeEditor'), NODE); });
+  const FLOW={key:'stitchFlow', title:'GLB Stitcher — flow', width:Math.min(1400,screen.availWidth||1400), height:420, onChange:out=>{ const b=document.getElementById('flowUndock'); if(b){ b.textContent=out?'⇤':'⧉'; } setTimeout(()=>{ try{ renderTimeline(); }catch(_){} }, 50); }};
+  $('#flowUndock').addEventListener('click', ()=>{ if(window.Undock) Undock.toggle(document.getElementById('timeline'), FLOW); });
+  if(window.Undock){ Undock.register(NODE.key, ()=>document.getElementById('nodeEditor'), NODE); Undock.register(FLOW.key, ()=>document.getElementById('timeline'), FLOW);
+    Undock.registerState('stitchNodesOpen', ()=>!!(document.getElementById('nodeToggle')||{}).classList?.contains('on'), v=>{ const t=document.getElementById('nodeToggle'); if(t && !!v!==t.classList.contains('on')) t.click(); }); } }
 let nodeMarquee=null;
 function selectPrimary(id){ const i=clips.findIndex(x=>x.id===id); if(i>=0){ selIndex=i; if(clips[i].charId) activeCharId=clips[i].charId; refreshView(); } }
 $('#nodeLayer').addEventListener('pointerdown', e=>{
@@ -5100,6 +5156,10 @@ let camState={radius:1,dist:5,baseYaw:0,camElev:0.2,targetY:0,pivotX:0,pivotZ:0}
 // Free-look view offsets for composing a recording shot. These compose ON TOP of the auto-framing,
 // so the character is never re-framed, re-centred, or re-scaled — it just moves the camera.
 let viewYaw=0, viewPitch=0, viewDolly=1;
+// VIEW-CUBE direction (2026-10-02, like the Tabletop cube): when set, the camera sits on this unit WORLD direction from the
+// framed pivot, at the framing distance — any face / edge / corner, straight down or straight up. Cleared by the yaw/height
+// sliders, ◎ Reset, and the old setView presets. extraYaw (render drift) still turns it.
+let camDir=null, _camLook=null;
 let viewPanRight=0, viewPanUp=0;   // persistent screen-plane pan (world units), layered on the framed pivot like viewYaw — survives clip reframes
 function resetFreeView(){ viewYaw=0; viewPitch=0; viewDolly=1; viewPanRight=0; viewPanUp=0; }
 function orbitCamera(extraYaw=0){
@@ -5114,16 +5174,21 @@ function orbitCamera(extraYaw=0){
   const {radius=1,camElev=0,targetY=0,pivotX=0,pivotZ=0}=camState;
   const dist=(camState.dist||5)*viewDolly;
   let vx=Math.sin(yaw)*dist, vy=camElev+radius*0.1, vz=Math.cos(yaw)*dist;   // eye relative to the pivot
-  if(viewPitch){                                          // tumble up/down about the horizontal axis ⟂ to yaw
+  if(viewPitch && !camDir){                              // tumble up/down about the horizontal axis ⟂ to yaw
     const ca=Math.cos(viewPitch), sa=Math.sin(viewPitch), kx=Math.cos(yaw), kz=-Math.sin(yaw);  // unit axis in XZ
     const kv=kx*vx+kz*vz;                                 // Rodrigues rotation of v about k (ky=0)
     const cx=kz*vy, cy=kz*vx-kx*vz, cz=-kx*vy;            // k × v
     vx=vx*ca+cx*sa+kx*kv*(1-ca); vy=vy*ca+cy*sa; vz=vz*ca+cz*sa+kz*kv*(1-ca);
   }
-  const rx=Math.cos(yaw), rz=-Math.sin(yaw);             // screen-right in world XZ → pan the pivot in the view plane
+  let yawR=yaw;
+  if(camDir){ const L=Math.hypot(vx,vy,vz)||dist, c=Math.cos(extraYaw), s=Math.sin(extraYaw);
+    const dx=camDir.x*c+camDir.z*s, dz=-camDir.x*s+camDir.z*c; vx=dx*L; vy=camDir.y*L; vz=dz*L;
+    if(Math.abs(camDir.y)>0.985) camera.up.set(0,0,-1);   // straight down / up: a north-up frame (as the Tabletop does)
+    else yawR=Math.atan2(dx,dz); }
+  const rx=Math.cos(yawR), rz=-Math.sin(yawR);           // screen-right in world XZ → pan the pivot in the view plane
   const pX=pivotX+viewPanRight*rx, pY=targetY+viewPanUp, pZ=pivotZ+viewPanRight*rz;
   camera.position.set(pX+vx, pY+vy, pZ+vz);
-  camera.lookAt(pX,pY,pZ);
+  camera.lookAt(pX,pY,pZ); _camLook={x:pX,y:pY,z:pZ};
   camera.near=Math.max(0.01,dist/100); camera.far=dist*100; camera.updateProjectionMatrix();
 }
 // Cinematic camera drift for render/preview — layered purely through the existing extraYaw + viewDolly
@@ -5217,6 +5282,7 @@ $('#motionMode').addEventListener('change', ()=>{ if(clips.length) showClip(selI
 $('#advanceSpeed').addEventListener('input', ()=>{ $('#advSpeedVal').textContent=parseFloat($('#advanceSpeed').value).toFixed(1)+'×'; });
 ['pad','camY','vpos','camYaw','light','shadowStr'].forEach(id=>{
   $('#'+id).addEventListener('input', ()=>{
+    if(id==='camY'||id==='camYaw') camDir=null;                       // the sliders take the camera back from the view cube
     $('#padVal').textContent=gPad().toFixed(2)+'×';
     $('#camYVal').textContent=gCamY().toFixed(2);
     $('#vposVal').textContent=gVpos().toFixed(2);
@@ -6135,7 +6201,7 @@ function mlSetRig(root, label){
   // rotation (a banking turn, a body-spin) about the SAME world axis even when this rig's armature is
   // oriented differently from the library template. Pose the skeleton to `rest`, read the root bone's world
   // quaternion, then restore. (Only needed for the root; pairs with the library's stored rootWorldQ.)
-  let rootWorldQ=null, rootBoneName=null;
+  let rootWorldQ=null, rootBoneName=null; const restWorldQ={}, parentOf={};
   { let rb=null; root.traverse(o=>{ if(o.isBone && !rb && !(o.parent&&o.parent.isBone)) rb=o; });
     if(rb){ rootBoneName=rb.name;
       const skins=[], saved=[];
@@ -6143,10 +6209,14 @@ function mlSetRig(root, label){
       root.traverse(o=>{ if(o.isBone && rest[o.name]){ o.quaternion.fromArray(rest[o.name].q); o.position.fromArray(rest[o.name].p); } });
       root.updateMatrixWorld(true);
       rootWorldQ = rb.getWorldQuaternion(new THREE.Quaternion()).toArray();
+      root.traverse(o=>{ if(o.isBone){ restWorldQ[o.name]=o.getWorldQuaternion(new THREE.Quaternion()).toArray(); if(o.parent&&o.parent.isBone) parentOf[o.name]=o.parent.name; } });   // for ksolTurnAdd
       skins.forEach((o,si)=>{ o.skeleton.bones.forEach((b,i)=>{ b.position.copy(saved[si][i].p); b.quaternion.copy(saved[si][i].q); }); });
       root.updateMatrixWorld(true);
     } }
-  libRig={ root, rest, legLength:mlLegLength(root), sig:skelSig(root), label, rootWorldQ, rootBoneName, imported:!!(root.userData&&root.userData.importedRig), ksol:(()=>{ let k=false; root.traverse(o=>{ if(o.userData&&o.userData.ksolRestPose==='tpose') k=true; }); return k; })() };
+  libRig={ root, rest, legLength:mlLegLength(root), sig:skelSig(root), label, rootWorldQ, rootBoneName, imported:!!(root.userData&&root.userData.importedRig), ksol:(()=>{ let k=false; root.traverse(o=>{ if(o.userData&&o.userData.ksolRestPose==='tpose') k=true; }); return k; })(),
+    restWorldQ, parentOf,
+    turnAdd:(()=>{ let v=null; root.traverse(o=>{ const k=o.userData&&o.userData.ksolTurnAdd; if(!v && k && typeof k==='object') v=k; }); return v; })(),
+    jawScale:(()=>{ let v=0; root.traverse(o=>{ const k=o.userData&&+o.userData.ksolJawScale; if(!v && k>0) v=k; }); return v||1; })() };   // glTF extras ksolJawScale: how much wider THIS model's jaw opens than the template's (a model modelled open-mouthed and baked shut needs more)
   const match = mlLibSig && libRig.sig===mlLibSig;
   $('#mlRig').innerHTML=`Rig: <b>${label}</b> · ${mlBoneList(root).length} bones · ${match?'✓ matches library skeleton':'⚠ different rig — retargets by bone name'}`;
   renderMotionLib();   // re-filter the list to this rig's skeleton (biped / quad / bird)
@@ -6164,7 +6234,7 @@ const _WA_PRIMARY={ Hips:'Spine', Spine:'Spine01', Spine01:'Spine02', Spine02:'n
   LeftHand:'LeftHandMiddle1', RightHand:'RightHandMiddle1' };
 const _WA_SIDE={ Hips:['LeftUpLeg','RightUpLeg'], Spine02:['LeftShoulder','RightShoulder'],
   LeftHand:['LeftHandIndex1','LeftHandPinky1'], RightHand:['RightHandPinky1','RightHandIndex1'] };
-function worldAlignedQuats(clip, src, rig, rootScale){
+function worldAlignedQuats(clip, src, rig, rootScale, aimSpec){
   if(!src || !src.rest || !rig || !rig.root) return null;
   const sR=src.rest, tR=rig.rest; const V=THREE.Vector3, Q=THREE.Quaternion;
   // target hierarchy (bone order = parents first)
@@ -6217,6 +6287,9 @@ function worldAlignedQuats(clip, src, rig, rootScale){
       A[n]=new Q().setFromUnitVectors(dtA, ds.clone().normalize()).multiply(pA);
     } else A[n]=new Q().setFromUnitVectors(dt.clone().normalize(), ds.clone().normalize());
   }
+  // DELTA mode (WA_AIM spec delta:true): these bones take only the template's WORLD turn on top of THIS character's own rest
+  // (no re-aim onto the template's directions) — a lopsided rig keeps its own wing shape yet mirrors cleanly left/right.
+  if(aimSpec && aimSpec.delta) for(const n of sNames) if(!aimSpec.bones || aimSpec.bones.test(n)) A[n]=new Q();
   // sample the clip
   const qt={}; let times=[];
   for(const t of clip.tracks){ const dot=t.name.lastIndexOf('.'); if(t.name.slice(dot+1)!=='quaternion') continue;
@@ -6409,7 +6482,10 @@ function worldAlignedQuats(clip, src, rig, rootScale){
 // template with its OWN folded-leg rest (shin/foot 49-90° off the template's), so forcing shin + foot + toes to the template's
 // directions pulled this frog out of its fold and wrung the skin (shin edges 4-6× their length even in the recovery). The thigh's
 // direction carries the kick; the shin/foot/toes bend from THIS frog's rest (shin stretch p95 389→101 % folded, 629→411 % kicked).
-const WA_AIM = { ra_frog_swim:{ bones:/^(R_)?backleg$/ } };
+const WA_AIM = { ra_frog_swim:{ bones:/^(R_)?backleg$/ },
+  // 2026-10-02: the tucked Dive — a wing folded this far splits on a rig whose shoulder/chest frames are lopsided (the Bald Eagle's
+  // are), because the plain transfer applies each wing's turn about its own skewed frame. Aim the wing bones by world direction.
+  ra_birdflight_dive:{ bones:/^Bone_0(0[01]|1[4589])$/, delta:true } };   // body + upper arm + forearm take the world turn; the hand / long finger follow normally
 function retargetMotion(motion, rig){
   const clip=THREE.AnimationClip.parse(motion.clip);
   const src=libSkeletons[motion.sig];
@@ -6450,7 +6526,7 @@ function retargetMotion(motion, rig){
     tArmUp=new THREE.Vector3(0,1,0).applyQuaternion(tArm.clone().invert());
   }
   const _aimSpec = !(rig && rig.imported) ? WA_AIM[String(motion.id||'').replace(/_\d+_\d+_\d+$/,'')] : null;
-  const WA = (rig && (rig.imported || _aimSpec)) ? worldAlignedQuats(clip, src, rig, rootScale) : null;
+  const WA = (rig && (rig.imported || _aimSpec)) ? worldAlignedQuats(clip, src, rig, rootScale, _aimSpec) : null;
   const waOnly = _aimSpec ? _aimSpec.bones : null;          // aim-only: just these bones take the direction transfer
   const tracks=[]; let matched=0, totalBones=0; const seen=new Set();
   for(const t of clip.tracks){
@@ -6479,7 +6555,10 @@ function retargetMotion(motion, rig){
         //    rootWorldQ is absent (older bakes) — that keeps a spin roughly upright but tilts by the rest gap.
         let pre=null, postR=null;
         if(isRoot && rootK){ pre=rootK; postR=rootK.clone().invert().multiply(tr); }             // K·q·sr⁻¹·K⁻¹·tr
+        const jawK = (bone==='jaw' && rig.jawScale && rig.jawScale!==1) ? rig.jawScale : 0, _ax=new THREE.Vector3();
         for(let i=0;i<v.length;i+=4){ q.set(v[i],v[i+1],v[i+2],v[i+3]);
+          if(jawK){ const D=q.clone().multiply(srInv); if(D.w<0){ D.x=-D.x; D.y=-D.y; D.z=-D.z; D.w=-D.w; } const a=2*Math.acos(Math.min(1,D.w)), s=Math.sqrt(Math.max(0,1-D.w*D.w));
+            if(s>1e-6){ _ax.set(D.x/s,D.y/s,D.z/s); const o2=new THREE.Quaternion().setFromAxisAngle(_ax, a*jawK).multiply(tr); v[i]=o2.x;v[i+1]=o2.y;v[i+2]=o2.z;v[i+3]=o2.w; continue; } }
           const out = pre ? pre.clone().multiply(q).multiply(srInv).multiply(postR)
                           : isRoot ? tr.clone().multiply(srInv).multiply(q)
                                    : q.clone().multiply(srInv).multiply(tr);
@@ -6536,6 +6615,23 @@ function retargetMotion(motion, rig){
         // suspension arc (gallop/bound) that frame is airborne, and detrending its height made the whole clip sink.
         if(rootK && tArmUp){ const k=dNx*tArmUp.x+dNy*tArmUp.y+dNz*tArmUp.z; dNx-=k*tArmUp.x; dNy-=k*tArmUp.y; dNz-=k*tArmUp.z; }
         for(let f=0;f<n;f++){ const a=Math.min(f,endIdx)/endIdx; v[f*3]-=a*dNx; v[f*3+1]-=a*dNy; v[f*3+2]-=a*dNz; } } } }
+  // PER-CHARACTER TURN ADJUST (glTF extras ksolTurnAdd, 2026-10-03): one shared motion can't suit every body — a thick-thighed
+  // Spinosaurus needs its legs splayed further in the lie-down than the approved Edmontosaurus. { "<motion id without _NN_NN_NN>":
+  //   { "<bone>": [x,y,z,deg] } } adds up to `deg` about a WORLD axis (the rig's rest frame: +Z forward, +X the character's left)
+  //   in proportion to how far that bone itself has moved at that moment (0 at rest → full at its widest), so it rides the motion;
+  //   { "<bone>": {from:"<bone2>", k:0.5} } gives the bone k × bone2's turn (spread a neck turn one joint further back).
+  { const _tk=String(motion.id||'').replace(/_\d+_\d+_\d+$/,''), TA = rig && rig.turnAdd && (rig.turnAdd[_tk] || rig.turnAdd[_tk.replace(/^ra_[a-zA-Z]+_/,'')]);
+    if(TA && rig.restWorldQ){ const Q=THREE.Quaternion, V=THREE.Vector3;
+      const trk=b=>tracks.find(t=>t.name===b+'.quaternion'), pw=b=>{ const p=rig.parentOf[b]; return p&&rig.restWorldQ[p] ? new Q().fromArray(rig.restWorldQ[p]) : (rig.rootWorldQ? new Q().fromArray(rig.rootWorldQ).multiply(new Q().fromArray(tgtRest[b].q).invert()) : new Q()); };
+      const delta=(t,i,b)=>{ const q=new Q(t.values[i],t.values[i+1],t.values[i+2],t.values[i+3]); return q.multiply(new Q().fromArray(tgtRest[b].q).invert()); };   // turn in the parent frame
+      for(const [b,spec] of Object.entries(TA)){ const t=trk(b); if(!t || !tgtRest[b]) continue; const P=pw(b), Pi=P.clone().invert(), out=t.values;
+        if(Array.isArray(spec)){ const axW=new V(spec[0],spec[1],spec[2]).normalize(), axL=axW.clone().applyQuaternion(Pi), deg=(+spec[3]||0)*Math.PI/180;
+          const mag=[]; for(let i=0;i<out.length;i+=4){ const d=delta(t,i,b); mag.push(2*Math.acos(Math.min(1,Math.abs(d.w)))); } const mx=Math.max(1e-6,...mag);
+          for(let i=0,f=0;i<out.length;i+=4,f++){ const r=new Q().setFromAxisAngle(axL, deg*mag[f]/mx).multiply(new Q(out[i],out[i+1],out[i+2],out[i+3])); out[i]=r.x;out[i+1]=r.y;out[i+2]=r.z;out[i+3]=r.w; } }
+        else if(spec && spec.from){ const ft=trk(spec.from); if(!ft || !tgtRest[spec.from] || ft.values.length!==out.length) continue; const FP=pw(spec.from), k=+spec.k||0.5;
+          for(let i=0;i<out.length;i+=4){ const d=delta(ft,i,spec.from); if(d.w<0){ d.x=-d.x; d.y=-d.y; d.z=-d.z; d.w=-d.w; } const a=2*Math.acos(Math.min(1,d.w)), s2=Math.sqrt(Math.max(0,1-d.w*d.w)); if(s2<1e-6) continue;
+            const axW=new V(d.x/s2,d.y/s2,d.z/s2).applyQuaternion(FP), axL=axW.applyQuaternion(Pi);
+            const r=new Q().setFromAxisAngle(axL, a*k).multiply(new Q(out[i],out[i+1],out[i+2],out[i+3])); out[i]=r.x;out[i+1]=r.y;out[i+2]=r.z;out[i+3]=r.w; } } } } }
   const out=new THREE.AnimationClip(clip.name, clip.duration, tracks);
   out.__match={matched, totalBones, ratio:+ratio.toFixed(3)};
   return out;
@@ -6561,7 +6657,7 @@ function retargetMotion(motion, rig){
   sniff:{nose:1}, graze:{nose:1}, drink:{nose:1},
   // Quad lying poses: the body drop is authored on the template; stop it at THIS character's own belly (level body)
   // or flank (rolled onto the side), measured off its rest mesh — a deep-bodied rhino otherwise sinks through the floor.
-  liedown:{lie:1}, sleep:{lie:1}, getup:{lie:1}, gir_liedown:{lie:1}, gir_sleep:{lie:1}, gir_getup:{lie:1},
+  liedown:{lie:1}, sleep:{lie:1}, getup:{lie:1}, gir_liedown:{lie:1}, gir_sleep:{lie:1}, gir_getup:{lie:1}, dinq_rest:{lie:1},   // 🦕 the dinosaurs use the wolf's lie-down (2026-10-02)
   // Biped crawling on the belly (Drag Self): the feet-contact root solve leaves a shorter body propped high on its toes (the Man
   // floated 13 cm, knees and chest in the air) — drop the body onto its hands + toes and level the hips between them.
   injdrag:{hands:1, toes:1},
@@ -7975,6 +8071,9 @@ async function loadProject(file){
   }catch(e){ console.error(e); setStatus('Could not read that project file'); }
 }
 const _pi=$('#projInput'); if(_pi) _pi.addEventListener('change', e=>{ const f=e.target.files[0]; if(f) loadProject(f); e.target.value=''; });
+// Inside GLB Studio: hide this page's own header row and hand its File menu to the Studio bar (shown next to About).
+try{ if(window.parent!==window && window.parent.document.querySelector('nav [data-tool]')) document.body.classList.add('in-studio'); }catch(_){}
+window.studioMenu=()=>[...document.querySelectorAll('#appMenu button[data-act]')].map(b=>({label:b.textContent.trim(), run:()=>b.click()}));
 // ---- Top menu (Save / Save As / Load / About) ----
 const _mb=$('#appMenuBtn'), _am=$('#appMenu');
 if(_mb&&_am){
